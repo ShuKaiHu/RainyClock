@@ -11,7 +11,11 @@ struct ContentView: View {
                         .textContentType(.fullStreetAddress)
                     TextField("Work address", text: $viewModel.settings.workAddress, axis: .vertical)
                         .textContentType(.fullStreetAddress)
-                    LabeledContent("Mode", value: "Driving")
+                    Picker("Mode", selection: $viewModel.settings.commuteMode) {
+                        ForEach(CommuteAlarmSettings.CommuteMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
                 }
 
                 Section("Alarm") {

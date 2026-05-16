@@ -1,13 +1,31 @@
 import Foundation
 
 struct CommuteAlarmSettings: Equatable {
-    enum CommuteMode: String, Equatable {
-        case driving
+    enum CommuteMode: String, CaseIterable, Identifiable, Equatable {
+        case car
+        case scooter
+        case walking
+        case publicTransit
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .car:
+                "Car"
+            case .scooter:
+                "Scooter"
+            case .walking:
+                "Walking"
+            case .publicTransit:
+                "Public Transit"
+            }
+        }
     }
 
     var homeAddress: String = ""
     var workAddress: String = ""
-    var commuteMode: CommuteMode = .driving
+    var commuteMode: CommuteMode = .car
     var alarmTime: Date = Calendar.current.date(bySettingHour: 7, minute: 30, second: 0, of: Date()) ?? Date()
     var rainLeadTimeMinutes: Int = 30
     var rainProbabilityThreshold: Double = 0.5

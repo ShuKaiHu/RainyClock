@@ -22,15 +22,16 @@ struct MockRouteWeatherService: RouteWeatherService {
             || homeAddress.contains("雨")
             || workAddress.contains("雨")
 
+        let routeName = "\(mode.displayName) route"
         let segments = rainyInput
             ? [
                 RouteWeatherSegment(name: "Home area", condition: .cloudy, precipitationProbability: 0.25),
-                RouteWeatherSegment(name: "Driving route", condition: .rain, precipitationProbability: 0.72),
+                RouteWeatherSegment(name: routeName, condition: .rain, precipitationProbability: 0.72),
                 RouteWeatherSegment(name: "Office area", condition: .cloudy, precipitationProbability: 0.35)
             ]
             : [
                 RouteWeatherSegment(name: "Home area", condition: .clear, precipitationProbability: 0.08),
-                RouteWeatherSegment(name: "Driving route", condition: .cloudy, precipitationProbability: 0.18),
+                RouteWeatherSegment(name: routeName, condition: .cloudy, precipitationProbability: 0.18),
                 RouteWeatherSegment(name: "Office area", condition: .clear, precipitationProbability: 0.05)
             ]
 
