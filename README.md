@@ -1,6 +1,6 @@
-# Jack Clock
+# Jack Weather Clock
 
-Jack Clock is an iOS alarm app concept that adjusts a commute alarm when rain is detected along the route between home and work.
+Jack Weather Clock is an iOS alarm app concept that adjusts a commute alarm when rain is detected along the route between home and work.
 
 ## Goal
 

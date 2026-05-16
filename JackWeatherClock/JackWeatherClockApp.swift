@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct JackClockApp: App {
+struct JackWeatherClockApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(viewModel: AlarmViewModel())

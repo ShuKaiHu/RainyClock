@@ -80,7 +80,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("Jack Clock")
+            .navigationTitle("Jack Weather Clock")
         }
     }
 

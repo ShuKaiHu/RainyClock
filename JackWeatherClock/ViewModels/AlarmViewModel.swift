@@ -65,7 +65,7 @@ final class AlarmViewModel: ObservableObject {
 
             try await notificationScheduler.scheduleAlarm(
                 at: summary.scheduledAlarmDate,
-                title: "Jack Clock",
+                title: "Jack Weather Clock",
                 body: body
             )
 
