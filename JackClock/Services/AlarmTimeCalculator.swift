@@ -5,6 +5,8 @@ enum AlarmTimeCalculator {
         alarmTime: Date,
         leadTimeMinutes: Int,
         shouldApplyLeadTime: Bool,
+        rainProbabilityThreshold: Double,
+        maximumPrecipitationProbability: Double,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> ScheduledAlarmSummary {
@@ -27,8 +29,11 @@ enum AlarmTimeCalculator {
         return ScheduledAlarmSummary(
             normalAlarmDate: normalAlarmDate,
             scheduledAlarmDate: scheduledAlarmDate,
-            rainDetected: shouldApplyLeadTime,
-            leadTimeMinutes: shouldApplyLeadTime ? leadTimeMinutes : 0
+            weatherRefreshDate: calendar.date(byAdding: .minute, value: -leadTimeMinutes, to: normalAlarmDate) ?? normalAlarmDate,
+            exceedsRainThreshold: shouldApplyLeadTime,
+            leadTimeMinutes: shouldApplyLeadTime ? leadTimeMinutes : 0,
+            rainProbabilityThreshold: rainProbabilityThreshold,
+            maximumPrecipitationProbability: maximumPrecipitationProbability
         )
     }
 }

@@ -44,20 +44,24 @@ final class AlarmViewModel: ObservableObject {
             let snapshot = try await routeWeatherService.fetchRouteWeather(
                 from: settings.homeAddress,
                 to: settings.workAddress,
+                mode: settings.commuteMode,
                 around: settings.alarmTime
             )
             routeWeatherSnapshot = snapshot
 
+            let exceedsThreshold = snapshot.exceedsRainThreshold(settings.rainProbabilityThreshold)
             let summary = AlarmTimeCalculator.nextAlarmDate(
                 alarmTime: settings.alarmTime,
                 leadTimeMinutes: settings.rainLeadTimeMinutes,
-                shouldApplyLeadTime: snapshot.hasRain
+                shouldApplyLeadTime: exceedsThreshold,
+                rainProbabilityThreshold: settings.rainProbabilityThreshold,
+                maximumPrecipitationProbability: snapshot.maximumPrecipitationProbability
             )
             scheduledAlarmSummary = summary
 
-            let body = snapshot.hasRain
-                ? "Rain is expected on your route, so the alarm was moved earlier."
-                : "No rain detected on your route, so the normal alarm time was used."
+            let body = exceedsThreshold
+                ? "Rain probability is above your threshold, so the alarm was moved earlier."
+                : "Rain probability is below your threshold, so the normal alarm time was used."
 
             try await notificationScheduler.scheduleAlarm(
                 at: summary.scheduledAlarmDate,
@@ -65,7 +69,7 @@ final class AlarmViewModel: ObservableObject {
                 body: body
             )
 
-            statusMessage = snapshot.hasRain ? "Rain detected. Alarm adjusted." : "No rain detected. Alarm scheduled."
+            statusMessage = exceedsThreshold ? "Rain threshold exceeded. Alarm adjusted." : "Rain threshold not exceeded. Alarm scheduled."
         } catch {
             statusMessage = "Could not schedule alarm: \(error.localizedDescription)"
         }

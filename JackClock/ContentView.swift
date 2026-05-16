@@ -11,6 +11,7 @@ struct ContentView: View {
                         .textContentType(.fullStreetAddress)
                     TextField("Work address", text: $viewModel.settings.workAddress, axis: .vertical)
                         .textContentType(.fullStreetAddress)
+                    LabeledContent("Mode", value: "Driving")
                 }
 
                 Section("Alarm") {
@@ -22,6 +23,15 @@ struct ContentView: View {
                             Text("\(viewModel.settings.rainLeadTimeMinutes) min")
                                 .foregroundStyle(.secondary)
                         }
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Rain threshold")
+                            Spacer()
+                            Text("\(Int(viewModel.settings.rainProbabilityThreshold * 100))%")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $viewModel.settings.rainProbabilityThreshold, in: 0.1...0.9, step: 0.05)
                     }
                 }
 
@@ -41,7 +51,10 @@ struct ContentView: View {
                     Section("Scheduled Result") {
                         LabeledContent("Normal alarm", value: summary.normalAlarmDate.formatted(date: .omitted, time: .shortened))
                         LabeledContent("Scheduled alarm", value: summary.scheduledAlarmDate.formatted(date: .abbreviated, time: .shortened))
-                        LabeledContent("Rain adjustment", value: summary.rainDetected ? "\(summary.leadTimeMinutes) min earlier" : "Not applied")
+                        LabeledContent("Weather refresh", value: summary.weatherRefreshDate.formatted(date: .abbreviated, time: .shortened))
+                        LabeledContent("Rain threshold", value: "\(Int(summary.rainProbabilityThreshold * 100))%")
+                        LabeledContent("Route max", value: "\(Int(summary.maximumPrecipitationProbability * 100))%")
+                        LabeledContent("Rain adjustment", value: summary.exceedsRainThreshold ? "\(summary.leadTimeMinutes) min earlier" : "Not applied")
                     }
                 }
 
