@@ -1,0 +1,19 @@
+# Xcode
+DerivedData/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Fastlane / archives
+*.ipa
+*.dSYM.zip
+*.dSYM
+build/
