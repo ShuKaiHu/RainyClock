@@ -18,7 +18,7 @@ final class AlarmViewModel: ObservableObject {
     private static let settingsStorageKey = "commuteAlarmSettings"
 
     init(
-        routeWeatherService: RouteWeatherService = MockRouteWeatherService(),
+        routeWeatherService: RouteWeatherService = MapKitRouteWeatherService(),
         notificationScheduler: NotificationScheduling = LocalNotificationScheduler(),
         settingsStorage: UserDefaults = .standard
     ) {

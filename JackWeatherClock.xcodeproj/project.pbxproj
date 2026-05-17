@@ -23,6 +23,7 @@
 		0A10000E2C00000000000001 /* RoutePolylineSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000852C00000000000002 /* RoutePolylineSampler.swift */; };
 		0A10000F2C00000000000001 /* RoutePolylineSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000862C00000000000002 /* RoutePolylineSamplerTests.swift */; };
 		0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */; };
+		0A1000112C00000000000002 /* WeatherKitSamplingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000882C00000000000002 /* WeatherKitSamplingService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,8 @@
 		0A1000852C00000000000002 /* RoutePolylineSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePolylineSampler.swift; sourceTree = "<group>"; };
 		0A1000862C00000000000002 /* RoutePolylineSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePolylineSamplerTests.swift; sourceTree = "<group>"; };
 		0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSampleMapperTests.swift; sourceTree = "<group>"; };
+		0A1000882C00000000000002 /* WeatherKitSamplingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitSamplingService.swift; sourceTree = "<group>"; };
+		0A1000892C00000000000002 /* JackWeatherClock.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JackWeatherClock.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -97,6 +100,7 @@
 				0A1000342C00000000000001 /* Services */,
 				0A1000352C00000000000001 /* ViewModels */,
 				0A1000182C00000000000001 /* Assets.xcassets */,
+				0A1000892C00000000000002 /* JackWeatherClock.entitlements */,
 				0A1000402C00000000000002 /* Localizable.strings */,
 				0A1000412C00000000000002 /* InfoPlist.strings */,
 			);
@@ -128,6 +132,7 @@
 				0A1000152C00000000000001 /* NotificationScheduling.swift */,
 				0A1000852C00000000000002 /* RoutePolylineSampler.swift */,
 				0A1000162C00000000000001 /* RouteWeatherService.swift */,
+				0A1000882C00000000000002 /* WeatherKitSamplingService.swift */,
 				0A1000842C00000000000002 /* WeatherSamplingService.swift */,
 			);
 			path = Services;
@@ -285,6 +290,7 @@
 				0A10000C2C00000000000001 /* MapKitRouteWeatherService.swift in Sources */,
 				0A10000D2C00000000000001 /* WeatherSamplingService.swift in Sources */,
 				0A10000E2C00000000000001 /* RoutePolylineSampler.swift in Sources */,
+				0A1000112C00000000000002 /* WeatherKitSamplingService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -431,6 +437,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = JackWeatherClock/JackWeatherClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -464,6 +471,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = JackWeatherClock/JackWeatherClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";

@@ -1,5 +1,6 @@
 import CoreLocation
 import Foundation
+import WeatherKit
 
 protocol WeatherSamplingService: Sendable {
     func sampleWeather(
@@ -37,6 +38,43 @@ enum WeatherSampleMapper {
             .cloudy
         default:
             .clear
+        }
+    }
+
+    static func condition(
+        for weatherCondition: WeatherCondition,
+        precipitationProbability: Double
+    ) -> RouteWeatherSegment.Condition {
+        switch weatherCondition {
+        case .blizzard,
+             .drizzle,
+             .flurries,
+             .freezingDrizzle,
+             .freezingRain,
+             .hail,
+             .heavyRain,
+             .heavySnow,
+             .isolatedThunderstorms,
+             .rain,
+             .scatteredThunderstorms,
+             .sleet,
+             .snow,
+             .strongStorms,
+             .sunFlurries,
+             .sunShowers,
+             .thunderstorms,
+             .tropicalStorm,
+             .wintryMix:
+            .rain
+        case .cloudy,
+             .foggy,
+             .haze,
+             .mostlyCloudy,
+             .partlyCloudy,
+             .smoky:
+            .cloudy
+        default:
+            condition(for: precipitationProbability)
         }
     }
 }

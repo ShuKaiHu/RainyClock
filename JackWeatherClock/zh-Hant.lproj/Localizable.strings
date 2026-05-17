@@ -36,5 +36,6 @@
 "segment_office_area" = "公司附近";
 "segment_route_format" = "%@路線";
 "segment_route_sample_format" = "%@取樣 %d";
+"weather_data_attribution" = "天氣資料由 Apple Weather 提供。";
 "error_address_not_found" = "找不到這個地址：%@";
 "error_route_not_found" = "找不到這段通勤路線。";

@@ -80,6 +80,9 @@ struct ContentView: View {
                                 }
                             }
                         }
+                        Text("weather_data_attribution")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

@@ -36,5 +36,6 @@
 "segment_office_area" = "Office area";
 "segment_route_format" = "%@ route";
 "segment_route_sample_format" = "%@ sample %d";
+"weather_data_attribution" = "Weather data provided by Apple Weather.";
 "error_address_not_found" = "Could not find this address: %@";
 "error_route_not_found" = "Could not find a route for this commute.";

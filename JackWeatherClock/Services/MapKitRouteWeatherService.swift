@@ -9,7 +9,7 @@ actor MapKitRouteWeatherService: RouteWeatherService {
 
     init(
         geocoder: CLGeocoder = CLGeocoder(),
-        weatherSamplingService: any WeatherSamplingService = MockWeatherSamplingService(),
+        weatherSamplingService: any WeatherSamplingService = WeatherKitSamplingService(),
         maximumSampleCount: Int = 5
     ) {
         self.geocoder = geocoder
