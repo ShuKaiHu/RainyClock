@@ -8,7 +8,7 @@ The first version focuses on one commute profile: home to work. Users can choose
 
 ### Weather Strategy
 
-The app is structured around a `RouteWeatherService` protocol. The current implementation is a mock so the app can be built and exercised before API credentials and Apple entitlements are configured.
+The app is structured around a `RouteWeatherService` protocol. The default implementation remains a mock so the app can be built and exercised before API credentials and Apple entitlements are configured. A `MapKitRouteWeatherService` skeleton now performs geocoding and route lookup, but still reports zero precipitation until WeatherKit is connected.
 
 The production implementation should:
 
@@ -51,7 +51,7 @@ All user-facing UI text should be backed by localized string resources. Document
 
 ### 天氣策略
 
-App 以 `RouteWeatherService` protocol 作為路線天氣抽象層。目前使用 mock 實作，讓 App 在尚未設定 API 憑證與 Apple entitlement 前仍可建置與操作。
+App 以 `RouteWeatherService` protocol 作為路線天氣抽象層。預設仍使用 mock 實作，讓 App 在尚未設定 API 憑證與 Apple entitlement 前仍可建置與操作。現在也新增了 `MapKitRouteWeatherService` 骨架，可執行地址轉座標與路線查詢，但在接上 WeatherKit 前會回傳 0 降雨機率。
 
 正式版實作應該：
 

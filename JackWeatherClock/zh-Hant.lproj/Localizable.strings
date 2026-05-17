@@ -35,3 +35,5 @@
 "segment_home_area" = "住家附近";
 "segment_office_area" = "公司附近";
 "segment_route_format" = "%@路線";
+"error_address_not_found" = "找不到這個地址：%@";
+"error_route_not_found" = "找不到這段通勤路線。";

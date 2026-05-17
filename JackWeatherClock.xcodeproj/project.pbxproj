@@ -18,6 +18,7 @@
 		0A1000092C00000000000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000402C00000000000002 /* Localizable.strings */; };
 		0A10000A2C00000000000001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000412C00000000000002 /* InfoPlist.strings */; };
 		0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */; };
+		0A10000C2C00000000000001 /* MapKitRouteWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000832C00000000000002 /* MapKitRouteWeatherService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +47,7 @@
 		0A1000452C00000000000002 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmTimeCalculatorTests.swift; sourceTree = "<group>"; };
 		0A1000472C00000000000002 /* JackWeatherClockTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JackWeatherClockTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A1000832C00000000000002 /* MapKitRouteWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapKitRouteWeatherService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -114,6 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				0A1000142C00000000000001 /* AlarmTimeCalculator.swift */,
+				0A1000832C00000000000002 /* MapKitRouteWeatherService.swift */,
 				0A1000152C00000000000001 /* NotificationScheduling.swift */,
 				0A1000162C00000000000001 /* RouteWeatherService.swift */,
 			);
@@ -267,6 +270,7 @@
 				0A1000052C00000000000001 /* NotificationScheduling.swift in Sources */,
 				0A1000062C00000000000001 /* RouteWeatherService.swift in Sources */,
 				0A1000072C00000000000001 /* AlarmViewModel.swift in Sources */,
+				0A10000C2C00000000000001 /* MapKitRouteWeatherService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

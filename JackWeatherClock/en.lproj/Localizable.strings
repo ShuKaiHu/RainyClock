@@ -35,3 +35,5 @@
 "segment_home_area" = "Home area";
 "segment_office_area" = "Office area";
 "segment_route_format" = "%@ route";
+"error_address_not_found" = "Could not find this address: %@";
+"error_route_not_found" = "Could not find a route for this commute.";
