@@ -1,7 +1,7 @@
 import Foundation
 
-struct CommuteAlarmSettings: Equatable {
-    enum CommuteMode: String, CaseIterable, Identifiable, Equatable {
+struct CommuteAlarmSettings: Codable, Equatable {
+    enum CommuteMode: String, CaseIterable, Codable, Identifiable, Equatable {
         case car
         case scooter
         case walking
@@ -12,13 +12,13 @@ struct CommuteAlarmSettings: Equatable {
         var displayName: String {
             switch self {
             case .car:
-                "Car"
+                String(localized: "commute_mode_car")
             case .scooter:
-                "Scooter"
+                String(localized: "commute_mode_scooter")
             case .walking:
-                "Walking"
+                String(localized: "commute_mode_walking")
             case .publicTransit:
-                "Public Transit"
+                String(localized: "commute_mode_public_transit")
             }
         }
     }

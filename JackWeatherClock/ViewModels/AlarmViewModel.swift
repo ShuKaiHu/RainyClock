@@ -2,21 +2,30 @@ import Foundation
 
 @MainActor
 final class AlarmViewModel: ObservableObject {
-    @Published var settings = CommuteAlarmSettings()
+    @Published var settings: CommuteAlarmSettings {
+        didSet {
+            saveSettings()
+        }
+    }
     @Published private(set) var routeWeatherSnapshot: RouteWeatherSnapshot?
     @Published private(set) var scheduledAlarmSummary: ScheduledAlarmSummary?
-    @Published private(set) var statusMessage = "Enter your commute and alarm settings."
+    @Published private(set) var statusMessage = String(localized: "status_enter_settings")
     @Published private(set) var isScheduling = false
 
     private let routeWeatherService: RouteWeatherService
     private let notificationScheduler: NotificationScheduling
+    private let settingsStorage: UserDefaults
+    private static let settingsStorageKey = "commuteAlarmSettings"
 
     init(
         routeWeatherService: RouteWeatherService = MockRouteWeatherService(),
-        notificationScheduler: NotificationScheduling = LocalNotificationScheduler()
+        notificationScheduler: NotificationScheduling = LocalNotificationScheduler(),
+        settingsStorage: UserDefaults = .standard
     ) {
+        self.settings = Self.loadSettings(from: settingsStorage) ?? CommuteAlarmSettings()
         self.routeWeatherService = routeWeatherService
         self.notificationScheduler = notificationScheduler
+        self.settingsStorage = settingsStorage
     }
 
     var canSchedule: Bool {
@@ -27,7 +36,7 @@ final class AlarmViewModel: ObservableObject {
 
     func evaluateRouteAndScheduleAlarm() async {
         guard canSchedule else {
-            statusMessage = "Home, work, and lead time are required."
+            statusMessage = String(localized: "status_required")
             return
         }
 
@@ -37,7 +46,7 @@ final class AlarmViewModel: ObservableObject {
         do {
             let authorized = try await notificationScheduler.requestAuthorization()
             guard authorized else {
-                statusMessage = "Notification permission was not granted."
+                statusMessage = String(localized: "status_permission_denied")
                 return
             }
 
@@ -60,18 +69,34 @@ final class AlarmViewModel: ObservableObject {
             scheduledAlarmSummary = summary
 
             let body = exceedsThreshold
-                ? "Rain probability is above your threshold, so the alarm was moved earlier."
-                : "Rain probability is below your threshold, so the normal alarm time was used."
+                ? String(localized: "notification_body_adjusted")
+                : String(localized: "notification_body_normal")
 
             try await notificationScheduler.scheduleAlarm(
                 at: summary.scheduledAlarmDate,
-                title: "Jack Weather Clock",
+                title: String(localized: "notification_title"),
                 body: body
             )
 
-            statusMessage = exceedsThreshold ? "Rain threshold exceeded. Alarm adjusted." : "Rain threshold not exceeded. Alarm scheduled."
+            statusMessage = exceedsThreshold ? String(localized: "status_adjusted") : String(localized: "status_normal")
         } catch {
-            statusMessage = "Could not schedule alarm: \(error.localizedDescription)"
+            statusMessage = String.localizedStringWithFormat(String(localized: "status_schedule_failed"), error.localizedDescription)
         }
+    }
+
+    private func saveSettings() {
+        guard let data = try? JSONEncoder().encode(settings) else {
+            return
+        }
+
+        settingsStorage.set(data, forKey: Self.settingsStorageKey)
+    }
+
+    private static func loadSettings(from storage: UserDefaults) -> CommuteAlarmSettings? {
+        guard let data = storage.data(forKey: settingsStorageKey) else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(CommuteAlarmSettings.self, from: data)
     }
 }

@@ -17,8 +17,14 @@ struct LocalNotificationScheduler: NotificationScheduling {
         content.body = body
         content.sound = .default
 
-        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let trigger: UNNotificationTrigger
+        let timeInterval = date.timeIntervalSinceNow
+        if timeInterval <= 1 {
+            trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        } else {
+            let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+            trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        }
         let request = UNNotificationRequest(identifier: "commute-rain-alarm", content: content, trigger: trigger)
 
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [request.identifier])

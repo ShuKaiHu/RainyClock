@@ -6,31 +6,31 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Commute") {
-                    TextField("Home address", text: $viewModel.settings.homeAddress, axis: .vertical)
+                Section("commute") {
+                    TextField("home_address", text: $viewModel.settings.homeAddress, axis: .vertical)
                         .textContentType(.fullStreetAddress)
-                    TextField("Work address", text: $viewModel.settings.workAddress, axis: .vertical)
+                    TextField("work_address", text: $viewModel.settings.workAddress, axis: .vertical)
                         .textContentType(.fullStreetAddress)
-                    Picker("Mode", selection: $viewModel.settings.commuteMode) {
+                    Picker("mode", selection: $viewModel.settings.commuteMode) {
                         ForEach(CommuteAlarmSettings.CommuteMode.allCases) { mode in
                             Text(mode.displayName).tag(mode)
                         }
                     }
                 }
 
-                Section("Alarm") {
-                    DatePicker("Normal alarm", selection: $viewModel.settings.alarmTime, displayedComponents: .hourAndMinute)
+                Section("alarm") {
+                    DatePicker("normal_alarm", selection: $viewModel.settings.alarmTime, displayedComponents: .hourAndMinute)
                     Stepper(value: $viewModel.settings.rainLeadTimeMinutes, in: 5...120, step: 5) {
                         HStack {
-                            Text("Rain lead time")
+                            Text("rain_lead_time")
                             Spacer()
-                            Text("\(viewModel.settings.rainLeadTimeMinutes) min")
+                            Text(String.localizedStringWithFormat(String(localized: "rain_lead_time_value"), viewModel.settings.rainLeadTimeMinutes))
                                 .foregroundStyle(.secondary)
                         }
                     }
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Rain threshold")
+                            Text("rain_threshold")
                             Spacer()
                             Text("\(Int(viewModel.settings.rainProbabilityThreshold * 100))%")
                                 .foregroundStyle(.secondary)
@@ -43,7 +43,10 @@ struct ContentView: View {
                     Button {
                         Task { await viewModel.evaluateRouteAndScheduleAlarm() }
                     } label: {
-                        Label(viewModel.isScheduling ? "Checking route..." : "Schedule Smart Alarm", systemImage: "alarm")
+                        Label(
+                            viewModel.isScheduling ? String(localized: "checking_route") : String(localized: "schedule_smart_alarm"),
+                            systemImage: "alarm"
+                        )
                     }
                     .disabled(!viewModel.canSchedule || viewModel.isScheduling)
 
@@ -52,18 +55,18 @@ struct ContentView: View {
                 }
 
                 if let summary = viewModel.scheduledAlarmSummary {
-                    Section("Scheduled Result") {
-                        LabeledContent("Normal alarm", value: summary.normalAlarmDate.formatted(date: .omitted, time: .shortened))
-                        LabeledContent("Scheduled alarm", value: summary.scheduledAlarmDate.formatted(date: .abbreviated, time: .shortened))
-                        LabeledContent("Weather refresh", value: summary.weatherRefreshDate.formatted(date: .abbreviated, time: .shortened))
-                        LabeledContent("Rain threshold", value: "\(Int(summary.rainProbabilityThreshold * 100))%")
-                        LabeledContent("Route max", value: "\(Int(summary.maximumPrecipitationProbability * 100))%")
-                        LabeledContent("Rain adjustment", value: summary.exceedsRainThreshold ? "\(summary.leadTimeMinutes) min earlier" : "Not applied")
+                    Section("scheduled_result") {
+                        LabeledContent("normal_alarm", value: summary.normalAlarmDate.formatted(date: .omitted, time: .shortened))
+                        LabeledContent("scheduled_alarm", value: summary.scheduledAlarmDate.formatted(date: .abbreviated, time: .shortened))
+                        LabeledContent("weather_refresh", value: summary.weatherRefreshDate.formatted(date: .abbreviated, time: .shortened))
+                        LabeledContent("rain_threshold", value: "\(Int(summary.rainProbabilityThreshold * 100))%")
+                        LabeledContent("route_max", value: "\(Int(summary.maximumPrecipitationProbability * 100))%")
+                        LabeledContent("rain_adjustment", value: rainAdjustmentText(for: summary))
                     }
                 }
 
                 if let snapshot = viewModel.routeWeatherSnapshot {
-                    Section("Route Weather") {
+                    Section("route_weather") {
                         ForEach(snapshot.segments) { segment in
                             HStack {
                                 Image(systemName: iconName(for: segment.condition))
@@ -71,7 +74,7 @@ struct ContentView: View {
                                     .frame(width: 28)
                                 VStack(alignment: .leading) {
                                     Text(segment.name)
-                                    Text("\(Int(segment.precipitationProbability * 100))% precipitation")
+                                    Text(String.localizedStringWithFormat(String(localized: "precipitation_value"), Int(segment.precipitationProbability * 100)))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -80,8 +83,16 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("Jack Weather Clock")
+            .navigationTitle(String(localized: "app_title"))
         }
+    }
+
+    private func rainAdjustmentText(for summary: ScheduledAlarmSummary) -> String {
+        guard summary.exceedsRainThreshold else {
+            return String(localized: "not_applied")
+        }
+
+        return String.localizedStringWithFormat(String(localized: "minutes_earlier"), summary.leadTimeMinutes)
     }
 
     private func iconName(for condition: RouteWeatherSegment.Condition) -> String {

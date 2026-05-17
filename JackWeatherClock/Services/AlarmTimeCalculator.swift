@@ -22,14 +22,15 @@ enum AlarmTimeCalculator {
             ? normalToday
             : calendar.date(byAdding: .day, value: 1, to: normalToday) ?? normalToday
 
+        let leadTimeDate = calendar.date(byAdding: .minute, value: -leadTimeMinutes, to: normalAlarmDate) ?? normalAlarmDate
         let scheduledAlarmDate = shouldApplyLeadTime
-            ? calendar.date(byAdding: .minute, value: -leadTimeMinutes, to: normalAlarmDate) ?? normalAlarmDate
+            ? max(leadTimeDate, now)
             : normalAlarmDate
 
         return ScheduledAlarmSummary(
             normalAlarmDate: normalAlarmDate,
             scheduledAlarmDate: scheduledAlarmDate,
-            weatherRefreshDate: calendar.date(byAdding: .minute, value: -leadTimeMinutes, to: normalAlarmDate) ?? normalAlarmDate,
+            weatherRefreshDate: leadTimeDate,
             exceedsRainThreshold: shouldApplyLeadTime,
             leadTimeMinutes: shouldApplyLeadTime ? leadTimeMinutes : 0,
             rainProbabilityThreshold: rainProbabilityThreshold,
