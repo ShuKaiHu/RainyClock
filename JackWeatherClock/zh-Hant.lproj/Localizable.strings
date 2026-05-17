@@ -29,6 +29,8 @@
 "status_schedule_failed" = "無法排程鬧鐘：%@";
 "status_adjusted" = "已超過降雨門檻，鬧鐘已提前。";
 "status_normal" = "未超過降雨門檻，已排程正常鬧鐘。";
+"status_adjusted_checked" = "已超過降雨門檻，鬧鐘已提前。資料查詢時間：%@。";
+"status_normal_checked" = "未超過降雨門檻，已排程正常鬧鐘。資料查詢時間：%@。";
 "notification_title" = "Jack 雨天鬧鐘";
 "notification_body_adjusted" = "降雨機率高於你的門檻，因此鬧鐘已提前。";
 "notification_body_normal" = "降雨機率低於你的門檻，因此使用正常鬧鐘時間。";

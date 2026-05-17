@@ -20,7 +20,7 @@ struct ContentView: View {
 
                 Section("alarm") {
                     DatePicker("normal_alarm", selection: $viewModel.settings.alarmTime, displayedComponents: .hourAndMinute)
-                    Stepper(value: $viewModel.settings.rainLeadTimeMinutes, in: 5...120, step: 5) {
+                    Stepper(value: $viewModel.settings.rainLeadTimeMinutes, in: 1...120, step: 1) {
                         HStack {
                             Text("rain_lead_time")
                             Spacer()
@@ -80,9 +80,6 @@ struct ContentView: View {
                                 }
                             }
                         }
-                        Text("weather_data_attribution")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
                     }
                 }
             }

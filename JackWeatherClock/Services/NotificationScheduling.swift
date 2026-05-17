@@ -15,7 +15,7 @@ struct LocalNotificationScheduler: NotificationScheduling {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        content.sound = .default
+        content.sound = UNNotificationSound(named: UNNotificationSoundName("AlarmTone.wav"))
 
         let trigger: UNNotificationTrigger
         let timeInterval = date.timeIntervalSinceNow
@@ -29,5 +29,16 @@ struct LocalNotificationScheduler: NotificationScheduling {
 
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [request.identifier])
         try await UNUserNotificationCenter.current().add(request)
+    }
+}
+
+final class NotificationPresentationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    nonisolated(unsafe) static let shared = NotificationPresentationDelegate()
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
     }
 }

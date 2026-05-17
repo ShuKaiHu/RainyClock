@@ -18,6 +18,7 @@
 		0A1000092C00000000000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000402C00000000000002 /* Localizable.strings */; };
 		0A10000A2C00000000000001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000412C00000000000002 /* InfoPlist.strings */; };
 		0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */; };
+		0A1000122C00000000000002 /* AlarmTone.wav in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000902C00000000000002 /* AlarmTone.wav */; };
 		0A10000C2C00000000000001 /* MapKitRouteWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000832C00000000000002 /* MapKitRouteWeatherService.swift */; };
 		0A10000D2C00000000000001 /* WeatherSamplingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000842C00000000000002 /* WeatherSamplingService.swift */; };
 		0A10000E2C00000000000001 /* RoutePolylineSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000852C00000000000002 /* RoutePolylineSampler.swift */; };
@@ -58,11 +59,8 @@
 		0A1000862C00000000000002 /* RoutePolylineSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePolylineSamplerTests.swift; sourceTree = "<group>"; };
 		0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSampleMapperTests.swift; sourceTree = "<group>"; };
 		0A1000882C00000000000002 /* WeatherKitSamplingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitSamplingService.swift; sourceTree = "<group>"; };
-		0A1000892C00000000000002 /* JackWeatherClock.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JackWeatherClock.entitlements; sourceTree = "<group>"; };
+		0A1000902C00000000000002 /* AlarmTone.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = AlarmTone.wav; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		0A1000202C00000000000001 /* Frameworks */ = {
@@ -100,7 +98,7 @@
 				0A1000342C00000000000001 /* Services */,
 				0A1000352C00000000000001 /* ViewModels */,
 				0A1000182C00000000000001 /* Assets.xcassets */,
-				0A1000892C00000000000002 /* JackWeatherClock.entitlements */,
+				0A1000902C00000000000002 /* AlarmTone.wav */,
 				0A1000402C00000000000002 /* Localizable.strings */,
 				0A1000412C00000000000002 /* InfoPlist.strings */,
 			);
@@ -235,16 +233,6 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		0A1000512C00000000000001 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				0A1000082C00000000000001 /* Assets.xcassets in Resources */,
-				0A1000092C00000000000001 /* Localizable.strings in Resources */,
-				0A10000A2C00000000000001 /* InfoPlist.strings in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		0A10004C2C00000000000002 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -252,7 +240,57 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0A1000512C00000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0A1000082C00000000000001 /* Assets.xcassets in Resources */,
+				0A1000122C00000000000002 /* AlarmTone.wav in Resources */,
+				0A1000092C00000000000001 /* Localizable.strings in Resources */,
+				0A10000A2C00000000000001 /* InfoPlist.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0A10004A2C00000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */,
+				0A10000F2C00000000000001 /* RoutePolylineSamplerTests.swift in Sources */,
+				0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0A1000502C00000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0A1000012C00000000000001 /* JackWeatherClockApp.swift in Sources */,
+				0A1000022C00000000000001 /* ContentView.swift in Sources */,
+				0A1000032C00000000000001 /* CommuteAlarmSettings.swift in Sources */,
+				0A1000042C00000000000001 /* AlarmTimeCalculator.swift in Sources */,
+				0A1000052C00000000000001 /* NotificationScheduling.swift in Sources */,
+				0A1000062C00000000000001 /* RouteWeatherService.swift in Sources */,
+				0A1000072C00000000000001 /* AlarmViewModel.swift in Sources */,
+				0A10000C2C00000000000001 /* MapKitRouteWeatherService.swift in Sources */,
+				0A10000D2C00000000000001 /* WeatherSamplingService.swift in Sources */,
+				0A10000E2C00000000000001 /* RoutePolylineSampler.swift in Sources */,
+				0A1000112C00000000000002 /* WeatherKitSamplingService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0A10004F2C00000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0A1000402C00000000000001 /* JackWeatherClock */;
+			targetProxy = 0A10004E2C00000000000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		0A1000402C00000000000002 /* Localizable.strings */ = {
@@ -274,45 +312,6 @@
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */
-
-/* Begin PBXSourcesBuildPhase section */
-		0A1000502C00000000000001 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				0A1000012C00000000000001 /* JackWeatherClockApp.swift in Sources */,
-				0A1000022C00000000000001 /* ContentView.swift in Sources */,
-				0A1000032C00000000000001 /* CommuteAlarmSettings.swift in Sources */,
-				0A1000042C00000000000001 /* AlarmTimeCalculator.swift in Sources */,
-				0A1000052C00000000000001 /* NotificationScheduling.swift in Sources */,
-				0A1000062C00000000000001 /* RouteWeatherService.swift in Sources */,
-				0A1000072C00000000000001 /* AlarmViewModel.swift in Sources */,
-				0A10000C2C00000000000001 /* MapKitRouteWeatherService.swift in Sources */,
-				0A10000D2C00000000000001 /* WeatherSamplingService.swift in Sources */,
-				0A10000E2C00000000000001 /* RoutePolylineSampler.swift in Sources */,
-				0A1000112C00000000000002 /* WeatherKitSamplingService.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		0A10004A2C00000000000002 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */,
-				0A10000F2C00000000000001 /* RoutePolylineSamplerTests.swift in Sources */,
-				0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		0A10004F2C00000000000002 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 0A1000402C00000000000001 /* JackWeatherClock */;
-			targetProxy = 0A10004E2C00000000000002 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0A1000622C00000000000001 /* Debug */ = {
@@ -437,10 +436,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = JackWeatherClock/JackWeatherClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Jack Weather Clock";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
@@ -471,10 +469,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = JackWeatherClock/JackWeatherClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Jack Weather Clock";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";

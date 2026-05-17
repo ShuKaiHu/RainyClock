@@ -18,7 +18,7 @@ final class AlarmViewModel: ObservableObject {
     private static let settingsStorageKey = "commuteAlarmSettings"
 
     init(
-        routeWeatherService: RouteWeatherService = MapKitRouteWeatherService(),
+        routeWeatherService: RouteWeatherService = MockRouteWeatherService(),
         notificationScheduler: NotificationScheduling = LocalNotificationScheduler(),
         settingsStorage: UserDefaults = .standard
     ) {
@@ -78,7 +78,9 @@ final class AlarmViewModel: ObservableObject {
                 body: body
             )
 
-            statusMessage = exceedsThreshold ? String(localized: "status_adjusted") : String(localized: "status_normal")
+            let checkedAt = snapshot.checkedAt.formatted(date: .omitted, time: .shortened)
+            let statusKey = exceedsThreshold ? "status_adjusted_checked" : "status_normal_checked"
+            statusMessage = String.localizedStringWithFormat(String(localized: String.LocalizationValue(statusKey)), checkedAt)
         } catch {
             statusMessage = String.localizedStringWithFormat(String(localized: "status_schedule_failed"), error.localizedDescription)
         }

@@ -29,6 +29,8 @@
 "status_schedule_failed" = "Could not schedule alarm: %@";
 "status_adjusted" = "Rain threshold exceeded. Alarm adjusted.";
 "status_normal" = "Rain threshold not exceeded. Alarm scheduled.";
+"status_adjusted_checked" = "Rain threshold exceeded. Alarm adjusted. Data checked at %@.";
+"status_normal_checked" = "Rain threshold not exceeded. Alarm scheduled. Data checked at %@.";
 "notification_title" = "Jack Weather Clock";
 "notification_body_adjusted" = "Rain probability is above your threshold, so the alarm was moved earlier.";
 "notification_body_normal" = "Rain probability is below your threshold, so the normal alarm time was used.";
