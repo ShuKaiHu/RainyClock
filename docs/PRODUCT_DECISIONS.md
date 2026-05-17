@@ -8,14 +8,14 @@ The first version focuses on one commute profile: home to work. Users can choose
 
 ### Weather Strategy
 
-The app is structured around a `RouteWeatherService` protocol. The default implementation remains a mock so the app can be built and exercised before API credentials and Apple entitlements are configured. A `MapKitRouteWeatherService` skeleton now performs geocoding and route lookup, but still reports zero precipitation until WeatherKit is connected.
+The app is structured around a `RouteWeatherService` protocol. The default implementation remains a mock so the app can be built and exercised before API credentials and Apple entitlements are configured. A `MapKitRouteWeatherService` skeleton now performs geocoding and route lookup, samples up to five representative route coordinates, and delegates each point to a `WeatherSamplingService`. The current weather sampler remains a mock until WeatherKit is connected.
 
 The production implementation should:
 
 1. Geocode home and work addresses.
 2. Request routes for the selected commute mode.
 3. Sample representative coordinates along the selected route.
-4. Query WeatherKit for each sample around the commute window.
+4. Query WeatherKit for each sample around the commute window through `WeatherSamplingService`.
 5. Return whether any segment meets or exceeds the chosen rain probability threshold.
 
 ### Alarm Strategy
@@ -51,14 +51,14 @@ All user-facing UI text should be backed by localized string resources. Document
 
 ### 天氣策略
 
-App 以 `RouteWeatherService` protocol 作為路線天氣抽象層。預設仍使用 mock 實作，讓 App 在尚未設定 API 憑證與 Apple entitlement 前仍可建置與操作。現在也新增了 `MapKitRouteWeatherService` 骨架，可執行地址轉座標與路線查詢，但在接上 WeatherKit 前會回傳 0 降雨機率。
+App 以 `RouteWeatherService` protocol 作為路線天氣抽象層。預設仍使用 mock 實作，讓 App 在尚未設定 API 憑證與 Apple entitlement 前仍可建置與操作。現在也新增了 `MapKitRouteWeatherService` 骨架，可執行地址轉座標與路線查詢、沿路線取最多五個代表座標，並把每個座標交給 `WeatherSamplingService`。目前天氣取樣仍是 mock，正式接上 WeatherKit 前會回傳預設天氣。
 
 正式版實作應該：
 
 1. 將住家與公司地址轉成座標。
 2. 依照使用者選擇的通勤方式查詢路線。
 3. 沿著所選路線取樣代表性座標。
-4. 在通勤時間窗附近使用 WeatherKit 查詢各取樣點天氣。
+4. 透過 `WeatherSamplingService` 在通勤時間窗附近使用 WeatherKit 查詢各取樣點天氣。
 5. 回傳是否有任何路段達到或超過使用者設定的降雨門檻。
 
 ### 鬧鐘策略

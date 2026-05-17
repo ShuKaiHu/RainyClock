@@ -4,9 +4,17 @@ import MapKit
 
 actor MapKitRouteWeatherService: RouteWeatherService {
     private let geocoder: CLGeocoder
+    private let weatherSamplingService: any WeatherSamplingService
+    private let maximumSampleCount: Int
 
-    init(geocoder: CLGeocoder = CLGeocoder()) {
+    init(
+        geocoder: CLGeocoder = CLGeocoder(),
+        weatherSamplingService: any WeatherSamplingService = MockWeatherSamplingService(),
+        maximumSampleCount: Int = 5
+    ) {
         self.geocoder = geocoder
+        self.weatherSamplingService = weatherSamplingService
+        self.maximumSampleCount = maximumSampleCount
     }
 
     func fetchRouteWeather(
@@ -18,7 +26,7 @@ actor MapKitRouteWeatherService: RouteWeatherService {
         let homePlacemark = try await geocode(homeAddress)
         let workPlacemark = try await geocode(workAddress)
         let route = try await route(from: homePlacemark, to: workPlacemark, mode: mode)
-        let segments = makeSegments(for: route, mode: mode)
+        let segments = try await makeSegments(for: route, mode: mode, around: commuteTime)
 
         return RouteWeatherSnapshot(checkedAt: Date(), segments: segments)
     }
@@ -50,21 +58,38 @@ actor MapKitRouteWeatherService: RouteWeatherService {
         return route
     }
 
-    private func makeSegments(for route: MKRoute, mode: CommuteAlarmSettings.CommuteMode) -> [RouteWeatherSegment] {
+    private func makeSegments(
+        for route: MKRoute,
+        mode: CommuteAlarmSettings.CommuteMode,
+        around commuteTime: Date
+    ) async throws -> [RouteWeatherSegment] {
         let routeName = route.name.isEmpty
             ? String.localizedStringWithFormat(String(localized: "segment_route_format"), mode.displayName)
             : route.name
-        let routeCondition = condition(for: route.expectedTravelTime)
+        let coordinates = RoutePolylineSampler.sampleCoordinates(from: route.polyline, maximumCount: maximumSampleCount)
 
-        return [
-            RouteWeatherSegment(name: String(localized: "segment_home_area"), condition: .cloudy, precipitationProbability: 0),
-            RouteWeatherSegment(name: routeName, condition: routeCondition, precipitationProbability: 0),
-            RouteWeatherSegment(name: String(localized: "segment_office_area"), condition: .cloudy, precipitationProbability: 0)
-        ]
-    }
+        guard !coordinates.isEmpty else {
+            return [RouteWeatherSegment(name: routeName, condition: .clear, precipitationProbability: 0)]
+        }
 
-    private func condition(for expectedTravelTime: TimeInterval) -> RouteWeatherSegment.Condition {
-        expectedTravelTime > 45 * 60 ? .cloudy : .clear
+        var segments: [RouteWeatherSegment] = []
+        segments.reserveCapacity(coordinates.count)
+
+        for (index, coordinate) in coordinates.enumerated() {
+            let sample = try await weatherSamplingService.sampleWeather(at: coordinate, around: commuteTime)
+            let segmentName = String.localizedStringWithFormat(
+                String(localized: "segment_route_sample_format"),
+                routeName,
+                index + 1
+            )
+            segments.append(RouteWeatherSegment(
+                name: segmentName,
+                condition: sample.condition,
+                precipitationProbability: sample.precipitationProbability
+            ))
+        }
+
+        return segments
     }
 }
 

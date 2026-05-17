@@ -19,6 +19,10 @@
 		0A10000A2C00000000000001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000412C00000000000002 /* InfoPlist.strings */; };
 		0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */; };
 		0A10000C2C00000000000001 /* MapKitRouteWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000832C00000000000002 /* MapKitRouteWeatherService.swift */; };
+		0A10000D2C00000000000001 /* WeatherSamplingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000842C00000000000002 /* WeatherSamplingService.swift */; };
+		0A10000E2C00000000000001 /* RoutePolylineSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000852C00000000000002 /* RoutePolylineSampler.swift */; };
+		0A10000F2C00000000000001 /* RoutePolylineSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000862C00000000000002 /* RoutePolylineSamplerTests.swift */; };
+		0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -48,6 +52,10 @@
 		0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmTimeCalculatorTests.swift; sourceTree = "<group>"; };
 		0A1000472C00000000000002 /* JackWeatherClockTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = JackWeatherClockTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A1000832C00000000000002 /* MapKitRouteWeatherService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapKitRouteWeatherService.swift; sourceTree = "<group>"; };
+		0A1000842C00000000000002 /* WeatherSamplingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSamplingService.swift; sourceTree = "<group>"; };
+		0A1000852C00000000000002 /* RoutePolylineSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePolylineSampler.swift; sourceTree = "<group>"; };
+		0A1000862C00000000000002 /* RoutePolylineSamplerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePolylineSamplerTests.swift; sourceTree = "<group>"; };
+		0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSampleMapperTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -118,7 +126,9 @@
 				0A1000142C00000000000001 /* AlarmTimeCalculator.swift */,
 				0A1000832C00000000000002 /* MapKitRouteWeatherService.swift */,
 				0A1000152C00000000000001 /* NotificationScheduling.swift */,
+				0A1000852C00000000000002 /* RoutePolylineSampler.swift */,
 				0A1000162C00000000000001 /* RouteWeatherService.swift */,
+				0A1000842C00000000000002 /* WeatherSamplingService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -135,6 +145,8 @@
 			isa = PBXGroup;
 			children = (
 				0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */,
+				0A1000862C00000000000002 /* RoutePolylineSamplerTests.swift */,
+				0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */,
 			);
 			path = JackWeatherClockTests;
 			sourceTree = "<group>";
@@ -271,6 +283,8 @@
 				0A1000062C00000000000001 /* RouteWeatherService.swift in Sources */,
 				0A1000072C00000000000001 /* AlarmViewModel.swift in Sources */,
 				0A10000C2C00000000000001 /* MapKitRouteWeatherService.swift in Sources */,
+				0A10000D2C00000000000001 /* WeatherSamplingService.swift in Sources */,
+				0A10000E2C00000000000001 /* RoutePolylineSampler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -279,6 +293,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */,
+				0A10000F2C00000000000001 /* RoutePolylineSamplerTests.swift in Sources */,
+				0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

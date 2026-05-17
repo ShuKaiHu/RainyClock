@@ -45,7 +45,7 @@ struct RouteWeatherSnapshot: Equatable {
 }
 
 struct RouteWeatherSegment: Identifiable, Equatable {
-    enum Condition: String, Equatable {
+    enum Condition: String, Equatable, Sendable {
         case clear
         case cloudy
         case rain
