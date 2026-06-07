@@ -8,7 +8,7 @@ The first version focuses on one commute profile: home to work. Users can choose
 
 ### Weather Strategy
 
-The app is structured around a `RouteWeatherService` protocol. The default runtime implementation uses `MockRouteWeatherService` so the app can be installed on a real iPhone with a free Apple Personal Team. `MapKitRouteWeatherService` and `WeatherKitSamplingService` remain in the codebase for paid Apple Developer Program WeatherKit testing.
+The app is structured around a `RouteWeatherService` protocol. Debug builds use `MockRouteWeatherService` so the app can be installed on a real iPhone with a free Apple Personal Team. Release builds use `MapKitRouteWeatherService` and `WeatherKitSamplingService`, which require a paid Apple Developer Program team with WeatherKit enabled.
 
 The production implementation should:
 
@@ -53,7 +53,7 @@ All user-facing UI text should be backed by localized string resources. Document
 
 ### 天氣策略
 
-App 以 `RouteWeatherService` protocol 作為路線天氣抽象層。預設執行時實作使用 `MockRouteWeatherService`，讓 App 可用免費 Apple Personal Team 安裝到真機。`MapKitRouteWeatherService` 與 `WeatherKitSamplingService` 仍保留在 codebase，等付費 Apple Developer Program 可測 WeatherKit 時再切換。
+App 以 `RouteWeatherService` protocol 作為路線天氣抽象層。Debug builds 使用 `MockRouteWeatherService`，讓 App 可用免費 Apple Personal Team 安裝到真機。Release builds 使用 `MapKitRouteWeatherService` 與 `WeatherKitSamplingService`，因此需要付費 Apple Developer Program team 並啟用 WeatherKit。
 
 正式版實作應該：
 
