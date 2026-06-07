@@ -9,7 +9,10 @@ struct JackWeatherClockApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(viewModel: AlarmViewModel())
+            ContentView(
+                viewModel: AlarmViewModel(routeWeatherService: AppEnvironment.routeWeatherService),
+                showsWeatherAttribution: AppEnvironment.usesWeatherKit
+            )
         }
     }
 }
