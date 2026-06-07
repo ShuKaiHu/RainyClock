@@ -18,13 +18,16 @@
 		0A1000092C00000000000001 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000402C00000000000002 /* Localizable.strings */; };
 		0A10000A2C00000000000001 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000412C00000000000002 /* InfoPlist.strings */; };
 		0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */; };
-		0A1000122C00000000000002 /* AlarmTone.wav in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000902C00000000000002 /* AlarmTone.wav */; };
 		0A10000C2C00000000000001 /* MapKitRouteWeatherService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000832C00000000000002 /* MapKitRouteWeatherService.swift */; };
 		0A10000D2C00000000000001 /* WeatherSamplingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000842C00000000000002 /* WeatherSamplingService.swift */; };
 		0A10000E2C00000000000001 /* RoutePolylineSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000852C00000000000002 /* RoutePolylineSampler.swift */; };
 		0A10000F2C00000000000001 /* RoutePolylineSamplerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000862C00000000000002 /* RoutePolylineSamplerTests.swift */; };
 		0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */; };
 		0A1000112C00000000000002 /* WeatherKitSamplingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000882C00000000000002 /* WeatherKitSamplingService.swift */; };
+		0A1000122C00000000000002 /* AlarmTone.wav in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000902C00000000000002 /* AlarmTone.wav */; };
+		0A1000132C00000000000002 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000922C00000000000002 /* AppEnvironment.swift */; };
+		0A1000A12C00000000000003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0A1000A02C00000000000003 /* PrivacyInfo.xcprivacy */; };
+		0A1000A32C00000000000003 /* WeatherAttributionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000A22C00000000000003 /* WeatherAttributionView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,6 +63,10 @@
 		0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherSampleMapperTests.swift; sourceTree = "<group>"; };
 		0A1000882C00000000000002 /* WeatherKitSamplingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitSamplingService.swift; sourceTree = "<group>"; };
 		0A1000902C00000000000002 /* AlarmTone.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = AlarmTone.wav; sourceTree = "<group>"; };
+		0A1000912C00000000000002 /* JackWeatherClock.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JackWeatherClock.entitlements; sourceTree = "<group>"; };
+		0A1000922C00000000000002 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		0A1000A02C00000000000003 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		0A1000A22C00000000000003 /* WeatherAttributionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherAttributionView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,12 +100,16 @@
 			isa = PBXGroup;
 			children = (
 				0A1000112C00000000000001 /* JackWeatherClockApp.swift */,
+				0A1000922C00000000000002 /* AppEnvironment.swift */,
 				0A1000122C00000000000001 /* ContentView.swift */,
+				0A1000A02C00000000000003 /* PrivacyInfo.xcprivacy */,
+				0A1000A22C00000000000003 /* WeatherAttributionView.swift */,
 				0A1000332C00000000000001 /* Models */,
 				0A1000342C00000000000001 /* Services */,
 				0A1000352C00000000000001 /* ViewModels */,
 				0A1000182C00000000000001 /* Assets.xcassets */,
 				0A1000902C00000000000002 /* AlarmTone.wav */,
+				0A1000912C00000000000002 /* JackWeatherClock.entitlements */,
 				0A1000402C00000000000002 /* Localizable.strings */,
 				0A1000412C00000000000002 /* InfoPlist.strings */,
 			);
@@ -248,6 +259,7 @@
 				0A1000122C00000000000002 /* AlarmTone.wav in Resources */,
 				0A1000092C00000000000001 /* Localizable.strings in Resources */,
 				0A10000A2C00000000000001 /* InfoPlist.strings in Resources */,
+				0A1000A12C00000000000003 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -275,10 +287,12 @@
 				0A1000052C00000000000001 /* NotificationScheduling.swift in Sources */,
 				0A1000062C00000000000001 /* RouteWeatherService.swift in Sources */,
 				0A1000072C00000000000001 /* AlarmViewModel.swift in Sources */,
+				0A1000132C00000000000002 /* AppEnvironment.swift in Sources */,
 				0A10000C2C00000000000001 /* MapKitRouteWeatherService.swift in Sources */,
 				0A10000D2C00000000000001 /* WeatherSamplingService.swift in Sources */,
 				0A10000E2C00000000000001 /* RoutePolylineSampler.swift in Sources */,
 				0A1000112C00000000000002 /* WeatherKitSamplingService.swift in Sources */,
+				0A1000A32C00000000000003 /* WeatherAttributionView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -469,6 +483,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = JackWeatherClock/JackWeatherClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
@@ -503,7 +518,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -524,7 +539,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;

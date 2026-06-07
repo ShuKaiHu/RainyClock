@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject var viewModel: AlarmViewModel
+    var showsWeatherAttribution = false
 
     var body: some View {
         NavigationStack {
@@ -79,6 +80,9 @@ struct ContentView: View {
                                         .foregroundStyle(.secondary)
                                 }
                             }
+                        }
+                        if showsWeatherAttribution {
+                            WeatherAttributionView()
                         }
                     }
                 }
