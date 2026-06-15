@@ -2,7 +2,7 @@ import SwiftUI
 import UserNotifications
 
 @main
-struct JackWeatherClockApp: App {
+struct RainyClockApp: App {
     init() {
         UNUserNotificationCenter.current().delegate = NotificationPresentationDelegate.shared
     }

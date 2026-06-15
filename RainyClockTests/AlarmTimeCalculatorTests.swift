@@ -1,5 +1,5 @@
 import XCTest
-@testable import JackWeatherClock
+@testable import RainyClock
 
 final class AlarmTimeCalculatorTests: XCTestCase {
     private var calendar: Calendar!
@@ -47,6 +47,25 @@ final class AlarmTimeCalculatorTests: XCTestCase {
         XCTAssertEqual(summary.normalAlarmDate, date(year: 2026, month: 5, day: 18, hour: 7, minute: 30))
         XCTAssertEqual(summary.scheduledAlarmDate, summary.normalAlarmDate)
         XCTAssertEqual(summary.weatherRefreshDate, date(year: 2026, month: 5, day: 18, hour: 7, minute: 0))
+    }
+
+    func testNormalAlarmSkipsUnselectedWeekdays() {
+        let now = date(year: 2026, month: 5, day: 17, hour: 6, minute: 45)
+        let alarmTime = date(year: 2026, month: 5, day: 17, hour: 7, minute: 30)
+
+        let summary = AlarmTimeCalculator.nextAlarmDate(
+            alarmTime: alarmTime,
+            leadTimeMinutes: 30,
+            shouldApplyLeadTime: false,
+            rainProbabilityThreshold: 0.5,
+            maximumPrecipitationProbability: 0.2,
+            selectedWeekdays: [2],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(summary.normalAlarmDate, date(year: 2026, month: 5, day: 18, hour: 7, minute: 30))
+        XCTAssertEqual(summary.scheduledAlarmDate, summary.normalAlarmDate)
     }
 
     func testRainLeadTimeMovesScheduledAlarmEarlier() {

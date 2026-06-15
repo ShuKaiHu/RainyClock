@@ -1,6 +1,6 @@
 import XCTest
 import WeatherKit
-@testable import JackWeatherClock
+@testable import RainyClock
 
 final class WeatherSampleMapperTests: XCTestCase {
     func testConditionMappingUsesRainThreshold() {

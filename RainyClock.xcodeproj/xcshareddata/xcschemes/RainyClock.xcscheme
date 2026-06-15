@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "0A1000402C00000000000001"
-               BuildableName = "JackWeatherClock.app"
-               BlueprintName = "JackWeatherClock"
-               ReferencedContainer = "container:JackWeatherClock.xcodeproj">
+               BuildableName = "RainyClock.app"
+               BlueprintName = "RainyClock"
+               ReferencedContainer = "container:RainyClock.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -35,9 +35,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "0A1000492C00000000000002"
-               BuildableName = "JackWeatherClockTests.xctest"
-               BlueprintName = "JackWeatherClockTests"
-               ReferencedContainer = "container:JackWeatherClock.xcodeproj">
+               BuildableName = "RainyClockTests.xctest"
+               BlueprintName = "RainyClockTests"
+               ReferencedContainer = "container:RainyClock.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -57,9 +57,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "0A1000402C00000000000001"
-            BuildableName = "JackWeatherClock.app"
-            BlueprintName = "JackWeatherClock"
-            ReferencedContainer = "container:JackWeatherClock.xcodeproj">
+            BuildableName = "RainyClock.app"
+            BlueprintName = "RainyClock"
+            ReferencedContainer = "container:RainyClock.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -74,9 +74,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "0A1000402C00000000000001"
-            BuildableName = "JackWeatherClock.app"
-            BlueprintName = "JackWeatherClock"
-            ReferencedContainer = "container:JackWeatherClock.xcodeproj">
+            BuildableName = "RainyClock.app"
+            BlueprintName = "RainyClock"
+            ReferencedContainer = "container:RainyClock.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

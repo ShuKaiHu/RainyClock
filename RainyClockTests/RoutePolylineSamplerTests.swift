@@ -1,7 +1,7 @@
 import CoreLocation
 import MapKit
 import XCTest
-@testable import JackWeatherClock
+@testable import RainyClock
 
 final class RoutePolylineSamplerTests: XCTestCase {
     func testSampleCoordinatesReturnsAllCoordinatesWhenUnderLimit() {
