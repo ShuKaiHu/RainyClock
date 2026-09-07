@@ -199,6 +199,19 @@ Checklist:
       sheet could not start the SDK. Under `-forceGDPRConsentGeography` the card shows
       both rows; without it, only 檢舉廣告 — the Taiwan view. The simulator bundle was
       rebuilt afterwards so `DerivedData` carries the real key again.
+- [x] **Debug build installed on the iPhone 16 Pro 2026-09-07** — `1.6.9 (28)`, real
+      LevelPlay key, all three background task ids in the bundle. The commands, for next
+      time (the device id is from `xcrun devicectl list devices`):
+
+      ```
+      xcodebuild -project RainyClock.xcodeproj -scheme RainyClock -configuration Debug \
+        -sdk iphoneos -destination 'id=291B73B2-5398-5E97-9103-EF98F048FEC3' \
+        -derivedDataPath ./DerivedDataDevice -allowProvisioningUpdates build
+      xcrun devicectl device install app --device 291B73B2-5398-5E97-9103-EF98F048FEC3 \
+        DerivedDataDevice/Build/Products/Debug-iphoneos/RainyClock.app
+      xcrun devicectl device process launch --device 291B73B2-5398-5E97-9103-EF98F048FEC3 \
+        com.shukaihu.RainyClock
+      ```
 - [ ] **Check on the iPhone 16 Pro**, the registered test device: the caption appears
       under a real banner, the mail draft names it with a creative id, and — after
       spending the free generations — the rewarded line appears too. Then delete the app,
