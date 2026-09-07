@@ -17,7 +17,7 @@ Last updated: 2026-09-07.
 
 | | Version | State |
 | --- | --- | --- |
-| **In progress** | `1.6.9 (28)` | The ad report done the industry's way, the AI voice quota surviving a reinstall, and the evening-before preview notification — see below. Opened 2026-09-07; code and tests in, device check and upload still owed |
+| **Uploaded, not submitted** | `1.6.9 (28)` | **Uploaded 2026-09-07 20:54**, processing in App Store Connect. The ad report done the industry's way, the AI voice quota surviving a reinstall, and the evening-before preview notification — see below. Still to do by hand in ASC: paste the 1.6.9 What's New (both languages) and review note from `docs/appstore-metadata.md`, optionally the English localization, then submit |
 | **Live on the App Store** | `1.6.8` | **Released 2026-09-01**, first attempt — confirmed against the public listing, not against this file. The AI voice alarm. Production checked after release: weather and `/v1/tts` both answer 200 |
 | Superseded | `1.6.7` | **Released 2026-08-30.** The ad-provider migration. Confirmed against the public listing on 2026-08-31 — this row had still been claiming 正在等待審查, the third time this file has gone stale the same way |
 | Superseded | `1.6.6` | Released 2026-08-18 |
@@ -222,7 +222,16 @@ Checklist:
       show this: a launch with `-forceGDPRConsentGeography` and the sheet swiped away
       leaves the SDK unstarted (correctly, per the no-simulator-impressions rule), so only
       the support card is visible there.
-- [ ] Archive, upload, submit with the 1.6.9 note in `docs/appstore-metadata.md`.
+- [x] **Archived and uploaded 2026-09-07** as `build/RainyClock-1.6.9-28.xcarchive`, the
+      CLI export path for the fourth release running. Verified first: app and appex both
+      `1.6.9 (28)`, `LevelPlayAppKey`, the production `VoiceProxyURL`, all three background
+      task ids, the ATT string, 152 SKAdNetwork ids, `IronSource.framework` the only embedded
+      framework, `NSPrivacyTracking` still `false`, no `GAD*` keys, no Gemini key anywhere,
+      LevelPlay and the new preview/keychain code both present in the binary. The usual
+      IronSource dSYM warning appeared and means what it always means. On the phone before
+      upload: the preview arrived, and the report mail carried the banner's creative id.
+- [ ] **Submit in App Store Connect** with the 1.6.9 What's New and the review note from
+      `docs/appstore-metadata.md`. App Privacy unchanged.
 
 ## 1.6.7 — off Google ads, onto Unity LevelPlay
 

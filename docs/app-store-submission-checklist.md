@@ -249,6 +249,10 @@ or Google Analytics SDK. It is not a signal about real usage; App Store Connect'
 
 ## Archiving and Uploading
 
+**`1.6.9 (28)` uploaded 2026-09-07.** Fourth release through the CLI path, same command,
+same dSYM warning. The archive check gained the three `BGTaskSchedulerPermittedIdentifiers`
+(a new one, `previewRefresh`, ships in this build) and a grep for the new code in the binary.
+
 **`1.6.8 (27)` uploaded 2026-09-01.** The CLI path worked for the third release running —
 plain `xcodebuild -exportArchive` with `ExportOptions-AppStoreUpload.plist`, no Organizer and
 no credentials entered by hand. Archive verified before upload: app and appex both at
