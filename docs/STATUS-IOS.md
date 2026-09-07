@@ -17,7 +17,7 @@ Last updated: 2026-09-07.
 
 | | Version | State |
 | --- | --- | --- |
-| **Uploaded, not submitted** | `1.6.9 (28)` | **Uploaded 2026-09-07 20:54**, processing in App Store Connect. The ad report done the industry's way, the AI voice quota surviving a reinstall, and the evening-before preview notification — see below. Still to do by hand in ASC: paste the 1.6.9 What's New (both languages) and review note from `docs/appstore-metadata.md`, optionally the English localization, then submit |
+| **In review** | `1.6.9 (28)` | **Submitted 2026-09-07** with the 1.6.9 What's New and the merged review note. The ad report done the industry's way, the AI voice quota surviving a reinstall, and the evening-before preview notification — see below. Check the listing, not this row, for whether it has gone live |
 | **Live on the App Store** | `1.6.8` | **Released 2026-09-01**, first attempt — confirmed against the public listing, not against this file. The AI voice alarm. Production checked after release: weather and `/v1/tts` both answer 200 |
 | Superseded | `1.6.7` | **Released 2026-08-30.** The ad-provider migration. Confirmed against the public listing on 2026-08-31 — this row had still been claiming 正在等待審查, the third time this file has gone stale the same way |
 | Superseded | `1.6.6` | Released 2026-08-18 |
@@ -230,8 +230,14 @@ Checklist:
       LevelPlay and the new preview/keychain code both present in the binary. The usual
       IronSource dSYM warning appeared and means what it always means. On the phone before
       upload: the preview arrived, and the report mail carried the banner's creative id.
-- [ ] **Submit in App Store Connect** with the 1.6.9 What's New and the review note from
-      `docs/appstore-metadata.md`. App Privacy unchanged.
+- [x] **Submitted 2026-09-07** with the 1.6.9 What's New and the review note — the 1.6.8
+      note with "REPORTING ADS" replaced by the 2.5.18 paragraph, the evening-preview
+      paragraph in front, and the AI voice section relabelled "added in 1.6.8". App Privacy
+      unchanged.
+- [ ] When it clears review, replace this row with "Live", confirm against the listing
+      (`curl` command below), and move the device-check leftovers — the morning
+      decision-change notice, the background-refresh-off sentence — to the next version's
+      list if they were not seen.
 
 ## 1.6.7 — off Google ads, onto Unity LevelPlay
 
