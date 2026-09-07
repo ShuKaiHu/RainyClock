@@ -27,7 +27,8 @@ final class EveningPreviewPlannerTests: XCTestCase {
             exceedsRainThreshold: rain,
             leadTimeMinutes: rain ? lead : 0,
             rainProbabilityThreshold: 0.5,
-            maximumPrecipitationProbability: rain ? 0.8 : 0.1
+            maximumPrecipitationProbability: rain ? 0.8 : 0.1,
+            wettestSegmentName: rain ? "公司" : nil
         )
     }
 
@@ -68,13 +69,16 @@ final class EveningPreviewPlannerTests: XCTestCase {
             calendar: calendar
         )
 
-        guard case let .decision(rain, normal, scheduled, lead, checkedAt) = previews[0].kind else {
+        guard case let .decision(rain, normal, scheduled, lead, maximum, threshold, place, checkedAt) = previews[0].kind else {
             return XCTFail("first preview should carry the decision, got \(previews[0].kind)")
         }
         XCTAssertTrue(rain)
         XCTAssertEqual(normal, date(8, 7))
         XCTAssertEqual(scheduled, date(8, 6, 30))
         XCTAssertEqual(lead, 30)
+        XCTAssertEqual(maximum, 0.8)
+        XCTAssertEqual(threshold, 0.5)
+        XCTAssertEqual(place, "公司")
         XCTAssertEqual(checkedAt, now)
 
         for later in previews.dropFirst() {
@@ -121,11 +125,13 @@ final class EveningPreviewPlannerTests: XCTestCase {
 
         XCTAssertEqual(previews.count, 1)
         XCTAssertEqual(previews[0].fireDate, date(9, 21))
-        guard case let .decision(rain, _, _, lead, _) = previews[0].kind else {
+        guard case let .decision(rain, _, _, lead, maximum, _, place, _) = previews[0].kind else {
             return XCTFail("expected the decision")
         }
         XCTAssertFalse(rain)
         XCTAssertEqual(lead, 0)
+        XCTAssertEqual(maximum, 0.1)
+        XCTAssertNil(place, "a summary stored before 1.6.9 has no place; the text falls back to the route")
     }
 
     func testEveryDaySelectedGivesAWeekOfEvenings() {
@@ -190,13 +196,16 @@ final class EveningPreviewPlannerTests: XCTestCase {
         XCTAssertEqual(sample.identifier, "commute-rain-preview-sample")
         XCTAssertEqual(sample.fireDate, now.addingTimeInterval(EveningPreviewPlanner.sampleDelay))
         XCTAssertFalse(sample.canRefreshInBackground)
-        guard case let .decision(rain, normal, scheduled, lead, checkedAt) = sample.kind else {
+        guard case let .decision(rain, normal, scheduled, lead, maximum, threshold, place, checkedAt) = sample.kind else {
             return XCTFail("the sample shows the rainy variant")
         }
         XCTAssertTrue(rain)
         XCTAssertEqual(normal, date(8, 7))
         XCTAssertEqual(scheduled, date(8, 6, 40))
         XCTAssertEqual(lead, 20)
+        XCTAssertEqual(maximum, 0.8)
+        XCTAssertEqual(threshold, settings.rainProbabilityThreshold)
+        XCTAssertNotNil(place)
         XCTAssertEqual(checkedAt, now)
     }
 

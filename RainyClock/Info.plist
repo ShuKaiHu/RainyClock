@@ -22,6 +22,7 @@
 	<array>
 		<string>com.shukaihu.RainyClock.weatherRefresh</string>
 		<string>com.shukaihu.RainyClock.alarmMaintenance</string>
+		<string>com.shukaihu.RainyClock.previewRefresh</string>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>28</string>

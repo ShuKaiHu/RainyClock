@@ -179,8 +179,9 @@
 "evening_preview_send_sample" = "Send a preview";
 "evening_preview_denied" = "Notifications are off for Rainy Clock. Turn them on in Settings › Notifications to receive previews.";
 "evening_preview_title" = "Tomorrow morning";
-"evening_preview_rain" = "Rain on the route: the alarm moves from %1$@ to %2$@, %3$d minutes earlier. Forecast checked %4$@.";
-"evening_preview_clear" = "No rain on the route: the alarm stays at %1$@. Forecast checked %2$@.";
+"evening_preview_rain" = "%1$@: %2$d%% chance of rain, above your %3$d%% threshold, so the alarm moves from %4$@ to %5$@ — %6$d minutes earlier. Forecast checked %7$@.";
+"evening_preview_clear" = "Highest chance of rain is %2$d%% (%1$@), below your %3$d%% threshold, so the alarm stays at %4$@. Forecast checked %5$@.";
+"evening_preview_route" = "On the route";
 "evening_preview_no_background" = "Forecasts cannot update in the background right now (Low Power Mode, or Background App Refresh is off), so open Rainy Clock to re-check.";
 "evening_preview_upcoming" = "Alarm at %@. Tomorrow's forecast decides in the morning whether it moves earlier.";
 "evening_preview_upcoming_no_background" = "Alarm at %@. Forecasts cannot update in the background right now (Low Power Mode, or Background App Refresh is off), so open Rainy Clock to let tomorrow's forecast decide.";

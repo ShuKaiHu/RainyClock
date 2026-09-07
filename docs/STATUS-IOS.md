@@ -106,15 +106,28 @@ can never run, it is the only place the app tells them so.
 - **`EveningPreviewPlanner`** (`Services/EveningPreview.swift`) is pure: from the armed
   `ScheduledAlarmSummary`, the selected weekdays and `now` it plans one preview per
   selected weekday for the coming week, each at the chosen clock time on the evening
-  before, skipping an evening already gone. Only the summary's own ring carries the **decision** (rain or not,
-  from what time to what time, and when the forecast was checked — the evaluate flow
-  fetched that ring's forecast, so this is true). Every later weekday is **upcoming**:
+  before, skipping an evening already gone. Only the summary's own ring carries the
+  **decision** — rain or not, *where on the route* the highest probability was read
+  (`ScheduledAlarmSummary.wettestSegmentName`, new, optional for stored summaries) and
+  how it compares to the threshold, from what time to what time, and when the forecast
+  was checked; the evaluate flow fetched that ring's forecast, so this is true. Every
+  later weekday is **upcoming**:
   "there is an alarm; the morning's forecast decides", because that is what the
   background refresh does. Identifier `commute-rain-preview-YYYYMMDD` per alarm day.
 - **Replaced on every registration, and nowhere else** — the foreground Schedule, the
   debounced settings reconcile, and `refreshScheduledAlarmUnattended()` from the
   background task all pass through `evaluateRouteAndScheduleAlarm()`, so an overnight
-  refresh that changes the decision rewrites that evening's text with it. The 21:00
+  refresh that changes the decision rewrites that evening's text with it.
+- **"預報查詢時間" is when the forecast was fetched, not the preview time.** The user
+  read the sample's stamp as "should be 21:00" (2026-09-07). A local notification is
+  static text, so the stamp is the last evaluation — the last foreground open, or the
+  last background run. To pull that towards the preview time there is now a third
+  background task, `com.shukaihu.RainyClock.previewRefresh` (registered in
+  `Info.plist`), requested for a window opening 30 minutes before the first preview.
+  When iOS grants it, the run re-decides and re-plans, and the stamp reads that evening;
+  when it does not, the stamp is honest about what the text is based on. The request is
+  dropped rather than resubmitted once its window has opened, or a run inside the window
+  would re-plan, resubmit for "now", and spin until the preview time passed. The 21:00
   default sits before the processing window opens (nine hours before the lead-time
   point); a later chosen time may land inside it, which only means the text is fresher.
 - **Backlog item 0 is answered by detection, not guessing.** `UIApplication.shared.

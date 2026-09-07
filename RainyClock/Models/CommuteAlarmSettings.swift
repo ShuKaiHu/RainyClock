@@ -347,6 +347,10 @@ struct ScheduledAlarmSummary: Codable, Equatable {
     var leadTimeMinutes: Int
     var rainProbabilityThreshold: Double
     var maximumPrecipitationProbability: Double
+    /// Where along the route `maximumPrecipitationProbability` was read —
+    /// "住家", "路程 ½", "公司" — so the evening preview can say which part of the
+    /// commute moved the alarm. Absent in summaries stored before 1.6.9.
+    var wettestSegmentName: String?
 }
 
 extension ScheduledAlarmSummary {

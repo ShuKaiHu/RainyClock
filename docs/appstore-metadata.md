@@ -92,7 +92,7 @@ change follow because they are true and small. Nothing invented.
 ```
 Know tonight what tomorrow's alarm will do.
 
-• Evening preview: the night before an alarm, at a time you choose, Rainy Clock tells you whether rain on your route moves it earlier, and when the forecast was checked. If your phone cannot update forecasts in the background, it says so, so you can open the app. Tap "Send a preview" to see one right away, or switch it off under Snooze in the Alarm tab.
+• Evening preview: the night before an alarm, at a time you choose, Rainy Clock tells you where on your route rain is likely, how likely, whether that moves the alarm earlier, and when the forecast was checked. If your phone cannot update forecasts in the background, it says so, so you can open the app. Tap "Send a preview" to see one right away, or switch it off under Snooze in the Alarm tab.
 • "Report an ad" and the ad privacy options now sit together at the bottom of the Alarm tab, out of the alarm settings.
 • A report link also appears right under the banner, and the report now says which ad it is about so it can actually be traced and blocked.
 • Your voice-alarm generations, including ones earned by watching a video, now stay with your phone through a reinstall.
@@ -103,7 +103,7 @@ Know tonight what tomorrow's alarm will do.
 ```
 前一晚就知道明早鬧鐘會不會提前。
 
-• 前一晚預告：有鬧鐘的前一晚，在你選的時間，雨天鬧鐘會通知你路上會不會下雨、鬧鐘會不會提前，以及預報是什麼時候查的。如果手機目前無法在背景更新預報，也會直接告訴你，讓你開一下 App。按「先看一則」可以馬上看到長什麼樣子；不想收到的話，鬧鐘分頁的賴床設定下方可以關掉。
+• 前一晚預告：有鬧鐘的前一晚，在你選的時間，雨天鬧鐘會通知你路上哪一段降雨機率多高、有沒有超過你設的門檻、鬧鐘會不會提前，以及預報是什麼時候查的。如果手機目前無法在背景更新預報，也會直接告訴你，讓你開一下 App。按「先看一則」可以馬上看到長什麼樣子；不想收到的話，鬧鐘分頁的賴床設定下方可以關掉。
 • 「檢舉廣告」和廣告隱私設定現在一起放在鬧鐘分頁的最下方，不再混在鬧鐘設定裡。
 • 橫幅廣告下方也多了檢舉入口，而且檢舉內容現在會註明是哪一則廣告，方便追查與封鎖。
 • 語音鬧鐘的生成次數（包括看影片換到的）現在會跟著手機保留，重新安裝也不會遺失。

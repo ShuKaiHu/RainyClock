@@ -14,8 +14,18 @@ import UserNotifications
 struct EveningPreview: Equatable, Sendable {
     enum Kind: Equatable, Sendable {
         /// The armed decision for this ring: whether rain moved it, from when to
-        /// when, and when the forecast behind it was fetched.
-        case decision(rain: Bool, normalAlarmDate: Date, scheduledAlarmDate: Date, leadTimeMinutes: Int, checkedAt: Date)
+        /// when, the reading that decided it (where on the route, how likely,
+        /// against what threshold), and when the forecast behind it was fetched.
+        case decision(
+            rain: Bool,
+            normalAlarmDate: Date,
+            scheduledAlarmDate: Date,
+            leadTimeMinutes: Int,
+            maximumProbability: Double,
+            threshold: Double,
+            place: String?,
+            checkedAt: Date
+        )
         /// A later selected weekday; the morning's refresh will decide it.
         case upcoming(normalAlarmDate: Date)
     }
@@ -79,6 +89,9 @@ enum EveningPreviewPlanner {
                     normalAlarmDate: summary.normalAlarmDate,
                     scheduledAlarmDate: summary.scheduledAlarmDate,
                     leadTimeMinutes: summary.leadTimeMinutes,
+                    maximumProbability: summary.maximumPrecipitationProbability,
+                    threshold: summary.rainProbabilityThreshold,
+                    place: summary.wettestSegmentName,
                     checkedAt: checkedAt
                 )
                 : .upcoming(normalAlarmDate: alarm)
@@ -123,6 +136,9 @@ enum EveningPreviewPlanner {
                 normalAlarmDate: summary.normalAlarmDate,
                 scheduledAlarmDate: summary.scheduledAlarmDate,
                 leadTimeMinutes: summary.leadTimeMinutes,
+                maximumProbability: 0.8,
+                threshold: settings.rainProbabilityThreshold,
+                place: String(localized: "segment_home_area"),
                 checkedAt: now
             ),
             canRefreshInBackground: canRefreshInBackground
@@ -146,10 +162,14 @@ enum EveningPreviewText {
 
     static func body(for preview: EveningPreview) -> String {
         switch preview.kind {
-        case let .decision(rain, normalAlarmDate, scheduledAlarmDate, leadTimeMinutes, checkedAt):
+        case let .decision(rain, normalAlarmDate, scheduledAlarmDate, leadTimeMinutes, maximumProbability, threshold, place, checkedAt):
+            let where_ = place ?? String(localized: "evening_preview_route")
             let decision = rain
                 ? String.localizedStringWithFormat(
                     String(localized: "evening_preview_rain"),
+                    where_,
+                    percent(maximumProbability),
+                    percent(threshold),
                     time(normalAlarmDate),
                     time(scheduledAlarmDate),
                     leadTimeMinutes,
@@ -157,6 +177,9 @@ enum EveningPreviewText {
                 )
                 : String.localizedStringWithFormat(
                     String(localized: "evening_preview_clear"),
+                    where_,
+                    percent(maximumProbability),
+                    percent(threshold),
                     time(normalAlarmDate),
                     checked(checkedAt)
                 )
@@ -177,6 +200,10 @@ enum EveningPreviewText {
 
     private static func time(_ date: Date) -> String {
         date.formatted(date: .omitted, time: .shortened)
+    }
+
+    private static func percent(_ probability: Double) -> Int {
+        Int((probability * 100).rounded())
     }
 
     /// Weekday and time, no year: the check is always within the week, and

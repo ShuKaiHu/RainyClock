@@ -547,7 +547,7 @@ final class AlarmViewModel: ObservableObject {
             }
 
             let exceedsThreshold = snapshot.exceedsRainThreshold(settingsSnapshot.rainProbabilityThreshold)
-            let summary = AlarmTimeCalculator.nextAlarmDateForWeatherCheck(
+            var summary = AlarmTimeCalculator.nextAlarmDateForWeatherCheck(
                 alarmTime: settingsSnapshot.alarmTime,
                 leadTimeMinutes: settingsSnapshot.rainLeadTimeMinutes,
                 shouldApplyLeadTime: exceedsThreshold,
@@ -556,6 +556,9 @@ final class AlarmViewModel: ObservableObject {
                 selectedWeekdays: settingsSnapshot.selectedWeekdays,
                 now: now
             )
+            summary.wettestSegmentName = snapshot.segments
+                .max { $0.precipitationProbability < $1.precipitationProbability }?
+                .name
 
             let body = exceedsThreshold
                 ? String(localized: "notification_body_adjusted")
@@ -864,6 +867,9 @@ final class AlarmViewModel: ObservableObject {
             canRefreshInBackground: canRefreshInBackground()
         )
         await previewScheduler.replacePreviews(previews)
+        // Best effort at a forecast fetched just before the first preview fires,
+        // so its text is as fresh as the system lets it be.
+        BackgroundWeatherRefresh.schedulePreviewRefresh(before: previews.first?.fireDate, now: now)
     }
 
     private func nextWeatherCheckDate(for settings: CommuteAlarmSettings, now: Date = Date()) -> Date {

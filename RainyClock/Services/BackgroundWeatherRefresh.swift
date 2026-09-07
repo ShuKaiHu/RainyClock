@@ -26,6 +26,11 @@ enum BackgroundWeatherRefresh {
     /// Must match `BGTaskSchedulerPermittedIdentifiers` in `Info.plist`.
     static let refreshTaskIdentifier = "com.shukaihu.RainyClock.weatherRefresh"
     static let processingTaskIdentifier = "com.shukaihu.RainyClock.alarmMaintenance"
+    /// A third window, opened shortly before the evening preview fires, so the
+    /// text it carries can be re-decided on a forecast from that evening rather
+    /// than from whenever the app was last opened.
+    static let previewRefreshTaskIdentifier = "com.shukaihu.RainyClock.previewRefresh"
+    static let previewRefreshLeadTime: TimeInterval = 30 * 60
 
     /// How far ahead of the lead-time point to start asking for the refresh task.
     /// The system treats `earliestBeginDate` as "not before", never "at", so this is
@@ -46,7 +51,7 @@ enum BackgroundWeatherRefresh {
             return
         }
 
-        for identifier in [refreshTaskIdentifier, processingTaskIdentifier] {
+        for identifier in [refreshTaskIdentifier, processingTaskIdentifier, previewRefreshTaskIdentifier] {
             // `using: .main` pins the launch handler to the main queue; the box is
             // what carries the non-Sendable `BGTask` from there to the main actor.
             let registered = BGTaskScheduler.shared.register(
@@ -93,9 +98,32 @@ enum BackgroundWeatherRefresh {
         )
     }
 
+    /// Asks for a refresh window opening `previewRefreshLeadTime` before the first
+    /// evening preview. Nothing to preview, or a window that has already opened
+    /// (this run *is* that refresh), drops the request instead of resubmitting it
+    /// for a moment that has passed — which would run again at once, re-plan,
+    /// resubmit, and spin until the preview time went by.
+    static func schedulePreviewRefresh(before fireDate: Date?, now: Date = Date()) {
+        guard !AppEnvironment.isRunningTests else {
+            return
+        }
+
+        guard let fireDate, fireDate.addingTimeInterval(-previewRefreshLeadTime) > now else {
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: previewRefreshTaskIdentifier)
+            return
+        }
+
+        submit(
+            BGAppRefreshTaskRequest(identifier: previewRefreshTaskIdentifier),
+            beginningAt: fireDate.addingTimeInterval(-previewRefreshLeadTime),
+            now: now
+        )
+    }
+
     static func cancelScheduledRuns() {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: refreshTaskIdentifier)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: processingTaskIdentifier)
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: previewRefreshTaskIdentifier)
     }
 
     private static func submit(_ request: BGTaskRequest, beginningAt date: Date, now: Date) {

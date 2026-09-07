@@ -179,8 +179,9 @@
 "evening_preview_send_sample" = "先看一則";
 "evening_preview_denied" = "雨天鬧鐘的通知已關閉。到「設定 › 通知」開啟後才收得到預告。";
 "evening_preview_title" = "明早預告";
-"evening_preview_rain" = "路上會下雨，鬧鐘從 %1$@ 提前到 %2$@，早 %3$d 分鐘。預報查詢時間：%4$@。";
-"evening_preview_clear" = "路上不會下雨，鬧鐘維持 %1$@。預報查詢時間：%2$@。";
+"evening_preview_rain" = "%1$@一帶降雨機率 %2$d%%，超過你設的 %3$d%%，鬧鐘從 %4$@ 提前到 %5$@，早 %6$d 分鐘。預報查詢時間：%7$@。";
+"evening_preview_clear" = "路上降雨機率最高 %2$d%%（%1$@一帶），低於你設的 %3$d%%，鬧鐘維持 %4$@。預報查詢時間：%5$@。";
+"evening_preview_route" = "路上";
 "evening_preview_no_background" = "目前無法在背景更新預報（低耗電模式，或背景 App 重新整理已關閉），開啟雨天鬧鐘才會重新判斷。";
 "evening_preview_upcoming" = "明天 %@ 有鬧鐘，早上會依當天預報決定要不要提前。";
 "evening_preview_upcoming_no_background" = "明天 %@ 有鬧鐘。目前無法在背景更新預報（低耗電模式，或背景 App 重新整理已關閉），開啟雨天鬧鐘才會依明早預報決定要不要提前。";
