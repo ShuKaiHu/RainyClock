@@ -94,6 +94,7 @@ A tidier home for the ad controls:
 
 • "Report an ad" and the ad privacy options now sit together at the bottom of the Alarm tab, out of the alarm settings.
 • A report link also appears right under the banner, and the report now says which ad it is about so it can actually be traced and blocked.
+• Your voice-alarm generations, including ones earned by watching a video, now stay with your phone through a reinstall.
 ```
 
 ### 繁體中文
@@ -103,6 +104,7 @@ A tidier home for the ad controls:
 
 • 「檢舉廣告」和廣告隱私設定現在一起放在鬧鐘分頁的最下方，不再混在鬧鐘設定裡。
 • 橫幅廣告下方也多了檢舉入口，而且檢舉內容現在會註明是哪一則廣告，方便追查與封鎖。
+• 語音鬧鐘的生成次數（包括看影片換到的）現在會跟著手機保留，重新安裝也不會遺失。
 ```
 
 ## Version 1.6.8 (27) “What’s New”

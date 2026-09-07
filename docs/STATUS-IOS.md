@@ -17,7 +17,7 @@ Last updated: 2026-09-07.
 
 | | Version | State |
 | --- | --- | --- |
-| **In progress** | `1.6.9 (28)` | The ad report done the industry's way — see below. Opened 2026-09-07; code and tests in, device check and upload still owed |
+| **In progress** | `1.6.9 (28)` | The ad report done the industry's way, and the AI voice quota surviving a reinstall — see below. Opened 2026-09-07; code and tests in, device check and upload still owed |
 | **Live on the App Store** | `1.6.8` | **Released 2026-09-01**, first attempt — confirmed against the public listing, not against this file. The AI voice alarm. Production checked after release: weather and `/v1/tts` both answer 200 |
 | Superseded | `1.6.7` | **Released 2026-08-30.** The ad-provider migration. Confirmed against the public listing on 2026-08-31 — this row had still been claiming 正在等待審查, the third time this file has gone stale the same way |
 | Superseded | `1.6.6` | Released 2026-08-18 |
@@ -65,11 +65,45 @@ What changed:
   first; a slot that never showed is omitted; no ads says so; blank SDK strings become
   `?`; the `mailto` keeps a literal `+` encoded.
 
+**Also in 1.6.9: the AI voice quota survives delete-and-reinstall.** The user found that
+reinstalling handed out three free generations again. `AIVoiceQuota` had said so in its
+own comment and called it a deliberate trade against "an identifier that survives
+deletion" — but a counter is not an identifier, so the trade was never needed for this.
+Now:
+
+- **`KeychainCounters`** (`Services/KeychainCounters.swift`) stores small integers as
+  generic-password items — this device only, not iCloud-synchronised — under the service
+  `com.shukaihu.RainyClock.aiVoiceQuota`. Keychain items outlive the app container;
+  Apple documents no guarantee of that, so this is fairness, not a security boundary
+  (the boundary is `weather-proxy`'s daily budget, which meters nothing per device).
+- **`UserDefaults` stays as a write-through mirror**, and the read is keychain-first with
+  the mirror as fallback. That covers three cases at once: a count 1.6.8 left behind is
+  picked up and carried into the keychain on first read; a reinstall has only the
+  keychain and keeps the count; a process the keychain refuses (an unsigned build gets
+  `errSecMissingEntitlement`; a read before first unlock) still sees the mirror instead
+  of an unlimited allowance. Earned credits survive a reinstall too, which is the
+  user-facing half worth saying in the notes.
+- **`AIVoiceQuotaTests`** (8 tests). The ones that need the keychain `XCTSkip` when the
+  host is unsigned — the documented build command passes `CODE_SIGNING_ALLOWED=NO`, and
+  in that run six skip (three outright, three after their mirror half); drop the flag and
+  all eight run and pass, reinstall simulation included.
+  The lifecycle overrides are the `async throws` forms, because in a `@MainActor` test
+  class the synchronous `setUp`/`tearDown` overrides are nonisolated and cannot touch the
+  class's own state under Swift 6.
+- Considered and not done: **DeviceCheck** (Apple's design for exactly this — two bits per
+  device, read and set by the server, no identifier reaches the app; the proxy would need
+  an Apple `.p8` in Secret Manager and a round trip per generation) and **iCloud KVS**
+  (needs the entitlement, defeated by signing out). DeviceCheck is the right move if the
+  server-side cost ever matters; at NT$0.10 a generation and three per reinstall, it does
+  not yet.
+
 Checklist:
 
 - [x] Version `1.6.9 (28)` in both places (`Info.plist` and the widget's
       `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`), verified in the built bundle.
-- [x] Simulator build and the full unit suite pass (2026-09-07).
+- [x] Simulator build and the full unit suite pass (2026-09-07): 78 tests unsigned, 72
+      passed and 6 skipped (the three keychain-only tests, plus the three quota tests whose
+      second half needs the keychain); signed, the quota file's 8 all run and pass.
 - [x] **Support card seen on the iPhone 17 Pro simulator 2026-09-07**, in both languages,
       with the installed bundle's `LevelPlayAppKey` blanked first so answering the consent
       sheet could not start the SDK. Under `-forceGDPRConsentGeography` the card shows
@@ -77,7 +111,8 @@ Checklist:
       rebuilt afterwards so `DerivedData` carries the real key again.
 - [ ] **Check on the iPhone 16 Pro**, the registered test device: the caption appears
       under a real banner, the mail draft names it with a creative id, and — after
-      spending the free generations — the rewarded line appears too. The simulator cannot
+      spending the free generations — the rewarded line appears too. Then delete the app,
+      reinstall, and confirm the voice sheet still shows the spent count. The simulator cannot
       show this: a launch with `-forceGDPRConsentGeography` and the sheet swiped away
       leaves the SDK unstarted (correctly, per the no-simulator-impressions rule), so only
       the support card is visible there.

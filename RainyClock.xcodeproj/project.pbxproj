@@ -61,6 +61,7 @@
 		754AECAC7E45A94AF3DEA98E /* CommuteAlarmMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4BB22C84DAA14A208462B12 /* CommuteAlarmMetadata.swift */; };
 		78C9359541A1A63A25859ED4 /* preview-steady-en.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 8609FAE441DF3D157DF646BD /* preview-steady-en.m4a */; };
 		91824AA8244757AED10F11B2 /* AIVoiceQuota.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BA273EA8BCD1B0999200C60 /* AIVoiceQuota.swift */; };
+		0A1000AD2C0000000000AD04 /* KeychainCounters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000AD2C0000000000AD03 /* KeychainCounters.swift */; };
 		9ED317318119EF731F40E4FC /* RainyClockAlarmWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4F27BC082A98163C47E456A4 /* RainyClockAlarmWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A0338E5E582A4E84E222D889 /* preview-bright-zh.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 6DF2544063B4E1202AA50CBA /* preview-bright-zh.m4a */; };
 		AA98B6CDAFC126C83261B927 /* VoicePersona.swift in Sources */ = {isa = PBXBuildFile; fileRef = 262973271663C0D9E9899FDF /* VoicePersona.swift */; };
@@ -72,6 +73,7 @@
 		D901596ADED0CA3EC1B23B61 /* AdReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21DFB581C278C05ABFA0647 /* AdReport.swift */; };
 		D9AFFD3EDD2005FE2CE06FEC /* AlarmSchedulingSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDA82D02716704A4024FBA29 /* AlarmSchedulingSettingsTests.swift */; };
 		0A1000AD2C0000000000AD02 /* AdReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000AD2C0000000000AD01 /* AdReportTests.swift */; };
+		0A1000AD2C0000000000AD06 /* AIVoiceQuotaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000AD2C0000000000AD05 /* AIVoiceQuotaTests.swift */; };
 		DF082B611B71792BF1D6336D /* preview-buddy-zh.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 91F9D85B61E9E6AF09BBB425 /* preview-buddy-zh.m4a */; };
 		E02AA2444353D39C4B42A1E9 /* GeneratedVoiceAssemblerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9606BA5A5CBAB2AB6039C090 /* GeneratedVoiceAssemblerTests.swift */; };
 		F78A594DA66B7682BD358744 /* preview-mom-zh.m4a in Resources */ = {isa = PBXBuildFile; fileRef = BEF28F46540B76D9879B6DA7 /* preview-mom-zh.m4a */; };
@@ -163,6 +165,7 @@
 		4F27BC082A98163C47E456A4 /* RainyClockAlarmWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RainyClockAlarmWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		57381698D3814E4FBA98C10A /* AIVoiceSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIVoiceSheet.swift; sourceTree = "<group>"; };
 		6BA273EA8BCD1B0999200C60 /* AIVoiceQuota.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIVoiceQuota.swift; sourceTree = "<group>"; };
+		0A1000AD2C0000000000AD03 /* KeychainCounters.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KeychainCounters.swift; sourceTree = "<group>"; };
 		6C3FE90D63767F3FE105940E /* preview-mom-en.m4a */ = {isa = PBXFileReference; includeInIndex = 1; path = "preview-mom-en.m4a"; sourceTree = "<group>"; };
 		6DF2544063B4E1202AA50CBA /* preview-bright-zh.m4a */ = {isa = PBXFileReference; includeInIndex = 1; path = "preview-bright-zh.m4a"; sourceTree = "<group>"; };
 		7D92658ADF45F0EC2AD58E50 /* AlarmKitScheduler.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AlarmKitScheduler.swift; sourceTree = "<group>"; };
@@ -182,6 +185,7 @@
 		F4BB22C84DAA14A208462B12 /* CommuteAlarmMetadata.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CommuteAlarmMetadata.swift; sourceTree = "<group>"; };
 		FDA82D02716704A4024FBA29 /* AlarmSchedulingSettingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AlarmSchedulingSettingsTests.swift; sourceTree = "<group>"; };
 		0A1000AD2C0000000000AD01 /* AdReportTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AdReportTests.swift; sourceTree = "<group>"; };
+		0A1000AD2C0000000000AD05 /* AIVoiceQuotaTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIVoiceQuotaTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -306,6 +310,7 @@
 				D0E42F1A82A2DC0F58286FF0 /* GeneratedVoiceAssembler.swift */,
 				E5ECAFB90DC821FA5EE54ADD /* AIVoiceClient.swift */,
 				6BA273EA8BCD1B0999200C60 /* AIVoiceQuota.swift */,
+				0A1000AD2C0000000000AD03 /* KeychainCounters.swift */,
 				3AD002638D80D3B245F91C05 /* RewardedAdController.swift */,
 				C21DFB581C278C05ABFA0647 /* AdReport.swift */,
 			);
@@ -325,6 +330,7 @@
 			children = (
 				0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */,
 				0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */,
+				0A1000AD2C0000000000AD05 /* AIVoiceQuotaTests.swift */,
 				0A1000AD2C0000000000AD01 /* AdReportTests.swift */,
 				FDA82D02716704A4024FBA29 /* AlarmSchedulingSettingsTests.swift */,
 				39C8C3492E7E1E5211E865AC /* AlarmViewModelSchedulingTests.swift */,
@@ -522,6 +528,7 @@
 			files = (
 				0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */,
 				0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */,
+				0A1000AD2C0000000000AD06 /* AIVoiceQuotaTests.swift in Sources */,
 				0A1000AD2C0000000000AD02 /* AdReportTests.swift in Sources */,
 				D9AFFD3EDD2005FE2CE06FEC /* AlarmSchedulingSettingsTests.swift in Sources */,
 				F7F9A507A2726D0344BDA3B7 /* AlarmViewModelSchedulingTests.swift in Sources */,
@@ -561,6 +568,7 @@
 				2D0102BC61B33B4F45B782AB /* AIVoiceClient.swift in Sources */,
 				AA98B6CDAFC126C83261B927 /* VoicePersona.swift in Sources */,
 				91824AA8244757AED10F11B2 /* AIVoiceQuota.swift in Sources */,
+				0A1000AD2C0000000000AD04 /* KeychainCounters.swift in Sources */,
 				01D38ACAF517A7C2D707E95E /* RewardedAdController.swift in Sources */,
 				D901596ADED0CA3EC1B23B61 /* AdReport.swift in Sources */,
 			);
