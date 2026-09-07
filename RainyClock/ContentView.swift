@@ -570,6 +570,7 @@ private struct AlarmTabView: View {
     @ObservedObject var viewModel: AlarmViewModel
     @ObservedObject private var consentManager = ConsentManager.shared
     @State private var showsAIVoiceSheet = false
+    @State private var sampleNoticeVisible = false
     @State private var soundBeforeAIVoice: CommuteAlarmSettings.AlarmSound?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     // Only consulted at accessibility text sizes, where the row wraps and the
@@ -716,14 +717,49 @@ private struct AlarmTabView: View {
                             }
                         }
 
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Toggle(isOn: $viewModel.settings.isEveningPreviewEnabled) {
                                 Text("evening_preview")
                             }
                             .tint(Color.accentColor)
-                            Text("evening_preview_hint")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+
+                            if viewModel.settings.isEveningPreviewEnabled {
+                                HStack {
+                                    Text("evening_preview_time")
+                                    Spacer()
+                                    DatePicker(
+                                        "evening_preview_time",
+                                        selection: $viewModel.settings.eveningPreviewTime,
+                                        displayedComponents: .hourAndMinute
+                                    )
+                                    .labelsHidden()
+                                    .tint(Color.accentColor)
+                                }
+
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text("evening_preview_hint")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    // Sends one now-ish, so the shape of the thing can
+                                    // be seen before the first real evening. Also the
+                                    // most natural moment to ask for permission.
+                                    Button("evening_preview_send_sample") {
+                                        Task {
+                                            sampleNoticeVisible = !(await viewModel.sendSampleEveningPreview())
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(Color.accentColor)
+                                    .fixedSize()
+                                }
+                                if sampleNoticeVisible {
+                                    Text("evening_preview_denied")
+                                        .font(.footnote)
+                                        .foregroundStyle(.orange)
+                                }
+                            }
                         }
                     }
                     .padding(18)

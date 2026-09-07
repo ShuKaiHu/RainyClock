@@ -40,6 +40,7 @@ final class EveningPreviewPlannerTests: XCTestCase {
         let previews = EveningPreviewPlanner.plan(
             summary: summary(normal: date(8, 7), rain: true),
             selectedWeekdays: weekdaysTueToFri,
+            previewTime: date(7, 21),
             checkedAt: now,
             now: now,
             canRefreshInBackground: true,
@@ -60,6 +61,7 @@ final class EveningPreviewPlannerTests: XCTestCase {
         let previews = EveningPreviewPlanner.plan(
             summary: summary(normal: date(8, 7), rain: true),
             selectedWeekdays: weekdaysTueToFri,
+            previewTime: date(7, 21),
             checkedAt: now,
             now: now,
             canRefreshInBackground: true,
@@ -91,6 +93,7 @@ final class EveningPreviewPlannerTests: XCTestCase {
         let previews = EveningPreviewPlanner.plan(
             summary: summary(normal: date(8, 7), rain: false),
             selectedWeekdays: weekdaysTueToFri,
+            previewTime: date(7, 21),
             checkedAt: now,
             now: now,
             canRefreshInBackground: true,
@@ -109,6 +112,7 @@ final class EveningPreviewPlannerTests: XCTestCase {
         let previews = EveningPreviewPlanner.plan(
             summary: summary(normal: date(10, 7), rain: false),
             selectedWeekdays: [5],
+            previewTime: date(7, 21),
             checkedAt: now,
             now: now,
             canRefreshInBackground: true,
@@ -129,6 +133,7 @@ final class EveningPreviewPlannerTests: XCTestCase {
         let previews = EveningPreviewPlanner.plan(
             summary: summary(normal: date(8, 7), rain: false),
             selectedWeekdays: CommuteAlarmSettings.allWeekdays,
+            previewTime: date(7, 21),
             checkedAt: now,
             now: now,
             canRefreshInBackground: true,
@@ -146,6 +151,7 @@ final class EveningPreviewPlannerTests: XCTestCase {
         let previews = EveningPreviewPlanner.plan(
             summary: summary(normal: date(8, 7), rain: false),
             selectedWeekdays: weekdaysTueToFri,
+            previewTime: date(7, 21),
             checkedAt: now,
             now: now,
             canRefreshInBackground: false,
@@ -156,6 +162,44 @@ final class EveningPreviewPlannerTests: XCTestCase {
         XCTAssertTrue(previews.allSatisfy { !$0.canRefreshInBackground })
     }
 
+    func testThePreviewTimeIsTheUsersAndOnlyItsClockTimeCounts() {
+        // 22:15 chosen on some unrelated day: only the hour and minute matter.
+        let now = date(7, 12)
+        let previews = EveningPreviewPlanner.plan(
+            summary: summary(normal: date(8, 7), rain: false),
+            selectedWeekdays: weekdaysTueToFri,
+            previewTime: date(1, 22, 15),
+            checkedAt: now,
+            now: now,
+            canRefreshInBackground: true,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(previews.map(\.fireDate), [date(7, 22, 15), date(8, 22, 15), date(9, 22, 15), date(10, 22, 15)])
+    }
+
+    func testTheSampleIsARainyDecisionForTheNextAlarmAFewSecondsOut() {
+        var settings = CommuteAlarmSettings()
+        settings.alarmTime = date(7, 7)
+        settings.rainLeadTimeMinutes = 20
+        settings.selectedWeekdays = weekdaysTueToFri
+        let now = date(7, 12)
+
+        let sample = EveningPreviewPlanner.sample(settings: settings, now: now, canRefreshInBackground: false, calendar: calendar)
+
+        XCTAssertEqual(sample.identifier, "commute-rain-preview-sample")
+        XCTAssertEqual(sample.fireDate, now.addingTimeInterval(EveningPreviewPlanner.sampleDelay))
+        XCTAssertFalse(sample.canRefreshInBackground)
+        guard case let .decision(rain, normal, scheduled, lead, checkedAt) = sample.kind else {
+            return XCTFail("the sample shows the rainy variant")
+        }
+        XCTAssertTrue(rain)
+        XCTAssertEqual(normal, date(8, 7))
+        XCTAssertEqual(scheduled, date(8, 6, 40))
+        XCTAssertEqual(lead, 20)
+        XCTAssertEqual(checkedAt, now)
+    }
+
     func testAnAlarmJustAfterMidnightIsPreviewedTheEveningBefore() {
         // 00:30 alarm on Tuesday: the eve is Monday 21:00, three and a half
         // hours ahead, which is still "the night before".
@@ -163,6 +207,7 @@ final class EveningPreviewPlannerTests: XCTestCase {
         let previews = EveningPreviewPlanner.plan(
             summary: summary(normal: date(8, 0, 30), rain: false),
             selectedWeekdays: [3],
+            previewTime: date(7, 21),
             checkedAt: now,
             now: now,
             canRefreshInBackground: true,

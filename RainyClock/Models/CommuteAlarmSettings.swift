@@ -180,6 +180,14 @@ struct CommuteAlarmSettings: Codable, Equatable {
     /// weekday. Not part of the schedule fingerprint: it changes nothing about
     /// the registered alarm, only what is said the night before.
     var isEveningPreviewEnabled: Bool = true
+    /// When, the evening before, the preview arrives. Only the hour and minute
+    /// are read. 21:00 by default: late enough that the forecast for the morning
+    /// is worth reading, early enough to still change plans.
+    var eveningPreviewTime: Date = Self.defaultEveningPreviewTime
+
+    static var defaultEveningPreviewTime: Date {
+        Calendar.current.date(bySettingHour: 21, minute: 0, second: 0, of: Date()) ?? Date()
+    }
 
     static let snoozeDurationRange = 1...15
 
@@ -211,6 +219,7 @@ struct CommuteAlarmSettings: Codable, Equatable {
         let decodedSnoozeDuration = try values.decodeIfPresent(Int.self, forKey: .snoozeDurationMinutes) ?? 5
         snoozeDurationMinutes = min(max(decodedSnoozeDuration, Self.snoozeDurationRange.lowerBound), Self.snoozeDurationRange.upperBound)
         isEveningPreviewEnabled = try values.decodeIfPresent(Bool.self, forKey: .isEveningPreviewEnabled) ?? true
+        eveningPreviewTime = try values.decodeIfPresent(Date.self, forKey: .eveningPreviewTime) ?? Self.defaultEveningPreviewTime
     }
 
     /// The snooze interval to schedule with, or nil when the user turned snooze off.

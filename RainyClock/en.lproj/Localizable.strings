@@ -174,7 +174,10 @@
 "report_ad_banner_link" = "Report this ad";
 "ad_support_header" = "Ads";
 "evening_preview" = "Evening preview";
-"evening_preview_hint" = "At 9 p.m. the night before an alarm, a notification says whether rain moves it.";
+"evening_preview_hint" = "The night before an alarm, a notification says whether rain moves it.";
+"evening_preview_time" = "Preview time";
+"evening_preview_send_sample" = "Send a preview";
+"evening_preview_denied" = "Notifications are off for Rainy Clock. Turn them on in Settings › Notifications to receive previews.";
 "evening_preview_title" = "Tomorrow morning";
 "evening_preview_rain" = "Rain on the route: the alarm moves from %1$@ to %2$@, %3$d minutes earlier. Forecast checked %4$@.";
 "evening_preview_clear" = "No rain on the route: the alarm stays at %1$@. Forecast checked %2$@.";

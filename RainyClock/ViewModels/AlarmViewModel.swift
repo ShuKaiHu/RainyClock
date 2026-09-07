@@ -33,7 +33,8 @@ final class AlarmViewModel: ObservableObject {
             saveSettings()
             updateScheduleStaleness()
             reconcileScheduledAlarmWithSettings()
-            if oldValue.isEveningPreviewEnabled != settings.isEveningPreviewEnabled {
+            if oldValue.isEveningPreviewEnabled != settings.isEveningPreviewEnabled
+                || oldValue.eveningPreviewTime != settings.eveningPreviewTime {
                 Task {
                     await replanEveningPreviews(requestingAuthorization: settings.isEveningPreviewEnabled)
                 }
@@ -798,6 +799,26 @@ final class AlarmViewModel: ObservableObject {
         await replanEveningPreviews(requestingAuthorization: true)
     }
 
+    /// Sends a sample preview a few seconds from now so the person can see what
+    /// one looks like. Asks for permission first if nothing has; returns false
+    /// when it is denied, so the button can say where to turn it on.
+    func sendSampleEveningPreview() async -> Bool {
+        var status = await previewScheduler.authorizationStatus()
+        if status == .notDetermined {
+            status = await previewScheduler.requestAuthorization() ? .authorized : .denied
+        }
+        guard status == .authorized else {
+            return false
+        }
+
+        await previewScheduler.showSample(EveningPreviewPlanner.sample(
+            settings: settings,
+            now: Date(),
+            canRefreshInBackground: canRefreshInBackground()
+        ))
+        return true
+    }
+
     /// Re-plans the previews from the stored summary — the toggle flipping, or
     /// permission arriving after the alarm was registered.
     private func replanEveningPreviews(requestingAuthorization: Bool) async {
@@ -837,6 +858,7 @@ final class AlarmViewModel: ObservableObject {
         let previews = EveningPreviewPlanner.plan(
             summary: summary,
             selectedWeekdays: settings.selectedWeekdays,
+            previewTime: settings.eveningPreviewTime,
             checkedAt: lastWeatherEvaluationAt ?? now,
             now: now,
             canRefreshInBackground: canRefreshInBackground()

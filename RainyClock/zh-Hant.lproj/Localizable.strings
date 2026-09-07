@@ -174,7 +174,10 @@
 "report_ad_banner_link" = "檢舉這則廣告";
 "ad_support_header" = "廣告";
 "evening_preview" = "前一晚預告";
-"evening_preview_hint" = "有鬧鐘的前一晚 9 點，通知你明早會不會因為下雨而提前。";
+"evening_preview_hint" = "有鬧鐘的前一晚通知你，明早會不會因為下雨而提前。";
+"evening_preview_time" = "預告時間";
+"evening_preview_send_sample" = "先看一則";
+"evening_preview_denied" = "雨天鬧鐘的通知已關閉。到「設定 › 通知」開啟後才收得到預告。";
 "evening_preview_title" = "明早預告";
 "evening_preview_rain" = "路上會下雨，鬧鐘從 %1$@ 提前到 %2$@，早 %3$d 分鐘。預報查詢時間：%4$@。";
 "evening_preview_clear" = "路上不會下雨，鬧鐘維持 %1$@。預報查詢時間：%2$@。";

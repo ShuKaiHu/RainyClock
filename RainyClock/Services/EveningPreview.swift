@@ -1,8 +1,8 @@
 import Foundation
 import UserNotifications
 
-/// One "tomorrow morning" notification, planned for 9 p.m. the evening before a
-/// selected weekday's alarm.
+/// One "tomorrow morning" notification, planned for the evening before a
+/// selected weekday's alarm at a time the person chose (21:00 by default).
 ///
 /// Two kinds, because only one occurrence has a decision behind it. The armed
 /// alarm was decided against the forecast for its *next* ring, so that ring's
@@ -31,21 +31,23 @@ struct EveningPreview: Equatable, Sendable {
 }
 
 enum EveningPreviewPlanner {
-    /// Nine in the evening, local time. Fixed rather than relative to the alarm:
-    /// "the night before" is when people decide about tomorrow, and it lands
-    /// before the overnight background window opens (nine hours before the
-    /// lead-time point), so a refresh that does run replaces this with fresher
-    /// text rather than racing it.
-    static let previewHour = 21
+    /// The sample the "preview notification" button sends, so the person can
+    /// see the shape of the thing before the first real evening. Uses the
+    /// prefix so a re-plan sweeps it up if it has not fired yet.
+    static let sampleIdentifier = "\(identifierPrefix)-sample"
+    static let sampleDelay: TimeInterval = 3
     /// A week of previews at most, one per selected weekday. The notification
     /// alarms on iOS 17–25 share the 64-request budget with these — see
     /// `LocalNotificationScheduler.pendingNotificationLimit`.
     static let horizonDays = 7
     static let identifierPrefix = "commute-rain-preview"
 
+    /// - Parameter previewTime: only its hour and minute are read; the preview
+    ///   fires at that time on the calendar day before each alarm.
     static func plan(
         summary: ScheduledAlarmSummary,
         selectedWeekdays: Set<Int>,
+        previewTime: Date,
         checkedAt: Date,
         now: Date,
         canRefreshInBackground: Bool,
@@ -53,6 +55,7 @@ enum EveningPreviewPlanner {
     ) -> [EveningPreview] {
         let weekdays = selectedWeekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : selectedWeekdays
         let time = calendar.dateComponents([.hour, .minute], from: summary.normalAlarmDate)
+        let preview = calendar.dateComponents([.hour, .minute], from: previewTime)
         let todayStart = calendar.startOfDay(for: now)
         var previews: [EveningPreview] = []
 
@@ -62,7 +65,7 @@ enum EveningPreviewPlanner {
                   alarm > now,
                   weekdays.contains(calendar.component(.weekday, from: alarm)),
                   let eve = calendar.date(byAdding: .day, value: -1, to: alarm),
-                  let fireDate = calendar.date(bySettingHour: previewHour, minute: 0, second: 0, of: eve),
+                  let fireDate = calendar.date(bySettingHour: preview.hour ?? 21, minute: preview.minute ?? 0, second: 0, of: eve),
                   // An evening already gone gets nothing: the person is either in
                   // the app right now or past the point a preview helps.
                   fireDate > now.addingTimeInterval(60) else {
@@ -91,6 +94,41 @@ enum EveningPreviewPlanner {
         return previews
     }
 
+    /// A rainy-morning sample built from the settings alone, for the button.
+    /// It says "rain" because that is the variant worth seeing — the dry one is
+    /// a shorter sentence with the same shape. `checkedAt` is now, and the
+    /// background-refresh sentence follows the phone's real state, so the
+    /// sample is also the first time that sentence can be seen.
+    static func sample(
+        settings: CommuteAlarmSettings,
+        now: Date,
+        canRefreshInBackground: Bool,
+        calendar: Calendar = .current
+    ) -> EveningPreview {
+        let summary = AlarmTimeCalculator.nextAlarmDateForWeatherCheck(
+            alarmTime: settings.alarmTime,
+            leadTimeMinutes: settings.rainLeadTimeMinutes,
+            shouldApplyLeadTime: true,
+            rainProbabilityThreshold: settings.rainProbabilityThreshold,
+            maximumPrecipitationProbability: 0.8,
+            selectedWeekdays: settings.selectedWeekdays,
+            now: now,
+            calendar: calendar
+        )
+        return EveningPreview(
+            identifier: sampleIdentifier,
+            fireDate: now.addingTimeInterval(sampleDelay),
+            kind: .decision(
+                rain: true,
+                normalAlarmDate: summary.normalAlarmDate,
+                scheduledAlarmDate: summary.scheduledAlarmDate,
+                leadTimeMinutes: summary.leadTimeMinutes,
+                checkedAt: now
+            ),
+            canRefreshInBackground: canRefreshInBackground
+        )
+    }
+
     /// One identifier per alarm day, so re-planning replaces rather than
     /// duplicates, and a cancelled day's request is addressable.
     static func identifier(forAlarmOn date: Date, calendar: Calendar) -> String {
@@ -115,12 +153,12 @@ enum EveningPreviewText {
                     time(normalAlarmDate),
                     time(scheduledAlarmDate),
                     leadTimeMinutes,
-                    checkedAt.formatted(date: .abbreviated, time: .shortened)
+                    checked(checkedAt)
                 )
                 : String.localizedStringWithFormat(
                     String(localized: "evening_preview_clear"),
                     time(normalAlarmDate),
-                    checkedAt.formatted(date: .abbreviated, time: .shortened)
+                    checked(checkedAt)
                 )
             return preview.canRefreshInBackground
                 ? decision
@@ -140,6 +178,12 @@ enum EveningPreviewText {
     private static func time(_ date: Date) -> String {
         date.formatted(date: .omitted, time: .shortened)
     }
+
+    /// Weekday and time, no year: the check is always within the week, and
+    /// "2026年9月7日 晚上7:58" in a two-line banner spent most of it on the year.
+    private static func checked(_ date: Date) -> String {
+        date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+    }
 }
 
 enum EveningPreviewAuthorization: Sendable {
@@ -158,6 +202,9 @@ protocol EveningPreviewScheduling: Sendable {
     /// Drops every pending preview and registers these instead.
     func replacePreviews(_ previews: [EveningPreview]) async
     func cancelPreviews() async
+    /// Delivers one preview a few seconds from now, leaving the planned ones
+    /// alone. The "preview notification" button.
+    func showSample(_ preview: EveningPreview) async
 }
 
 /// Local notifications, one calendar trigger per preview. Separate from the
@@ -222,6 +269,24 @@ struct UserNotificationEveningPreviewScheduler: EveningPreviewScheduling {
         }
 
         await Self.removePending(center: UNUserNotificationCenter.current())
+    }
+
+    func showSample(_ preview: EveningPreview) async {
+        guard !AppEnvironment.isRunningTests else {
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = EveningPreviewText.title
+        content.body = EveningPreviewText.body(for: preview)
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(
+            timeInterval: max(1, preview.fireDate.timeIntervalSinceNow),
+            repeats: false
+        )
+        try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: preview.identifier, content: content, trigger: trigger)
+        )
     }
 
     private static func removePending(center: UNUserNotificationCenter) async {
