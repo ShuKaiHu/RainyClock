@@ -182,6 +182,9 @@
 "evening_preview_rain" = "%1$@一帶降雨機率 %2$d%%，超過設定的 %3$d%%，鬧鐘從 %4$@ 提前到 %5$@，早 %6$d 分鐘。預報查詢時間：%7$@。";
 "evening_preview_clear" = "路上降雨機率最高 %2$d%%（%1$@一帶），低於設定的 %3$d%%，鬧鐘維持 %4$@。預報查詢時間：%5$@。";
 "evening_preview_route" = "路上";
+"alarm_change_title" = "雨天鬧鐘更新";
+"alarm_change_later" = "早上重新查了預報，%1$@一帶降雨機率降到 %2$d%%，低於設定的 %3$d%%。鬧鐘改回 %4$@，你可以多睡 %5$d 分鐘。";
+"alarm_change_earlier" = "早上重新查了預報，%1$@一帶降雨機率升到 %2$d%%，超過設定的 %3$d%%。鬧鐘提前到 %4$@，早 %5$d 分鐘。";
 "evening_preview_no_background" = "目前無法在背景更新預報（低耗電模式，或背景 App 重新整理已關閉），開啟雨天鬧鐘才會重新判斷。";
 "evening_preview_upcoming" = "明天 %@ 有鬧鐘，早上會依當天預報決定要不要提前。";
 "evening_preview_upcoming_no_background" = "明天 %@ 有鬧鐘。目前無法在背景更新預報（低耗電模式，或背景 App 重新整理已關閉），開啟雨天鬧鐘才會依明早預報決定要不要提前。";

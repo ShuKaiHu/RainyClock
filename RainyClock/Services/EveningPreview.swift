@@ -40,7 +40,30 @@ struct EveningPreview: Equatable, Sendable {
     let canRefreshInBackground: Bool
 }
 
+/// A ring the evening preview announced that a later unattended run moved.
+///
+/// The preview said 07:00 because the evening forecast said rain; the morning
+/// forecast said otherwise, the alarm went back to 07:30, and nobody would
+/// know why they were allowed to sleep on unless something said so. This is
+/// that something. Silent by design: it lands minutes before an alarm.
+struct AlarmDecisionChange: Equatable, Sendable {
+    let normalAlarmDate: Date
+    let previousRingDate: Date
+    let newRingDate: Date
+    let maximumProbability: Double
+    let threshold: Double
+    let place: String?
+
+    var movedLater: Bool { newRingDate > previousRingDate }
+
+    var minutesMoved: Int {
+        Int((abs(newRingDate.timeIntervalSince(previousRingDate)) / 60).rounded())
+    }
+}
+
 enum EveningPreviewPlanner {
+    static let changeIdentifier = "commute-rain-change"
+
     /// The sample the "preview notification" button sends, so the person can
     /// see the shape of the thing before the first real evening. Uses the
     /// prefix so a re-plan sweeps it up if it has not fired yet.
@@ -200,6 +223,22 @@ enum EveningPreviewText {
 
     /// 24-hour, zero-padded, no day-period word: "07:30", not "清晨7:30". The
     /// user's call — the period word is noise once the hour is unambiguous.
+    static var changeTitle: String {
+        String(localized: "alarm_change_title")
+    }
+
+    static func changeBody(for change: AlarmDecisionChange) -> String {
+        let where_ = change.place ?? String(localized: "evening_preview_route")
+        return String.localizedStringWithFormat(
+            String(localized: change.movedLater ? "alarm_change_later" : "alarm_change_earlier"),
+            where_,
+            percent(change.maximumProbability),
+            percent(change.threshold),
+            time(change.newRingDate),
+            change.minutesMoved
+        )
+    }
+
     private static func time(_ date: Date) -> String {
         date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
@@ -234,6 +273,9 @@ protocol EveningPreviewScheduling: Sendable {
     /// Delivers one preview a few seconds from now, leaving the planned ones
     /// alone. The "preview notification" button.
     func showSample(_ preview: EveningPreview) async
+    /// Tells the person, without a sound, that a ring the preview announced has
+    /// moved. Sent by unattended runs only.
+    func notifyDecisionChange(_ change: AlarmDecisionChange) async
 }
 
 /// Local notifications, one calendar trigger per preview. Separate from the
@@ -315,6 +357,22 @@ struct UserNotificationEveningPreviewScheduler: EveningPreviewScheduling {
         )
         try? await UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: preview.identifier, content: content, trigger: trigger)
+        )
+    }
+
+    func notifyDecisionChange(_ change: AlarmDecisionChange) async {
+        guard !AppEnvironment.isRunningTests else {
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = EveningPreviewText.changeTitle
+        content.body = EveningPreviewText.changeBody(for: change)
+        // No sound: this arrives in the small hours before an alarm, and a
+        // sound would defeat the extra sleep it is announcing.
+        content.sound = nil
+        try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: EveningPreviewPlanner.changeIdentifier, content: content, trigger: nil)
         )
     }
 

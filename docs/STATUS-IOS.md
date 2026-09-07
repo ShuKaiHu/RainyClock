@@ -123,11 +123,34 @@ can never run, it is the only place the app tells them so.
   static text, so the stamp is the last evaluation — the last foreground open, or the
   last background run. To pull that towards the preview time there is now a third
   background task, `com.shukaihu.RainyClock.previewRefresh` (registered in
-  `Info.plist`), requested for a window opening 30 minutes before the first preview.
+  `Info.plist`), requested for a window opening an hour before the first preview.
   When iOS grants it, the run re-decides and re-plans, and the stamp reads that evening;
   when it does not, the stamp is honest about what the text is based on. The request is
   dropped rather than resubmitted once its window has opened, or a run inside the window
-  would re-plan, resubmit for "now", and spin until the preview time passed. The 21:00
+  would re-plan, resubmit for "now", and spin until the preview time passed. **The user's
+  position is that the preview must be decided at the preview time.** On-device that is
+  not something iOS offers — no API runs app code at a chosen minute — so the choice is
+  between this best effort and a server-sent silent push at the chosen time (the app would
+  register a push token and its preview time with `weather-proxy`, which would need an
+  APNs key and a scheduler; no route data leaves the phone, but "no backend state about
+  users" stops being literally true). Recorded, not built: ship the best effort, read the
+  stamps, decide from evidence.
+- **The morning re-decision is announced when it changes the ring** (`AlarmDecisionChange`,
+  same file). An unattended run that re-registers the *same* ring the preview described at
+  a different time — rain went away and 07:00 is back to 07:30, or the reverse — sends one
+  immediate, **silent** notification: where, the new probability against the threshold,
+  the new time, and the minutes gained or lost. Silent because it lands minutes before an
+  alarm; a sound would defeat the sleep it announces. Foreground runs stay quiet, the
+  status line shows the result. Gated on the preview toggle. `AlarmDecisionChangeTests`
+  (5 tests, a steerable weather stub and a preview spy) pin later, earlier, same-decision,
+  foreground, and that every registration re-plans.
+- **An unattended run inside today's check-point-to-ring window is skipped.** Found while
+  answering the user's "what happens at 07:00" question (2026-09-07): with the normal alarm
+  at 07:30 and the decision "no rain", a refresh granted at 07:10 would decide *tomorrow*
+  (today's check point is past) and re-register the weekly alarm at tomorrow's time — and if
+  tomorrow says rain, today's 07:30 never rings. Pre-existing, reachable, now guarded in
+  `refreshScheduledAlarmUnattended()`: between `normalAlarmDate − rainLeadTime` and
+  `normalAlarmDate`, return without touching anything. The 21:00
   default sits before the processing window opens (nine hours before the lead-time
   point); a later chosen time may land inside it, which only means the text is fresher.
 - **Backlog item 0 is answered by detection, not guessing.** `UIApplication.shared.
@@ -168,7 +191,7 @@ Checklist:
 
 - [x] Version `1.6.9 (28)` in both places (`Info.plist` and the widget's
       `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`), verified in the built bundle.
-- [x] Simulator build and the full unit suite pass (2026-09-07): 87 tests signed, all
+- [x] Simulator build and the full unit suite pass (2026-09-07): 92 tests signed, all
       pass; unsigned (the documented command) 6 of the quota tests skip because the
       keychain refuses an unsigned host.
 - [x] **Support card seen on the iPhone 17 Pro simulator 2026-09-07**, in both languages,

@@ -182,6 +182,9 @@
 "evening_preview_rain" = "%1$@: %2$d%% chance of rain, above your %3$d%% threshold, so the alarm moves from %4$@ to %5$@ — %6$d minutes earlier. Forecast checked %7$@.";
 "evening_preview_clear" = "Highest chance of rain is %2$d%% (%1$@), below your %3$d%% threshold, so the alarm stays at %4$@. Forecast checked %5$@.";
 "evening_preview_route" = "On the route";
+"alarm_change_title" = "Rainy Clock: alarm changed";
+"alarm_change_later" = "This morning's forecast: %1$@ is down to a %2$d%% chance of rain, below the %3$d%% threshold. The alarm is back to %4$@ — %5$d more minutes of sleep.";
+"alarm_change_earlier" = "This morning's forecast: %1$@ is up to a %2$d%% chance of rain, above the %3$d%% threshold. The alarm moved to %4$@, %5$d minutes earlier.";
 "evening_preview_no_background" = "Forecasts cannot update in the background right now (Low Power Mode, or Background App Refresh is off), so open Rainy Clock to re-check.";
 "evening_preview_upcoming" = "Alarm at %@. Tomorrow's forecast decides in the morning whether it moves earlier.";
 "evening_preview_upcoming_no_background" = "Alarm at %@. Forecasts cannot update in the background right now (Low Power Mode, or Background App Refresh is off), so open Rainy Clock to let tomorrow's forecast decide.";

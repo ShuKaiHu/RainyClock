@@ -30,7 +30,10 @@ enum BackgroundWeatherRefresh {
     /// text it carries can be re-decided on a forecast from that evening rather
     /// than from whenever the app was last opened.
     static let previewRefreshTaskIdentifier = "com.shukaihu.RainyClock.previewRefresh"
-    static let previewRefreshLeadTime: TimeInterval = 30 * 60
+    /// An hour rather than thirty minutes: the window only opens here, and a wider
+    /// one is granted more often. The text is then at most an hour older than the
+    /// preview time, and the stamp says exactly how much.
+    static let previewRefreshLeadTime: TimeInterval = 60 * 60
 
     /// How far ahead of the lead-time point to start asking for the refresh task.
     /// The system treats `earliestBeginDate` as "not before", never "at", so this is

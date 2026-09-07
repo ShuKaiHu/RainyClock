@@ -180,6 +180,19 @@ final class AlarmViewModel: ObservableObject {
             return false
         }
 
+        // Between today's check point and today's ring, leave the alarm alone. A
+        // run here would decide *tomorrow* (today's check point has passed) and
+        // re-register the weekly alarm at tomorrow's time — and if that differs
+        // from today's, today's ring is gone. iOS grants refresh windows at its
+        // discretion, so this half hour is reachable; the next run is not far.
+        if let summary = scheduledAlarmSummary {
+            let now = Date()
+            let checkPoint = summary.normalAlarmDate.addingTimeInterval(TimeInterval(-settings.rainLeadTimeMinutes * 60))
+            if now >= checkPoint, now < summary.normalAlarmDate {
+                return false
+            }
+        }
+
         let evaluationsBefore = lastWeatherEvaluationAt
         isRunningUnattended = true
         defer { isRunningUnattended = false }
@@ -502,6 +515,9 @@ final class AlarmViewModel: ObservableObject {
         // ONE consistent set of values — the fingerprint saved below. Drift that
         // happens mid-flight is caught by reconcile at the end.
         let settingsSnapshot = settings
+        // What the evening preview announced, if this run turns out to re-decide
+        // the same ring.
+        let previousSummary = scheduledAlarmSummary
 
         do {
             let authorized = try await notificationScheduler.requestAuthorization()
@@ -600,6 +616,22 @@ final class AlarmViewModel: ObservableObject {
             // are replaced here and nowhere else — a background refresh that
             // changes the decision changes tonight's notification with it.
             await replanEveningPreviews(requestingAuthorization: !isRunningUnattended, summary: summary, settings: settingsSnapshot, now: now)
+            // The same ring, re-decided while nobody was looking: say so. A
+            // foreground run shows the new time on the status line instead.
+            if isRunningUnattended,
+               let previousSummary,
+               Calendar.current.isDate(previousSummary.normalAlarmDate, equalTo: summary.normalAlarmDate, toGranularity: .minute),
+               abs(previousSummary.scheduledAlarmDate.timeIntervalSince(summary.scheduledAlarmDate)) >= 60,
+               settingsSnapshot.isEveningPreviewEnabled {
+                await previewScheduler.notifyDecisionChange(AlarmDecisionChange(
+                    normalAlarmDate: summary.normalAlarmDate,
+                    previousRingDate: previousSummary.scheduledAlarmDate,
+                    newRingDate: summary.scheduledAlarmDate,
+                    maximumProbability: summary.maximumPrecipitationProbability,
+                    threshold: summary.rainProbabilityThreshold,
+                    place: summary.wettestSegmentName
+                ))
+            }
 
             let checkedAt = snapshot.checkedAt.formatted(date: .omitted, time: .shortened)
             let forecastAt = snapshot.forecastAt.formatted(date: .abbreviated, time: .shortened)
