@@ -82,6 +82,29 @@ rain alarm,weather alarm,commute alarm,smart alarm,rain,weather,alarm clock,comm
 
 雨天鬧鐘,天氣鬧鐘,通勤鬧鐘,智慧鬧鐘,降雨,天氣,鬧鐘,通勤
 
+## Version 1.6.9 (28) “What’s New”
+
+A small release. The only user-visible change is where the ad controls live and what a
+report can say, so the notes say that and nothing more — the `1.6.2` / `1.6.7` rule.
+
+### English
+
+```
+A tidier home for the ad controls:
+
+• "Report an ad" and the ad privacy options now sit together at the bottom of the Alarm tab, out of the alarm settings.
+• A report link also appears right under the banner, and the report now says which ad it is about so it can actually be traced and blocked.
+```
+
+### 繁體中文
+
+```
+廣告相關設定搬了個更合理的位置：
+
+• 「檢舉廣告」和廣告隱私設定現在一起放在鬧鐘分頁的最下方，不再混在鬧鐘設定裡。
+• 橫幅廣告下方也多了檢舉入口，而且檢舉內容現在會註明是哪一則廣告，方便追查與封鎖。
+```
+
 ## Version 1.6.8 (27) “What’s New”
 
 The AI voice alarm. Written to say what the user gets and what it costs them, because the
@@ -289,9 +312,19 @@ uses local notifications only (untrue since `1.6.3` adopted AlarmKit — and it 
 not track (untrue since `1.6.5` added ATT), while everything up to `1.6.6` describes Google
 AdMob and `npa=1`, which `1.6.7` replaced with Unity LevelPlay.
 
-### Version-specific note prepared for 1.6.8 (27) — CURRENT
+### Version-specific note prepared for 1.6.9 (28) — CURRENT
 
-The only note to paste. Update the build number if it moves.
+Paste the 1.6.8 note below with the build number changed to `1.6.9 (28)`, and add this
+paragraph at the end, because 2.5.18 is the guideline this release touches and a reviewer
+should not have to hunt for the control:
+
+```
+Per guideline 2.5.18, users can report an inappropriate ad in two places: a "Report this ad" link directly under the banner, and a "Report an ad" row in the "Ads" card at the bottom of the Alarm tab (the same card holds the ad privacy options in GDPR regions). Both open a prefilled email to the developer that identifies the specific ad shown.
+```
+
+### Version-specific note prepared for 1.6.8 (27) — carried into 1.6.9
+
+Update the build number if it moves.
 
 Written around the one thing most likely to go wrong in review: a reviewer spends the three
 free generations, then taps the exchange in a datacentre with tracking denied, where no

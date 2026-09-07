@@ -71,6 +71,7 @@
 		CFC9F616B873328E7A2F0342 /* preview-steady-zh.m4a in Resources */ = {isa = PBXBuildFile; fileRef = DDC50EA36C988E419DE6D554 /* preview-steady-zh.m4a */; };
 		D901596ADED0CA3EC1B23B61 /* AdReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21DFB581C278C05ABFA0647 /* AdReport.swift */; };
 		D9AFFD3EDD2005FE2CE06FEC /* AlarmSchedulingSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDA82D02716704A4024FBA29 /* AlarmSchedulingSettingsTests.swift */; };
+		0A1000AD2C0000000000AD02 /* AdReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1000AD2C0000000000AD01 /* AdReportTests.swift */; };
 		DF082B611B71792BF1D6336D /* preview-buddy-zh.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 91F9D85B61E9E6AF09BBB425 /* preview-buddy-zh.m4a */; };
 		E02AA2444353D39C4B42A1E9 /* GeneratedVoiceAssemblerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9606BA5A5CBAB2AB6039C090 /* GeneratedVoiceAssemblerTests.swift */; };
 		F78A594DA66B7682BD358744 /* preview-mom-zh.m4a in Resources */ = {isa = PBXBuildFile; fileRef = BEF28F46540B76D9879B6DA7 /* preview-mom-zh.m4a */; };
@@ -180,6 +181,7 @@
 		EF02EAB9B27600D9E3C12FA1 /* preview-gentle-en.m4a */ = {isa = PBXFileReference; includeInIndex = 1; path = "preview-gentle-en.m4a"; sourceTree = "<group>"; };
 		F4BB22C84DAA14A208462B12 /* CommuteAlarmMetadata.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CommuteAlarmMetadata.swift; sourceTree = "<group>"; };
 		FDA82D02716704A4024FBA29 /* AlarmSchedulingSettingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AlarmSchedulingSettingsTests.swift; sourceTree = "<group>"; };
+		0A1000AD2C0000000000AD01 /* AdReportTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AdReportTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -323,6 +325,7 @@
 			children = (
 				0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */,
 				0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */,
+				0A1000AD2C0000000000AD01 /* AdReportTests.swift */,
 				FDA82D02716704A4024FBA29 /* AlarmSchedulingSettingsTests.swift */,
 				39C8C3492E7E1E5211E865AC /* AlarmViewModelSchedulingTests.swift */,
 				9606BA5A5CBAB2AB6039C090 /* GeneratedVoiceAssemblerTests.swift */,
@@ -519,6 +522,7 @@
 			files = (
 				0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */,
 				0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */,
+				0A1000AD2C0000000000AD02 /* AdReportTests.swift in Sources */,
 				D9AFFD3EDD2005FE2CE06FEC /* AlarmSchedulingSettingsTests.swift in Sources */,
 				F7F9A507A2726D0344BDA3B7 /* AlarmViewModelSchedulingTests.swift in Sources */,
 				E02AA2444353D39C4B42A1E9 /* GeneratedVoiceAssemblerTests.swift in Sources */,
@@ -734,7 +738,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = RainyClock/RainyClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 27;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = RainyClock/Info.plist;
@@ -743,7 +747,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.6.8;
+				MARKETING_VERSION = 1.6.9;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClock;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -763,7 +767,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = RainyClock/RainyClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 27;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = RainyClock/Info.plist;
@@ -772,7 +776,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.6.8;
+				MARKETING_VERSION = 1.6.9;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClock;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -790,11 +794,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 27;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.6.8;
+				MARKETING_VERSION = 1.6.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClockTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -811,11 +815,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 27;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.6.8;
+				MARKETING_VERSION = 1.6.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClockTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -832,7 +836,7 @@
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 27;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RainyClockAlarmWidget/Info.plist;
@@ -844,7 +848,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.8;
+				MARKETING_VERSION = 1.6.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClock.AlarmWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -863,7 +867,7 @@
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 27;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RainyClockAlarmWidget/Info.plist;
@@ -875,7 +879,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.8;
+				MARKETING_VERSION = 1.6.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClock.AlarmWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

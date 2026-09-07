@@ -11,12 +11,13 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-09-06.
+Last updated: 2026-09-07.
 
 ## Where things stand
 
 | | Version | State |
 | --- | --- | --- |
+| **In progress** | `1.6.9 (28)` | The ad report done the industry's way — see below. Opened 2026-09-07; code and tests in, device check and upload still owed |
 | **Live on the App Store** | `1.6.8` | **Released 2026-09-01**, first attempt — confirmed against the public listing, not against this file. The AI voice alarm. Production checked after release: weather and `/v1/tts` both answer 200 |
 | Superseded | `1.6.7` | **Released 2026-08-30.** The ad-provider migration. Confirmed against the public listing on 2026-08-31 — this row had still been claiming 正在等待審查, the third time this file has gone stale the same way |
 | Superseded | `1.6.6` | Released 2026-08-18 |
@@ -28,6 +29,54 @@ Last updated: 2026-09-06.
 `RainyClock` → `Rainy Clock`, English `Rainy Clock: Rain Alarm` → `Rainy-Clock`. Plain
 "Rainy Clock" is still name-squatted in the English locale (409 on rename), but the
 hyphenated variant was accepted (details in `docs/appstore-metadata.md`).
+
+## 1.6.9 — the ad report, done the industry's way
+
+Opened 2026-09-07 after the user found the "檢舉廣告" row odd. It sat inside the alarm
+settings card between the snooze slider and the schedule button, and the mail it opened
+could not say whether the complaint was about the banner or the rewarded video — the body
+carried only the app version and "Unity LevelPlay". Apple's 2.5.18 says nothing about
+placement or mechanism (the two official threads asking have no answers), so the shape is
+the one most ad-carrying apps converge on: a per-ad route next to the creative, and a
+generic route in the app's support area, both traceable to a creative.
+
+What changed:
+
+- **`RecentAds`** (`Services/AdReport.swift`) keeps the last banner and the last rewarded
+  video as an `AdSighting` — network, `creativeId`, `auctionId`, time — recorded from the
+  SDK's own callbacks: the banner on `didLoadAd` and `didDisplayAd` (every auto-refresh
+  lands there), the video on `didDisplayAd` only, since a loaded-but-unshown video is not
+  one anyone saw. Memory only, nothing about the person. `creativeId` is what Ad Quality
+  blocks by and `auctionId` what ironSource support traces by; both were always in
+  `LPMAdInfo` and never read.
+- **The mail body lists both sightings**, one line each, labelled 橫幅廣告 / 獎勵影片 with the
+  identifiers, and asks the user to keep the one they mean. Built at tap time (`Button` +
+  `openURL`, no longer a `Link` evaluated at render) so it carries the ads shown *by then*.
+  A session with no ad yet says so instead of leaving a blank.
+- **A "檢舉這則廣告" caption under the banner**, `.caption2` secondary, right-aligned, shown
+  only once a banner has been displayed. *Under*, not over: mediation terms forbid
+  obscuring a creative, and an ironSource banner has no AdChoices-style icon of its own
+  (Unity's full-screen videos carry a privacy icon; that is the SDK's layer for the
+  rewarded slot).
+- **A small "廣告" card at the end of the Alarm tab** holds the GDPR "廣告隱私設定" row
+  (still only for GDPR geographies) and the report row (everywhere). Nothing ad-related
+  remains inside the alarm settings card.
+- **`AdReportTests`** (5 tests) pin the body: both slots with their identifiers, banner
+  first; a slot that never showed is omitted; no ads says so; blank SDK strings become
+  `?`; the `mailto` keeps a literal `+` encoded.
+
+Checklist:
+
+- [x] Version `1.6.9 (28)` in both places (`Info.plist` and the widget's
+      `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`), verified in the built bundle.
+- [x] Simulator build and the full unit suite pass (2026-09-07).
+- [ ] **Check on the iPhone 16 Pro**, the registered test device: the caption appears
+      under a real banner, the mail draft names it with a creative id, and — after
+      spending the free generations — the rewarded line appears too. The simulator cannot
+      show this: a launch with `-forceGDPRConsentGeography` and the sheet swiped away
+      leaves the SDK unstarted (correctly, per the no-simulator-impressions rule), so only
+      the support card is visible there.
+- [ ] Archive, upload, submit with the 1.6.9 note in `docs/appstore-metadata.md`.
 
 ## 1.6.7 — off Google ads, onto Unity LevelPlay
 
