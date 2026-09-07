@@ -176,6 +176,10 @@ struct CommuteAlarmSettings: Codable, Equatable {
     var aiVoiceText: String = ""
     var isSnoozeEnabled: Bool = true
     var snoozeDurationMinutes: Int = 5
+    /// The 9 p.m. "tomorrow morning" notification before each selected
+    /// weekday. Not part of the schedule fingerprint: it changes nothing about
+    /// the registered alarm, only what is said the night before.
+    var isEveningPreviewEnabled: Bool = true
 
     static let snoozeDurationRange = 1...15
 
@@ -206,6 +210,7 @@ struct CommuteAlarmSettings: Codable, Equatable {
         isSnoozeEnabled = try values.decodeIfPresent(Bool.self, forKey: .isSnoozeEnabled) ?? true
         let decodedSnoozeDuration = try values.decodeIfPresent(Int.self, forKey: .snoozeDurationMinutes) ?? 5
         snoozeDurationMinutes = min(max(decodedSnoozeDuration, Self.snoozeDurationRange.lowerBound), Self.snoozeDurationRange.upperBound)
+        isEveningPreviewEnabled = try values.decodeIfPresent(Bool.self, forKey: .isEveningPreviewEnabled) ?? true
     }
 
     /// The snooze interval to schedule with, or nil when the user turned snooze off.

@@ -110,7 +110,10 @@ struct LocalNotificationScheduler: NotificationScheduling {
     /// Used for plans stored before the interval became configurable in 1.6.3.
     private static let legacyFollowUpIntervalMinutes = 5
     private static let maximumFollowUpCount = 10
-    private static let pendingNotificationLimit = 64
+    /// iOS allows 64 pending requests per app. Seven are left for the
+    /// evening previews (`EveningPreviewPlanner.horizonDays`), so with all seven
+    /// weekdays selected the alarm gets 8 requests a day instead of 9.
+    private static let pendingNotificationLimit = 56
     private static let storedPlanKey = "scheduledAlarmPlan"
     private static let rearmAfterKey = "scheduledAlarmRearmAfter"
     private static let registrationQueue = AlarmRegistrationQueue()

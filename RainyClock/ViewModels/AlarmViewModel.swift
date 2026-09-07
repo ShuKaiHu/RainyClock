@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 enum CommuteAddressField: Hashable {
     case home
@@ -32,6 +33,11 @@ final class AlarmViewModel: ObservableObject {
             saveSettings()
             updateScheduleStaleness()
             reconcileScheduledAlarmWithSettings()
+            if oldValue.isEveningPreviewEnabled != settings.isEveningPreviewEnabled {
+                Task {
+                    await replanEveningPreviews(requestingAuthorization: settings.isEveningPreviewEnabled)
+                }
+            }
         }
     }
     @Published private(set) var routeWeatherSnapshot: RouteWeatherSnapshot?
@@ -59,6 +65,10 @@ final class AlarmViewModel: ObservableObject {
     private let routeWeatherService: RouteWeatherService
     private let routePreviewService: RoutePreviewService
     private let notificationScheduler: NotificationScheduling
+    private let previewScheduler: EveningPreviewScheduling
+    /// Whether a background refresh can run on this phone right now. Injected
+    /// so tests can plan both kinds of preview without touching UIKit state.
+    private let canRefreshInBackground: @MainActor () -> Bool
     private let settingsStorage: UserDefaults
     private var suggestionSelectedInputs: [CommuteAddressField: String] = [:]
     private var previewGeneration = 0
@@ -100,6 +110,8 @@ final class AlarmViewModel: ObservableObject {
         routeWeatherService: RouteWeatherService = MockRouteWeatherService(),
         routePreviewService: RoutePreviewService = MapKitRoutePreviewService(),
         notificationScheduler: NotificationScheduling = SystemAlarmScheduler(),
+        previewScheduler: EveningPreviewScheduling = UserNotificationEveningPreviewScheduler(),
+        canRefreshInBackground: @escaping @MainActor () -> Bool = AlarmViewModel.systemCanRefreshInBackground,
         settingsStorage: UserDefaults = .standard,
         autoRefreshDebounce: Duration = .seconds(1.5)
     ) {
@@ -108,6 +120,8 @@ final class AlarmViewModel: ObservableObject {
         self.routeWeatherService = routeWeatherService
         self.routePreviewService = routePreviewService
         self.notificationScheduler = notificationScheduler
+        self.previewScheduler = previewScheduler
+        self.canRefreshInBackground = canRefreshInBackground
         self.settingsStorage = settingsStorage
 
         // Restore state that survives relaunches, so a scheduled alarm and confirmed
@@ -263,6 +277,7 @@ final class AlarmViewModel: ObservableObject {
     private func removeScheduledAlarm() async {
         autoRefreshTask?.cancel()
         await notificationScheduler.cancelScheduledAlarms()
+        await previewScheduler.cancelPreviews()
         scheduledAlarmSummary = nil
         scheduledFingerprint = nil
         isScheduleStale = false
@@ -577,6 +592,10 @@ final class AlarmViewModel: ObservableObject {
                 ? summary.weatherRefreshDate
                 : nextWeatherCheckDate(for: settingsSnapshot, now: summary.weatherRefreshDate.addingTimeInterval(60))
             BackgroundWeatherRefresh.scheduleNextRun(before: nextCheckDate, now: now)
+            // The evening-before previews describe this registration, so they
+            // are replaced here and nowhere else — a background refresh that
+            // changes the decision changes tonight's notification with it.
+            await replanEveningPreviews(requestingAuthorization: !isRunningUnattended, summary: summary, settings: settingsSnapshot, now: now)
 
             let checkedAt = snapshot.checkedAt.formatted(date: .omitted, time: .shortened)
             let forecastAt = snapshot.forecastAt.formatted(date: .abbreviated, time: .shortened)
@@ -755,6 +774,74 @@ final class AlarmViewModel: ObservableObject {
             group.cancelAll()
             return result
         }
+    }
+
+    /// Background App Refresh switched off (Settings › General) or Low Power Mode:
+    /// either one means `BackgroundWeatherRefresh` will not run, and the alarm keeps
+    /// whatever decision the last foreground run made. The preview is where the
+    /// person is told.
+    static func systemCanRefreshInBackground() -> Bool {
+        UIApplication.shared.backgroundRefreshStatus == .available
+            && !ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+
+    /// Asks for notification permission on behalf of the previews when nothing
+    /// else has — an install that upgraded with an alarm already armed never taps
+    /// Schedule again, and on iOS 26 the alarm's own permission is AlarmKit's, not
+    /// this one. Runs from the foreground only; the prompt needs a screen.
+    func requestEveningPreviewAuthorizationIfNeeded() async {
+        guard settings.isEveningPreviewEnabled, hasScheduledAlarm,
+              await previewScheduler.authorizationStatus() == .notDetermined else {
+            return
+        }
+
+        await replanEveningPreviews(requestingAuthorization: true)
+    }
+
+    /// Re-plans the previews from the stored summary — the toggle flipping, or
+    /// permission arriving after the alarm was registered.
+    private func replanEveningPreviews(requestingAuthorization: Bool) async {
+        guard let summary = scheduledAlarmSummary else {
+            await previewScheduler.cancelPreviews()
+            return
+        }
+
+        let now = Date()
+        await replanEveningPreviews(
+            requestingAuthorization: requestingAuthorization,
+            summary: summary.rollingForward(selectedWeekdays: settings.selectedWeekdays, now: now),
+            settings: settings,
+            now: now
+        )
+    }
+
+    private func replanEveningPreviews(
+        requestingAuthorization: Bool,
+        summary: ScheduledAlarmSummary,
+        settings: CommuteAlarmSettings,
+        now: Date
+    ) async {
+        guard settings.isEveningPreviewEnabled else {
+            await previewScheduler.cancelPreviews()
+            return
+        }
+
+        var status = await previewScheduler.authorizationStatus()
+        if status == .notDetermined, requestingAuthorization {
+            status = await previewScheduler.requestAuthorization() ? .authorized : .denied
+        }
+        guard status == .authorized else {
+            return
+        }
+
+        let previews = EveningPreviewPlanner.plan(
+            summary: summary,
+            selectedWeekdays: settings.selectedWeekdays,
+            checkedAt: lastWeatherEvaluationAt ?? now,
+            now: now,
+            canRefreshInBackground: canRefreshInBackground()
+        )
+        await previewScheduler.replacePreviews(previews)
     }
 
     private func nextWeatherCheckDate(for settings: CommuteAlarmSettings, now: Date = Date()) -> Date {

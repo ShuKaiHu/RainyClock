@@ -173,3 +173,11 @@
 "report_ad_sightings_none" = "• (no ad has been shown yet in this session)";
 "report_ad_banner_link" = "Report this ad";
 "ad_support_header" = "Ads";
+"evening_preview" = "Evening preview";
+"evening_preview_hint" = "At 9 p.m. the night before an alarm, a notification says whether rain moves it.";
+"evening_preview_title" = "Tomorrow morning";
+"evening_preview_rain" = "Rain on the route: the alarm moves from %1$@ to %2$@, %3$d minutes earlier. Forecast checked %4$@.";
+"evening_preview_clear" = "No rain on the route: the alarm stays at %1$@. Forecast checked %2$@.";
+"evening_preview_no_background" = "Forecasts cannot update in the background right now (Low Power Mode, or Background App Refresh is off), so open Rainy Clock to re-check.";
+"evening_preview_upcoming" = "Alarm at %@. Tomorrow's forecast decides in the morning whether it moves earlier.";
+"evening_preview_upcoming_no_background" = "Alarm at %@. Forecasts cannot update in the background right now (Low Power Mode, or Background App Refresh is off), so open Rainy Clock to let tomorrow's forecast decide.";

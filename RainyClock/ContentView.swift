@@ -54,6 +54,10 @@ struct ContentView: View {
             // when it was scheduled; opening the app is what brings that decision up
             // to date. No-op when it is still fresh.
             await viewModel.refreshScheduledAlarmIfWeatherIsStale()
+            // After the refresh, so a fresh registration has already planned the
+            // previews and this only fires for an install that has never been
+            // asked — the upgrade case.
+            await viewModel.requestEveningPreviewAuthorizationIfNeeded()
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else {
@@ -710,6 +714,16 @@ private struct AlarmTabView: View {
                                     step: 1
                                 )
                             }
+                        }
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle(isOn: $viewModel.settings.isEveningPreviewEnabled) {
+                                Text("evening_preview")
+                            }
+                            .tint(Color.accentColor)
+                            Text("evening_preview_hint")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     .padding(18)

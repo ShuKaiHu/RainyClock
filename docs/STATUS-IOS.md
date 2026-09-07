@@ -17,7 +17,7 @@ Last updated: 2026-09-07.
 
 | | Version | State |
 | --- | --- | --- |
-| **In progress** | `1.6.9 (28)` | The ad report done the industry's way, and the AI voice quota surviving a reinstall — see below. Opened 2026-09-07; code and tests in, device check and upload still owed |
+| **In progress** | `1.6.9 (28)` | The ad report done the industry's way, the AI voice quota surviving a reinstall, and the evening-before preview notification — see below. Opened 2026-09-07; code and tests in, device check and upload still owed |
 | **Live on the App Store** | `1.6.8` | **Released 2026-09-01**, first attempt — confirmed against the public listing, not against this file. The AI voice alarm. Production checked after release: weather and `/v1/tts` both answer 200 |
 | Superseded | `1.6.7` | **Released 2026-08-30.** The ad-provider migration. Confirmed against the public listing on 2026-08-31 — this row had still been claiming 正在等待審查, the third time this file has gone stale the same way |
 | Superseded | `1.6.6` | Released 2026-08-18 |
@@ -97,13 +97,61 @@ Now:
   server-side cost ever matters; at NT$0.10 a generation and three per reinstall, it does
   not yet.
 
+**Also in 1.6.9: the evening-before preview.** Picked from the feature list on 2026-09-07 as
+the one item that is both a retention feature and the fix for backlog item 0. At 9 p.m. the
+night before each selected weekday, a local notification says what tomorrow's alarm will
+do; for the people whose background refresh can never run, it is the only place the app
+tells them so.
+
+- **`EveningPreviewPlanner`** (`Services/EveningPreview.swift`) is pure: from the armed
+  `ScheduledAlarmSummary`, the selected weekdays and `now` it plans one preview per
+  selected weekday for the coming week, each at 21:00 the evening before, skipping an
+  evening already gone. Only the summary's own ring carries the **decision** (rain or not,
+  from what time to what time, and when the forecast was checked — the evaluate flow
+  fetched that ring's forecast, so this is true). Every later weekday is **upcoming**:
+  "there is an alarm; the morning's forecast decides", because that is what the
+  background refresh does. Identifier `commute-rain-preview-YYYYMMDD` per alarm day.
+- **Replaced on every registration, and nowhere else** — the foreground Schedule, the
+  debounced settings reconcile, and `refreshScheduledAlarmUnattended()` from the
+  background task all pass through `evaluateRouteAndScheduleAlarm()`, so an overnight
+  refresh that changes the decision rewrites that evening's text with it. 21:00 sits
+  before the processing window opens (nine hours before the lead-time point) on purpose.
+- **Backlog item 0 is answered by detection, not guessing.** `UIApplication.shared.
+  backgroundRefreshStatus != .available` or Low Power Mode at planning time puts a
+  sentence on every preview: forecasts cannot update in the background right now, open
+  the app. Nobody whose refresh works ever sees it, which is the "must not nag" line the
+  backlog drew.
+- **A toggle, `前一晚預告`, default on**, under snooze in the alarm settings card, with a
+  one-line hint. Not in the schedule fingerprint. Off cancels the previews; on re-plans
+  from the stored summary.
+- **Notification permission on iOS 26 is new ground.** The alarm there is AlarmKit, whose
+  permission is not notification permission, so this is the first thing that asks for
+  `.alert` on iOS 26. It asks in three places, all foreground: an attended Schedule (after
+  the alarm's own prompt), the toggle turning on, and `ContentView`'s launch task after
+  the stale-refresh — that last one is for the install that upgraded with an alarm armed
+  and never taps Schedule again. Unattended runs only read the status. On iOS 17–25 the
+  alarm already asked, and the answer covers both.
+- **The 64-request budget is shared** with the iOS 17–25 notification alarms:
+  `LocalNotificationScheduler.pendingNotificationLimit` dropped 64 → 56 to leave seven
+  for previews. With all seven weekdays selected the alarm gets 8 requests a day (7
+  follow-ups) instead of 9.
+- **`EveningPreviewPlannerTests`** (7 tests): one evening per selected weekday inside a
+  week; only the armed ring carries the decision; an evening already past is skipped and
+  its decision with it; a ring several days out still gets its own eve; seven days give
+  seven previews and never more; the background-refresh flag rides on every preview; an
+  alarm just after midnight is previewed the evening before.
+- Not done, on purpose: a preview time setting (21:00 is a guess; make it a setting only
+  if someone asks), time-sensitive interruption level (needs an entitlement), and any
+  "no rain tonight, so no notification" filtering — with the toggle the person chooses,
+  and a reassuring "stays at 7:00" is the point on a dry night.
+
 Checklist:
 
 - [x] Version `1.6.9 (28)` in both places (`Info.plist` and the widget's
       `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`), verified in the built bundle.
-- [x] Simulator build and the full unit suite pass (2026-09-07): 78 tests unsigned, 72
-      passed and 6 skipped (the three keychain-only tests, plus the three quota tests whose
-      second half needs the keychain); signed, the quota file's 8 all run and pass.
+- [x] Simulator build and the full unit suite pass (2026-09-07): 85 tests signed, all
+      pass; unsigned (the documented command) 6 of the quota tests skip because the
+      keychain refuses an unsigned host.
 - [x] **Support card seen on the iPhone 17 Pro simulator 2026-09-07**, in both languages,
       with the installed bundle's `LevelPlayAppKey` blanked first so answering the consent
       sheet could not start the SDK. Under `-forceGDPRConsentGeography` the card shows
@@ -112,7 +160,10 @@ Checklist:
 - [ ] **Check on the iPhone 16 Pro**, the registered test device: the caption appears
       under a real banner, the mail draft names it with a creative id, and — after
       spending the free generations — the rewarded line appears too. Then delete the app,
-      reinstall, and confirm the voice sheet still shows the spent count. The simulator cannot
+      reinstall, and confirm the voice sheet still shows the spent count. Then, with an
+      alarm armed for tomorrow, wait for 21:00 (or set the clock) and confirm the preview
+      arrives with tomorrow's decision; toggle Background App Refresh off, reschedule, and
+      confirm the extra sentence appears. The simulator cannot
       show this: a launch with `-forceGDPRConsentGeography` and the sheet swiped away
       leaves the SDK unstarted (correctly, per the no-simulator-impressions rule), so only
       the support card is visible there.

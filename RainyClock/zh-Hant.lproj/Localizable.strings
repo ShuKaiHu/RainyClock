@@ -173,3 +173,11 @@
 "report_ad_sightings_none" = "• （這次開啟 App 後尚未顯示過廣告）";
 "report_ad_banner_link" = "檢舉這則廣告";
 "ad_support_header" = "廣告";
+"evening_preview" = "前一晚預告";
+"evening_preview_hint" = "有鬧鐘的前一晚 9 點，通知你明早會不會因為下雨而提前。";
+"evening_preview_title" = "明早預告";
+"evening_preview_rain" = "路上會下雨，鬧鐘從 %1$@ 提前到 %2$@，早 %3$d 分鐘。預報查詢時間：%4$@。";
+"evening_preview_clear" = "路上不會下雨，鬧鐘維持 %1$@。預報查詢時間：%2$@。";
+"evening_preview_no_background" = "目前無法在背景更新預報（低耗電模式，或背景 App 重新整理已關閉），開啟雨天鬧鐘才會重新判斷。";
+"evening_preview_upcoming" = "明天 %@ 有鬧鐘，早上會依當天預報決定要不要提前。";
+"evening_preview_upcoming_no_background" = "明天 %@ 有鬧鐘。目前無法在背景更新預報（低耗電模式，或背景 App 重新整理已關閉），開啟雨天鬧鐘才會依明早預報決定要不要提前。";
