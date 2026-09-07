@@ -11,7 +11,9 @@ struct ContentView: View {
 
     @StateObject var viewModel: AlarmViewModel
     @ObservedObject private var consentManager = ConsentManager.shared
+    @ObservedObject private var recentAds = RecentAds.shared
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
     @State private var selectedTab: AppTab = .route
     var showsWeatherAttribution = false
 
@@ -103,6 +105,32 @@ struct ContentView: View {
                     .id(consentManager.adConfigurationRevision)
                     .frame(maxWidth: .infinity)
                     .background(Color.appBackground)
+            }
+
+            // The per-ad report route, the layer the ad SDK does not provide
+            // here: Google's creatives carry an AdChoices icon and Unity's
+            // full-screen videos a privacy icon, but an ironSource banner has
+            // nothing to tap. Sits *under* the creative rather than over it —
+            // mediation terms forbid obscuring an ad — and only once a banner
+            // has actually been shown, so there is something to report.
+            if recentAds.banner != nil {
+                HStack {
+                    Spacer()
+                    // The tap target is the words, not the row: a full-width
+                    // strip this close to the home indicator would open Mail
+                    // on mis-swipes.
+                    Button {
+                        openURL(AdReport.mailURL())
+                    } label: {
+                        Text("report_ad_banner_link")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 20)
+                .background(Color.appBackground)
             }
         }
         .background(Color.appBackground)
@@ -484,6 +512,51 @@ private struct RouteTabView: View {
     }
 }
 
+/// The two ad rows every region or some region needs: the GDPR consent
+/// re-entry, and the App Review 2.5.18 report route, which is required
+/// everywhere and so is not behind `showsPrivacyOptions`. The report button
+/// builds its mail at tap time so the body carries the ads shown *by then*.
+private struct AdSupportCard: View {
+    @ObservedObject private var consentManager = ConsentManager.shared
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("ad_support_header")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+
+            // Only GDPR regions have a choice to revisit — the geography
+            // answer from LevelPlay init decides.
+            if consentManager.showsPrivacyOptions {
+                HStack {
+                    Text("ad_privacy_options")
+                    Spacer()
+                    Button("ad_privacy_options_manage") {
+                        consentManager.presentPrivacyOptions()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                }
+            }
+
+            HStack {
+                Text("report_ad")
+                Spacer()
+                Button("report_ad_action") {
+                    openURL(AdReport.mailURL())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+            }
+        }
+        .font(.subheadline)
+        .padding(18)
+        .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+}
+
 private struct AlarmTabView: View {
     private static let weekdayGridSpacing: CGFloat = 12
     private static let weekdayLabelInset: CGFloat = 4
@@ -638,34 +711,6 @@ private struct AlarmTabView: View {
                                 )
                             }
                         }
-
-                        // Only GDPR regions require this entry point — the
-                        // geography answer from MAX init decides.
-                        if consentManager.showsPrivacyOptions {
-                            HStack {
-                                Text("ad_privacy_options")
-                                Spacer()
-                                Button("ad_privacy_options_manage") {
-                                    consentManager.presentPrivacyOptions()
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(Color.accentColor)
-                            }
-                        }
-
-                        // Guideline 2.5.18: an app that carries ads must give
-                        // users a way to report an inappropriate or
-                        // age-inappropriate one. Unlike the consent row above,
-                        // this is required everywhere, not only under GDPR — so
-                        // it is not behind `showsPrivacyOptions`.
-                        HStack {
-                            Text("report_ad")
-                            Spacer()
-                            Link(destination: AdReport.mailURL) {
-                                Text("report_ad_action")
-                            }
-                            .foregroundStyle(Color.accentColor)
-                        }
                     }
                     .padding(18)
                     .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -718,6 +763,13 @@ private struct AlarmTabView: View {
                         .padding(18)
                         .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                     }
+
+                    // Ad housekeeping, last and apart from the alarm's own
+                    // settings — where the privacy policy and "contact us" rows
+                    // of most apps live. It used to sit between the snooze
+                    // slider and the schedule button, which read as an alarm
+                    // setting that had wandered in.
+                    AdSupportCard()
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 0)

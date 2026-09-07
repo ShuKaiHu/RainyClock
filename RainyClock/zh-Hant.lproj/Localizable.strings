@@ -166,4 +166,10 @@
 "report_ad" = "檢舉廣告";
 "report_ad_action" = "回報";
 "report_ad_subject" = "雨天鬧鐘：檢舉不當廣告";
-"report_ad_body" = "請描述你看到的廣告，如果方便的話附上截圖。\n\nApp 版本：%@\n廣告來源：Unity LevelPlay\n\n---\n";
+"report_ad_body" = "請描述你看到的廣告，如果方便的話附上截圖。\n\nApp 版本：%1$@\n廣告來源：Unity LevelPlay\n\n最近顯示過的廣告——請保留你要檢舉的那一則：\n%2$@\n\n---\n";
+"report_ad_sighting" = "• %1$@，%2$@——來源 %3$@，素材 %4$@，拍賣 %5$@";
+"report_ad_format_banner" = "橫幅廣告";
+"report_ad_format_rewarded" = "獎勵影片";
+"report_ad_sightings_none" = "• （這次開啟 App 後尚未顯示過廣告）";
+"report_ad_banner_link" = "檢舉這則廣告";
+"ad_support_header" = "廣告";

@@ -92,6 +92,10 @@ extension RewardedAdController: @preconcurrency LPMRewardedAdDelegate {
 
     func didDisplayAd(with adInfo: LPMAdInfo) {
         isReady = false
+        // What the report mail says about "the video": recorded at display,
+        // not load, because a loaded-but-never-shown video is not one the user
+        // can have a complaint about.
+        RecentAds.shared.recordRewarded(AdSighting(adInfo))
     }
 
     /// Granting happens here, not in `didCloseAd`. The two callbacks are

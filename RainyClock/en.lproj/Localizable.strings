@@ -166,4 +166,10 @@
 "report_ad" = "Report an ad";
 "report_ad_action" = "Report";
 "report_ad_subject" = "Rainy Clock: inappropriate ad report";
-"report_ad_body" = "Please describe the ad you saw, and attach a screenshot if you can.\n\nApp version: %@\nAd provider: Unity LevelPlay\n\n---\n";
+"report_ad_body" = "Please describe the ad you saw, and attach a screenshot if you can.\n\nApp version: %1$@\nAd provider: Unity LevelPlay\n\nAds shown recently — keep the one you are reporting:\n%2$@\n\n---\n";
+"report_ad_sighting" = "• %1$@, %2$@ — network %3$@, creative %4$@, auction %5$@";
+"report_ad_format_banner" = "Banner";
+"report_ad_format_rewarded" = "Rewarded video";
+"report_ad_sightings_none" = "• (no ad has been shown yet in this session)";
+"report_ad_banner_link" = "Report this ad";
+"ad_support_header" = "Ads";
