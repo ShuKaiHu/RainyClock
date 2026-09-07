@@ -70,6 +70,11 @@ Checklist:
 - [x] Version `1.6.9 (28)` in both places (`Info.plist` and the widget's
       `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`), verified in the built bundle.
 - [x] Simulator build and the full unit suite pass (2026-09-07).
+- [x] **Support card seen on the iPhone 17 Pro simulator 2026-09-07**, in both languages,
+      with the installed bundle's `LevelPlayAppKey` blanked first so answering the consent
+      sheet could not start the SDK. Under `-forceGDPRConsentGeography` the card shows
+      both rows; without it, only 檢舉廣告 — the Taiwan view. The simulator bundle was
+      rebuilt afterwards so `DerivedData` carries the real key again.
 - [ ] **Check on the iPhone 16 Pro**, the registered test device: the caption appears
       under a real banner, the mail draft names it with a creative id, and — after
       spending the free generations — the rewarded line appears too. The simulator cannot
