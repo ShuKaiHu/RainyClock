@@ -198,8 +198,10 @@ enum EveningPreviewText {
         }
     }
 
+    /// 24-hour, zero-padded, no day-period word: "07:30", not "清晨7:30". The
+    /// user's call — the period word is noise once the hour is unambiguous.
     private static func time(_ date: Date) -> String {
-        date.formatted(date: .omitted, time: .shortened)
+        date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
     private static func percent(_ probability: Double) -> Int {
@@ -209,7 +211,7 @@ enum EveningPreviewText {
     /// Weekday and time, no year: the check is always within the week, and
     /// "2026年9月7日 晚上7:58" in a two-line banner spent most of it on the year.
     private static func checked(_ date: Date) -> String {
-        date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+        date.formatted(.dateTime.weekday(.abbreviated).hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 }
 
