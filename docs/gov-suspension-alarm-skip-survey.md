@@ -32,6 +32,26 @@ site is well known for buckling under load during a typhoon, which is exactly wh
 third-party tool in this space (TWTools, the 天災假期 Android app, `mcp-tw-typhoon`) puts a
 cache in front of it rather than hitting it per device.
 
+### How solid is "no official JSON API"
+
+This is an argument from absence, so it is worth being precise about its strength. DGPA's
+own 開放資料 page and the open-data catalogue list the CAP file and the web page and nothing
+else; every independent client found — a CLI, an MCP server, a web tool, a Play Store app —
+either scrapes the HTML or proxies it, and a developer who had a JSON endpoint would not
+choose `table[bgcolor="#cdfad9"]`. That is good converging evidence, but it is not proof:
+an **undocumented** XHR endpoint behind the page would show up in none of those places, and
+the strongest single data point (`tw-nds-cli`) is old enough to still reference the
+pre-`/typh/daily/` URL.
+
+Two checks settle it in about a minute from a network that can reach DGPA:
+
+1. Open `nds.html` with devtools on the Network tab, filtered to Fetch/XHR. Rows arriving in
+   the document body means server-rendered and scraping is the only route; a JSON request
+   there **is** the undocumented API, and its URL is the answer.
+2. `curl https://data.gov.tw/api/v1/rest/dataset/20457` returns the catalogue record as
+   JSON, including the real resource URL and 更新頻率 — which is also the right way to
+   resolve that URL at build time rather than hardcoding it.
+
 ## The timing constraint, which is the real design input
 
 天然災害停止上班及上課作業辦法 fixes when a 縣市 may announce:
@@ -106,17 +126,25 @@ top.
 
 ## Fetch architecture
 
-`weather-proxy/` already exists (Cloud Run, Node, no storage) and serves the Android app's
-WeatherKit tokens and the AI voice. A `/v1/nds` endpoint there would:
+`weather-proxy/` already exists (Cloud Run, Node, stateless, no storage). It signs the
+WeatherKit tokens the Android app cannot hold itself and serves the AI voice. **Both apps
+already call it** — Android for `/v1/weather`, and iOS for `/v1/tts` through
+`AIVoiceClient`, whose base URL is `VoiceProxyURL` in `Info.plist`. A `/v1/nds` endpoint
+there would:
 
 - keep one brittle HTML/CAP parser instead of one in Swift and one in Kotlin,
 - put a cache between a typhoon morning and a government site that falls over,
 - give a kill switch when DGPA changes its markup, without an App Store release.
 
-The cost is real and should be stated: it makes an **iOS** feature depend on the proxy for
-the first time. Today the iPhone app talks to Apple and nothing else. The alternative —
-parse on-device on both platforms, straight from the CAP file — keeps that property and
-avoids a server dependency during exactly the storm when servers are least reliable, at the
+The cost is not a new dependency — that precedent is already set — but a heavier one. The
+proxy's two current jobs both fail softly: an unreachable proxy costs Android the *freshest*
+rain decision (it keeps the previous one) and costs iOS the AI voice (it keeps a bundled
+tone). Neither changes whether the alarm rings. A suspension answer would be the first
+proxy response that feeds the ring/skip decision itself, so it needs the same contract
+stated up front and tested: **no answer → ring normally**, never "wait and see".
+
+The alternative — parse on-device on both platforms, straight from the CAP file — avoids
+leaning on a single server during exactly the storm when servers are least reliable, at the
 price of duplicated parsers and every device hitting DGPA directly.
 
 Leaning: parse the **CAP dataset** rather than scrape the HTML page (it is the licensed one
