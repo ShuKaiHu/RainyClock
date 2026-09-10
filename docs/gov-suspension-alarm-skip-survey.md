@@ -43,7 +43,25 @@ an **undocumented** XHR endpoint behind the page would show up in none of those 
 the strongest single data point (`tw-nds-cli`) is old enough to still reference the
 pre-`/typh/daily/` URL.
 
-Two checks settle it in about a minute from a network that can reach DGPA:
+Two independent implementations, read in full, both scrape:
+
+| | `bobby1030/tw-nds-cli` | `simonliu-moltbot/mcp-tw-typhoon` |
+| --- | --- | --- |
+| Era | `cheerio ^0.22`, `request ^2.74` — 2016 vintage | Python + BeautifulSoup, page sample dated 2026/02 |
+| URL | `http://www.dgpa.gov.tw/nds.html` | `https://www.dgpa.gov.tw/typh/daily/nds.html` |
+| Finds the table by | `table[bgcolor="#cdfad9"]` | scanning every `<table>` for the text 「縣市名稱」 |
+| Timestamp from | `td > p > font[color="#000000"]` | regex on `更新時間：YYYY/MM/DD HH:MM:SS` |
+
+Ten years apart, neither found a JSON endpoint, and a 2026 author reaching for
+BeautifulSoup is the strongest evidence available that there is nothing better to reach for.
+
+**The same table also documents the risk.** Between those two projects the URL moved *and*
+the markup changed enough that not one selector survived — the newer one cannot even rely on
+an attribute and has to find the table by its header text. An on-device HTML parser in a
+shipped app is not a hypothetical maintenance burden; this page has already broken every
+parser written against it once.
+
+Two checks would still settle the question properly, from a network that can reach DGPA:
 
 1. Open `nds.html` with devtools on the Network tab, filtered to Fetch/XHR. Rows arriving in
    the document body means server-rendered and scraping is the only route; a JSON request
@@ -51,6 +69,26 @@ Two checks settle it in about a minute from a network that can reach DGPA:
 2. `curl https://data.gov.tw/api/v1/rest/dataset/20457` returns the catalogue record as
    JSON, including the real resource URL and 更新頻率 — which is also the right way to
    resolve that URL at build time rather than hardcoding it.
+
+One search that would help was not possible here: GitHub **code** search (who has
+`dgpa.gov.tw` in their source) requires a signed-in session, and this session's GitHub
+access is scoped to this repository. `grep.app` and `searchcode` are blocked by the same
+egress policy as the government hosts. A logged-in browser answers it in a minute.
+
+### What the page looks like, according to the parser that reads it
+
+Second-hand, from `mcp-tw-typhoon`'s source rather than from the page — but specific enough
+to design against, and it answers most of what a parser needs to know:
+
+- **Three columns**: 區域 / 縣市名稱 / 是否停止上班上課情形 (e.g. `北部地區 基隆市 尚未宣布消息`).
+- **The idle state is 「尚未宣布消息」**, not 照常上班上課. A parser that treats "not closed"
+  as the absence of a row will be wrong; the row is always there.
+- **Status is free text**, not an enum — that client passes the cell through verbatim rather
+  than mapping it, which is a fair signal that the wording is not stable enough to enumerate.
+- **A page-level 更新時間** in `YYYY/MM/DD HH:MM:SS`. Worth surfacing: it is the only way to
+  tell a fresh "尚未宣布" from a stale one.
+- **UTF-8**, and the county names use **臺**, not 台 — that client normalises user input
+  `台 → 臺` before matching.
 
 ## The timing constraint, which is the real design input
 
@@ -160,14 +198,17 @@ prefer dataset 20457 on its own.
 
 ## Open questions before building
 
-1. Real bytes: fetch `nds.html` and the 20457 CAP resource once from a Taiwanese network and
-   record the encoding, the per-county field names, and what the "no suspension anywhere"
-   response looks like (a distinct payload, or the same table full of 照常上班上課?).
+1. Real bytes: fetch `nds.html` and the 20457 CAP resource once from a Taiwanese network.
+   The HTML side is largely answered second-hand above (three columns, 「尚未宣布消息」 as
+   the idle state, UTF-8, 臺 not 台) — what is still unknown is **the CAP file**: its
+   resource URL, its field names, and whether its idle state matches the page's.
 2. Does the CAP file publish on the same schedule as the web page, or lag it? A feed that
    updates hours after 04:30 is useless for this.
 3. Does AlarmKit on the shipping iOS version expose anything closer to "skip next occurrence"
    than cancel-and-re-arm?
-4. Product call: cancel the alarm, or ring with the announcement? (See above — the second is
+4. Is there an undocumented XHR endpoint behind `nds.html`? Nobody's published code uses one,
+   which is evidence but not proof — one devtools Network tab settles it.
+5. Product call: cancel the alarm, or ring with the announcement? (See above — the second is
    safer and much cheaper.)
 
 ## Sources
@@ -176,5 +217,6 @@ prefer dataset 20457 on its own.
 - [天然災害停止上班、停止上課情形 (CAP) — 政府資料開放平臺 dataset 20457](https://data.gov.tw/dataset/20457)
 - [中華民國政府行政機關辦公日曆表 — dataset 14718](https://data.gov.tw/dataset/14718)
 - [天然災害停止上班及上課作業辦法 — 全國法規資料庫](https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=S0110022)
-- [bobby1030/tw-nds-cli](https://github.com/bobby1030/tw-nds-cli) — HTML scraping precedent
+- [bobby1030/tw-nds-cli](https://github.com/bobby1030/tw-nds-cli) — 2016 scraper, `table[bgcolor]`
+- [simonliu-moltbot/mcp-tw-typhoon](https://github.com/simonliu-moltbot/mcp-tw-typhoon) — 2026 scraper, `src/logic.py`
 - [ruyut/TaiwanCalendar](https://github.com/ruyut/TaiwanCalendar) — office-calendar JSON mirror
