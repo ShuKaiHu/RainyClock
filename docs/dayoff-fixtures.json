@@ -1,7 +1,7 @@
 {
- "specVersion": 1,
+ "specVersion": 2,
  "purpose": "iOS 與 Android 兩邊必須用同一組測試案例。任何一邊改了規則，就要改這個檔並 bump specVersion，另一邊的測試會失敗 —— 那就是交接訊號。",
- "sourceOfTruth": "parseCases 的 input 全部是 NCDR 歷史 API 的逐字真實紀錄（2024-07 ~ 2026-08，8 個颱風事件、365 筆去重後取 24 種句型代表）。decisionCases 的 feed 為求精簡有刪去尾端電話號碼，其餘逐字。",
+ "sourceOfTruth": "parseCases 的 input 全部是 NCDR 歷史 API 的逐字真實紀錄。語料為 DGPA 停班停課完整檔案 1,374 筆（2014-07-22 ~ 2026-08-24，NCDR /server/v1/Generic/capZip 列出的全部 62 個事件），去重後取 28 種句型代表。decisionCases 的 feed 為求精簡刪去尾端電話號碼，其餘逐字。",
  "parseCases": [
   {
    "id": "parse-01",
@@ -458,6 +458,86 @@
     "school": "suspended",
     "affectsMorningAlarm": false
    }
+  },
+  {
+   "id": "parse-25",
+   "note": "負面表述，字串裡含有『停止上班』子字串 —— 天真的 contains() 會誤判",
+   "input": {
+    "description": "[停班停課通知]花蓮縣:9/3未達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Minor",
+    "msgType": "Alert",
+    "geocode": "10015",
+    "sentDate": "2022-09-03T21:04:54"
+   },
+   "expect": {
+    "area": "花蓮縣",
+    "granularity": "county",
+    "targetDate": "explicit:9/3",
+    "dayPart": "full",
+    "work": "normal",
+    "school": "normal",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-26",
+   "note": "同樣的負面表述，severity 卻是 Severe —— 證明 severity 不能單獨判定，只能當交叉檢查",
+   "input": {
+    "description": "[停班停課通知]高雄市:8/24未達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥1999(市內直撥)。",
+    "severity": "Severe",
+    "msgType": "Update",
+    "geocode": "64",
+    "sentDate": "2018-08-24T21:21:39"
+   },
+   "expect": {
+    "area": "高雄市",
+    "granularity": "county",
+    "targetDate": "explicit:8/24",
+    "dayPart": "full",
+    "work": "normal",
+    "school": "normal",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-27",
+   "note": "2016-06-13 之前的舊格式：沒有 [停班停課通知] 前綴、沒有狀態文字、一則含多個區域、identifier 沒有 _i_ 段。必須解析失敗並照響。",
+   "input": {
+    "description": "基隆市。臺北市。新北市。桃園市:桃園區、中壢區、大溪區、楊梅區、蘆竹區、大園區、龜山區、八德區、龍潭區、平鎮區、新屋區、觀音區。新竹市。新竹縣。苗栗縣。臺中市。彰化縣。雲林縣。南投縣。嘉義市。嘉義縣。臺南市。高雄市。澎湖縣。",
+    "severity": "Extreme",
+    "msgType": "Update",
+    "geocode": null,
+    "sentDate": "2015-08-07T18:45:37"
+   },
+   "expect": {
+    "area": null,
+    "granularity": "unparseable",
+    "targetDate": "none",
+    "dayPart": "full",
+    "work": "unknown",
+    "school": "unknown",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-28",
+   "note": "明確宣告照常，severity=Severe（另一筆同樣語意是 Minor）",
+   "input": {
+    "description": "[停班停課通知]嘉義市:9/30照常上班、照常上課。行政院人事行政總處。如有任何問題請撥05-2254321#718、728。",
+    "severity": "Severe",
+    "msgType": "Alert",
+    "geocode": "10020",
+    "sentDate": "2019-09-30T18:06:08"
+   },
+   "expect": {
+    "area": "嘉義市",
+    "granularity": "county",
+    "targetDate": "explicit:9/30",
+    "dayPart": "full",
+    "work": "normal",
+    "school": "normal",
+    "affectsMorningAlarm": false
+   }
   }
  ],
  "decisionCases": [
@@ -817,6 +897,98 @@
      "msgType": "Alert",
      "geocode": "6502900",
      "sentDate": "2025-11-10T20:26:29"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-21",
+   "note": "區名全國不唯一：使用者在臺北市信義區，停班的是基隆市信義區 → 照響。比對鍵必須是 (縣市,區) 而非區名。",
+   "home": "臺北市信義區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2024-07-24",
+   "feed": [
+    {
+     "description": "[停班停課通知]基隆市信義區:7/24停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "1001702",
+     "sentDate": "2024-07-23T20:00:00"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-22",
+   "note": "臺/台 正規化：兩邊用字不同仍須視為同一個地方",
+   "home": "台南市東區",
+   "work": "台南市中西區",
+   "mode": "work",
+   "alarmDate": "2026-08-24",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺南市:8/24停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Update",
+     "geocode": "67",
+     "sentDate": "2026-08-23T18:18:35"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "臺南市"
+  },
+  {
+   "id": "decide-23",
+   "note": "『未達停止上班』含有『停止上班』子字串 → 必須照響。天真 contains() 在此失效。",
+   "home": "花蓮縣花蓮市",
+   "work": "花蓮縣花蓮市",
+   "mode": "work",
+   "alarmDate": "2022-09-03",
+   "feed": [
+    {
+     "description": "[停班停課通知]花蓮縣:9/3未達停止上班及上課標準。行政院人事行政總處。",
+     "severity": "Minor",
+     "msgType": "Alert",
+     "geocode": "10015",
+     "sentDate": "2022-09-03T21:04:54"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-24",
+   "note": "里級公告（此 feed 尚未出現過，但 geocode 格式支援）：只有使用者區裡的一個里停班 → 照響，UI 可提示『你的區有部分里停班』",
+   "home": "臺北市士林區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2025-11-12",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺北市士林區永福里:明天停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "6301100-043",
+     "sentDate": "2025-11-11T20:00:00"
+    }
+   ],
+   "expect": "ring",
+   "expectStatus": "partialDistrict"
+  },
+  {
+   "id": "decide-25",
+   "note": "2016 前的舊格式無法解析 → 照響",
+   "home": "臺北市士林區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2015-08-08",
+   "feed": [
+    {
+     "description": "基隆市。臺北市。新北市。新竹市。新竹縣。苗栗縣。臺中市。",
+     "severity": "Extreme",
+     "msgType": "Update",
+     "geocode": null,
+     "sentDate": "2015-08-07T18:45:37"
     }
    ],
    "expect": "ring"

@@ -1,6 +1,6 @@
 # Day-off suppression — shared specification
 
-**Spec version: 1** · Researched and written 2026-09-10 on `ios/main`. Nothing is implemented yet.
+**Spec version: 2** · Researched and written 2026-09-10 on `ios/main`. Nothing is implemented yet.
 
 Two features that answer the same question — *is there anything to get up for tomorrow?* — and
 therefore share one data path, one decision function, and one set of test fixtures:
@@ -64,11 +64,12 @@ to get up for:
 closed. This reading follows from P5; it is the one place where the owner's wording ("A+B") was
 interpreted rather than stated, so it is flagged in §8.
 
-**P2 is supported by the data, not just preference.** Across 365 real historical announcements
-(§3.2), the DGPA feed's geocode is **only ever 2, 5 or 7 digits** — county or district, never a
-10-digit 里. District is both what the user asked for and the finest granularity the source
-actually publishes. See §8 for the one caveat (Taipei's *own* archive does go to 里 level; the
-national feed does not).
+**P2 is supported by the data, not just preference.** Across the **complete 1,374-alert DGPA
+archive (2014-2026)**, every geocode is a county or a district; DGPA has never once issued a
+村里-level code for 停班停課 (§3.2). District is both what the owner asked for and the finest
+granularity this source publishes. Taipei's *own* archive does go to 里 and named-school level, but
+those announcements have no representation in the national feed at all — 臺北市 appears there only
+ever as the city-wide code `63`.
 
 ---
 
@@ -104,6 +105,17 @@ omitting either returns `capZip 或 (effective + sentdate) 必須擇一填寫`. 
 `total` in the envelope. Rows carry `description`, `severity`, `msgType`, `sentDate`, `identifier`,
 `countyName`.
 
+**To sweep the whole archive rather than a date window**, enumerate events first and query by
+event — this is how the 1,374-alert corpus behind this spec was built:
+
+```
+GET /server/v1/Generic/capZip                                   # 62 named events, each with a pk
+GET /server/v1/Alerts/Search/history?capZip=<pk>&alertTypeId=33&page=<n>
+```
+
+Each entry's `filePath` resolves under `https://alerts.ncdr.nat.gov.tw/Capstorage/<filePath>` to the
+CAP XML, which is where the geocodes live.
+
 This is how `docs/dayoff-fixtures.json` was built, and how a future session should extend it after
 the next typhoon. **Throttle it** — the public feed on the same host returns HTTP 429 with body
 `限制存取間隔時間為3秒` and took ~65 s to recover in testing.
@@ -124,8 +136,14 @@ the next typhoon. **Throttle it** — the public feed on the same host returns H
 ```
 
 **The area and the date live in the prose.** There is no structured date field and no structured
-area field on the JSON feed. The `id` infix between `_i_` and the trailing sequence number is the
-geocode (`6403700` above).
+area field on the JSON feed — matching on this feed is by **area name**, not by code.
+
+**Do not read the geocode out of the `id`.** The infix between `_i_` and the trailing sequence
+number does look like the geocode (`6403700` above), and for a modern single-area alert it is. But
+107 of the 1,374 archived alerts carry no `_i_` segment at all, and one alert can cover many areas —
+up to 24 counties in a single record (§3.3). An implementation that parses the id silently drops
+those. If a code is wanted, fetch the `.cap` file the entry links to and read every
+`<area>/<geocode>` in it (§3.2).
 
 ### 2.4 Five traps, each measured
 
@@ -134,34 +152,50 @@ geocode (`6403700` above).
    `2026/8/23 上午 12:00:00` — midnight, i.e. **before the morning it applies to**. Any logic of the
    form `now within effective..expires` returns "ring" forever and the feature silently does
    nothing. **Never read `expires`.**
-2. **The feed keeps old entries.** On 2026-09-10, a clear day, the live feed still held the 14
-   entries from the 2026-08-22..24 event. "No new entry" does **not** mean "no suspension" and
-   "an entry exists" does not mean "today". Always compare the resolved target date.
-3. **Presence ≠ suspension.** `尚未宣布消息` (29 of 365), `尚未列入警戒區` (2) and
-   `照常上班、照常上課` (1) are all published as entries.
-4. **`countyName` (history API only) is not reliable.** Two of 365 records carry
-   `countyName: "臺東縣延平鄉"` while the description says `臺東縣金峰鄉`. **Parse the area out of
-   `description`; never trust `countyName`.**
-5. **`msgType` includes `Update`, not just `Alert`** (145 of 365). Do not filter on
-   `msgType == "Alert"`. No `Cancel` appeared in 365 records, and per the owner (2026-09-10) an
-   announced suspension is never revoked, so there is nothing to handle — see §6.
+2. **The feed is a frozen archive, not a list of what is suspended now.** On 2026-09-10, a clear
+   day, it still returned the 14 entries from the 2026-08-22..24 event, with the feed's own
+   `updated` stuck 17 days in the past. It is never emptied. **This is the feature's most dangerous
+   failure mode and it is silent:** an implementation asking "does my district appear in the feed?"
+   would suppress the alarm every single day, forever, for every user in 高雄, 臺南, 屏東, 花蓮 and
+   臺東 — from the day it shipped. The rule is presence **and** a target-date match, never presence
+   alone, and "no entry matches today" is the overwhelmingly common case.
+3. **Presence ≠ suspension.** Of the full 1,374-alert archive, 64 say `尚未宣布消息` or
+   `尚未列入警戒區`, 44 say `照常上班`, 12 say `照常上班、停止上課` and 5 say
+   `未達停止上班及上課標準` — 125 published entries that are not a 停班.
+4. **`countyName` (history API only) is not reliable.** 19 of the 1,374 archived records disagree
+   with their own description — e.g. `countyName: "臺東縣延平鄉"` where the description says
+   `臺東縣金峰鄉`. **Parse the area out of `description`; never trust `countyName`.**
+5. **`msgType` is `Alert` (898), `Update` (474) or `Cancel` (2).** Do not filter on
+   `msgType == "Alert"` — `Update` is how a county re-announces for the next day and carries real
+   suspensions. Both `Cancel` records are from 2015, in the retired format, and neither is a
+   morning revocation: one withdrew an *evening* suspension at 14:40 the same day, the other
+   withdrew a `所有縣市照常上班上課` notice at 11:40. There is **no `Cancel` at all in the 1,266
+   modern-format records.** Treat a `Cancel` as "not a suspension" ⇒ ring; never as confirmation.
 
-### 2.5 `severity` is a usable cross-check
+#### 2.5 `severity` is a usable cross-check, as a binary
 
-Across all 365 records the correlation is exact:
+Measured across the **complete archive of 1,374 DGPA 停班停課 alerts (2014-07-22 … 2026-08-24)**,
+harvested from every one of the 62 events NCDR indexes:
 
-| `severity` | n | means | 上班 | 上課 |
+| prose | n | `Extreme` | `Severe` | `Minor` |
 | --- | --- | --- | --- | --- |
-| `Extreme` | 328 | suspended | stopped | stopped |
-| `Severe` | 5 | school only | normal | stopped |
-| `Minor` | 32 | nothing announced / normal | — | — |
+| 停止上班 (incl. 已達停止上班及上課標準) | 1142 | **1142** | 0 | 0 |
+| 照常上班 | 44 | 0 | 43 | 1 |
+| 照常上班、停止上課 | 12 | 0 | 12 | 0 |
+| 尚未宣布消息 / 尚未列入警戒區 | 64 | 0 | 2 | 62 |
+| 未達停止上班及上課標準 | 5 | 0 | 4 | 1 |
 
-Zero counter-examples in either direction. **Use it as an assertion, not as the decision**: parse
-the prose, then require the parse to agree with `severity`, and fail open (ring) on disagreement.
-Five `Severe` records is a thin sample to build a rule on, but it is a free tripwire against a
-parser regression.
+**The only supportable rule is the binary one: `Extreme` ⟺ 上班 is suspended.** Zero
+counter-examples in 1,266 modern-format records. `Severe` and `Minor` are *not* two distinct
+meanings — both mean "not a 停班", and the same sentence appears under either. An earlier draft of
+this spec read `Severe` as "school only" from a 365-record sample; that was an artifact of the
+sample and is wrong.
 
----
+Use it as an **assertion, never as the decision**: parse the prose, then require
+`(work == suspended) == (severity == "Extreme")`, and ring on disagreement. It is a free tripwire
+for exactly the mistake that is easiest to make — `未達停止上班及上課標準` contains the substring
+`停止上班`, and all five such records in the archive are `Severe`/`Minor`, so the assertion catches a
+naive `contains` parser before it silences someone's alarm.
 
 ## 3. What the announcements actually say
 
@@ -172,8 +206,8 @@ parser regression.
 ```
 
 `<body>` is `<date?><daypart?><work-and-school-status>。` Every observed combination is in
-`docs/dayoff-fixtures.json` as `parseCases` (24 distinct sentence patterns, deduplicated from 365
-records). Examples spanning the range:
+`docs/dayoff-fixtures.json` as `parseCases` (28 sentence patterns, deduplicated from the full
+1,374-alert archive). Examples spanning the range:
 
 ```
 [停班停課通知]宜蘭縣:7/24停止上班、停止上課。
@@ -200,15 +234,46 @@ only by **full day** or **上午**. `今天下午1:30起停止上班` does not s
 
 ### 3.2 Granularity, measured
 
-| geocode digits | level | n |
-| --- | --- | --- |
-| 2 | 直轄市 (`63` 臺北市, `65` 新北市, `66` 臺中市, `67` 臺南市, `64` 高雄市) | 55 |
-| 5 | 縣 / 市 (`10002` 宜蘭縣, `10013` 屏東縣, `09007` 連江縣 …) | 163 |
-| 7 | 鄉鎮市區 (`6501200` 新北市瑞芳區, `1001416` 臺東縣蘭嶼鄉 …) | 147 |
-| 10 | 村里 | **0** |
+`Taiwan_Geocode_103` is the code space. Its shape, from NCDR's own published table
+(`https://alerts.ncdr.nat.gov.tw/web/StaticFile/Document/Taiwan_Geocode.xlsx`, keyless, three sheets):
 
-All 22 counties appear in the corpus, 臺北市 and 新北市 included. **A county-level announcement
-covers every district inside it; a district-level announcement covers only that district.**
+| form | level | in the DGPA archive |
+| --- | --- | --- |
+| 2 digits | 直轄市 — `63` 臺北市, `64` 高雄市, `65` 新北市, `66` 臺中市, `67` 臺南市, `68` 桃園市 | 6 distinct codes |
+| 5 digits | 縣 / 市 — `10002` 宜蘭縣, `10013` 屏東縣, `09007` 連江縣 … | 17 distinct codes |
+| 7 digits | 鄉鎮市區 — `6501200` 新北市瑞芳區, `1001416` 臺東縣蘭嶼鄉 … (368 nationally) | 150 distinct codes |
+| `#######-###` | 村里 — `6301100-043` 臺北市士林區永福里 (7,851 nationally) | **never emitted** |
+
+**村里 codes are seven digits, a hyphen, then a three-digit serial — not ten digits.** An earlier
+draft of this spec said 10 digits; that was wrong. Every village code's 7-digit prefix is its
+district's code, with zero exceptions in the national table, so one prefix test covers every
+granularity the code space can express:
+
+```
+matches = value == myDistrictCode7
+       || value.hasPrefix(myDistrictCode7 + "-")   // a 里 inside my district
+       || value == myCountyCode
+```
+
+A 里 match is **not** a day off for the whole district — see §5 step 3. DGPA has never emitted one
+here, so this branch is cheap insurance against a future format change, not live behaviour.
+
+All 22 counties appear in the archive. **A county-level announcement covers every district inside
+it; a district-level announcement covers only that district.**
+
+### 3.3 Two format eras, and why the id is not the code
+
+Announcements sent **before 2016-06-13** are a different, now-retired shape and must be treated as
+unparseable (which means: ring). They have no `[停班停課通知]` prefix, no status prose at all, bundle
+many areas into one record (up to 24 counties, and up to 49 `<area>` blocks in the CAP), carry no
+`_i_` segment in the identifier, and declare `Taiwan_Geocode_100` rather than `103` — a different
+code space in which 桃園 is `10003`/`1000301`, not `68`/`6800100`. 107 of the 1,374 archived alerts
+are of this kind. They are historical only; the parser must fail open on them rather than
+half-understand them.
+
+**Always check `<valueName>` before comparing a code**, and treat any valueName other than
+`Taiwan_Geocode_103` as unknown ⇒ ring. The scheme is versioned by ROC year and has already changed
+once.
 
 **The case that makes P2 and P3 necessary** — 2025-11-10, 鳳凰颱風. New Taipei suspended exactly
 seven mountain districts for the next morning and left the rest of the city working:
@@ -308,8 +373,13 @@ show them and a type is a cheaper guarantee than a code review.
 
 1. `status == "Actual"`.
 2. Match `^\[停班停課通知\](?<area>[^:：]+)[:：](?<body>.*)$`. No match ⇒ ring.
-3. Resolve `area` to a geocode level: exactly a county name ⇒ covers all its districts;
-   county+district ⇒ that district only; anything longer or unrecognised ⇒ **ring** (see §8).
+3. Resolve `area` against the user's stored **(縣市, 區) pair**, after 臺→台 normalisation on both
+   sides. Exactly a county name ⇒ covers all its districts; county+district ⇒ that district only;
+   a 里 inside the user's district, or any longer/unrecognised form ⇒ **ring**, and surface it as
+   "部分里停班" rather than as "no announcement". **Never key on the district name alone** — eight
+   district names are ambiguous nationally (a 基隆市信義區 suspension must not silence a 臺北市信義區
+   user), and `postalCode` is not a substitute (嘉義市 and 新竹市 collapse several districts onto one
+   3-digit prefix).
 4. Does `area` cover the user's **home** district **or** their **destination** district? (P3, P4 —
    route interior points are never considered.) No ⇒ ring.
 5. Resolve the target date (§3.1). Not equal to the alarm's own date ⇒ ring.
@@ -321,11 +391,19 @@ show them and a type is a cheaper guarantee than a code review.
 **Then, for (B),** independently: if the alarm's date is `是否放假 == 2` in the official calendar
 *and* the user's repeat schedule would have rung that day, suppress.
 
-**Cache rules.** The decision path never makes a synchronous network call — it reads a cache in the
-App Group container (the alarm presentation and the widget extension read it too). Store the raw
-bytes, the fetch time, **and the source's own update time**. Re-derive the decision against the
-alarm's date every time; never replay a stored verdict. A cache older than a fixed maximum age
-(§8 — the number is not yet chosen) is treated as absent, which means ring.
+**Cache rules.** The decision path never makes a synchronous network call and never geocodes — it
+reads a stored snapshot. Store the raw bytes, the fetch time, **and the source's own update time**.
+Re-derive the decision against the alarm's date every time; never replay a stored verdict. A cache
+older than a fixed maximum age (§8 — the number is not yet chosen) is treated as absent ⇒ ring.
+
+**Do not reach for an App Group.** This project has no App Group entitlement on either target, and
+adding one means new entitlements on two targets, regenerated provisioning profiles and an App
+Store Connect identifier change — on an app whose archive-and-upload path `docs/STATUS-IOS.md`
+already flags as fragile. The alarm's custom presentation gets its dynamic data from
+`AlarmAttributes.metadata`, frozen at schedule time, which is exactly what
+`CommuteAlarmMetadata` already carries. **Put the suppression text there when the background task
+re-schedules**, the same moment it already re-decides the rain adjustment. Whether a Live Activity
+body can read an App Group container at fire time is unverified and must not be designed around.
 
 **Fail-open, exhaustively.** Ring on: HTTP error, 429, timeout, TLS failure, malformed JSON,
 unparseable prose, empty feed, all entries stale, unrecognised area, unrecognised status wording,
@@ -348,8 +426,10 @@ server, which this app does not have and will not get. So:
 **Announcements are not revoked.** Owner's ruling, 2026-09-10: a 停班停課 announcement, once made,
 does not get reversed before the morning it applies to. This retires what had been the design's
 most dangerous unknown, and it is why Path A below is viable at all. Nothing in the corpus
-contradicts it — no `Cancel` in 365 records — but it rests on the owner's domain knowledge rather
-than on measurement, so it is recorded here rather than buried in code.
+contradicts it: across 1,374 archived alerts there is no `Cancel` whatsoever in the 1,266
+modern-format records, and the two 2015 ones are same-day midday withdrawals, not dawn reversals
+(§2.4). The ruling still rests on the owner's domain knowledge rather than on measurement — the
+archive can only show that it has not happened — so it is recorded here rather than buried in code.
 
 What remains true is that an announcement can *arrive* as late as 04:30. That is a different
 problem, and it fails in the safe direction: the alarm rings, the user gets up, and finds out. Only
@@ -369,6 +449,23 @@ Given that announcements are final, the evening case is safe and Path A may reas
 default-on — but not until its state handling is defined: what happens to a cancelled occurrence
 across a reboot, app termination, or the user deleting and reinstalling, and how the next
 occurrence is re-armed. Ship it default-off until those are answered, then revisit the default.
+
+**Path A inverts an ordering the shipped code depends on.** AlarmKit has no `update`; rescheduling
+is cancel-plus-schedule, and this app deliberately schedules the replacement *first* so that a throw
+leaves the user with their old alarm rather than none. Suppression has no replacement to schedule
+first, so cancelling is a one-way operation with no safety net: if the decision is wrong, the user
+has no alarm at all. Prefer re-scheduling at the normal time with metadata marking it suppressed
+over cancelling outright. Treat **any** throw from `schedule`/`cancel` as "keep the existing alarm" —
+the framework's only declared error is `maximumLimitReached`, so a background failure surfaces as an
+opaque error, never as a documented "not permitted".
+
+**The background capability does not need proving.** This app has shipped
+`BGAppRefreshTask`/`BGProcessingTask` → `AlarmManager.shared.schedule` + `.cancel` since 1.6.5
+(2026-08-04), App-Store-approved. The `fetch` and `processing` background modes are already
+declared and were already explained to App Review in an accepted submission. The day-off check is a
+new **input** to a re-decision path that already exists — extend it, do not build it. (The repo's
+standing warning still applies: a `BGTaskSchedulerPermittedIdentifiers` entry that does not match
+code crashes the app at launch.)
 
 Fetch opportunities, any of which refreshes the cache: app foreground; the existing evening-preview
 window (~21:00, which is exactly DGPA's announcement window); an opportunistic
@@ -396,12 +493,22 @@ attribution. The feed body additionally declares `rights: "Public Domain"` — t
 not agree, so **rely on the licence, and attribute**. `nds.html` is a different matter: its
 `robots.txt` disallows all non-Google agents, which is why §2.1 says not to scrape it at all.
 
-**The real risk is displaying something wrong, not fetching it.** `nds.html` itself prints
-災害防救法第 53 條 — spreading false disaster information causing harm carries up to three years or
-a NT$1,000,000 fine. Therefore:
+**The real risk is displaying something wrong, not fetching it.** The operative provision is
+**災害防救法第 53 條第 3 項**: disseminating rumours or false information about a disaster, where that
+is sufficient to cause harm — up to three years, or a fine up to NT$1,000,000. It does **not** reach
+a faithful relay of a genuine announcement; truthful republication is not 不實訊息. (¶2, the
+knowingly-false clause, penalises false *reports to the authorities* and does not apply to an app.
+Whether ¶3 requires intent rather than negligence is an inference, not a legal opinion, and this
+spec does not rely on it.) The exposure is therefore purely a correctness question, and it lands
+exactly on the stale-feed hazard in §2.4: showing 「你住的區今天停班停課」 on a day when that is not
+true is precisely the conduct ¶3 describes. This is the strongest argument for the fail-open rule
+and the date match. Therefore:
 
-- Any "today is suspended" surface must show **`資料來源：行政院人事行政總處`** *and* **the source's
-  own update time**, never only the app's fetch time.
+- Any "today is suspended" surface must show the source *and* **the source's own update time**,
+  never only the app's fetch time. Name both roles — the feed's own author is NCDR while each entry's
+  author is DGPA — so: **`資料來源：行政院人事行政總處（經國家災害防救科技中心 NCDR 發布）`**.
+  Under OGDL v1 attribution is a **licence condition** (Article 3 ¶2), and omitting it voids the
+  licence retroactively; it is not a courtesy.
 - "Fetch failed" and "no suspension announced" must be **visibly different states**, and only the
   latter may affect the alarm. `尚未宣布消息` is a third state and should say so.
 - Disclaimer, on the settings page and at the foot of any suspension screen:
@@ -409,6 +516,27 @@ a NT$1,000,000 fine. Therefore:
   > 民間事業單位請依勞動部「天然災害發生事業單位勞工出勤管理及工資給付要點」辦理。網路異常時本App將照常響鈴。
 - Credits page: `資料來源：政府資料開放平臺 data.gov.tw／行政院人事行政總處`.
 - Localise the disclaimer wherever the app ships another language.
+
+**App Review, corrected.** Guideline 5.2.5 is about resembling *Apple's* products and has nothing
+to do with government impersonation; no guideline prohibits attributing government data, and naming
+the true source is the opposite of impersonation. The governing rules are 5.2.1 (no misleading or
+copycat representation) and 5.2.2 (third-party content must be permitted under that service's
+terms) — so keep the app's own name and icon dominant, phrase it as a source credit, and never use a
+government seal or crest. **5.2.5 is live for this app for a different reason**: it was rejected
+once over Apple Weather attribution. The DGPA credit must not displace, obscure or out-rank the
+WeatherKit mark on any surface where forecast data appears.
+
+**A reviewer will never see a typhoon.** This app has already taken a 2.1(a) rejection for a
+reviewer hitting a dead end, and already established the answer — `evening_preview_send_sample`.
+Ship an equivalent "show me one now" control for the day-off path and name it, with where to tap
+it, in the App Review notes in `docs/appstore-metadata.md`.
+
+**Android.** The manifest already declares `SCHEDULE_EXACT_ALARM` (`maxSdkVersion="32"`) plus
+unrestricted `USE_EXACT_ALARM`, correctly gated at runtime — this feature needs no permission
+change. The Play Console declaration for `USE_EXACT_ALARM` rests on the app's core functionality
+being an alarm clock, so **frame this as a refinement of alarm behaviour, never as a
+disaster-information service**. Leave `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` undeclared: exact
+alarms already fire in Doze, and adding it would create a policy question the app does not have.
 
 ---
 
@@ -418,37 +546,55 @@ Owner decisions still needed:
 
 1. **Is `both` an AND?** §1 reads "A+B" as *suppress only when both are suspended*. Derived from
    P5, not stated. Confirm.
-2. **How does the user's district get set?** Reverse geocoding from the existing home/work
-   addresses, or an explicit picker? A picker avoids a new location-privacy surface and cannot be
-   wrong; reverse geocoding is invisible but must be verified to return 區 reliably in Taiwan.
-   **Note the mismatch:** DGPA suspends by 工作地, and this is a commute app whose two addresses are
-   usually in different districts — which is exactly why P3 takes the union.
-3. **Maximum cache age** before a cached suspension is ignored. Not chosen.
-4. **Is the feature hidden outside Taiwan**, and what does a Taiwanese user abroad get?
-5. **Pre-iOS 26 devices** have no AlarmKit custom presentation, so Path B's ring screen does not
+2. **Maximum cache age** before a cached suspension is ignored. Not chosen.
+3. **Is the feature hidden outside Taiwan**, and what does a Taiwanese user abroad get?
+4. **Pre-iOS 26 devices** have no AlarmKit custom presentation, so Path B's ring screen does not
    exist there. Decide what those users get.
 
-*Resolved:* how a revocation is expressed was the top item here until 2026-09-10, when the owner
-ruled that announcements are never revoked. See §6.
+### Resolved since v1
 
-Unverified facts — do not present these as known:
+- **How a revocation is expressed** — moot. Owner ruled announcements are never revoked (§6).
+- **How the user's district gets set** — settled by measurement. `CLPlacemark.locality` holds the
+  **區** in Taiwan and `administrativeArea` holds the **縣市**; `subLocality` holds the 里 and is
+  populated; `subAdministrativeArea` is a useless duplicate of `administrativeArea` — never use it.
+  Two hard constraints follow. Apple's documentation **instructs developers not to geocode while the
+  app is inactive or in the background**, which is exactly when the alarm decides, and offline the
+  geocoder returns only a country code. So: **resolve the district once at address-entry time in the
+  foreground, show it in an editable 縣市/區 picker prefilled from the geocode, persist the confirmed
+  pair, and geocode never at alarm time.** The picker is the source of truth; geocoding only
+  prefills it. No stored district ⇒ ring.
+  Three implementation traps, all verified: pass `Locale(identifier: "zh-Hant-TW")` explicitly or
+  the placemark comes back romanised with inconsistent suffixes and cannot be joined against the
+  feed (`MapItemResolver.preferredSearchLocale` picks locale from the query script, so it must be
+  overridden for this); Apple returns 臺北市 but also 台灣大道, so 臺↔台 normalisation is required on
+  both sides; and **two concurrent `reverseGeocodeLocation` calls on the same `CLGeocoder` instance
+  hang forever** — not an error, a hang, so fail-open cannot catch it. `MapItemResolver` holds one
+  `CLGeocoder` inside an `actor`, which serialises correctly today, but any refactor that resolves
+  home and destination in parallel through it deadlocks silently. Mandate a timeout around every
+  geocode. Ship the 368-row 縣市/鄉鎮市區 table in the bundle (generate from NCDR's
+  `Taiwan_Geocode.xlsx` or `/server/v1/Generic/town/103/{county}`); it changes about once a decade.
+  Android: same design, and more strongly — AOSP's own javadoc says the `Geocoder` **must not be
+  used for any safety-critical purpose**, and it is absent entirely on non-GMS devices.
+- **Sub-district announcements in the national feed** — answered. Across the complete 1,374-alert
+  archive, DGPA has never emitted a 村里 code, no `areaDesc` ends in 里 or 村, and none names a
+  school. 臺北市 appears only ever as the city-wide code `63`, across all 44 of its alerts. Taipei's
+  real 里-level and school-level suspensions therefore have **no representation in this feed at
+  all**. §5 step 3 still rings on a 里-level match, as insurance.
+- **AlarmKit background rescheduling** — not a question: this app has shipped it since 1.6.5 (§6).
+- **App Review / Play policy** — examined; see §7. Background modes are already declared and
+  accepted; the 5.2.5 premise was wrong; the real requirements are a reviewer-visible demo control
+  and not out-ranking the WeatherKit mark.
 
-7. **Sub-district announcements in the national feed.** Zero 10-digit geocodes in 365 records, but
-   Taipei's *own* archive routinely lists 里 and named schools
-   (`臺北市士林區永福里、新安里…停止上班、停止上課`, `臺北市士林區陽明山國民小學…`). Either DGPA does
-   not forward those nationally, or the corpus missed them. Until this is settled, step 3 of §5
-   rings on any area string longer than county+district — a suspension covering one 里 must not
-   silence the whole district.
-8. **A parent's question may be unanswerable.** 停課 is announced per school and per 里; no source
-   found answers it at that granularity. If `mode: school` ships, the settings copy must say what it
-   can and cannot see.
-9. **End-to-end feed latency during a live event** has never been measured — only after the fact.
-10. **AlarmKit specifics**: whether a scheduled alarm can be cancelled from a background task, and
-    what its custom presentation can read at fire time, are untested on device.
-11. **App Review / Play policy** for this feature is unexamined: background-mode justification, the
-    fact that a reviewer will never see a typhoon (needs a demo path and a note in
-    `docs/appstore-metadata.md`), and whether prominent government attribution reads as false
-    endorsement. Android: the `USE_EXACT_ALARM` Play Console declaration.
+### Still unverified — do not present these as known
+
+5. **A parent's question may be unanswerable.** 停課 is announced per school and per 里, and this
+   feed carries neither. If `mode: school` ships, the settings copy must say what it can and cannot
+   see.
+6. **End-to-end feed latency during a live event** has never been measured — only after the fact.
+7. **Whether Android's `getLocality()` returns the 區 in Taiwan** is untested. Apple's behaviour was
+   measured; Android's was not.
+8. **Whether a Live Activity body can read an App Group container at fire time** — untested, and
+   deliberately not designed around (§5).
 
 ---
 
@@ -467,7 +613,8 @@ hostile parser on top.
    returns `.ring`.
 4. Wire the NCDR fetch: 8 s timeout, identifying User-Agent, ≥3 s backoff on 429 (recovery took
    ~65 s in testing — a 429 is never "no suspension"), raw bytes + both timestamps into App Group.
-5. Path B ring screen (§6).
+5. Path B ring screen (§6) — via `CommuteAlarmMetadata` at schedule time, **not** an App Group.
+   Add the reviewer-visible "show me one now" control alongside it (§7).
 6. Opportunistic background refresh, with a comment saying correctness must not depend on it.
 7. Path A last, default off, with the undo notification.
 8. Credits, disclaimer, `docs/PRODUCT_DECISIONS.md` entry, and update `docs/STATUS-IOS.md`.
@@ -483,4 +630,19 @@ Android differs only in §6's fetch timing and in Big5 decoding (`Charset.forNam
 - **v1, amended** (2026-09-10) — owner ruled that a 停班停課 announcement is never revoked before
   the morning it applies to. §8's top unknown retired; §6 rewritten accordingly and Path A's
   remaining blocker narrowed to its own state handling. No fixture and no decision-function
-  behaviour changed, so `specVersion` stays at 1.
+  behaviour changed, so `specVersion` stayed at 1.
+- **v2** (2026-09-10) — corpus widened from 365 alerts to the **complete 1,374-alert archive
+  (2014-2026)**, and four v1 statements corrected at source. **Four fixture cases and five decision
+  cases added, so `specVersion` is bumped and both platforms must re-run.**
+  - **村里 codes are `#######-###`, not 10 digits** (§3.2). A 7-character prefix test now covers
+    every granularity, and 里 matches ring rather than suppress.
+  - **`severity` is a binary, not a three-way map** (§2.5). v1 read `Severe` as "school only" from a
+    365-record sample; on the full archive `Severe` and `Minor` both simply mean "not a 停班". The
+    supportable rule is `Extreme` ⟺ 停止上班, with zero counter-examples in 1,266 modern records.
+  - **Never read the geocode out of the entry `id`** (§2.3, §3.3). 107 archived alerts have no
+    `_i_` segment, one alert can cover 24 counties, and pre-2016 records use a different code space.
+  - **No App Group** (§5). The project has no such entitlement; the alarm screen's data must ride
+    `CommuteAlarmMetadata`, frozen at schedule time.
+  - Added: the frozen-archive hazard stated with its real consequence (§2.4), district resolution
+    settled on `CLPlacemark.locality` plus a confirmed picker (§8), the 5.2.5 premise corrected and
+    the real store constraints named (§7), and the cancel-to-suppress ordering hazard (§6).

@@ -903,7 +903,7 @@ this item.
 
 **Day-off suppression: don't ring on a typhoon 停班停課 day, or on a national holiday.**
 *(Requested 2026-09-10. Researched and specified; nothing implemented. Day-off: implemented against
-spec v0 — the spec is at v1.)* The full specification, verified data sources, parsing rules and the
+spec v0 — the spec is at v2.)* The full specification, verified data sources, parsing rules and the
 cross-platform handoff protocol live in **`docs/DAYOFF-SPEC.md`**, with the executable contract in
 `docs/dayoff-fixtures.json`. The short version: the machine-readable source is
 `https://alerts.ncdr.nat.gov.tw/JSONAtomFeed.ashx?AlertType=33` (DGPA's own announcements, keyless,
@@ -917,8 +917,13 @@ The hard part is timing, and it is the same wall as item 0 below: DGPA may annou
 04:30, and no backendless iOS app can reliably wake then. The recommended design is therefore that
 the **alarm still rings** and the AlarmKit ring screen tells the user it is a day off, with
 cancelling the alarm outright offered as an opt-in that is default off. This rides on the machinery
-`BackgroundWeatherRefresh` and `EveningPreview` already provide rather than adding a second one.
-Five owner decisions are still open — see §8 of the spec.
+`BackgroundWeatherRefresh` and `EveningPreview` already provide rather than adding a second one —
+and the background AlarmKit rescheduling it needs has shipped since `1.6.5`, so nothing new has to
+be proven there. Two iOS specifics worth knowing before starting: the ring screen's text must ride
+`CommuteAlarmMetadata` because **this project has no App Group entitlement**, and the user's 區 must
+be resolved once in the foreground and confirmed in a picker, because Apple's docs forbid geocoding
+in the background — which is exactly when the alarm decides. Four owner decisions are still open;
+see §8 of the spec, which also records what v2 corrected.
 
 0. **Handle the users whose background refresh can never run.** *(Raised 2026-08-03, approach
    not decided.)* `BackgroundWeatherRefresh` is what makes each morning's alarm reflect that
