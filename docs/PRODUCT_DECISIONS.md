@@ -55,6 +55,32 @@ Scheduling is split by system version behind the `NotificationScheduling` protoc
 
 The intended product behavior is to refresh weather at the configured lead-time point. For example, if the normal alarm is 7:30 and the rain lead time is 30 minutes, the app checks the selected route/weather at 7:00. If the threshold is exceeded, the early alarm fires; otherwise, the normal alarm remains.
 
+### Day-off Suppression
+
+Specified in full in `docs/DAYOFF-SPEC.md` (spec v1, 2026-09-10); nothing is implemented yet. The
+product shape and the alternatives that were rejected, so they are not proposed again:
+
+- **Announcements are read from NCDR's open-data feed, not scraped from `nds.html`.** The page the
+  feature started from is server-rendered HTML with no date column and a `Disallow: /` robots.txt;
+  the same DGPA announcements are published as keyless, open-licensed JSON at
+  `alerts.ncdr.nat.gov.tw/JSONAtomFeed.ashx?AlertType=33`. A community GitHub mirror of the page was
+  measured and rejected — at 06:00 Taiwan time its snapshots were a median 100 minutes stale.
+- **Holidays come from the official 辦公日曆表 CSV, not from EventKit.** The system calendar's
+  Taiwan holidays are not under our control and do not mark 補班日; the government CSV answers the
+  question exactly, offline, in 6 KB, and needs no calendar permission or App Review purpose string.
+- **Matching is per district, taking the union of home and destination.** County-level matching was
+  rejected on real data: on 2025-11-10 New Taipei suspended seven mountain districts and left the
+  rest of the city working, so a county rule would have silenced every alarm in the city. Districts
+  merely passed through en route are deliberately not considered, even though the app has the route.
+- **The user declares whether their morning is for 上班, 上課, or both**, because the announcements
+  distinguish them (`照常上班、停止上課` is a real, published state).
+- **The alarm rings and the ring screen explains, rather than the alarm being cancelled silently.**
+  DGPA may announce as late as 04:30 and a backendless iOS app cannot reliably wake then, so the
+  reliable design is one that can never make someone late. Announcements themselves are final —
+  owner's ruling, 2026-09-10: a suspension is not revoked before the morning it applies to — so
+  cancelling the alarm the night before is sound in principle. It still ships default-off until its
+  state handling across reboot, termination and reinstall is defined.
+
 ### Localization Strategy
 
 All user-facing UI text should be backed by localized string resources. Documentation should include both English and Traditional Chinese so product and technical decisions stay aligned across languages.
@@ -112,6 +138,16 @@ Google Places fallback 可在未來加入，但只應在 Apple 地址解析失�
 **排程鬧鐘同步約定（自 `1.6.3` 起）：** 已註冊的鬧鐘永遠與畫面上的設定一致。參數調整（星期、時間、雨天提前時間、降雨門檻、鬧鈴、賴床、通勤方式）會在短暫 debounce 後自動重新排程，不需要按按鈕。地址調整則直接**移除**鬧鐘：使用者尚未確認的路線不該有鬧鐘替它響，所以只有排程按鈕能重新啟用。按鈕下方的狀態列以顏色區分 —— 綠色（已設定且同步）、橘色（已設定但同步中或不一致）、灰色（沒有鬧鐘）。琥珀色的「設定已變更」提示保留作為自動更新失敗時的後備。
 
 預期產品行為是在使用者設定的提前時間點刷新天氣。例如平常鬧鐘是 7:30、雨天提前時間是 30 分鐘，App 應在 7:00 檢查路線與天氣。如果超過門檻，提早鬧鐘響起；否則保留正常鬧鐘。
+
+### 停班停課與假日靜音
+
+完整規格在 `docs/DAYOFF-SPEC.md`（spec v1，2026-09-10），目前尚未實作。產品形狀與**已被否決的替代方案**，記在這裡以免日後重複提案：
+
+- **公告改讀 NCDR 的開放資料 feed，不爬 `nds.html`。** 這個功能的起點頁面是伺服器端渲染的 HTML、沒有日期欄位，`robots.txt` 是 `Disallow: /`；同一批人事行政總處公告以免金鑰、開放授權的 JSON 發布在 `alerts.ncdr.nat.gov.tw/JSONAtomFeed.ashx?AlertType=33`。GitHub 上有人鏡像那個頁面，實測後否決 —— 台灣時間 06:00 的快照中位落後 100 分鐘。
+- **假日改讀官方辦公日曆表 CSV，不用 EventKit。** 系統行事曆的台灣假日內容不受我們控制，也不標補班日；政府 CSV 只有 6 KB、可離線、答案精確，而且不需要行事曆權限與 App Review 用途說明。
+- **比對粒度是「區」，並取住家與目的地的聯集。** 縣市級比對已被真實資料否決：2025-11-10 新北市只停了七個山區的區，其餘照常上班，用縣市規則會把全市的鬧鐘都關掉。通勤途中經過的區刻意不列入判斷，即使 App 手上就有路線。
+- **由使用者自己宣告早上是為了上班、上課、還是兩者。** 因為公告本身就會區分（`照常上班、停止上課` 是真實存在的狀態）。
+- **鬧鐘照響、由響鈴畫面說明，而不是安靜地把鬧鐘關掉。** 人事行政總處最晚可能 04:30 才公告，而沒有後端的 iOS App 無法保證在那個時間醒來，所以唯一可靠的設計是「永遠不會害人遲到」的那一種。公告本身則是確定的 —— 2026-09-10 由 owner 裁定：停班公告不會在生效的那個早上之前被撤回 —— 所以「前一晚直接取消鬧鐘」原理上成立，但在重開機、App 被終止、重新安裝之後的狀態處理定義清楚之前，仍然預設關閉。
 
 ### 本地化策略
 

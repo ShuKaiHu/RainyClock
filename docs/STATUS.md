@@ -26,6 +26,7 @@ hold the whole repo — the separation is by branch, not by directory.
 ## Shared references
 
 - Product reasoning and rejected alternatives, both platforms → `docs/PRODUCT_DECISIONS.md`
+- Day-off suppression (typhoon 停班停課 + 國定假日), both platforms → `docs/DAYOFF-SPEC.md`
 - iOS submission mechanics, rejection history, AdMob and app-ads.txt → `docs/app-store-submission-checklist.md`
 - iOS store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Android architecture and platform substitutions → `docs/ANDROID.md`
@@ -42,3 +43,11 @@ hold the whole repo — the separation is by branch, not by directory.
   app registered under the same account needs no change to it.
 - **The alarm tones are shared.** Android copies the iOS target's `.wav` files at build time
   rather than duplicating them; deleting one on the iOS side breaks the Android build.
+- **Day-off suppression is specified once, for both platforms.** `docs/DAYOFF-SPEC.md` (spec v1,
+  written 2026-09-10, nothing implemented yet) and `docs/dayoff-fixtures.json` beside it define
+  when a typhoon 停班停課 announcement or a national holiday silences the alarm. The fixtures — 24
+  real DGPA sentence patterns and 20 decision scenarios — are the actual contract: both platforms
+  load them in unit tests, so a rule change on one side surfaces as a failing test on the other
+  rather than as two implementations that quietly disagree during a typhoon. Changing behaviour
+  means editing the fixtures and bumping `specVersion`; each platform records the version it has
+  implemented in its own status log. Read §0 of the spec before touching either file.

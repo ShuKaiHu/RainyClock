@@ -1,0 +1,825 @@
+{
+ "specVersion": 1,
+ "purpose": "iOS 與 Android 兩邊必須用同一組測試案例。任何一邊改了規則，就要改這個檔並 bump specVersion，另一邊的測試會失敗 —— 那就是交接訊號。",
+ "sourceOfTruth": "parseCases 的 input 全部是 NCDR 歷史 API 的逐字真實紀錄（2024-07 ~ 2026-08，8 個颱風事件、365 筆去重後取 24 種句型代表）。decisionCases 的 feed 為求精簡有刪去尾端電話號碼，其餘逐字。",
+ "parseCases": [
+  {
+   "id": "parse-01",
+   "input": {
+    "description": "[停班停課通知]雲林縣:7/23尚未宣布消息。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Minor",
+    "msgType": "Alert",
+    "geocode": "10009",
+    "sentDate": "2024-07-23T17:58:32"
+   },
+   "expect": {
+    "area": "雲林縣",
+    "granularity": "county",
+    "targetDate": "explicit:7/23",
+    "dayPart": "full",
+    "work": "unknown",
+    "school": "unknown",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-02",
+   "input": {
+    "description": "[停班停課通知]宜蘭縣:7/24停止上班、停止上課。行政院人事行政總處。如有任何問題請撥03-9251000#2130、2133。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "10002",
+    "sentDate": "2024-07-23T19:49:27"
+   },
+   "expect": {
+    "area": "宜蘭縣",
+    "granularity": "county",
+    "targetDate": "explicit:7/24",
+    "dayPart": "full",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-03",
+   "input": {
+    "description": "[停班停課通知]臺東縣蘭嶼鄉:明天停止上班、停止上課。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "1001416",
+    "sentDate": "2024-07-23T20:39:55"
+   },
+   "expect": {
+    "area": "臺東縣蘭嶼鄉",
+    "granularity": "district",
+    "targetDate": "tomorrow",
+    "dayPart": "full",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-04",
+   "input": {
+    "description": "[停班停課通知]臺中市和平區:尚未宣布消息。行政院人事行政總處。如有任何問題請撥1999(市內直撥)。",
+    "severity": "Minor",
+    "msgType": "Update",
+    "geocode": "6602900",
+    "sentDate": "2024-07-23T23:51:28"
+   },
+   "expect": {
+    "area": "臺中市和平區",
+    "granularity": "district",
+    "targetDate": "none",
+    "dayPart": "full",
+    "work": "unknown",
+    "school": "unknown",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-05",
+   "input": {
+    "description": "[停班停課通知]澎湖縣:7/26照常上班、停止上課。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Severe",
+    "msgType": "Update",
+    "geocode": "10016",
+    "sentDate": "2024-07-25T19:25:36"
+   },
+   "expect": {
+    "area": "澎湖縣",
+    "granularity": "county",
+    "targetDate": "explicit:7/26",
+    "dayPart": "full",
+    "work": "normal",
+    "school": "suspended",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-06",
+   "input": {
+    "description": "[停班停課通知]連江縣:7/26上午停止上班、停止上課。行政院人事行政總處。如有任何問題請撥0836-22111。",
+    "severity": "Extreme",
+    "msgType": "Update",
+    "geocode": "09007",
+    "sentDate": "2024-07-25T20:24:10"
+   },
+   "expect": {
+    "area": "連江縣",
+    "granularity": "county",
+    "targetDate": "explicit:7/26",
+    "dayPart": "morning",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-07",
+   "input": {
+    "description": "[停班停課通知]新竹縣尖石鄉:明天照常上班、停止上課。行政院人事行政總處。如有任何問題請撥03-5513522#334~337。",
+    "severity": "Severe",
+    "msgType": "Alert",
+    "geocode": "1000412",
+    "sentDate": "2024-07-25T21:14:45"
+   },
+   "expect": {
+    "area": "新竹縣尖石鄉",
+    "granularity": "district",
+    "targetDate": "tomorrow",
+    "dayPart": "full",
+    "work": "normal",
+    "school": "suspended",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-08",
+   "input": {
+    "description": "[停班停課通知]南投縣信義鄉:明天已達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "1000812",
+    "sentDate": "2024-07-26T17:19:48"
+   },
+   "expect": {
+    "area": "南投縣信義鄉",
+    "granularity": "district",
+    "targetDate": "tomorrow",
+    "dayPart": "full",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-09",
+   "input": {
+    "description": "[停班停課通知]屏東縣恆春鎮:今天下午1:30起停止上班、停止上課。行政院人事行政總處。如有任何問題請撥08-7320415#6530、6535。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "1001304",
+    "sentDate": "2024-09-30T11:22:59"
+   },
+   "expect": {
+    "area": "屏東縣恆春鎮",
+    "granularity": "district",
+    "targetDate": "today",
+    "dayPart": "afternoon",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-10",
+   "input": {
+    "description": "[停班停課通知]屏東縣滿州鄉:今天下午停止上班、停止上課。行政院人事行政總處。如有任何問題請撥08-7320415#6530、6535。",
+    "severity": "Extreme",
+    "msgType": "Update",
+    "geocode": "1001324",
+    "sentDate": "2024-09-30T11:35:08"
+   },
+   "expect": {
+    "area": "屏東縣滿州鄉",
+    "granularity": "district",
+    "targetDate": "today",
+    "dayPart": "afternoon",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-11",
+   "input": {
+    "description": "[停班停課通知]花蓮縣:9/30晚上停止上班、停止上課。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "10015",
+    "sentDate": "2024-09-30T15:01:30"
+   },
+   "expect": {
+    "area": "花蓮縣",
+    "granularity": "county",
+    "targetDate": "explicit:9/30",
+    "dayPart": "evening",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-12",
+   "input": {
+    "description": "[停班停課通知]臺東縣:9/30晚上6:00起停止上班、停止上課。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "10014",
+    "sentDate": "2024-09-30T16:16:06"
+   },
+   "expect": {
+    "area": "臺東縣",
+    "granularity": "county",
+    "targetDate": "explicit:9/30",
+    "dayPart": "evening",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-13",
+   "input": {
+    "description": "[停班停課通知]臺中市:10/4照常上班、照常上課。行政院人事行政總處。如有任何問題請撥1999(市內直撥)。",
+    "severity": "Minor",
+    "msgType": "Update",
+    "geocode": "66",
+    "sentDate": "2024-10-03T20:03:40"
+   },
+   "expect": {
+    "area": "臺中市",
+    "granularity": "county",
+    "targetDate": "explicit:10/4",
+    "dayPart": "full",
+    "work": "normal",
+    "school": "normal",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-14",
+   "input": {
+    "description": "[停班停課通知]臺東縣太麻里鄉:今天停止上班、停止上課。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "1001409",
+    "sentDate": "2024-10-04T02:15:08"
+   },
+   "expect": {
+    "area": "臺東縣太麻里鄉",
+    "granularity": "district",
+    "targetDate": "today",
+    "dayPart": "full",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-15",
+   "input": {
+    "description": "[停班停課通知]宜蘭縣大同鄉:今天晚上6:00起停止上班、停止上課。行政院人事行政總處。如有任何問題請撥03-9251000#2130、2133。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "1000211",
+    "sentDate": "2024-10-30T13:34:55"
+   },
+   "expect": {
+    "area": "宜蘭縣大同鄉",
+    "granularity": "district",
+    "targetDate": "today",
+    "dayPart": "evening",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-16",
+   "input": {
+    "description": "[停班停課通知]高雄市:7/6已達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥1999(市內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "64",
+    "sentDate": "2025-07-05T20:12:01"
+   },
+   "expect": {
+    "area": "高雄市",
+    "granularity": "county",
+    "targetDate": "explicit:7/6",
+    "dayPart": "full",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-17",
+   "input": {
+    "description": "[停班停課通知]澎湖縣:7/6下午已達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "10016",
+    "sentDate": "2025-07-05T21:54:15"
+   },
+   "expect": {
+    "area": "澎湖縣",
+    "granularity": "county",
+    "targetDate": "explicit:7/6",
+    "dayPart": "afternoon",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-18",
+   "input": {
+    "description": "[停班停課通知]澎湖縣:7/6中午12:00起已達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Update",
+    "geocode": "10016",
+    "sentDate": "2025-07-06T05:42:18"
+   },
+   "expect": {
+    "area": "澎湖縣",
+    "granularity": "county",
+    "targetDate": "explicit:7/6",
+    "dayPart": "noon",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-19",
+   "input": {
+    "description": "[停班停課通知]雲林縣:7/6晚上18:00起已達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "10009",
+    "sentDate": "2025-07-06T11:09:00"
+   },
+   "expect": {
+    "area": "雲林縣",
+    "granularity": "county",
+    "targetDate": "explicit:7/6",
+    "dayPart": "evening",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-20",
+   "input": {
+    "description": "[停班停課通知]臺東縣蘭嶼鄉:今天下午13:00起已達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥1999(縣內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "1001416",
+    "sentDate": "2025-07-06T11:55:06"
+   },
+   "expect": {
+    "area": "臺東縣蘭嶼鄉",
+    "granularity": "district",
+    "targetDate": "today",
+    "dayPart": "afternoon",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-21",
+   "input": {
+    "description": "[停班停課通知]彰化縣:7/6晚上已達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥04-7531431。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "10007",
+    "sentDate": "2025-07-06T15:33:35"
+   },
+   "expect": {
+    "area": "彰化縣",
+    "granularity": "county",
+    "targetDate": "explicit:7/6",
+    "dayPart": "evening",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-22",
+   "input": {
+    "description": "[停班停課通知]新竹縣:8/12尚未列入警戒區。行政院人事行政總處。如有任何問題請撥03-5513522#334~337。",
+    "severity": "Minor",
+    "msgType": "Alert",
+    "geocode": "10004",
+    "sentDate": "2025-08-12T21:06:46"
+   },
+   "expect": {
+    "area": "新竹縣",
+    "granularity": "county",
+    "targetDate": "explicit:8/12",
+    "dayPart": "full",
+    "work": "unknown",
+    "school": "unknown",
+    "affectsMorningAlarm": true
+   }
+  },
+  {
+   "id": "parse-23",
+   "input": {
+    "description": "[停班停課通知]桃園市復興區:今天下午照常上班、停止上課。行政院人事行政總處。如有任何問題請撥1999(市內直撥)。",
+    "severity": "Severe",
+    "msgType": "Alert",
+    "geocode": "6801300",
+    "sentDate": "2025-08-13T14:25:33"
+   },
+   "expect": {
+    "area": "桃園市復興區",
+    "granularity": "district",
+    "targetDate": "today",
+    "dayPart": "afternoon",
+    "work": "normal",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  },
+  {
+   "id": "parse-24",
+   "input": {
+    "description": "[停班停課通知]高雄市桃源區:今天下午已達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥1999(市內直撥)。",
+    "severity": "Extreme",
+    "msgType": "Alert",
+    "geocode": "6403700",
+    "sentDate": "2026-08-22T14:11:04"
+   },
+   "expect": {
+    "area": "高雄市桃源區",
+    "granularity": "district",
+    "targetDate": "today",
+    "dayPart": "afternoon",
+    "work": "suspended",
+    "school": "suspended",
+    "affectsMorningAlarm": false
+   }
+  }
+ ],
+ "decisionCases": [
+  {
+   "id": "decide-01",
+   "note": "區級公告命中住家區 → 靜音",
+   "home": "新北市瑞芳區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2025-11-11",
+   "feed": [
+    {
+     "description": "[停班停課通知]新北市瑞芳區:明天停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "6501200",
+     "sentDate": "2025-11-10T20:14:27"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "新北市瑞芳區"
+  },
+  {
+   "id": "decide-02",
+   "note": "同縣市但不同區 → 照響（區級公告不擴及全市）",
+   "home": "新北市板橋區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2025-11-11",
+   "feed": [
+    {
+     "description": "[停班停課通知]新北市瑞芳區:明天停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "6501200",
+     "sentDate": "2025-11-10T20:14:27"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-03",
+   "note": "聯集：公司所在區停班、住家不停 → 靜音",
+   "home": "新北市板橋區",
+   "work": "新北市烏來區",
+   "mode": "work",
+   "alarmDate": "2025-11-11",
+   "feed": [
+    {
+     "description": "[停班停課通知]新北市烏來區:明天停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "6502900",
+     "sentDate": "2025-11-10T20:26:29"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "新北市烏來區"
+  },
+  {
+   "id": "decide-04",
+   "note": "縣市級公告涵蓋轄下所有區 → 靜音",
+   "home": "臺北市士林區",
+   "work": "臺北市信義區",
+   "mode": "work",
+   "alarmDate": "2024-07-24",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺北市:7/24停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "63",
+     "sentDate": "2024-07-23T20:15:42"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "臺北市"
+  },
+  {
+   "id": "decide-05",
+   "note": "別的縣市停班 → 照響",
+   "home": "臺北市士林區",
+   "work": "臺北市信義區",
+   "mode": "work",
+   "alarmDate": "2024-07-24",
+   "feed": [
+    {
+     "description": "[停班停課通知]宜蘭縣:7/24停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "10002",
+     "sentDate": "2024-07-23T19:49:27"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-06",
+   "note": "只停課不停班，使用者是上班族 → 照響",
+   "home": "新竹縣尖石鄉",
+   "work": "新竹縣尖石鄉",
+   "mode": "work",
+   "alarmDate": "2025-08-13",
+   "feed": [
+    {
+     "description": "[停班停課通知]新竹縣尖石鄉:明天照常上班、停止上課。行政院人事行政總處。",
+     "severity": "Severe",
+     "msgType": "Alert",
+     "geocode": "1000412",
+     "sentDate": "2025-08-12T20:10:00"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-07",
+   "note": "只停課，使用者是送小孩上學 → 靜音",
+   "home": "新竹縣尖石鄉",
+   "work": "新竹縣尖石鄉",
+   "mode": "school",
+   "alarmDate": "2025-08-13",
+   "feed": [
+    {
+     "description": "[停班停課通知]新竹縣尖石鄉:明天照常上班、停止上課。行政院人事行政總處。",
+     "severity": "Severe",
+     "msgType": "Alert",
+     "geocode": "1000412",
+     "sentDate": "2025-08-12T20:10:00"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "新竹縣尖石鄉"
+  },
+  {
+   "id": "decide-08",
+   "note": "只停課，使用者兩件事都要做 → 照響（上班還在）",
+   "home": "新竹縣尖石鄉",
+   "work": "新竹縣尖石鄉",
+   "mode": "both",
+   "alarmDate": "2025-08-13",
+   "feed": [
+    {
+     "description": "[停班停課通知]新竹縣尖石鄉:明天照常上班、停止上課。行政院人事行政總處。",
+     "severity": "Severe",
+     "msgType": "Alert",
+     "geocode": "1000412",
+     "sentDate": "2025-08-12T20:10:00"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-09",
+   "note": "兩者都停，mode=both → 靜音",
+   "home": "宜蘭縣宜蘭市",
+   "work": "宜蘭縣宜蘭市",
+   "mode": "both",
+   "alarmDate": "2024-07-24",
+   "feed": [
+    {
+     "description": "[停班停課通知]宜蘭縣:7/24停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "10002",
+     "sentDate": "2024-07-23T19:49:27"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "宜蘭縣"
+  },
+  {
+   "id": "decide-10",
+   "note": "下午才停班，早上鬧鐘 → 照響",
+   "home": "屏東縣恆春鎮",
+   "work": "屏東縣恆春鎮",
+   "mode": "work",
+   "alarmDate": "2024-10-03",
+   "feed": [
+    {
+     "description": "[停班停課通知]屏東縣恆春鎮:今天下午1:30起停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "1001304",
+     "sentDate": "2024-10-03T11:20:00"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-11",
+   "note": "晚上才停班 → 照響",
+   "home": "臺東縣臺東市",
+   "work": "臺東縣臺東市",
+   "mode": "work",
+   "alarmDate": "2024-09-30",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺東縣:9/30晚上6:00起停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "10014",
+     "sentDate": "2024-09-30T14:00:00"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-12",
+   "note": "上午停班 → 靜音",
+   "home": "連江縣南竿鄉",
+   "work": "連江縣南竿鄉",
+   "mode": "work",
+   "alarmDate": "2024-07-26",
+   "feed": [
+    {
+     "description": "[停班停課通知]連江縣:7/26上午停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Update",
+     "geocode": "09007",
+     "sentDate": "2024-07-25T21:00:00"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "連江縣"
+  },
+  {
+   "id": "decide-13",
+   "note": "尚未宣布消息 → 照響，且 UI 應顯示『尚未宣布』而非『查無公告』",
+   "home": "臺中市和平區",
+   "work": "臺中市西屯區",
+   "mode": "work",
+   "alarmDate": "2024-07-24",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺中市和平區:尚未宣布消息。行政院人事行政總處。",
+     "severity": "Minor",
+     "msgType": "Update",
+     "geocode": "6602900",
+     "sentDate": "2024-07-23T23:51:28"
+    }
+   ],
+   "expect": "ring",
+   "expectStatus": "undeclared"
+  },
+  {
+   "id": "decide-14",
+   "note": "照常上班照常上課 → 照響",
+   "home": "臺中市西屯區",
+   "work": "臺中市西屯區",
+   "mode": "work",
+   "alarmDate": "2024-10-04",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺中市:10/4照常上班、照常上課。行政院人事行政總處。",
+     "severity": "Minor",
+     "msgType": "Update",
+     "geocode": "66",
+     "sentDate": "2024-10-03T20:00:00"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-15",
+   "note": "尚未列入警戒區 → 照響",
+   "home": "新竹縣竹北市",
+   "work": "新竹縣竹北市",
+   "mode": "work",
+   "alarmDate": "2025-08-12",
+   "feed": [
+    {
+     "description": "[停班停課通知]新竹縣:8/12尚未列入警戒區。行政院人事行政總處。",
+     "severity": "Minor",
+     "msgType": "Alert",
+     "geocode": "10004",
+     "sentDate": "2025-08-11T20:00:00"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-16",
+   "note": "feed 只有舊事件（日期不是鬧鐘當天）→ 照響",
+   "home": "臺北市士林區",
+   "work": "臺北市信義區",
+   "mode": "work",
+   "alarmDate": "2026-09-11",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺北市:7/24停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "63",
+     "sentDate": "2024-07-23T20:15:42"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-17",
+   "note": "feed 為空 → 照響",
+   "home": "臺北市士林區",
+   "work": "臺北市信義區",
+   "mode": "work",
+   "alarmDate": "2026-09-11",
+   "feed": [],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-18",
+   "note": "抓取失敗（快取也過期）→ 照響",
+   "home": "臺北市士林區",
+   "work": "臺北市信義區",
+   "mode": "work",
+   "alarmDate": "2026-09-11",
+   "feed": null,
+   "fetchFailed": true,
+   "expect": "ring"
+  },
+  {
+   "id": "decide-19",
+   "note": "住家與公司都在停班區，只需一次靜音，不得重複通知",
+   "home": "新北市瑞芳區",
+   "work": "新北市雙溪區",
+   "mode": "work",
+   "alarmDate": "2025-11-11",
+   "feed": [
+    {
+     "description": "[停班停課通知]新北市瑞芳區:明天停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "6501200",
+     "sentDate": "2025-11-10T20:14:27"
+    },
+    {
+     "description": "[停班停課通知]新北市雙溪區:明天停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "6502500",
+     "sentDate": "2025-11-10T20:22:28"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "新北市瑞芳區"
+  },
+  {
+   "id": "decide-20",
+   "note": "通勤途中經過的區停班，起點終點都沒停 → 照響（中途不算）",
+   "home": "新北市板橋區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2025-11-11",
+   "feed": [
+    {
+     "description": "[停班停課通知]新北市烏來區:明天停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "6502900",
+     "sentDate": "2025-11-10T20:26:29"
+    }
+   ],
+   "expect": "ring"
+  }
+ ]
+}

@@ -901,6 +901,25 @@ binary. Expected effect is eCPM, not volume — at the current scale the dollars
 either way, and whether the banner is worth keeping at this DAU is a product call, not
 this item.
 
+**Day-off suppression: don't ring on a typhoon 停班停課 day, or on a national holiday.**
+*(Requested 2026-09-10. Researched and specified; nothing implemented. Day-off: implemented against
+spec v0 — the spec is at v1.)* The full specification, verified data sources, parsing rules and the
+cross-platform handoff protocol live in **`docs/DAYOFF-SPEC.md`**, with the executable contract in
+`docs/dayoff-fixtures.json`. The short version: the machine-readable source is
+`https://alerts.ncdr.nat.gov.tw/JSONAtomFeed.ashx?AlertType=33` (DGPA's own announcements, keyless,
+open-licensed) — **not** the `nds.html` page, which is HTML with no date column and a `Disallow: /`
+robots.txt. Holidays come from the official 辦公日曆表 CSV via data.gov.tw dataset 14718, not from
+EventKit. Matching is per **district** and takes the **union of home and destination**; the user
+declares whether their morning is for 上班, 上課, or both. Everything fails open — the alarm rings
+on any error, stale cache, or wording the parser does not recognise.
+
+The hard part is timing, and it is the same wall as item 0 below: DGPA may announce as late as
+04:30, and no backendless iOS app can reliably wake then. The recommended design is therefore that
+the **alarm still rings** and the AlarmKit ring screen tells the user it is a day off, with
+cancelling the alarm outright offered as an opt-in that is default off. This rides on the machinery
+`BackgroundWeatherRefresh` and `EveningPreview` already provide rather than adding a second one.
+Five owner decisions are still open — see §8 of the spec.
+
 0. **Handle the users whose background refresh can never run.** *(Raised 2026-08-03, approach
    not decided.)* `BackgroundWeatherRefresh` is what makes each morning's alarm reflect that
    morning's forecast, and it silently does nothing when **Background App Refresh is switched
