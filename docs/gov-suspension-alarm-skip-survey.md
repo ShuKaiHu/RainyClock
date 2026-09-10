@@ -18,9 +18,10 @@ positive makes someone miss work. Those three decide whether this ships well.
 
 | Source | Shape | Notes |
 | --- | --- | --- |
-| `https://www.dgpa.gov.tw/typh/daily/nds.html` (English: `ndse.html`) | Server-rendered HTML table, one row per 縣市 | The canonical page everyone screenshots. Legacy markup — `bobby1030/tw-nds-cli` selects it as `table[bgcolor="#cdfad9"]` and reads `td > p > font[color="#000000"]`, which is what a page of that vintage looks like. No documented licence. |
+| `https://www.dgpa.gov.tw/typh/daily/nds.html` (English: `ndse.html`) | Server-rendered HTML table, one row per 縣市 | The canonical page, and the one every client that demonstrably works reads. Current markup has usable hooks (`#Table`, `.Table_Body`); the 2016 vintage did not. No documented licence. |
 | data.gov.tw dataset **20457**「天然災害停止上班、停止上課情形-CAP 檔」 | **CAP** (Common Alerting Protocol) XML | Published by DGPA, listed 2015-08-20, 更新頻率 daily, free, 政府資料開放授權條款第 1 版. This is the only source with a real data contract and an explicit licence. |
 | data.gov.tw dataset **61996**「天然災害停止上班及上課情形」 | Catalogue entry pointing back at the website | Not a separate feed. |
+| `https://www.dgpa.gov.tw/opendata/typhoon/ndwork.json` / `.xml` | **Unverified** | One client calls these before falling back. May be the real thing, may not exist — see below. Highest-value single `curl` in this document. |
 | data.gov.tw datasets **14718 / 26557**「政府行政機關辦公日曆表」 | CSV / XML / JSON | The *ordinary* calendar — 國定假日, 彈性放假 and 補班日. Different feature, same agency; see below. |
 
 Dataset resource URLs are reachable programmatically through the catalogue's REST endpoint
@@ -32,63 +33,106 @@ site is well known for buckling under load during a typhoon, which is exactly wh
 third-party tool in this space (TWTools, the 天災假期 Android app, `mcp-tw-typhoon`) puts a
 cache in front of it rather than hitting it per device.
 
-### How solid is "no official JSON API"
+### Is there an official JSON API? — one unverified lead, and it matters
 
-This is an argument from absence, so it is worth being precise about its strength. DGPA's
-own 開放資料 page and the open-data catalogue list the CAP file and the web page and nothing
-else; every independent client found — a CLI, an MCP server, a web tool, a Play Store app —
-either scrapes the HTML or proxies it, and a developer who had a JSON endpoint would not
-choose `table[bgcolor="#cdfad9"]`. That is good converging evidence, but it is not proof:
-an **undocumented** XHR endpoint behind the page would show up in none of those places, and
-the strongest single data point (`tw-nds-cli`) is old enough to still reference the
-pre-`/typh/daily/` URL.
+A GitHub sweep turned up five more independent clients. Reading their source changed the
+answer from a flat "no" to "there is a lead, and nobody has demonstrably used it".
 
-Two independent implementations, read in full, both scrape:
+**The lead.** `pengjun0429/-Suspension-of-work-and-classes`, a LINE bot claiming
+sub-minute push, does not scrape at all. It calls, in order:
 
-| | `bobby1030/tw-nds-cli` | `simonliu-moltbot/mcp-tw-typhoon` |
-| --- | --- | --- |
-| Era | `cheerio ^0.22`, `request ^2.74` — 2016 vintage | Python + BeautifulSoup, page sample dated 2026/02 |
-| URL | `http://www.dgpa.gov.tw/nds.html` | `https://www.dgpa.gov.tw/typh/daily/nds.html` |
-| Finds the table by | `table[bgcolor="#cdfad9"]` | scanning every `<table>` for the text 「縣市名稱」 |
-| Timestamp from | `td > p > font[color="#000000"]` | regex on `更新時間：YYYY/MM/DD HH:MM:SS` |
+```
+https://www.dgpa.gov.tw/opendata/typhoon/ndwork.json
+https://www.dgpa.gov.tw/opendata/typhoon/ndwork.xml
+```
 
-Ten years apart, neither found a JSON endpoint, and a 2026 author reaching for
-BeautifulSoup is the strongest evidence available that there is nothing better to reach for.
+A JSON endpoint on DGPA's own domain, under a plausible `/opendata/typhoon/` path. If it
+is real it is strictly better than everything else in this document, and most of the
+scraping advice above stops mattering.
 
-**The same table also documents the risk.** Between those two projects the URL moved *and*
-the markup changed enough that not one selector survived — the newer one cannot even rely on
-an attribute and has to find the table by its header text. An on-device HTML parser in a
-shipped app is not a hypothetical maintenance burden; this page has already broken every
-parser written against it once.
+**Why it is probably not evidence of anything.** That client's parser reads:
 
-Two checks would still settle the question properly, from a network that can reach DGPA:
+```ts
+const items  = Array.isArray(data) ? data : data?.records || data?.dataset || []
+const city   = item.CityName || item.city || item.location || ''
+const status = item.Status   || item.status || item.description || ''
+```
 
-1. Open `nds.html` with devtools on the Network tab, filtered to Fetch/XHR. Rows arriving in
-   the document body means server-rendered and scraping is the only route; a JSON request
-   there **is** the undocumented API, and its URL is the answer.
-2. `curl https://data.gov.tw/api/v1/rest/dataset/20457` returns the catalogue record as
-   JSON, including the real resource URL and 更新頻率 — which is also the right way to
-   resolve that URL at build time rather than hardcoding it.
+Four guesses at one field name, three at the container shape. Nobody who has seen the
+response writes this. And when both URLs fail it returns `getDefaultCounties()` — every
+county "照常上班上課" — with `isLive: false` and a `source` string that claims dataset
+20457 it never fetched. **Outside typhoon season that fallback is indistinguishable from
+success**, so the author would get no signal the URLs were wrong. The code is entirely
+consistent with never having received a 200.
 
-One search that would help was not possible here: GitHub **code** search (who has
-`dgpa.gov.tw` in their source) requires a signed-in session, and this session's GitHub
-access is scoped to this repository. `grep.app` and `searchcode` are blocked by the same
-egress policy as the government hosts. A logged-in browser answers it in a minute.
+Treat `ndwork.json` as **the single highest-value thing to `curl`**, not as a finding. One
+request settles it, and the answer changes the design.
 
-### What the page looks like, according to the parser that reads it
+**Everyone who demonstrably reached DGPA scrapes the HTML page.** Four of them:
 
-Second-hand, from `mcp-tw-typhoon`'s source rather than from the page — but specific enough
-to design against, and it answers most of what a parser needs to know:
+| | `tw-nds-cli` (2016) | `mcp-tw-typhoon` (2026) | `notify-closed-school` (Go) | `get_dgpa` (2024) |
+| --- | --- | --- | --- | --- |
+| Finds the table by | `table[bgcolor="#cdfad9"]` | scanning tables for 「縣市名稱」 | `#Table>.Table_Body>tr` | BeautifulSoup |
+| Timestamp from | `td>p>font[color]` | regex on 更新時間 | `#Content>.Content_Updata>h4` | — |
 
-- **Three columns**: 區域 / 縣市名稱 / 是否停止上班上課情形 (e.g. `北部地區 基隆市 尚未宣布消息`).
-- **The idle state is 「尚未宣布消息」**, not 照常上班上課. A parser that treats "not closed"
-  as the absence of a row will be wrong; the row is always there.
-- **Status is free text**, not an enum — that client passes the cell through verbatim rather
-  than mapping it, which is a fair signal that the wording is not stable enough to enumerate.
-- **A page-level 更新時間** in `YYYY/MM/DD HH:MM:SS`. Worth surfacing: it is the only way to
-  tell a fresh "尚未宣布" from a stale one.
-- **UTF-8**, and the county names use **臺**, not 台 — that client normalises user input
-  `台 → 臺` before matching.
+The 2016 selectors are long dead, but the Go client shows the **current** page does have
+stable hooks — `#Table`, `.Table_Body`, `#Content`, `.Content_Updata` — so scraping it is
+less desperate than `mcp-tw-typhoon`'s text-scanning suggests. It is still a page, not a
+contract.
+
+### The CAP dataset may be the wrong horse
+
+`notify-closed-school` carries a dead constant and the reason it died:
+
+```go
+// const WorkSchoolCloseURL = "https://alerts.ncdr.nat.gov.tw/RssAtomFeed.ashx?AlertType=33"
+// 由於政府資料開放平臺的資料更新時間不穩定，因此使用 https://www.dgpa.gov.tw/
+```
+
+Someone ran the NCDR CAP/Atom feed in production, found the open-data platform's update
+timing unreliable, and moved back to scraping the web page. That is first-hand operational
+evidence against the recommendation this survey started with — and it lands on exactly the
+question that decides this feature, because a feed that lags the 04:30 deadline is not
+merely stale, it is useless. The licensing argument for the CAP file stands; the timeliness
+argument does not survive contact with someone who tried it.
+
+### What the page actually contains
+
+Assembled from the two parsers that read it, not from the page itself:
+
+- **Three columns**: 區域 / 縣市名稱 / 是否停止上班上課情形. A row with a single cell means
+  無停班停課訊息; region cells span rows, so a row may have 2 or 3 `td`s.
+- **Today and tomorrow share one cell**, as sentences split by 「。」 or newline, each
+  repeating the county name — the Go client splits on that and strips the leading 縣市 from
+  every fragment. Any parser must separate 今天 from 明天; a commute alarm cares about one
+  of them and reading the wrong sentence is a wrong answer, not a missing one.
+- **The idle vocabulary is plural**, and no client enumerates it confidently:
+  尚未列入警戒區 / 今天照常上班、照常上課 / 明天照常上班、照常上課 / 尚未宣布消息.
+  "Not suspended" is a row that says so, never an absent row.
+- **Partial closures are free text** — the LINE bot sniffs for 部分|局部|個別|下午|上午|晚上|
+  特定|山區|鄉|鎮|村|學校 alongside 停止. That is a regex over prose, which is what the data
+  is.
+- **A page-level 更新時間** in `YYYY/MM/DD HH:MM:SS`, Asia/Taipei. The only way to tell a
+  fresh "照常" from a stale one.
+- **UTF-8**, county names use **臺**, and every client normalises 台 → 臺.
+
+### The failure mode that bot demonstrates, and what it means here
+
+`fetchDgpaOpenData` returning "all counties normal" when it reached nothing is the exact
+bug this feature must not have. For an alarm the safe direction is luck rather than design:
+"could not tell" collapsing into "no suspension" means the alarm rings, which is the
+outcome we want anyway. But it must be **deliberate** — the app has to distinguish
+*confirmed normal* from *unknown*, because the moment anyone wants the inverse behaviour
+(skip on suspension) that conflation becomes a missed alarm. Store the 更新時間 and the
+reachability separately from the status.
+
+### The check that is still not done
+
+GitHub **code** search — who has `dgpa.gov.tw` in their source — needs a signed-in session,
+and this one is scoped to this repository; `grep.app` and `searchcode` sit behind the same
+egress policy as the government hosts. Repository search was possible and is what found the
+five clients above. Along with `curl`-ing `ndwork.json`, a logged-in code search is the
+remaining way to find out whether anyone has actually used a structured endpoint.
 
 ## The timing constraint, which is the real design input
 
@@ -185,29 +229,33 @@ The alternative — parse on-device on both platforms, straight from the CAP fil
 leaning on a single server during exactly the storm when servers are least reliable, at the
 price of duplicated parsers and every device hitting DGPA directly.
 
-Leaning: parse the **CAP dataset** rather than scrape the HTML page (it is the licensed one
-with a real schema), and put it behind the proxy with a generous cache and a documented
-fallback of "no answer → ring normally".
+Leaning, in order: **`ndwork.json` if it is real**, else the HTML page — *not* the CAP
+dataset, whose timeliness a production user already rejected. Whichever it is, put it behind
+the proxy with a generous cache and a documented fallback of "no answer → ring normally",
+and keep reachability distinct from status so "unknown" never renders as "照常".
 
 ## Licensing and attribution
 
 The open-data platform's 政府資料開放授權條款第 1 版 permits commercial use, including in a
 paid or ad-supported app, and requires attribution to the source agency. Scraping
-`nds.html` carries no such grant. For an app that carries ads, that difference is a reason to
-prefer dataset 20457 on its own.
+`nds.html` carries no such grant, and for an ad-supported app that difference is real.
+
+It also cuts against the timeliness finding above, which is the genuine tension in this
+survey: the licensed source may be the late one. If `ndwork.json` exists and sits under
+DGPA's own `/opendata/` path, it plausibly resolves both at once — another reason that one
+request is worth making before any other decision here.
 
 ## Open questions before building
 
-1. Real bytes: fetch `nds.html` and the 20457 CAP resource once from a Taiwanese network.
-   The HTML side is largely answered second-hand above (three columns, 「尚未宣布消息」 as
-   the idle state, UTF-8, 臺 not 台) — what is still unknown is **the CAP file**: its
-   resource URL, its field names, and whether its idle state matches the page's.
-2. Does the CAP file publish on the same schedule as the web page, or lag it? A feed that
-   updates hours after 04:30 is useless for this.
-3. Does AlarmKit on the shipping iOS version expose anything closer to "skip next occurrence"
+1. **`curl https://www.dgpa.gov.tw/opendata/typhoon/ndwork.json`** (and `.xml`). Everything
+   else here is downstream of the answer. One client calls it; nothing shows it works.
+2. If that 404s: is there an undocumented XHR behind `nds.html`? Open it with devtools on the
+   Network tab. Rows in the document body means scraping is the only route.
+3. How late is the CAP feed really? A production user moved off `alerts.ncdr.nat.gov.tw`
+   because open-data timing was unreliable, but did not quantify it. Anything that lands
+   after 04:30 is useless here regardless of licence.
+4. Does AlarmKit on the shipping iOS version expose anything closer to "skip next occurrence"
    than cancel-and-re-arm?
-4. Is there an undocumented XHR endpoint behind `nds.html`? Nobody's published code uses one,
-   which is evidence but not proof — one devtools Network tab settles it.
 5. Product call: cancel the alarm, or ring with the announcement? (See above — the second is
    safer and much cheaper.)
 
@@ -219,4 +267,7 @@ prefer dataset 20457 on its own.
 - [天然災害停止上班及上課作業辦法 — 全國法規資料庫](https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=S0110022)
 - [bobby1030/tw-nds-cli](https://github.com/bobby1030/tw-nds-cli) — 2016 scraper, `table[bgcolor]`
 - [simonliu-moltbot/mcp-tw-typhoon](https://github.com/simonliu-moltbot/mcp-tw-typhoon) — 2026 scraper, `src/logic.py`
+- [qmkc/notify-closed-school](https://github.com/qmkc/notify-closed-school) — Go, `api.go`; the NCDR-feed comment and the current selectors
+- [pengjun0429/-Suspension-of-work-and-classes](https://github.com/pengjun0429/-Suspension-of-work-and-classes) — `server/dgpaData.ts`; the unverified `ndwork.json` lead
+- [laiii97/get_dgpa](https://github.com/laiii97/get_dgpa), [aliceric27/betterdgpa](https://github.com/aliceric27/betterdgpa) — further scrapers
 - [ruyut/TaiwanCalendar](https://github.com/ruyut/TaiwanCalendar) — office-calendar JSON mirror
