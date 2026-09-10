@@ -993,5 +993,23 @@
    ],
    "expect": "ring"
   }
- ]
+ ],
+ "fieldGuide": {
+  "_": "What each expectation field means. Two implementations that read these differently is exactly the drift this file exists to prevent, so these definitions are normative.",
+  "parseCases[].input": "Verbatim fields as they arrive from the NCDR feed or history API. `geocode` is null where the identifier carries none — see spec 2.3, never parse it from the id in production.",
+  "parseCases[].expect.area": "The area string exactly as it appears between the ']' and the ':'. null when the record is unparseable.",
+  "parseCases[].expect.granularity": "county | district | unparseable. Derived from the area string's shape, cross-checked against the geocode where one exists.",
+  "parseCases[].expect.targetDate": "today | tomorrow | explicit:M/D | none. 'today' resolves to the Asia/Taipei date of sentDate; 'tomorrow' to that date +1; 'explicit:M/D' to that day, year from sentDate, rolling the year forward if M is before sentDate's month. 'none' means no date could be resolved, which under P5 means ring.",
+  "parseCases[].expect.dayPart": "full | morning | noon | afternoon | evening. From 上午/中午/下午/晚上; absent means full.",
+  "parseCases[].expect.work": "suspended | normal | unknown. 照常上班 wins over 停止上班 — check the negation FIRST. 已達停止上班及上課標準 is suspended. 未達停止上班及上課標準 is normal, and contains the substring 停止上班, which is the trap.",
+  "parseCases[].expect.school": "suspended | normal | unknown. 及上課標準 counts as suspended.",
+  "parseCases[].expect.affectsMorningAlarm": "true iff dayPart is full or morning. An afternoon or evening suspension does not silence that morning's alarm.",
+  "decisionCases[].home / .work": "The user's stored (縣市, 區) pair, written as one string. Compare after 臺<->台 normalisation. Never key on the district name alone: 信義區 exists in both 臺北市 and 基隆市.",
+  "decisionCases[].mode": "work | school | both. See spec section 1's truth table. 'both' is an AND and is pending owner confirmation (spec section 8, item 1).",
+  "decisionCases[].alarmDate": "The local date the alarm would ring. The resolved target date must equal this or the answer is ring.",
+  "decisionCases[].feed": "The entries available to the decision. [] means a successful fetch that contained nothing matching. null with fetchFailed:true means the fetch failed.",
+  "decisionCases[].expect": "suppress | ring. There is no third value: anything that is not a positive, current, matching suspension is ring.",
+  "decisionCases[].expectArea": "On suppress, the area string the UI must attribute the decision to. Required — spec section 5 makes the suppress case unconstructible without it.",
+  "decisionCases[].expectStatus": "Optional. A UI distinction the decision must preserve even though the answer is ring: 'undeclared' (尚未宣布消息 — the user's area has not been ruled on yet) and 'partialDistrict' (only part of the user's district is suspended) must not be shown as 'no announcement'."
+ }
 }

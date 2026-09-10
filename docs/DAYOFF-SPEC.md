@@ -8,8 +8,15 @@ therefore share one data path, one decision function, and one set of test fixtur
 - **(A) 天然災害停止上班上課** — the 行政院人事行政總處 (DGPA) typhoon day-off announcement.
 - **(B) 國定假日** — the national holiday calendar, including 補班日 make-up workdays.
 
-This file is the **single source of truth for both platforms**. `docs/dayoff-fixtures.json` beside
-it is the executable half.
+This file is the **single source of truth for both platforms**. Three files, one contract:
+
+| file | role |
+| --- | --- |
+| `docs/DAYOFF-SPEC.md` | this file — why, and the rules in prose |
+| `docs/dayoff-fixtures.json` | **the contract** — real feed strings, expected decisions, and a `fieldGuide` defining every expectation field normatively |
+| `docs/dayoff-corpus-summary.json` | the audit trail behind every statistic quoted here, plus the commands to regenerate the full 1,374-alert corpus |
+
+New here? Read §10 first.
 
 ---
 
@@ -140,10 +147,10 @@ area field on the JSON feed — matching on this feed is by **area name**, not b
 
 **Do not read the geocode out of the `id`.** The infix between `_i_` and the trailing sequence
 number does look like the geocode (`6403700` above), and for a modern single-area alert it is. But
-107 of the 1,374 archived alerts carry no `_i_` segment at all, and one alert can cover many areas —
-up to 24 counties in a single record (§3.3). An implementation that parses the id silently drops
-those. If a code is wanted, fetch the `.cap` file the entry links to and read every
-`<area>/<geocode>` in it (§3.2).
+**324 of the 1,374 archived alerts carry no `_i_` segment at all**, and one alert can cover many
+areas — up to 24 counties in a single record (§3.3). An implementation that parses the id silently
+drops those. If a code is wanted, fetch the `.cap` file the entry links to and read every
+`<area>/<geocode>` in it, checking `<valueName>` first (§3.2).
 
 ### 2.4 Five traps, each measured
 
@@ -267,8 +274,8 @@ Announcements sent **before 2016-06-13** are a different, now-retired shape and 
 unparseable (which means: ring). They have no `[停班停課通知]` prefix, no status prose at all, bundle
 many areas into one record (up to 24 counties, and up to 49 `<area>` blocks in the CAP), carry no
 `_i_` segment in the identifier, and declare `Taiwan_Geocode_100` rather than `103` — a different
-code space in which 桃園 is `10003`/`1000301`, not `68`/`6800100`. 107 of the 1,374 archived alerts
-are of this kind. They are historical only; the parser must fail open on them rather than
+code space in which 桃園 is `10003`/`1000301`, not `68`/`6800100`. **108 of the 1,374 archived
+alerts are of this kind** (and 324 lack the `_i_` identifier segment). They are historical only; the parser must fail open on them rather than
 half-understand them.
 
 **Always check `<valueName>` before comparing a code**, and treat any valueName other than
@@ -542,14 +549,31 @@ alarms already fire in Doze, and adding it would create a policy question the ap
 
 ## 8. Open questions — resolve these before or during implementation
 
-Owner decisions still needed:
+Owner decisions still needed. Only the first has no default — do not start (A) without an answer
+to it. The other three have a defensible default recorded here; build on it and say so, and the
+owner can overrule cheaply.
 
-1. **Is `both` an AND?** §1 reads "A+B" as *suppress only when both are suspended*. Derived from
-   P5, not stated. Confirm.
-2. **Maximum cache age** before a cached suspension is ignored. Not chosen.
-3. **Is the feature hidden outside Taiwan**, and what does a Taiwanese user abroad get?
+1. **Is `both` an AND?** §1 reads "A+B" as *suppress only when both are suspended*. That follows
+   from P5, but the owner said "A or B or A+B" and did not say how A+B combines. **No default —
+   ask.** It changes which alarms are silenced for every parent who also commutes.
+2. **Maximum cache age** before a cached suspension is ignored.
+   **Default: 18 hours.** Rationale: it must comfortably span the real gap — an announcement made
+   at 19:00 the night before, read by an alarm at 07:00 the next morning, is 12 hours old and must
+   still count. 18 h leaves margin for a late fetch while guaranteeing that a suspension can never
+   be applied two mornings running on one fetch. Measure from the *source's* update time, not the
+   app's fetch time.
+3. **Is the feature hidden outside Taiwan?**
+   **Default: the feature is visible only when the user has set a Taiwanese 縣市/區 pair**, which is
+   a prerequisite for it to work at all. No locale sniffing, no region gate — the setting is the
+   gate. A Taiwanese user abroad keeps whatever they set, which is correct: their office is still
+   closed even if they are not in it.
 4. **Pre-iOS 26 devices** have no AlarmKit custom presentation, so Path B's ring screen does not
-   exist there. Decide what those users get.
+   exist there.
+   **Default: on the notification path, send the day-off information as its own local
+   notification** timed just before the alarm, reusing the `AlarmDecisionChange` pattern that
+   already exists for "the rain decision changed after the preview". It is weaker than a ring
+   screen — a banner can be missed — but it is the same mechanism the app already relies on for a
+   comparable message, and it keeps a single code path for the decision itself.
 
 ### Resolved since v1
 
@@ -622,6 +646,39 @@ hostile parser on top.
 Android differs only in §6's fetch timing and in Big5 decoding (`Charset.forName("Big5")`,
 `ZoneId.of("Asia/Taipei")`). The decision logic and the fixtures are shared verbatim.
 
+---
+
+## 10. Starting from cold
+
+For a session that has just opened this repo and been told to build the feature.
+
+**Read in this order.** `CLAUDE.md` (which worktree am I in, which branch do I commit to) →
+`docs/STATUS-IOS.md` or `docs/STATUS-ANDROID.md` for your platform → §0 and §1 of this file →
+`docs/dayoff-fixtures.json` → then the section you need. Do not skim §1: those five decisions are
+settled and re-litigating them wastes a session.
+
+**Check the version first.** Your platform's status log records
+`Day-off: implemented against spec vN`. If N is below the version in this file's heading, read the
+changelog entries since N before writing code — something you would otherwise assume is still true
+has changed.
+
+**Verify before you trust.** Every statistic quoted in this spec is backed by
+`docs/dayoff-corpus-summary.json`, which also carries the commands to regenerate the full corpus.
+If a claim here matters to a decision you are making and you doubt it, re-derive it — that is the
+intended use, not a sign of distrust. Two of this spec's own claims were wrong in v1 and were
+caught exactly that way.
+
+**Build order** is §9. Start with feature (B); it is small and clean and exercises the whole
+pipeline before (A) adds a hostile parser.
+
+**Four decisions belong to the owner, not to you.** They are listed at the top of §8. Three have a
+defensible default recorded there; the first does not. Ask rather than assume, and when you get an
+answer, write it into §1 and bump the version.
+
+**The one rule that outranks everything else:** the alarm rings unless there is positive, current,
+matching evidence that it should not. Every ambiguity resolves toward ringing. If you find yourself
+writing a branch that suppresses an alarm on incomplete information, that branch is wrong.
+
 ### Changelog
 
 - **v1** (2026-09-10) — initial spec. Sources verified first-hand; 365-record corpus harvested from
@@ -631,7 +688,9 @@ Android differs only in §6's fetch timing and in Big5 decoding (`Charset.forNam
   the morning it applies to. §8's top unknown retired; §6 rewritten accordingly and Path A's
   remaining blocker narrowed to its own state handling. No fixture and no decision-function
   behaviour changed, so `specVersion` stayed at 1.
-- **v2** (2026-09-10) — corpus widened from 365 alerts to the **complete 1,374-alert archive
+- **v2** (2026-09-10) — added `docs/dayoff-corpus-summary.json`, a `fieldGuide` to the fixtures,
+  §10 for cold starts, and defaults for three of the four open owner decisions. Corpus widened from
+  365 alerts to the **complete 1,374-alert archive
   (2014-2026)**, and four v1 statements corrected at source. **Four fixture cases and five decision
   cases added, so `specVersion` is bumped and both platforms must re-run.**
   - **村里 codes are `#######-###`, not 10 digits** (§3.2). A 7-character prefix test now covers
