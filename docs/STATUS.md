@@ -30,6 +30,7 @@ hold the whole repo — the separation is by branch, not by directory.
 - iOS store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Android architecture and platform substitutions → `docs/ANDROID.md`
 - Play Store runbook → `docs/play-store-submission-checklist.md`
+- Can we skip the alarm on a 停班停課 day? (survey, both platforms) → `docs/gov-suspension-alarm-skip-survey.md`
 
 ## True on both sides
 
