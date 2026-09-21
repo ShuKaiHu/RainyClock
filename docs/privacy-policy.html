@@ -17,7 +17,7 @@
 <body>
 
 <h1>Rainy Clock</h1>
-<p class="subtitle">Privacy Policy · Last updated 31 August 2026</p>
+<p class="subtitle">Privacy Policy · Last updated 21 September 2026</p>
 
 <h2>Overview</h2>
 <p>Rainy Clock is an iOS app that automatically adjusts your alarm time
@@ -27,9 +27,9 @@ your privacy. This policy explains what data is used and how.</p>
 <h2>Data We Do Not Collect</h2>
 <p>Rainy Clock does <strong>not</strong>:</p>
 <ul>
-  <li>Ask for your name, email address, or any account. Rainy Clock has no sign-in.</li>
+  <li>Ask for your name, email address, Apple Account password or credit card details. iOS membership uses Apple-verified app and purchase records without a separate registration form.</li>
   <li>Use analytics SDKs.</li>
-  <li>Keep a database, a user profile, or request logs on any server we run.</li>
+  <li>Build a personal profile from your commute route or alarm schedule.</li>
   <li>Track you across other companies' apps and websites without your explicit
       permission — see <a href="#tracking">Tracking</a>.</li>
 </ul>
@@ -44,32 +44,49 @@ your privacy. This policy explains what data is used and how.</p>
   <li>How many AI voice alarms you have generated, so the free allowance can be counted</li>
   <li>The words you last typed for an AI voice alarm, so the screen reopens on them</li>
 </ul>
-<p>None of these leave your device, with one exception: the words you type for an AI
-voice alarm are sent when you generate it. See <a href="#ai-voice">AI Voice Alarm</a>.</p>
+<p>Settings remain local. Address lookup uses the mapping services below, and AI generation sends the words you enter. Membership-backed generation also uses a verified membership session and usage records; see the membership section below.</p>
 
 <h2 id="ai-voice">AI Voice Alarm</h2>
-<p>Rainy Clock can wake you with a spoken line instead of a tone. This is the only
-part of the app that sends anything you have written off your device, and it only
-happens when you tap <em>Generate</em>.</p>
+<p>Rainy Clock can wake you with a spoken line instead of a tone. The words entered for this feature are sent for processing when you tap <em>Generate</em>. Playing an already saved sound does not submit a new generation request.</p>
 <ul>
   <li><strong>What is sent:</strong> the words you typed, which of the six voices you
-      picked, and whether the app is in Chinese or English. Nothing else — not your
-      addresses, not your alarm time, not any device identifier.</li>
-  <li><strong>Where it goes:</strong> to a small relay service we run, which passes it
-      to <strong>Google's Gemini text-to-speech</strong> and returns the audio. The relay
-      exists because the key that authenticates the request cannot safely ship inside
-      an app.</li>
-  <li><strong>What is kept:</strong> the relay holds the words and the resulting audio in
-      memory for up to one hour, so that repeating the same request does not have to be
-      generated again. Nothing is written to a database or to a log, and nothing is
-      linked to you or to your device.</li>
+      picked, and whether the app is in Chinese or English. The iOS membership path also sends a request ID and authenticated session/device proof, but does not send your addresses or alarm time.</li>
+  <li><strong>Where it goes:</strong> to our backend, which uses <strong>Google Cloud Vertex AI</strong> to classify the delivery of each sentence and <strong>Cloud Text-to-Speech</strong> to generate speech. Cloud credentials stay on the server.</li>
+  <li><strong>What is kept:</strong> the membership path processes the original text for the request without saving it in our Firestore database or application logs. It stores a keyed digest of the input, request status, time, voice-delivery labels and usage records linked to the member. Successful audio is saved for a <strong>24-hour retry/download window</strong>; after that it is unavailable, and physical deletion follows database expiry cleanup, which can be delayed. Older versions using the legacy voice endpoint may cache text and audio in server memory for up to one hour.</li>
   <li><strong>The finished alarm sound stays on your phone.</strong> It is saved in the
       app's own storage and is deleted when you replace it or delete the app.</li>
 </ul>
-<p>Google processes the text to produce the speech, under Google's
-<a href="https://policies.google.com/privacy">privacy policy</a>. We use the paid tier,
-where Google states that the content sent is not used to train its models.</p>
-<p>If you never use this feature, nothing you write ever leaves your phone.</p>
+<p>Google processes the text under its applicable Cloud service terms. Its <a href="https://docs.cloud.google.com/text-to-speech/docs/data-logging">Cloud Text-to-Speech documentation</a> says it does not log customer text or audio. <a href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/vertex-ai-zero-data-retention">Vertex AI data governance</a> describes separate safety and abuse-monitoring retention; we do not promise zero retention by every processor. We do not authorize training on your submitted content.</p>
+<p>If you do not generate an AI sound, your AI text is not sent for speech processing. Address searches still use the mapping services described below.</p>
+
+<h2 id="membership">iOS Membership, Purchases and AI Allowances</h2>
+<p>Rainy Clock can create or recognize a membership automatically from Apple-verified app and purchase records. You do not register an email/password or separately use Sign in with Apple. We assign an internal member identifier. This is <strong>pseudonymous, not fully anonymous</strong>: records can be linked to the same App Store app/account identity across devices and reinstalls. Apple handles payment; we do not receive your Apple Account password or card details.</p>
+<p>The backend runs on Google Cloud Run and uses Cloud Firestore databases in Taiwan (asia-east1). Production and test memberships use separate databases and keyed identity digests. Apple, Google AI and advertising services may process their respective data outside Taiwan. The app cannot directly write purchase rights or increase server allowances.</p>
+<ul>
+  <li><strong>Identity and security:</strong> internal member/support identifiers, Apple app-account and purchase identifiers, verified environment, App Attest public keys and counters, request challenges and expiring session hashes. Sessions are stored in the phone's Keychain.</li>
+  <li><strong>Purchases:</strong> products, verified transaction and renewal information, expiry, refunds and revocations, used to determine benefits and restore valid purchases.</li>
+  <li><strong>Usage:</strong> the member's IANA time zone, daily/free/reward balances, reserved and completed generations, keyed request/input digests and generation status. Requests are deduplicated across devices. We do not use location to verify the time zone.</li>
+  <li><strong>Rewards:</strong> a random reward-user identifier sent to LevelPlay and verified server-to-server reward events. These link a completed rewarded ad to one generation; an unverified phone report cannot grant a credit.</li>
+  <li><strong>Legacy migration:</strong> an old installation can submit its claimed remaining local allowance for review. Each eligible legacy member receives one fixed server migration generation once; client-reported counts do not determine the grant. Unverified ad-credit claims are kept pending review and are not spendable server credit.</li>
+</ul>
+<p>Paid plans remove <strong>banner ads</strong>, include calendar access and share one daily AI generation. Additional generations require a verified rewarded ad. The daily allowance resets at the member's local midnight and does not accumulate. Free membership has one initial generation, not one per day. Stored sounds can be played without consuming a generation. Restoring purchases restores benefits and recorded usage, not local alarm settings or an audio library.</p>
+
+<h2 id="deletion">Retention and Deleting Membership Data</h2>
+<p>Membership, purchase, usage and generation-status records remain while the membership exists. Server audio has the separate 24-hour availability window described above. Expiring sessions and challenges are rejected at expiry; database cleanup may occur later. Locally saved alarm settings and sounds remain under your control on the phone.</p>
+<p>To delete membership data, open <strong>Settings &rsaquo; Other &rsaquo; Membership &amp; plans &rsaquo; &hellip; &rsaquo; Delete membership data</strong>. The request revokes access first, then removes member details, purchase rows, device/session bindings, balances and saved server audio. If cleanup is interrupted, the maintenance process retries it. Local alarm settings and completed sounds are not deleted.</p>
+<p>Limited anti-abuse records remain: keyed digests linking previously issued free/migration allowances, purchase ownership and used reward events; a current-day usage guard; and a deletion-completion marker. They prevent repeated grants, reward replay and reassigning another member's purchase. They contain no input text, audio, address or payment-card data. <strong>These digests can still recognize a returning verified identity; they are not fully anonymous.</strong> The current implementation does not automatically expire these minimal records. Contact us for questions or requests concerning this retention; applicable retention obligations and rights still apply.</p>
+<p><strong>Deleting membership does not cancel an Apple subscription.</strong> To stop further billing, use the app's Manage subscriptions entry or <a href="https://apps.apple.com/account/subscriptions">Apple subscription settings</a>. You can delete membership without waiting for a subscription to expire. A later explicit membership refresh or restore can recreate a membership and recover valid purchases, without issuing the initial/migration grant again or resetting the current day's consumed allowance.</p>
+
+<h2>Service Diagnostics</h2>
+<p>Our hosting service records technical request information such as IP address, requested path, timestamp, response status and latency for security and operation. Diagnostic records may be linked to a device or request; we do not use them for advertising profiles. We do not intentionally log AI text, audio, session credentials or Apple signed payloads in application logs. Hosting logs follow the cloud project's configured retention and are separate from membership records, so deleting a membership does not immediately erase every infrastructure log.</p>
+
+<h2>Alarm calendar (iOS 1.7 and later)</h2>
+<p>Your calendar choice, manual ring/silent dates and time display format are stored on your device.
+The Taiwan office calendar downloads public calendar files from data.gov.tw and the Directorate-General
+of Personnel Administration (www.dgpa.gov.tw), without sending your manual dates or preferences.
+The United States calendar calculates recurring federal holidays and standard observed dates on the
+device using published Office of Personnel Management rules; it does not make a calendar network request.
+The app does not read your personal system calendars. Temporary disaster-closure rules are not publicly available in iOS 1.7.0.</p>
 
 <h2>Third-Party Services</h2>
 <p>When you enter addresses or tap "Schedule Smart Alarm," the app contacts
@@ -107,7 +124,7 @@ you:</p>
 <p>The iPhone version has no relay: it talks to Apple Weather directly.</p>
 
 <h2>Advertising</h2>
-<p>Rainy Clock displays one banner advertisement through Unity LevelPlay, the ad
+<p>The free plan displays banner ads, and users may choose rewarded ads for additional AI generations. Paid plans remove banner ads; they do not remove optional rewarded ads. Advertising is provided through Unity LevelPlay, the ad
 mediation platform operated by Unity Technologies (formerly ironSource). Unity and the
 advertising partners bidding through it may process device, advertising, and interaction
 data to provide, limit, measure, and improve ads. LevelPlay is subject to Unity's
@@ -118,8 +135,7 @@ data to provide, limit, measure, and improve ads. LevelPlay is subject to Unity'
 does not exist on that platform. Whether the banner is personalised is governed entirely by
 the consent choice described at the end of this section, which the app passes to the ad
 SDK. The rest of this section describes the iPhone version.</p>
-<p>The first time you open the app, iOS asks whether Rainy Clock may track your
-activity across other companies' apps and websites. This is Apple's App Tracking
+<p>When the app prepares to enable advertising and the system permits a prompt, iOS asks whether Rainy Clock may track your activity across other companies' apps and websites. This is Apple's App Tracking
 Transparency prompt, and your answer decides what happens:</p>
 <ul>
   <li><strong>If you allow it</strong>, the advertising identifier on your device may
@@ -156,11 +172,32 @@ shukaihu@icloud.com.</p>
 <h2>我們不收集的資料</h2>
 <p>Rainy Clock 不會：</p>
 <ul>
-  <li>詢問你的姓名、電子郵件或任何帳號。Rainy Clock 沒有登入機制。</li>
+  <li>要求你的姓名、電子郵件、Apple 帳號密碼或信用卡資料。iOS 會員使用 Apple 驗證的 App 與購買資料，不另設註冊表單。</li>
   <li>使用分析 SDK。</li>
-  <li>在我們營運的伺服器上保留資料庫、使用者輪廓或請求紀錄。</li>
+  <li>利用通勤路線或鬧鐘排程建立個人輪廓。</li>
   <li>未經你明確允許，跨其他公司的 App 或網站追蹤你 —— 詳見<a href="#tracking-zh">追蹤</a>。</li>
 </ul>
+
+<h2 id="membership-zh">iOS 會員、購買與 AI 額度</h2>
+<p>Rainy Clock 可依 Apple 已驗證的 App 與購買資料自動建立或認回會員，不要求另設 Email／密碼或另外使用「使用 Apple 登入」。我們配發內部會員編號。這是<strong>使用代碼識別的資料，不是完全匿名資料</strong>：同一 App Store 的 App／帳號身分可在換機或重裝後連結回原紀錄。付款由 Apple 處理，我們不接收 Apple 帳號密碼或信用卡資料。</p>
+<p>後端使用 Google Cloud Run，以及位於台灣 asia-east1 的 Cloud Firestore 資料庫。正式與測試會員使用不同資料庫與身分摘要密鑰。Apple、Google AI 與廣告服務可能在台灣以外處理各自的資料。手機不能直接寫入購買權益或增加後端額度。</p>
+<ul>
+  <li><strong>身分與安全：</strong>內部會員／客服編號、Apple App 帳號與購買識別、已驗證環境、App Attest 公鑰與計數、請求驗證碼與會到期的工作階段雜湊。手機使用 Keychain 保存工作階段。</li>
+  <li><strong>購買：</strong>商品、已驗證交易與續訂資料、到期、退款及撤銷資訊，用於判斷權益與恢復有效購買。</li>
+  <li><strong>用量：</strong>會員的 IANA 時區、每日／初始／廣告額度、預留及完成的生成、帶密鑰的請求／輸入摘要與生成狀態，用於跨裝置防止重複扣次。我們不使用定位驗證時區。</li>
+  <li><strong>廣告獎勵：</strong>提供給 LevelPlay 的隨機獎勵使用者編號，以及已驗證的伺服器回報事件，將一次完成的獎勵廣告對應一次生成。僅憑手機回報不會增加後端額度。</li>
+  <li><strong>舊版遷移：</strong>舊版可申報本機剩餘次數供核對。每個符合遷移資格的舊會員，由後端固定提供一次遷移生成；手機申報的數量不決定補發數。未經驗證的廣告次數申報保留待核對，不直接成為可用後端額度。</li>
+</ul>
+<p>付費方案移除<strong>banner 廣告</strong>、提供日曆權限，並共用每天一次 AI 生成；額外生成須完成已驗證的獎勵廣告。每日額度依會員所在地午夜重置、未用不累積。免費會員為初始一次，並非每天一次。播放已存音檔不扣生成額度。「恢復購買」恢復權益與已記錄用量，不同步手機上的鬧鐘設定或音檔庫。</p>
+
+<h2 id="deletion-zh">資料保留與刪除會員</h2>
+<p>會員、購買、用量及生成狀態紀錄在會員存續期間保留。伺服器音訊另有下述 24 小時下載期限。工作階段與請求驗證碼到期即停止接受，資料庫實體清理可能稍後完成。手機上的鬧鐘設定與音檔由你自行管理。</p>
+<p>可在<strong>「設定 &rsaquo; 其他 &rsaquo; 會員與方案 &rsaquo; &hellip; &rsaquo; 刪除會員資料」</strong>提出刪除。系統先撤銷存取，再清除會員明細、購買資料、裝置／工作階段連結、額度與伺服器音檔；清理中斷時由維護工作續做。手機原有鬧鐘設定與完成音檔不會因此刪除。</p>
+<p>系統仍保留最少防濫用紀錄：已發初始／遷移額度、購買歸屬、已用廣告事件的帶密鑰摘要、當日扣額度防重紀錄，以及刪除完成標記。用途是防止反覆領取、重送廣告回報或將他人的購買轉到別的會員。這些紀錄不含輸入原文、音訊、地址或卡號。<strong>摘要仍可辨認再次驗證的同一身分，並非完全匿名。</strong>目前實作未為這些最少紀錄設定自動到期；如對保留有疑問或相關資料請求，可與我們聯絡，適用的保留義務與資料權利仍須遵守。</p>
+<p><strong>刪除會員不會取消 Apple 訂閱。</strong>若不想再次扣款，請使用 App 的「管理訂閱」或<a href="https://apps.apple.com/account/subscriptions">Apple 訂閱設定</a>停止續訂。你不必等訂閱到期才能刪除會員。之後主動同步會員或恢復購買可重建會員並恢復有效購買，但不重發初始／遷移額度，也不重置當日已使用的額度。</p>
+
+<h2>服務診斷</h2>
+<p>主機服務會記錄 IP 位址、請求路徑、時間、回應狀態及耗時等技術資訊，用於安全與維運。診斷紀錄可能與裝置或請求連結，不用於建立廣告輪廓。應用程式日誌不主動記錄 AI 輸入原文、音訊、工作階段憑證或 Apple 簽章內容。主機日誌依雲端專案的保留設定處理，與會員資料分開，因此刪除會員不代表所有基礎設施日誌會立即刪除。</p>
 
 <h2>儲存在裝置上的資料</h2>
 <p>以下設定會使用 <code>UserDefaults</code> 儲存在你的裝置上：</p>
@@ -171,18 +208,24 @@ shukaihu@icloud.com.</p>
   <li>已經生成過幾次 AI 語音鬧鈴，用於計算免費次數。</li>
   <li>你上次為 AI 語音鬧鈴輸入的文字，讓畫面重新打開時能帶回原本的內容。</li>
 </ul>
-<p>以上都不會離開你的裝置，只有一個例外：你為 AI 語音鬧鈴輸入的文字，會在你按下產生時送出。詳見 <a href="#ai-voice-zh">AI 語音鬧鈴</a>。</p>
+<p>設定保存在手機；查詢地址會使用下述地圖服務，生成 AI 鬧鈴會送出輸入文字。會員生成也使用驗證過的工作階段及用量紀錄，詳見上方會員說明。</p>
 
 <h2 id="ai-voice-zh">AI 語音鬧鈴</h2>
-<p>Rainy Clock 可以用一段人聲取代鈴聲叫醒你。這是整個 App 裡<strong>唯一</strong>會把你寫的內容送出裝置的功能，而且只在你按下「產生」時才會發生。</p>
+<p>Rainy Clock 可以用一段人聲取代鈴聲叫醒你。為此功能輸入的文字會在按下「產生」時送出處理；播放已儲存的音檔不會發出新的生成請求。</p>
 <ul>
-  <li><strong>送出什麼：</strong>你輸入的文字、你選的六個聲音中的哪一個，以及 App 目前是中文還是英文。就這些——不包含你的地址、鬧鐘時間，或任何裝置識別碼。</li>
-  <li><strong>送到哪裡：</strong>先送到我們營運的一個小型轉發服務，再由它轉給 <strong>Google 的 Gemini 文字轉語音</strong>並取回音訊。之所以需要轉發，是因為驗證請求用的金鑰無法安全地放進 App 裡。</li>
-  <li><strong>保留多久：</strong>轉發服務會把文字與產生的音訊在記憶體中保留最多一小時，讓相同的請求不必重新生成。不會寫入任何資料庫或請求紀錄，也不會與你或你的裝置產生任何關聯。</li>
+  <li><strong>送出什麼：</strong>你輸入的文字、選擇的聲音與語言。iOS 會員流程另附請求編號、會員工作階段與裝置驗證，不會附上地址或鬧鐘時間。</li>
+  <li><strong>送到哪裡：</strong>先送到我們的後端，再使用 <strong>Google Cloud Vertex AI</strong>分類每句話的語氣，及 <strong>Cloud Text-to-Speech</strong>產生語音。雲端憑證保留在伺服器。</li>
+  <li><strong>保留多久：</strong>會員流程僅在請求處理時使用原文，不在我們的 Firestore 或應用程式日誌保存原文。資料庫保存與會員連結的帶密鑰輸入摘要、請求狀態、時間、語氣標記及用量；成功音訊提供<strong>24 小時重試／下載期限</strong>，到期停止提供，實體刪除由資料庫到期清理完成，可能延後。仍使用舊語音端點的版本，可能在伺服器記憶體暫存文字與音訊最多一小時。</li>
   <li><strong>完成的鬧鈴音檔留在你的手機上。</strong>它存放在 App 自己的儲存空間，你更換它或刪除 App 時就會一併刪除。</li>
 </ul>
-<p>Google 為了產生語音而處理這段文字，適用 Google 的<a href="https://policies.google.com/privacy">隱私權政策</a>。我們使用付費方案，Google 聲明該方案送出的內容不會用於訓練其模型。</p>
-<p>如果你從不使用這個功能，你寫的任何內容都不會離開手機。</p>
+<p>Google 依適用的 Cloud 服務條款處理文字。其<a href="https://docs.cloud.google.com/text-to-speech/docs/data-logging">Cloud Text-to-Speech 文件</a>說明不記錄客戶的文字或音訊；<a href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/vertex-ai-zero-data-retention">Vertex AI 資料治理</a>另說明安全與濫用監測的保留情況，我們不承諾所有處理商都完全零保留。我們不授權以你提交的內容訓練模型。</p>
+<p>若不生成 AI 音檔，你的 AI 文字不會送出做語音處理；地址查詢仍會使用下述地圖服務。</p>
+
+<h2>鬧鐘行事曆（iOS 1.7 以上）</h2>
+<p>行事曆來源、手動響鈴／靜音日期與時間格式保存在手機。台灣辦公日曆會從 data.gov.tw
+及行政院人事行政總處（www.dgpa.gov.tw）下載公開日曆，不會傳送你的手動日期或偏好。
+美國行事曆依美國人事管理局（OPM）公布的規則，在手機離線計算常態聯邦假日與標準補假日，
+不發送日曆網路請求。App 不讀取你的個人系統行事曆。iOS 1.7.0 不公開提供天災臨時放假規則。</p>
 
 <h2>第三方服務</h2>
 <p>當你輸入地址或點選「排程智慧鬧鐘」時，App 會代表你使用下列服務：</p>
@@ -205,12 +248,12 @@ shukaihu@icloud.com.</p>
 <p>iPhone 版沒有這個轉發服務，它直接與 Apple Weather 連線。</p>
 
 <h2>廣告</h2>
-<p>Rainy Clock 會透過 Unity LevelPlay 顯示一則橫幅廣告；LevelPlay 是由 Unity Technologies 營運的廣告中介平台（前身為 ironSource）。Unity 與透過它競價的廣告夥伴可能會處理裝置、廣告與互動資料，用於提供、限制、衡量與改善廣告。LevelPlay 受 Unity 的
+<p>免費方案顯示 banner 廣告，也可自願觀看獎勵廣告取得額外 AI 生成。付費方案移除 banner，不移除自願使用的獎勵廣告。廣告透過 Unity LevelPlay 提供；LevelPlay 是由 Unity Technologies 營運的廣告中介平台（前身為 ironSource）。Unity 與透過它競價的廣告夥伴可能會處理裝置、廣告與互動資料，用於提供、限制、衡量與改善廣告。LevelPlay 受 Unity 的
 <a href="https://unity.com/legal/game-player-and-app-user-privacy-policy">隱私權政策</a>約束。</p>
 
 <h2 id="tracking-zh">追蹤</h2>
 <p><strong>Android 版沒有「App 追蹤透明度」提示</strong>——這個機制在該平台上並不存在。廣告是否個人化，完全取決於本節末尾所述的同意選擇，由 App 傳遞給廣告 SDK。本節其餘內容描述的是 iPhone 版。</p>
-<p>第一次開啟 App 時，iOS 會詢問是否允許 Rainy Clock 追蹤你在其他公司 App 與網站上的活動。這是 Apple 的「App 追蹤透明度」提示，你的選擇決定接下來的行為：</p>
+<p>App 準備啟用廣告、且系統允許顯示提示時，iOS 會詢問是否允許 Rainy Clock 追蹤你在其他公司 App 與網站上的活動。這是 Apple 的「App 追蹤透明度」提示，你的選擇決定接下來的行為：</p>
 <ul>
   <li><strong>選擇允許</strong>：裝置上的廣告識別碼可能會提供給 Unity 及透過 LevelPlay 競價的廣告夥伴，讓橫幅廣告更貼近你的興趣。</li>
   <li><strong>選擇不允許，或從未被詢問</strong>：廣告會以非個人化方式請求，廣告識別碼不會用於追蹤你。</li>
