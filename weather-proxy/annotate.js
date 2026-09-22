@@ -25,13 +25,30 @@ const { accessToken } = require('./google-auth')
 // still generated.
 
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT ?? 'rainyclock'
-const LOCATION = process.env.VERTEX_LOCATION ?? 'us-central1'
-const MODEL = process.env.VERTEX_ANNOTATE_MODEL ?? 'gemini-2.5-flash'
+const LOCATION = process.env.VERTEX_LOCATION ?? 'us'
+const MODEL = process.env.VERTEX_ANNOTATE_MODEL ?? 'gemini-3.1-flash-lite'
 const TIMEOUT_MS = 8_000
 
-const endpoint = () =>
-  `https://${LOCATION}-aiplatform.googleapis.com/v1/projects/${PROJECT}` +
-  `/locations/${LOCATION}/publishers/google/models/${MODEL}:generateContent`
+// Multi-region endpoints have a different hostname from regional endpoints.
+// Keep regional/global overrides available for explicit model rollbacks.
+function endpoint({ project = PROJECT, location = LOCATION, model = MODEL } = {}) {
+  const host = location === 'global'
+    ? 'aiplatform.googleapis.com'
+    : ['us', 'eu'].includes(location)
+      ? `aiplatform.${location}.rep.googleapis.com`
+      : `${location}-aiplatform.googleapis.com`
+  return `https://${host}/v1/projects/${project}` +
+    `/locations/${location}/publishers/google/models/${model}:generateContent`
+}
+
+// Only operational metadata belongs in logs, never alarm text, tokens, model
+// output or upstream error messages (which can echo the input).
+function logFallback(reason, sentenceCount, details = {}) {
+  console.warn(JSON.stringify({
+    event: 'annotation_fallback', reason, model: MODEL, location: LOCATION,
+    sentenceCount, ...details
+  }))
+}
 
 /**
  * Splits on sentence-ending punctuation in either script, keeping the mark with
@@ -86,6 +103,10 @@ async function annotate({ sentences, persona, language }) {
   const body = {
     contents: [{ role: 'user', parts: [{ text: instruction }] }],
     generationConfig: {
+      // Only explicitly verified Flash-Lite models accept this MINIMAL setting.
+      // Other model overrides retain their own defaults (including Gemini 2.5).
+      ...(['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'].includes(MODEL)
+        ? { thinkingConfig: { thinkingLevel: 'MINIMAL' } } : {}),
       responseMimeType: 'application/json',
       responseSchema: {
         type: 'ARRAY',
@@ -96,8 +117,10 @@ async function annotate({ sentences, persona, language }) {
     }
   }
 
+  let stage = 'authentication'
   try {
     const token = await accessToken()
+    stage = 'request'
     const response = await fetch(endpoint(), {
       method: 'POST',
       headers: {
@@ -108,18 +131,41 @@ async function annotate({ sentences, persona, language }) {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(TIMEOUT_MS)
     })
-    if (!response.ok) return neutral(sentences.length)
+    if (!response.ok) {
+      logFallback('http_error', sentences.length, { status: response.status })
+      return neutral(sentences.length)
+    }
 
+    stage = 'response_json'
     const payload = await response.json()
-    const parsed = JSON.parse(payload?.candidates?.[0]?.content?.parts?.[0]?.text)
-    if (!Array.isArray(parsed)) return neutral(sentences.length)
+    const parts = payload?.candidates?.[0]?.content?.parts
+    const text = Array.isArray(parts)
+      ? parts.filter((part) => part && part.thought !== true && typeof part.text === 'string')
+        .map((part) => part.text).join('')
+      : ''
+    if (!text) {
+      logFallback('missing_content', sentences.length)
+      return neutral(sentences.length)
+    }
+    stage = 'invalid_json'
+    const parsed = JSON.parse(text)
+    if (!Array.isArray(parsed)) {
+      logFallback('invalid_format', sentences.length)
+      return neutral(sentences.length)
+    }
 
     // Pad and validate rather than trusting the length or the values: the schema
     // is a request, not a guarantee.
+    const fallbackCount = sentences.reduce((count, _, i) => count + Number(!EMOTION_IDS.includes(parsed[i])), 0)
+    if (fallbackCount || parsed.length !== sentences.length) {
+      logFallback('invalid_annotations', sentences.length, { fallbackCount })
+    }
     return sentences.map((_, i) => (EMOTION_IDS.includes(parsed[i]) ? parsed[i] : 'neutral'))
-  } catch {
+  } catch (error) {
+    const reason = ['TimeoutError', 'AbortError'].includes(error?.name) ? 'timeout' : stage
+    logFallback(reason, sentences.length)
     return neutral(sentences.length)
   }
 }
 
-module.exports = { annotate, splitSentences, MODEL, LOCATION }
+module.exports = { annotate, splitSentences, endpoint, MODEL, LOCATION }

@@ -1,0 +1,52 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "generationResults",
+      "fieldPath": "pcm",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "generationResults",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "costBudgets",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "authChallenges",
+      "fieldPath": "ttlAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "authSessions",
+      "fieldPath": "ttlAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "authChallengeLimits",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "authAppleProofs",
+      "fieldPath": "ttlAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "authDevices",
+      "fieldPath": "ttlAt",
+      "ttl": true,
+      "indexes": []
+    }
+  ]
+}
