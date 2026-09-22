@@ -1,0 +1,9 @@
+{
+  "name": "rainyclock-dayoff-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22 <23" },
+  "scripts": { "start": "node src/server.js", "test": "node --test test/*.test.js", "check": "node --check src/server.js && node --check src/service.js && node --check src/parser.js" },
+  "dependencies": { "fast-xml-parser": "5.10.1" }
+}

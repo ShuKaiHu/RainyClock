@@ -1,0 +1,154 @@
+{
+  "善化區": {
+    "original_properties": {
+      "TOWNID": "D27",
+      "TOWNCODE": "67000190",
+      "COUNTYNAME": "臺南市",
+      "TOWNNAME": "善化區",
+      "TOWNENG": "Shanhua District",
+      "COUNTYID": "D",
+      "COUNTYCODE": "67000"
+    },
+    "bundled_properties": {
+      "county": "臺南市",
+      "district": "善化區",
+      "townCode": "67000190",
+      "countyCode": "67000"
+    },
+    "original": {
+      "valid": true,
+      "validity": "Valid Geometry",
+      "parts": 1,
+      "holes": 0,
+      "positions": 1491,
+      "outer_ccw": [
+        false
+      ],
+      "bounds_lon_lat": [
+        120.25489629700007,
+        23.10488214800006,
+        120.34631273200011,
+        23.17644615100005
+      ],
+      "geodesic_area_km2": 53.4524134722965
+    },
+    "bundled": {
+      "valid": true,
+      "validity": "Valid Geometry",
+      "parts": 1,
+      "holes": 0,
+      "positions": 85,
+      "outer_ccw": [
+        true
+      ],
+      "bounds_lon_lat": [
+        120.254896,
+        23.104882,
+        120.346275,
+        23.176363
+      ],
+      "geodesic_area_km2": 53.34391983686086
+    },
+    "area_change_pct": -0.2029723793329996,
+    "intersection_over_union_pct": 99.2441758509108,
+    "symmetric_difference_km2": 0.4051273527903867,
+    "boundary_hausdorff_m": 49.62329224452456,
+    "centroid_shift_m": 6.311985044766156,
+    "sharpest_vertex_angle_degrees": 40.70615686296961,
+    "max_miter_ratio": 2.8751796254662136,
+    "neighbor_names_original": [
+      "大內區",
+      "安定區",
+      "官田區",
+      "山上區",
+      "新市區",
+      "麻豆區"
+    ],
+    "neighbor_names_bundled": [
+      "大內區",
+      "安定區",
+      "官田區",
+      "山上區",
+      "新市區",
+      "麻豆區"
+    ]
+  },
+  "安定區": {
+    "original_properties": {
+      "TOWNID": "D29",
+      "TOWNCODE": "67000210",
+      "COUNTYNAME": "臺南市",
+      "TOWNNAME": "安定區",
+      "TOWNENG": "Anding District",
+      "COUNTYID": "D",
+      "COUNTYCODE": "67000"
+    },
+    "bundled_properties": {
+      "county": "臺南市",
+      "district": "安定區",
+      "townCode": "67000210",
+      "countyCode": "67000"
+    },
+    "original": {
+      "valid": true,
+      "validity": "Valid Geometry",
+      "parts": 1,
+      "holes": 0,
+      "positions": 1023,
+      "outer_ccw": [
+        false
+      ],
+      "bounds_lon_lat": [
+        120.18740042500008,
+        23.066550919000065,
+        120.26924430100007,
+        23.135038911000038
+      ],
+      "geodesic_area_km2": 31.864251863932232
+    },
+    "bundled": {
+      "valid": true,
+      "validity": "Valid Geometry",
+      "parts": 1,
+      "holes": 0,
+      "positions": 68,
+      "outer_ccw": [
+        true
+      ],
+      "bounds_lon_lat": [
+        120.1874,
+        23.066551,
+        120.269244,
+        23.135039
+      ],
+      "geodesic_area_km2": 31.840700502596217
+    },
+    "area_change_pct": -0.07391154650856491,
+    "intersection_over_union_pct": 98.82656102051106,
+    "symmetric_difference_km2": 0.37597530797217366,
+    "boundary_hausdorff_m": 49.13463656511377,
+    "centroid_shift_m": 5.825605769555822,
+    "sharpest_vertex_angle_degrees": 35.010880860125916,
+    "max_miter_ratio": 3.3245083502057464,
+    "neighbor_names_original": [
+      "善化區",
+      "安南區",
+      "新市區",
+      "西港區",
+      "麻豆區"
+    ],
+    "neighbor_names_bundled": [
+      "善化區",
+      "安南區",
+      "新市區",
+      "西港區",
+      "麻豆區"
+    ]
+  },
+  "pair": {
+    "bundled_overlap_area_m2": 0.0,
+    "bundled_shared_border_length_m": 5572.772086841817,
+    "original_overlap_area_m2": 0.0,
+    "original_shared_border_length_m": 5774.374649687946
+  }
+}
