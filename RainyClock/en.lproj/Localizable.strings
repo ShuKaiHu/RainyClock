@@ -279,7 +279,7 @@
 /* Disaster closure preview */
 "disaster_title" = "Disaster closures";
 "disaster_enabled" = "Skip alarms for announced closures";
-"disaster_both_rule" = "Skip only when both work and school are suspended.";
+"disaster_both_rule" = "Skip when either work or school is suspended.";
 "disaster_choose_rule" = "Choose work, school, or both.";
 "disaster_region_rule" = "A matching closure at home or your destination skips that day. Areas along the route are excluded.";
 "disaster_choose_region" = "Choose district";

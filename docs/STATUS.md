@@ -46,8 +46,8 @@ hold the whole repo — the separation is by branch, not by directory.
   app registered under the same account needs no change to it.
 - **The alarm tones are shared.** Android copies the iOS target's `.wav` files at build time
   rather than duplicating them; deleting one on the iOS side breaks the Android build.
-- **Day-off suppression is specified once, for both platforms.** `docs/DAYOFF-SPEC.md` (spec v2,
-  written 2026-09-10, nothing implemented yet) and `docs/dayoff-fixtures.json` beside it define
+- **Day-off suppression is specified once, for both platforms.** `docs/DAYOFF-SPEC.md` (spec v3,
+  2026-09-22; iOS implemented it behind a release gate, Android not started) and `docs/dayoff-fixtures.json` beside it define
   when a typhoon 停班停課 announcement or a national holiday silences the alarm. The fixtures — 28
   real DGPA sentence patterns and 25 decision scenarios, drawn from the complete 1,374-alert
   archive (2014-2026) — are the actual contract: both platforms load them in unit tests, so a rule

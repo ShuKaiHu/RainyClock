@@ -293,8 +293,12 @@ enum DisasterSuspensionEvaluator {
             let minute = hour * 60 + calendar.component(.minute, from: normalAlarmDate)
             guard parsed.dayPart == .full || (parsed.dayPart == .morning && hour < 12),
                   parsed.startsAtMinute.map({ minute >= $0 }) ?? true else { continue }
-            guard (!observesWork || parsed.work == .suspended), (!observesSchool || parsed.school == .suspended) else { continue }
-            let type = observesWork && observesSchool ? "停班停課" : observesWork ? "停班" : "停課"
+            // Owner decision 2026-09-22 (spec v3): with both switches on, either
+            // suspension alone is enough — the user asked to be told about both.
+            let workSuspended = observesWork && parsed.work == .suspended
+            let schoolSuspended = observesSchool && parsed.school == .suspended
+            guard workSuspended || schoolSuspended else { continue }
+            let type = workSuspended && schoolSuspended ? "停班停課" : workSuspended ? "停班" : "停課"
             return DisasterDecision(shouldSkip: true, noticeIDs: [notice.id], reason: "\(parsed.area)已公告\(type)", area: parsed.area, sourceUpdatedAt: notice.sentAt, status: "suspended")
         }
         return fallback

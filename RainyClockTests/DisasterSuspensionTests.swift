@@ -46,7 +46,7 @@ final class DisasterSuspensionTests: XCTestCase {
 
     func testEverySharedSpecTwoParserFixture() throws {
         let fixtures = try fixtures()
-        XCTAssertEqual(fixtures.specVersion, 2, "Review the shared contract before accepting a new version")
+        XCTAssertEqual(fixtures.specVersion, 3, "Review the shared contract before accepting a new version")
         XCTAssertEqual(fixtures.parseCases.count, 28)
         for example in fixtures.parseCases {
             let parsed = DisasterNoticeParser.parse(example.input.notice(id: example.id))

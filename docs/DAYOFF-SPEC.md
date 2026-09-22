@@ -1,6 +1,6 @@
 # Day-off suppression — shared specification
 
-**Spec version: 2** · Researched and written 2026-09-10 on `ios/main`. Nothing is implemented yet.
+**Spec version: 3** · Researched and written 2026-09-10 on `ios/main`; v3 on 2026-09-22. iOS has implemented (A) and (B) against this contract, gated off for 1.7.0 and being prepared for 1.7.1 — see `docs/DISASTER-PREVIEW.md` for the shipped architecture where it differs from the proposals below. Android has not started.
 
 Two features that answer the same question — *is there anything to get up for tomorrow?* — and
 therefore share one data path, one decision function, and one set of test fixtures:
@@ -65,11 +65,11 @@ to get up for:
 | --- | --- |
 | `work` | 上班 suspended |
 | `school` | 上課 suspended |
-| `both` | 上班 **and** 上課 both suspended |
+| `both` | 上班 **or** 上課 suspended — either alone is enough |
 
-`both` is an AND, not an OR — a parent who also commutes still has to get up if only the school
-closed. This reading follows from P5; it is the one place where the owner's wording ("A+B") was
-interpreted rather than stated, so it is flagged in §8.
+`both` is an **OR**, decided by the owner on 2026-09-22: "兩者都勾就是 OR，任一被滿足就觸發". A
+user who ticks both is asking to hear about either closure, and the settings copy says so. (v1 and
+v2 read it as an AND on the strength of P5; that reading was never ratified and is retired.)
 
 **P2 is supported by the data, not just preference.** Across the **complete 1,374-alert DGPA
 archive (2014-2026)**, every geocode is a county or a district; DGPA has never once issued a
@@ -549,13 +549,12 @@ alarms already fire in Doze, and adding it would create a policy question the ap
 
 ## 8. Open questions — resolve these before or during implementation
 
-Owner decisions still needed. Only the first has no default — do not start (A) without an answer
-to it. The other three have a defensible default recorded here; build on it and say so, and the
-owner can overrule cheaply.
+Owner decisions. The first is now answered; the other three have a defensible default recorded
+here — build on it and say so, and the owner can overrule cheaply.
 
-1. **Is `both` an AND?** §1 reads "A+B" as *suppress only when both are suspended*. That follows
-   from P5, but the owner said "A or B or A+B" and did not say how A+B combines. **No default —
-   ask.** It changes which alarms are silenced for every parent who also commutes.
+1. **Is `both` an AND?** — **Resolved 2026-09-22: it is an OR.** Either suspension alone silences
+   the alarm when both switches are on. Written into §1; `decide-08` flipped from `ring` to
+   `suppress` and `specVersion` bumped to 3.
 2. **Maximum cache age** before a cached suspension is ignored.
    **Default: 18 hours.** Rationale: it must comfortably span the real gap — an announcement made
    at 19:00 the night before, read by an alarm at 07:00 the next morning, is 12 hours old and must
@@ -671,9 +670,9 @@ caught exactly that way.
 **Build order** is §9. Start with feature (B); it is small and clean and exercises the whole
 pipeline before (A) adds a hostile parser.
 
-**Four decisions belong to the owner, not to you.** They are listed at the top of §8. Three have a
-defensible default recorded there; the first does not. Ask rather than assume, and when you get an
-answer, write it into §1 and bump the version.
+**Three open decisions belong to the owner, not to you.** They are listed at the top of §8 and each
+has a defensible default recorded there. The `both` question is answered (OR). Ask rather than
+assume, and when you get an answer, write it into §1 and bump the version.
 
 **The one rule that outranks everything else:** the alarm rings unless there is positive, current,
 matching evidence that it should not. Every ambiguity resolves toward ringing. If you find yourself
@@ -681,6 +680,12 @@ writing a branch that suppresses an alarm on incomplete information, that branch
 
 ### Changelog
 
+- **v3** (2026-09-22) — **`both` is an OR.** Owner ruled that ticking work and school means either
+  suspension alone silences the alarm. §1 truth table and §8 item 1 updated; `decide-08` now
+  expects `suppress`; `specVersion` → 3, so both platforms must re-run. iOS updated the same day
+  (evaluator, settings copy, tests). Also notes that iOS has implemented the feature behind a
+  release gate, and corrects the v2 changelog line below: **324** alerts lack the `_i_` segment,
+  not 107.
 - **v1** (2026-09-10) — initial spec. Sources verified first-hand; 365-record corpus harvested from
   the NCDR history API across eight typhoon events (2024-07 … 2026-08); fixtures generated from it.
   Nothing implemented on either platform.

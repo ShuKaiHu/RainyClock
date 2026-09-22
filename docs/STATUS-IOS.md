@@ -13,6 +13,29 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 
 Last updated: 2026-09-22.
 
+## 1.7.1 準備中：颱風／天災臨時放假 — 2026-09-22
+
+- **工作樹已全部提交到 `ios/main`**（四個 commit：App 與測試、weather-proxy 會員後端、
+  dayoff-service 與天災文件、其餘文件與素材）。1.7.0（34）送審的原始碼從此有 git 紀錄；
+  之前自 9/10 起 110 個檔案都只在本機。變體 PNG 的重複 `.zip` 已 gitignore，其餘 `docs/`
+  素材照常發布到 GitHub Pages。
+- **使用者決定：停班、停課兩者都勾時是 OR**，任一公告符合即略過。`DAYOFF-SPEC.md` 升到
+  **v3**，`dayoff-fixtures.json` 的 `decide-08` 由 `ring` 改為 `suppress`，
+  `DisasterSuspensionEvaluator` 與設定頁說明文字同步改為 OR。Android 尚未實作，
+  升版只是給它的交接訊號。
+- `AppEnvironment.supportsTemporaryClosures` 仍為 `false`；1.7.0 在審，版本號不動。
+  1.7.1 開閘前仍缺：NCDR 會員 API key、dayoff-service 的常駐部署（需持久磁碟，不是現有
+  request-only Cloud Run 型態）並填入 `DayOffServiceURL`、APNs 金鑰與正式 push capability、
+  真機驗證（晚間公告、重啟、低耗電、關背景更新、強制結束、撤銷、關閉後恢復）、
+  恢復設定入口與方案文案、發布 [1.7.1 備忘](1.7.1-DEFERRED-DISASTER.md) 的隱私條款、
+  決定買斷是否包含此功能。
+- 本輪驗證：Debug 建置 0 警告；dayoff-service 52 過；weather-proxy 186 過 3 略過（無
+  Emulator）；iOS 全套約 339 項，用 `RainyClock Membership Local` scheme 且**簽章**跑才
+  全過 —— `CODE_SIGNING_ALLOWED=NO` 會讓 3 項 Keychain 路由測試失敗，一般 `RainyClock`
+  scheme 會讓 StoreKit 測試碰真商店並在模擬器彈出 Apple ID 登入框。
+- ASC 審查結果本輪未讀到（隔離瀏覽器為登入頁，Gmail 無 Apple 信件）。
+  `RainyClock-dayoff-preview/` 工作樹每個檔案都比主工作樹舊，可移除。
+
 > **下一個 AI 請先讀 [2026-09-22 iOS 交接檔](HANDOFF-IOS-2026-09-22.md)。**
 > 已集中整理實際送審結果、最新方案、雲端環境、價格問題與驗收缺項；以下仍保留歷史時序。
 > 9/22 本輪僅整理交接文件，未重新查詢 ASC／雲端、修改程式、建置、部署或發布。
