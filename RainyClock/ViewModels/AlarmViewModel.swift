@@ -21,6 +21,7 @@ final class AlarmViewModel: ObservableObject {
                 clearSuggestedAddressIfInputChanged(.home, input: settings.homeAddress)
                 if suggestionSelectedInputs[.home] != settings.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines) {
                     settings.homeResolvedLocation = nil
+                    settings.homeSuspensionRegion = nil
                 }
             }
             if oldValue.workAddress != settings.workAddress {
@@ -28,30 +29,85 @@ final class AlarmViewModel: ObservableObject {
                 clearSuggestedAddressIfInputChanged(.work, input: settings.workAddress)
                 if suggestionSelectedInputs[.work] != settings.workAddress.trimmingCharacters(in: .whitespacesAndNewlines) {
                     settings.workResolvedLocation = nil
+                    settings.workSuspensionRegion = nil
                 }
             }
+            synchronizeAutomaticSuspensionRegions()
+            if TomorrowWeatherRequest(settings: oldValue, now: Date()) != TomorrowWeatherRequest(settings: settings, now: Date()) {
+                tomorrowWeatherGeneration += 1
+                activeTomorrowWeatherRequest = nil
+                isRefreshingTomorrowWeather = false
+            }
+            if oldValue.isDisasterSuspensionEnabled != settings.isDisasterSuspensionEnabled {
+                Task { await DisasterPushRegistration.shared.update(enabled: effectiveSchedulingSettings.isDisasterSuspensionEnabled) }
+                Task { await refreshDisasterSuspensions(force: true) }
+            }
             saveSettings()
+            if oldValue.scheduleFingerprint() != effectiveSchedulingSettings.scheduleFingerprint() {
+                lastAutomaticInitialAttempt = nil
+            }
             updateScheduleStaleness()
             reconcileScheduledAlarmWithSettings()
             if oldValue.isEveningPreviewEnabled != settings.isEveningPreviewEnabled
-                || oldValue.eveningPreviewTime != settings.eveningPreviewTime {
+                || oldValue.eveningPreviewTime != settings.eveningPreviewTime
+                || oldValue.timeFormat != settings.timeFormat {
                 Task {
                     await replanEveningPreviews(requestingAuthorization: settings.isEveningPreviewEnabled)
                 }
             }
         }
     }
+    @Published private(set) var disasterFeed: DisasterFeed?
+    @Published private(set) var isRefreshingDisasters = false
+    @Published private(set) var disasterRefreshFailed = false
+    @Published private(set) var disasterScheduleNeedsAttention = false {
+        didSet { settingsStorage.set(disasterScheduleNeedsAttention, forKey: "disasterScheduleNeedsAttention") }
+    }
+    @Published private(set) var disasterLastAttemptAt: Date?
+    private let disasterFeedProvider: any DisasterFeedProviding
+    private let disasterSyncReporter: any DisasterSyncReporting
+    private var pendingDisasterUpdate = false
+    private var disasterRefreshTask: Task<Bool, Never>?
+    private var pendingForcedDisasterRefresh = false
+    private static let disasterFeedStorageKey = "disasterFeed.v1"
+    @Published private(set) var holidayCalendar: HolidayCalendar
+    @Published private(set) var isRefreshingHolidays = false
+    @Published private(set) var holidayRefreshFailed = false
     @Published private(set) var routeWeatherSnapshot: RouteWeatherSnapshot?
+    @Published private(set) var isRefreshingTomorrowWeather = false
+    @Published private var tomorrowWeatherRecord: TomorrowWeatherRecord?
+    @Published private var tomorrowWeatherFailureRequest: TomorrowWeatherRequest?
+    private var activeTomorrowWeatherRequest: TomorrowWeatherRequest?
+    private var tomorrowWeatherGeneration = 0
+    private var lastTomorrowWeatherAttempt: (request: TomorrowWeatherRequest, at: Date)?
     @Published private(set) var routePreview: RoutePreview?
     @Published private(set) var scheduledAlarmSummary: ScheduledAlarmSummary? {
         didSet {
+            disasterScheduleNeedsAttention = false
             saveScheduledAlarmSummary()
         }
     }
-    @Published private(set) var statusMessage = String(localized: "status_enter_settings")
+    private enum AlarmStatus {
+        case text(String)
+        case weatherDecision(exceedsThreshold: Bool, forecastAt: Date, checkedAt: Date)
+    }
+    @Published private var alarmStatus = AlarmStatus.text(String(localized: "status_enter_settings"))
+    private(set) var statusMessage: String {
+        get {
+            switch alarmStatus {
+            case .text(let message): return message
+            case .weatherDecision(let exceedsThreshold, let forecastAt, let checkedAt):
+                let key: String.LocalizationValue = exceedsThreshold ? "status_adjusted_checked" : "status_normal_checked"
+                return String.localizedStringWithFormat(String(localized: key),
+                    settings.timeFormat.dateTime(forecastAt), settings.timeFormat.time(checkedAt))
+            }
+        }
+        set { alarmStatus = .text(newValue) }
+    }
     @Published private(set) var routePreviewStatusMessage = String(localized: "route_preview_empty")
     @Published private(set) var routeWeatherStatusMessage = String(localized: "route_weather_empty")
     @Published private(set) var isScheduling = false
+    @Published private(set) var scheduleErrorMessage: String?
     @Published private(set) var isPreviewingRoute = false
     @Published private(set) var isRefreshingRouteWeather = false
     @Published private(set) var invalidAddressFields: Set<CommuteAddressField> = []
@@ -71,8 +127,20 @@ final class AlarmViewModel: ObservableObject {
     /// so tests can plan both kinds of preview without touching UIKit state.
     private let canRefreshInBackground: @MainActor () -> Bool
     private let settingsStorage: UserDefaults
+    private let membershipEntitlements: @MainActor () -> MembershipEntitlements?
+    private let supportsTemporaryClosures: Bool
+
+    /// Rights constrain a scheduling copy only; saved premium rules remain recoverable.
+    var effectiveSchedulingSettings: CommuteAlarmSettings {
+        var effective = MembershipSchedulingAccess.effectiveSettings(settings, entitlements: membershipEntitlements())
+        if !supportsTemporaryClosures { effective.isDisasterSuspensionEnabled = false }
+        return effective
+    }
     private var suggestionSelectedInputs: [CommuteAddressField: String] = [:]
+    private var previewHomeInput: String?
+    private var previewWorkInput: String?
     private var previewGeneration = 0
+    private var pendingHolidayUpdate = false
     private var weatherGeneration = 0
     private var scheduledFingerprint: AlarmScheduleFingerprint? {
         didSet {
@@ -82,7 +150,7 @@ final class AlarmViewModel: ObservableObject {
     /// When the rain decision behind the armed alarm was last computed. The alarm
     /// itself repeats weekly, so this is what says whether that decision still
     /// describes the weather — see `refreshScheduledAlarmIfWeatherIsStale()`.
-    private var lastWeatherEvaluationAt: Date? {
+    private(set) var lastWeatherEvaluationAt: Date? {
         didSet {
             if let lastWeatherEvaluationAt {
                 settingsStorage.set(lastWeatherEvaluationAt, forKey: Self.lastEvaluationStorageKey)
@@ -92,11 +160,15 @@ final class AlarmViewModel: ObservableObject {
         }
     }
     private var autoRefreshTask: Task<Void, Never>?
+    private var automaticSchedulingActivated = false
+    private var lastAutomaticInitialAttempt: AlarmScheduleFingerprint?
+    private var settingsRemovalTask: Task<Void, Never>?
     /// True while a run nobody asked for is in flight — a background task, or a launch
     /// that found the rain decision stale. Such a run must not repaint the status line
     /// or flag addresses the user typed correctly.
     private var isRunningUnattended = false
     private let autoRefreshDebounce: Duration
+    private let calendarWeatherTimeout: Duration
     private static let addressValidationTimeout: Duration = .seconds(4)
     private static let settingsStorageKey = "commuteAlarmSettings"
     private static let scheduledSummaryStorageKey = "scheduledAlarmSummaryDisplay"
@@ -114,9 +186,26 @@ final class AlarmViewModel: ObservableObject {
         previewScheduler: EveningPreviewScheduling = UserNotificationEveningPreviewScheduler(),
         canRefreshInBackground: @escaping @MainActor () -> Bool = AlarmViewModel.systemCanRefreshInBackground,
         settingsStorage: UserDefaults = .standard,
-        autoRefreshDebounce: Duration = .seconds(1.5)
+        holidayCalendar: HolidayCalendar? = nil,
+        autoRefreshDebounce: Duration = .seconds(1.5),
+        calendarWeatherTimeout: Duration = .seconds(12),
+        disasterFeedProvider: (any DisasterFeedProviding)? = nil,
+        disasterSyncReporter: (any DisasterSyncReporting)? = nil,
+        membershipEntitlements: @escaping @MainActor () -> MembershipEntitlements? = { MembershipManager.shared.schedulingEntitlements },
+        supportsTemporaryClosures: Bool = AppEnvironment.supportsTemporaryClosures
     ) {
+        // Assigning the published summary also clears the success/error state;
+        // capture the persisted flag before restoring that summary.
+        let restoredDisasterAttention = settingsStorage.bool(forKey: "disasterScheduleNeedsAttention")
+        self.disasterFeedProvider = disasterFeedProvider ?? DisasterFeedClient(
+            endpoint: AppEnvironment.dayOffServiceURL?.appendingPathComponent("v1/suspensions"))
+        self.disasterSyncReporter = disasterSyncReporter ?? DisasterPushRegistration.shared
+        if let data = settingsStorage.data(forKey: Self.disasterFeedStorageKey) {
+            self.disasterFeed = try? JSONDecoder().decode(DisasterFeed.self, from: data)
+        }
+        self.holidayCalendar = holidayCalendar ?? HolidayCalendar.load(storage: settingsStorage)
         self.autoRefreshDebounce = autoRefreshDebounce
+        self.calendarWeatherTimeout = calendarWeatherTimeout
         self.settings = Self.loadSettings(from: settingsStorage) ?? CommuteAlarmSettings()
         self.routeWeatherService = routeWeatherService
         self.routePreviewService = routePreviewService
@@ -124,6 +213,8 @@ final class AlarmViewModel: ObservableObject {
         self.previewScheduler = previewScheduler
         self.canRefreshInBackground = canRefreshInBackground
         self.settingsStorage = settingsStorage
+        self.membershipEntitlements = membershipEntitlements
+        self.supportsTemporaryClosures = supportsTemporaryClosures
 
         // Restore state that survives relaunches, so a scheduled alarm and confirmed
         // addresses do not look reset every time the app reopens.
@@ -133,11 +224,22 @@ final class AlarmViewModel: ObservableObject {
         if let confirmedWork = settings.confirmedWorkAddressInput {
             suggestionSelectedInputs[.work] = confirmedWork
         }
+        // Regions are derived from Route. Migrate old independently selected areas
+        // before comparing the registered fingerprint with current settings.
+        let restoredSettings = settings
+        synchronizeAutomaticSuspensionRegions()
+        if settings != restoredSettings { saveSettings() }
+        let cacheNow = Date()
+        tomorrowWeatherRecord = TomorrowWeatherRecord.load(from: settingsStorage,
+            matching: TomorrowWeatherRequest(settings: settings, now: cacheNow), now: cacheNow)
         if let storedSummary = Self.loadScheduledAlarmSummary(from: settingsStorage) {
             scheduledAlarmSummary = storedSummary.rollingForward(selectedWeekdays: settings.selectedWeekdays)
-            statusMessage = String(localized: "status_alarm_scheduled")
+            if let plan = storedSummary.calendarPlan {
+                statusMessage = String(localized: plan.occurrences.isEmpty ? "calendar_all_silent" : "calendar_schedule_saved")
+            } else { statusMessage = String(localized: "status_alarm_scheduled") }
         }
         scheduledFingerprint = Self.loadScheduledFingerprint(from: settingsStorage)
+        disasterScheduleNeedsAttention = restoredDisasterAttention
         lastWeatherEvaluationAt = settingsStorage.object(forKey: Self.lastEvaluationStorageKey) as? Date
         updateScheduleStaleness()
         updateAlarmKitRescheduleNotice()
@@ -147,6 +249,12 @@ final class AlarmViewModel: ObservableObject {
     /// aged out. This is the "user opened the app" path; `BackgroundWeatherRefresh` is
     /// the one that covers the mornings they do not.
     func refreshScheduledAlarmIfWeatherIsStale() async {
+        let settings = effectiveSchedulingSettings
+        await refreshDisasterSuspensions()
+        if settings.usesDatedSchedule, let plan = scheduledAlarmSummary?.calendarPlan,
+           (plan.coveredUntil.timeIntervalSinceNow < Double(Self.calendarHorizonDays - 2) * 86_400 || plan.timeZoneID != TimeZone.current.identifier) {
+            await applyCalendarSettings()
+        }
         // A settings edit already queued its own re-registration; let that one win.
         guard autoRefreshTask == nil, !isRefreshingRouteWeather else {
             return
@@ -176,8 +284,11 @@ final class AlarmViewModel: ObservableObject {
     /// - Returns: whether the alarm was actually re-registered.
     @discardableResult
     func refreshScheduledAlarmUnattended() async -> Bool {
+        // Disaster updates must precede the weather guard below: a 06:55 notice
+        // can still cancel a 07:00 alarm even though today's rain check has passed.
+        let disasterChanged = await refreshDisasterSuspensions()
         guard hasScheduledAlarm, canSchedule, !isScheduling else {
-            return false
+            return disasterChanged
         }
 
         // Between today's check point and today's ring, leave the alarm alone. A
@@ -189,16 +300,17 @@ final class AlarmViewModel: ObservableObject {
             let now = Date()
             let checkPoint = summary.normalAlarmDate.addingTimeInterval(TimeInterval(-settings.rainLeadTimeMinutes * 60))
             if now >= checkPoint, now < summary.normalAlarmDate {
-                return false
+                return disasterChanged
             }
         }
 
         let evaluationsBefore = lastWeatherEvaluationAt
+        let calendarBefore = scheduledAlarmSummary?.calendarPlan
         isRunningUnattended = true
         defer { isRunningUnattended = false }
 
         await evaluateRouteAndScheduleAlarm()
-        return lastWeatherEvaluationAt != evaluationsBefore
+        return disasterChanged || lastWeatherEvaluationAt != evaluationsBefore || scheduledAlarmSummary?.calendarPlan != calendarBefore
     }
 
     /// An install that upgraded to iOS 26 keeps ringing through the old notification
@@ -223,7 +335,7 @@ final class AlarmViewModel: ObservableObject {
             return
         }
 
-        let isStale = settings.scheduleFingerprint() != scheduledFingerprint
+        let isStale = effectiveSchedulingSettings.scheduleFingerprint() != scheduledFingerprint
         if isStale != isScheduleStale {
             isScheduleStale = isStale
         }
@@ -233,17 +345,56 @@ final class AlarmViewModel: ObservableObject {
         scheduledAlarmSummary != nil
     }
 
-    /// Keeps the registered alarm in lockstep with the visible settings. Parameter
-    /// changes (weekdays, time, lead time, threshold, sound, snooze) re-schedule
-    /// automatically after a short debounce; address changes instead drop the alarm
-    /// entirely, because an alarm for a route the user has not confirmed yet should
-    /// never ring — they re-arm it with the schedule button.
+    /// Called by the foreground UI, never by construction or a background refresh.
+    /// Confirmed routes can then create their first alarm without an Apply button.
+    func activateAutomaticScheduling() {
+        guard !automaticSchedulingActivated else { return }
+        automaticSchedulingActivated = true
+        reconcileScheduledAlarmWithSettings()
+    }
+
+    private var hasEnabledAlarmDay: Bool {
+        let settings = effectiveSchedulingSettings
+        return !settings.selectedWeekdays.isEmpty
+            || (settings.calendarSettings.isActive && settings.calendarSettings.overrides.values.contains(.ring))
+    }
+
+    private var hasConfirmedAutomaticRoute: Bool {
+        guard invalidAddressFields.isEmpty, !hasUnconfirmedSuggestedAddresses else { return false }
+        func confirmed(_ field: CommuteAddressField, input: String, location: ResolvedMapLocation?) -> Bool {
+            guard suggestionSelectedInputs[field] == input.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let location else { return false }
+            return location.latitude.isFinite && location.longitude.isFinite
+                && (-90...90).contains(location.latitude) && (-180...180).contains(location.longitude)
+        }
+        let home = settings.homeResolvedLocation
+            ?? (previewHomeInput == settings.homeAddress ? routePreview?.homeLocation : nil)
+        let work = settings.workResolvedLocation
+            ?? (previewWorkInput == settings.workAddress ? routePreview?.workLocation : nil)
+        return confirmed(.home, input: settings.homeAddress, location: home)
+            && confirmed(.work, input: settings.workAddress, location: work)
+    }
+
+    /// Existing registrations follow edits; a new registration additionally needs
+    /// foreground activation and two confirmed locations. Address edits remove the
+    /// old registration before the replacement route can be armed.
     private func reconcileScheduledAlarmWithSettings() {
+        guard settingsRemovalTask == nil else { return }
         guard scheduledAlarmSummary != nil, let scheduledFingerprint else {
+            if automaticSchedulingActivated, canSchedule, hasConfirmedAutomaticRoute,
+               lastAutomaticInitialAttempt != effectiveSchedulingSettings.scheduleFingerprint() {
+                scheduleAutoRefresh()
+            } else {
+                autoRefreshTask?.cancel()
+            }
             return
         }
 
-        let current = settings.scheduleFingerprint()
+        let current = effectiveSchedulingSettings.scheduleFingerprint()
+        if !hasEnabledAlarmDay && (settings.calendarSettings.isActive && settings.calendarSettings.overrides.values.contains(.ring)) {
+            autoRefreshTask?.cancel()
+            return
+        }
         guard current != scheduledFingerprint else {
             // Settings changed and changed back before the debounce fired.
             autoRefreshTask?.cancel()
@@ -252,12 +403,34 @@ final class AlarmViewModel: ObservableObject {
 
         if current.homeAddress != scheduledFingerprint.homeAddress
             || current.workAddress != scheduledFingerprint.workAddress {
-            autoRefreshTask?.cancel()
-            Task {
-                await removeScheduledAlarm()
-            }
+            enqueueSettingsRemoval()
+        } else if !hasEnabledAlarmDay {
+            enqueueSettingsRemoval(statusKey: "calendar_off_no_weekdays")
         } else {
             scheduleAutoRefresh()
+        }
+    }
+
+    private var restrictedRulesTransitionIsSafe: Bool {
+        guard let summary = scheduledAlarmSummary else { return true }
+        let now = Date()
+        let check = summary.normalAlarmDate.addingTimeInterval(Double(-settings.rainLeadTimeMinutes * 60))
+        return now < check || now >= summary.normalAlarmDate
+    }
+
+    private func enqueueSettingsRemoval(statusKey: String.LocalizationValue = "status_alarm_removed_address_changed") {
+        autoRefreshTask?.cancel()
+        guard settingsRemovalTask == nil else { return }
+        settingsRemovalTask = Task { [weak self] in
+            guard let self else { return }
+            // Let an in-flight registration finish before cancelling, otherwise its
+            // late success could recreate the alarm for the old address.
+            while self.isScheduling {
+                try? await Task.sleep(for: .milliseconds(25))
+            }
+            await self.removeScheduledAlarm(statusKey: statusKey)
+            self.settingsRemovalTask = nil
+            self.reconcileScheduledAlarmWithSettings()
         }
     }
 
@@ -270,41 +443,165 @@ final class AlarmViewModel: ObservableObject {
             guard !Task.isCancelled, let self else {
                 return
             }
+            guard self.settingsRemovalTask == nil else { return }
 
             guard !self.isScheduling else {
                 // A manual run is in flight; re-debounce and reconcile after it.
                 self.scheduleAutoRefresh()
                 return
             }
-            guard self.canSchedule else {
-                return
-            }
-
             // Detach before running: evaluate cancels `autoRefreshTask` on entry
             // (to absorb queued debounces), and cancelling this task mid-flight
             // would abort its own weather fetch with a CancellationError.
             self.autoRefreshTask = nil
-            await self.evaluateRouteAndScheduleAlarm()
+            let current = self.effectiveSchedulingSettings.scheduleFingerprint()
+            if !self.hasScheduledAlarm {
+                guard self.automaticSchedulingActivated, self.canSchedule, self.hasConfirmedAutomaticRoute,
+                      self.lastAutomaticInitialAttempt != current else { return }
+                self.lastAutomaticInitialAttempt = current
+                await self.evaluateRouteAndScheduleAlarm()
+            } else if self.scheduledFingerprint?.calendarSettings != current.calendarSettings
+                || self.scheduledFingerprint?.disasterSettings != current.disasterSettings {
+                await self.applyCalendarSettings()
+            } else {
+                guard self.canSchedule else { return }
+                await self.evaluateRouteAndScheduleAlarm()
+            }
         }
     }
 
-    private func removeScheduledAlarm() async {
+    private func removeScheduledAlarm(statusKey: String.LocalizationValue = "status_alarm_removed_address_changed") async {
         autoRefreshTask?.cancel()
         await notificationScheduler.cancelScheduledAlarms()
         await previewScheduler.cancelPreviews()
+        await CalendarCoverageReminder.cancel()
         scheduledAlarmSummary = nil
         scheduledFingerprint = nil
         isScheduleStale = false
-        statusMessage = String(localized: "status_alarm_removed_address_changed")
+        scheduleErrorMessage = nil
+        statusMessage = String(localized: statusKey)
         updateAlarmKitRescheduleNotice()
     }
 
     var canSchedule: Bool {
         !settings.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !settings.workAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !settings.selectedWeekdays.isEmpty
+            && hasEnabledAlarmDay
             && settings.rainLeadTimeMinutes > 0
             && !hasUnconfirmedSuggestedAddresses
+    }
+
+    func tomorrowStatus(now: Date = Date()) -> TomorrowAlarmStatus {
+        let settings = effectiveSchedulingSettings
+        let request = TomorrowWeatherRequest(settings: settings, now: now)
+        let currentRegistration = scheduledAlarmSummary != nil && scheduledFingerprint == effectiveSchedulingSettings.scheduleFingerprint()
+        let routeIsReady = invalidAddressFields.isEmpty && !hasUnconfirmedSuggestedAddresses
+            && (hasConfirmedAutomaticRoute || currentRegistration)
+        return TomorrowAlarmStatus.resolve(settings: settings, holidays: holidayCalendar,
+            weatherRecord: tomorrowWeatherRecord, weatherRefreshFailed: tomorrowWeatherFailureRequest == request,
+            routeIsReady: routeIsReady,
+            summary: scheduledAlarmSummary, registeredFingerprint: scheduledFingerprint,
+            disasterFeed: disasterFeed, disasterSourceFailed: disasterRefreshFailed, now: now)
+    }
+
+    /// Tomorrow is fetched even on a skipped day. This path never authorizes,
+    /// registers, cancels, or persists a successful alarm schedule.
+    func refreshTomorrowWeatherIfNeeded(now: Date = Date(), force: Bool = false) async {
+        guard !Task.isCancelled else { return }
+        let request = TomorrowWeatherRequest(settings: settings, now: now)
+        guard request.hasRoute else { return }
+        guard activeTomorrowWeatherRequest != request || !isRefreshingTomorrowWeather else { return }
+        if !force {
+            if tomorrowWeatherFailureRequest != request,
+               let record = tomorrowWeatherRecord, record.request == request, record.isValid(at: now),
+               now.timeIntervalSince(record.snapshot.checkedAt) <= TomorrowAlarmStatus.weatherLifetime { return }
+            if let attempt = lastTomorrowWeatherAttempt, attempt.request == request,
+               now.timeIntervalSince(attempt.at) >= 0, now.timeIntervalSince(attempt.at) < 60 { return }
+        }
+
+        tomorrowWeatherGeneration += 1
+        let generation = tomorrowWeatherGeneration
+        activeTomorrowWeatherRequest = request
+        lastTomorrowWeatherAttempt = (request, now)
+        isRefreshingTomorrowWeather = true
+        let startedAt = Date()
+        defer {
+            if generation == tomorrowWeatherGeneration {
+                activeTomorrowWeatherRequest = nil
+                isRefreshingTomorrowWeather = false
+            }
+        }
+        do {
+            let service = routeWeatherService
+            let timeout = calendarWeatherTimeout
+            let snapshot = try await withThrowingTaskGroup(of: RouteWeatherSnapshot.self) { group in
+                group.addTask {
+                    try await service.fetchRouteWeather(from: request.homeAddress, homeLocation: request.homeLocation,
+                        to: request.workAddress, workLocation: request.workLocation, mode: request.mode, around: request.forecastDate)
+                }
+                group.addTask {
+                    try await Task.sleep(for: timeout)
+                    throw URLError(.timedOut)
+                }
+                defer { group.cancelAll() }
+                return try await group.next()!
+            }
+            try Task.checkCancellation()
+            let completedAt = now.addingTimeInterval(max(0, Date().timeIntervalSince(startedAt)))
+            guard generation == tomorrowWeatherGeneration,
+                  TomorrowWeatherRequest(settings: settings, now: completedAt) == request else { return }
+            let record = TomorrowWeatherRecord(request: request, snapshot: snapshot)
+            guard record.isValid(at: completedAt),
+                  completedAt.timeIntervalSince(snapshot.checkedAt) <= TomorrowAlarmStatus.weatherLifetime else {
+                throw URLError(.cannotParseResponse)
+            }
+            try Task.checkCancellation()
+            record.save(to: settingsStorage, now: completedAt)
+            tomorrowWeatherRecord = record
+            tomorrowWeatherFailureRequest = nil
+        } catch {
+            if Task.isCancelled || error is CancellationError {
+                if generation == tomorrowWeatherGeneration { lastTomorrowWeatherAttempt = nil }
+                return
+            }
+            guard generation == tomorrowWeatherGeneration,
+                  TomorrowWeatherRequest(settings: settings, now: now.addingTimeInterval(max(0, Date().timeIntervalSince(startedAt)))) == request else { return }
+            // Keep a last good matching snapshot, with its original timestamp.
+            tomorrowWeatherFailureRequest = request
+        }
+    }
+
+    var homeAutomaticSuspensionRegion: DisasterRegion? {
+        guard !settings.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        if let location = settings.homeResolvedLocation {
+            return DisasterRegionCatalog.matching(location.districtName)
+        }
+        return DisasterRegionCatalog.matching(homeMapDistrict)
+    }
+
+    var workAutomaticSuspensionRegion: DisasterRegion? {
+        guard !settings.workAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        if let location = settings.workResolvedLocation {
+            return DisasterRegionCatalog.matching(location.districtName)
+        }
+        return DisasterRegionCatalog.matching(workMapDistrict)
+    }
+
+    private func synchronizeAutomaticSuspensionRegions() {
+        let home = homeAutomaticSuspensionRegion
+        let work = workAutomaticSuspensionRegion
+        if settings.homeSuspensionRegion != home { settings.homeSuspensionRegion = home }
+        if settings.workSuspensionRegion != work { settings.workSuspensionRegion = work }
+    }
+
+    var homeMapDistrict: String? {
+        if previewHomeInput == settings.homeAddress, let district = routePreview?.homeLocation.districtName { return district }
+        return settings.homeResolvedLocation?.districtName
+    }
+
+    var workMapDistrict: String? {
+        if previewWorkInput == settings.workAddress, let district = routePreview?.workLocation.districtName { return district }
+        return settings.workResolvedLocation?.districtName
     }
 
     var canPreviewRoute: Bool {
@@ -322,6 +619,10 @@ final class AlarmViewModel: ObservableObject {
             return
         }
 
+        let homeInput = settings.homeAddress
+        let workInput = settings.workAddress
+        let selectedHomeLocation = settings.homeResolvedLocation
+        let selectedWorkLocation = settings.workResolvedLocation
         previewGeneration += 1
         let generation = previewGeneration
         isPreviewingRoute = true
@@ -344,9 +645,16 @@ final class AlarmViewModel: ObservableObject {
             guard generation == previewGeneration else {
                 return
             }
+            guard settings.homeAddress == homeInput, settings.workAddress == workInput,
+                  settings.homeResolvedLocation == selectedHomeLocation, settings.workResolvedLocation == selectedWorkLocation else { return }
+            previewHomeInput = homeInput
+            previewWorkInput = workInput
             routePreview = preview
+            if settings.homeResolvedLocation != nil { settings.homeResolvedLocation = preview.homeLocation }
+            if settings.workResolvedLocation != nil { settings.workResolvedLocation = preview.workLocation }
             invalidAddressFields.removeAll()
             updateSuggestedAddressMatches(homeLocation: preview.homeLocation, workLocation: preview.workLocation)
+            synchronizeAutomaticSuspensionRegions()
             if let expectedTravelTimeMinutes = preview.expectedTravelTimeMinutes,
                let distanceKilometers = preview.distanceKilometers {
                 routePreviewStatusMessage = String.localizedStringWithFormat(
@@ -358,11 +666,15 @@ final class AlarmViewModel: ObservableObject {
             } else {
                 routePreviewStatusMessage = String(localized: "route_preview_locations_only_message")
             }
+            reconcileScheduledAlarmWithSettings()
         } catch {
             guard generation == previewGeneration else {
                 return
             }
+            guard settings.homeAddress == homeInput, settings.workAddress == workInput,
+                  settings.homeResolvedLocation == selectedHomeLocation, settings.workResolvedLocation == selectedWorkLocation else { return }
             routePreview = nil
+            synchronizeAutomaticSuspensionRegions()
             updateAddressValidation(for: error)
             routePreviewStatusMessage = String.localizedStringWithFormat(
                 String(localized: "route_preview_failed"),
@@ -375,6 +687,7 @@ final class AlarmViewModel: ObservableObject {
         previewGeneration += 1
         isPreviewingRoute = false
         routePreview = nil
+        synchronizeAutomaticSuspensionRegions()
         routePreviewStatusMessage = message
     }
 
@@ -388,17 +701,21 @@ final class AlarmViewModel: ObservableObject {
             return
         }
 
+        let mapLocation = field == .home
+            ? (previewHomeInput == settings.homeAddress ? routePreview?.homeLocation : nil)
+            : (previewWorkInput == settings.workAddress ? routePreview?.workLocation : nil)
         setSuggestionSelectedInput(actualAddress, for: field)
         switch field {
         case .home:
             settings.homeAddress = actualAddress
-            settings.homeResolvedLocation = nil
+            settings.homeResolvedLocation = mapLocation
         case .work:
             settings.workAddress = actualAddress
-            settings.workResolvedLocation = nil
+            settings.workResolvedLocation = mapLocation
         }
         suggestedAddressMatches.removeValue(forKey: field)
         invalidAddressFields.remove(field)
+        reconcileScheduledAlarmWithSettings()
     }
 
     func clearAddressState(_ field: CommuteAddressField) {
@@ -414,6 +731,11 @@ final class AlarmViewModel: ObservableObject {
     }
 
     func setAddressFromSuggestion(_ address: String, location: ResolvedMapLocation?, field: CommuteAddressField) {
+        // A different map selection can have the same display text. Do not let an
+        // old preview supply its district or overwrite this selection later.
+        previewGeneration += 1
+        isPreviewingRoute = false
+        if field == .home { previewHomeInput = nil } else { previewWorkInput = nil }
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         setSuggestionSelectedInput(trimmedAddress, for: field)
 
@@ -425,6 +747,9 @@ final class AlarmViewModel: ObservableObject {
             settings.workAddress = address
             settings.workResolvedLocation = location
         }
+        suggestedAddressMatches.removeValue(forKey: field)
+        invalidAddressFields.remove(field)
+        reconcileScheduledAlarmWithSettings()
     }
 
     func refreshRouteWeather() async {
@@ -459,11 +784,11 @@ final class AlarmViewModel: ObservableObject {
             }
             routeWeatherSnapshot = snapshot
             invalidAddressFields.removeAll()
-            let forecastAt = snapshot.forecastAt.formatted(date: .abbreviated, time: .shortened)
+            let forecastAt = settings.timeFormat.dateTime(snapshot.forecastAt)
             routeWeatherStatusMessage = String.localizedStringWithFormat(
                 String(localized: "route_weather_updated"),
                 forecastAt,
-                snapshot.checkedAt.formatted(date: .omitted, time: .shortened)
+                settings.timeFormat.time(snapshot.checkedAt)
             )
         } catch {
             guard generation == weatherGeneration else {
@@ -498,6 +823,14 @@ final class AlarmViewModel: ObservableObject {
     }
 
     func evaluateRouteAndScheduleAlarm() async {
+        if let settingsRemovalTask { await settingsRemovalTask.value }
+        if hasScheduledAlarm,
+           settings.scheduleFingerprint() != effectiveSchedulingSettings.scheduleFingerprint(),
+           !restrictedRulesTransitionIsSafe {
+            // Do not replace an imminent alarm because a feature was deferred or
+            // paid rules expired. The next refresh outside this ring window retries.
+            return
+        }
         guard canSchedule else {
             statusMessage = hasUnconfirmedSuggestedAddresses
                 ? String(localized: "status_confirm_suggested_address")
@@ -506,15 +839,16 @@ final class AlarmViewModel: ObservableObject {
         }
 
         isScheduling = true
+        scheduleErrorMessage = nil
         // This run IS the refresh; a queued debounce would only duplicate it.
         autoRefreshTask?.cancel()
-        defer { isScheduling = false }
+        defer { finishScheduling() }
 
         // Freeze the settings for the whole flow: the user can keep moving sliders
         // while the weather fetch is in flight, and the registered alarm must match
         // ONE consistent set of values — the fingerprint saved below. Drift that
         // happens mid-flight is caught by reconcile at the end.
-        let settingsSnapshot = settings
+        let settingsSnapshot = effectiveSchedulingSettings
         // What the evening preview announced, if this run turns out to re-decide
         // the same ring.
         let previousSummary = scheduledAlarmSummary
@@ -522,6 +856,9 @@ final class AlarmViewModel: ObservableObject {
         do {
             let authorized = try await notificationScheduler.requestAuthorization()
             guard authorized else {
+                scheduleErrorMessage = if #available(iOS 26.0, *) {
+                    String(localized: "status_alarm_permission_denied")
+                } else { String(localized: "status_permission_denied") }
                 // Same reasoning as the catch below: an unattended run says nothing.
                 guard !isRunningUnattended else {
                     return
@@ -534,6 +871,12 @@ final class AlarmViewModel: ObservableObject {
                 } else {
                     String(localized: "status_permission_denied")
                 }
+                return
+            }
+
+            if settingsSnapshot.usesDatedSchedule {
+                try await registerCalendar(settings: settingsSnapshot, refreshWeather: true)
+                reconcileScheduledAlarmWithSettings()
                 return
             }
 
@@ -557,8 +900,8 @@ final class AlarmViewModel: ObservableObject {
                 invalidAddressFields.removeAll()
                 routeWeatherStatusMessage = String.localizedStringWithFormat(
                     String(localized: "route_weather_updated"),
-                    snapshot.forecastAt.formatted(date: .abbreviated, time: .shortened),
-                    snapshot.checkedAt.formatted(date: .omitted, time: .shortened)
+                    settings.timeFormat.dateTime(snapshot.forecastAt),
+                    settings.timeFormat.time(snapshot.checkedAt)
                 )
             }
 
@@ -580,12 +923,14 @@ final class AlarmViewModel: ObservableObject {
                 ? String(localized: "notification_body_adjusted")
                 : String(localized: "notification_body_normal")
 
+            let selectedSound = settingsSnapshot.soundSelection(
+                ringDate: summary.scheduledAlarmDate, normalDate: summary.normalAlarmDate)
             try await notificationScheduler.scheduleAlarm(
                 at: summary.scheduledAlarmDate,
                 normalAlarmDate: summary.normalAlarmDate,
                 weekdays: settingsSnapshot.selectedWeekdays,
-                sound: settingsSnapshot.alarmSound,
-                soundFileNameOverride: settingsSnapshot.soundFileNameOverride,
+                sound: selectedSound.sound,
+                soundFileNameOverride: selectedSound.fileNameOverride,
                 snoozeMinutes: settingsSnapshot.effectiveSnoozeMinutes,
                 title: String(localized: "notification_title"),
                 body: body
@@ -615,6 +960,7 @@ final class AlarmViewModel: ObservableObject {
             // The evening-before previews describe this registration, so they
             // are replaced here and nowhere else — a background refresh that
             // changes the decision changes tonight's notification with it.
+            await CalendarCoverageReminder.cancel()
             await replanEveningPreviews(requestingAuthorization: !isRunningUnattended, summary: summary, settings: settingsSnapshot, now: now)
             // The same ring, re-decided while nobody was looking: say so. A
             // foreground run shows the new time on the status line instead.
@@ -629,15 +975,20 @@ final class AlarmViewModel: ObservableObject {
                     newRingDate: summary.scheduledAlarmDate,
                     maximumProbability: summary.maximumPrecipitationProbability,
                     threshold: summary.rainProbabilityThreshold,
-                    place: summary.wettestSegmentName
+                    place: summary.wettestSegmentName,
+                    timeFormat: settings.timeFormat
                 ))
             }
 
-            let checkedAt = snapshot.checkedAt.formatted(date: .omitted, time: .shortened)
-            let forecastAt = snapshot.forecastAt.formatted(date: .abbreviated, time: .shortened)
-            let statusKey = exceedsThreshold ? "status_adjusted_checked" : "status_normal_checked"
-            statusMessage = String.localizedStringWithFormat(String(localized: String.LocalizationValue(statusKey)), forecastAt, checkedAt)
+            alarmStatus = .weatherDecision(exceedsThreshold: exceedsThreshold,
+                forecastAt: snapshot.forecastAt, checkedAt: snapshot.checkedAt)
         } catch {
+            scheduleErrorMessage = String.localizedStringWithFormat(
+                String(localized: "status_schedule_failed"), Self.userFacingMessage(for: error))
+            if settingsSnapshot.isDisasterSuspensionEnabled || previousSummary?.disasterSkips?.isEmpty == false {
+                disasterScheduleNeedsAttention = true
+                await previewScheduler.cancelPreviews()
+            }
             // An unattended run reports to nobody: the alarm registered by the last
             // successful run is still armed, so repainting the status line or marking
             // the addresses invalid would only be noise the user cannot act on.
@@ -834,29 +1185,10 @@ final class AlarmViewModel: ObservableObject {
         await replanEveningPreviews(requestingAuthorization: true)
     }
 
-    /// Sends a sample preview a few seconds from now so the person can see what
-    /// one looks like. Asks for permission first if nothing has; returns false
-    /// when it is denied, so the button can say where to turn it on.
-    func sendSampleEveningPreview() async -> Bool {
-        var status = await previewScheduler.authorizationStatus()
-        if status == .notDetermined {
-            status = await previewScheduler.requestAuthorization() ? .authorized : .denied
-        }
-        guard status == .authorized else {
-            return false
-        }
-
-        await previewScheduler.showSample(EveningPreviewPlanner.sample(
-            settings: settings,
-            now: Date(),
-            canRefreshInBackground: canRefreshInBackground()
-        ))
-        return true
-    }
-
     /// Re-plans the previews from the stored summary — the toggle flipping, or
     /// permission arriving after the alarm was registered.
     private func replanEveningPreviews(requestingAuthorization: Bool) async {
+        let settings = effectiveSchedulingSettings
         guard let summary = scheduledAlarmSummary else {
             await previewScheduler.cancelPreviews()
             return
@@ -896,7 +1228,12 @@ final class AlarmViewModel: ObservableObject {
             previewTime: settings.eveningPreviewTime,
             checkedAt: lastWeatherEvaluationAt ?? now,
             now: now,
-            canRefreshInBackground: canRefreshInBackground()
+            canRefreshInBackground: canRefreshInBackground(),
+            calendarSettings: settings.calendarSettings,
+            holidays: holidayCalendar,
+            // Display preference may change while a schedule/permission request
+            // is in flight; use the current format with the registered dates.
+            timeFormat: self.settings.timeFormat
         )
         await previewScheduler.replacePreviews(previews)
         // Best effort at a forecast fetched just before the first preview fires,
@@ -904,8 +1241,371 @@ final class AlarmViewModel: ObservableObject {
         BackgroundWeatherRefresh.schedulePreviewRefresh(before: previews.first?.fireDate, now: now)
     }
 
+    static var calendarHorizonDays: Int {
+        27
+    }
+
+    func dayDecision(on day: Date) -> DayDecision {
+        settings.calendarSettings.decision(on: day, weekdays: settings.selectedWeekdays, holidays: holidayCalendar)
+    }
+
+    func toggleCalendarDay(_ day: Date) {
+        var rules = settings.calendarSettings
+        rules.toggleDay(on: day, weekdays: settings.selectedWeekdays, holidays: holidayCalendar)
+        settings.calendarSettings = rules
+    }
+
+    func calendarDayIsEdited(_ day: Date) -> Bool {
+        settings.calendarSettings.hasEffectiveOverride(on: day, weekdays: settings.selectedWeekdays, holidays: holidayCalendar)
+    }
+
+    func restoreCalendarDay(_ day: Date) {
+        settings.calendarSettings.overrides.removeValue(forKey: AlarmCalendarSettings.key(for: day))
+    }
+
+    /// Updates announcements independently from weather. Failed requests never
+    /// masquerade as an empty successful feed, and successful fetches alone never
+    /// publish an "alarm skipped" state.
+    @discardableResult
+    func refreshDisasterSuspensions(force: Bool = false) async -> Bool {
+        guard !Task.isCancelled else { return false }
+        if let task = disasterRefreshTask {
+            // A newer push must trigger a new fetch, not merely reapply the
+            // snapshot already in flight. Its completion waits for that fetch.
+            if force { pendingForcedDisasterRefresh = true }
+            return await task.value
+        }
+        let task = Task { @MainActor in
+            var changed = false
+            var shouldForce = force
+            repeat {
+                pendingForcedDisasterRefresh = false
+                let update = await performDisasterRefresh(force: shouldForce)
+                changed = changed || update
+                shouldForce = true
+            } while pendingForcedDisasterRefresh && !Task.isCancelled
+            disasterRefreshTask = nil
+            return changed
+        }
+        disasterRefreshTask = task
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    private func performDisasterRefresh(force: Bool) async -> Bool {
+        let settings = effectiveSchedulingSettings
+        // Turning the feature off must retry an unfinished restore, even with
+        // fresh weather or no network. A persisted skip remains real until the
+        // system accepts the replacement.
+        if !settings.isDisasterSuspensionEnabled {
+            guard hasScheduledAlarm,
+                  scheduledFingerprint?.disasterSettings != nil || disasterScheduleNeedsAttention
+                    || scheduledAlarmSummary?.disasterSkips?.isEmpty == false else { return false }
+            if isScheduling { pendingDisasterUpdate = true; return false }
+            let before = scheduledAlarmSummary
+            await applyCalendarSettings()
+            return before != scheduledAlarmSummary
+        }
+        if !force, let last = disasterLastAttemptAt, Date().timeIntervalSince(last) < 5 * 60 { return false }
+        isRefreshingDisasters = true
+        disasterLastAttemptAt = Date()
+        defer { isRefreshingDisasters = false }
+        do {
+            let fresh = try await disasterFeedProvider.fetch()
+            try Task.checkCancellation()
+            // A slower/older upstream response cannot overwrite a newer snapshot.
+            if disasterFeed == nil || fresh.checkedAt >= disasterFeed!.checkedAt {
+                disasterFeed = fresh
+                if let data = try? JSONEncoder().encode(fresh) { settingsStorage.set(data, forKey: Self.disasterFeedStorageKey) }
+            }
+            disasterRefreshFailed = false
+        } catch {
+            if Task.isCancelled { return false }
+            disasterRefreshFailed = true
+        }
+        if isScheduling { pendingDisasterUpdate = true; return false }
+        guard hasScheduledAlarm else {
+            await reportDisasterSync(feed: disasterFeed)
+            return false
+        }
+        let now = Date()
+        let base = CalendarAlarmPlan.make(settings: settings, holidays: holidayCalendar, rain: false,
+            now: now, days: Self.calendarHorizonDays)
+        let new = DisasterAlarmPlan.filtering(base, settings: settings,
+            feed: disasterRefreshFailed ? nil : disasterFeed, now: now).skips
+        let old = (scheduledAlarmSummary?.disasterSkips ?? []).filter { $0.normalDate > now }
+        let changed = disasterScheduleNeedsAttention || new.map(\.normalDate) != old.map(\.normalDate)
+            || new.map(\.noticeIDs) != old.map(\.noticeIDs)
+            || scheduledFingerprint?.disasterSettings != effectiveSchedulingSettings.scheduleFingerprint().disasterSettings
+        guard changed else {
+            await reportDisasterSync(feed: disasterFeed)
+            return false
+        }
+        let before = scheduledAlarmSummary
+        let wasUnattended = isRunningUnattended
+        isRunningUnattended = true
+        await applyCalendarSettings()
+        isRunningUnattended = wasUnattended
+        return before != scheduledAlarmSummary
+    }
+
+    /// This is a historical acknowledgement of local processing, not proof that
+    /// APNs delivered or that every later alarm will stay in this state. A fetch
+    /// alone, failed registration, stale settings or superseded feed cannot ACK.
+    private func reportDisasterSync(feed: DisasterFeed?, committedDuringScheduling: Bool = false) async {
+        let settings = effectiveSchedulingSettings
+        let now = Date()
+        guard !Task.isCancelled, settings.isDisasterSuspensionEnabled,
+              !disasterRefreshFailed, !disasterScheduleNeedsAttention,
+              !pendingForcedDisasterRefresh,
+              !isScheduling || committedDuringScheduling,
+              let feed, feed == disasterFeed, feed.schemaVersion == 1,
+              now.timeIntervalSince(feed.checkedAt) <= 15 * 60,
+              feed.checkedAt.timeIntervalSince(now) <= 5 * 60 else { return }
+        let result: DisasterSyncReceipt.Result
+        if let summary = scheduledAlarmSummary {
+            guard scheduledFingerprint == effectiveSchedulingSettings.scheduleFingerprint(),
+                  let plan = summary.calendarPlan, plan.coveredUntil > now else { return }
+            let base = CalendarAlarmPlan.make(settings: settings, holidays: holidayCalendar,
+                rain: false, now: now, days: Self.calendarHorizonDays)
+            let expected = DisasterAlarmPlan.filtering(base, settings: settings, feed: feed, now: now).skips
+            let actual = (summary.disasterSkips ?? []).filter { $0.normalDate > now }
+            guard expected.map(\.normalDate) == actual.map(\.normalDate),
+                  expected.map(\.noticeIDs) == actual.map(\.noticeIDs) else { return }
+            result = .applied
+        } else {
+            guard scheduledFingerprint == nil else { return }
+            result = .noAlarm
+        }
+        guard let receipt = DisasterSyncReceipt(revision: feed.revision, checkedAt: feed.checkedAt,
+            appliedAt: now, result: result) else { return }
+        await disasterSyncReporter.report(receipt)
+    }
+
+    var nextAppliedDisasterSkip: AppliedDisasterSkip? {
+        (scheduledAlarmSummary?.disasterSkips ?? []).first { $0.normalDate > Date() }
+    }
+
+    func refreshHolidays(force: Bool = false) async {
+        let settings = effectiveSchedulingSettings
+        guard !isRefreshingHolidays, settings.calendarSettings.isEnabled, settings.calendarSettings.source == .taiwan else { return }
+        if !force, let last = holidayCalendar.fetchedAt, Date().timeIntervalSince(last) < 30 * 86_400 { return }
+        isRefreshingHolidays = true
+        defer { isRefreshingHolidays = false }
+        do {
+            let year = AlarmCalendarSettings.calendar.component(.year, from: Date())
+            let fresh = try await HolidayCalendar.fetch(years: [year, year + 1])
+            let old = holidayCalendar.days
+            holidayCalendar.days.merge(fresh.days) { _, new in new }
+            holidayCalendar.fetchedAt = fresh.fetchedAt
+            holidayRefreshFailed = false
+            if let data = try? JSONEncoder().encode(holidayCalendar) { settingsStorage.set(data, forKey: HolidayCalendar.cacheKey) }
+            if old != holidayCalendar.days {
+                if isScheduling { pendingHolidayUpdate = true }
+                else { await applyCalendarSettings() }
+            }
+        } catch { holidayRefreshFailed = true }
+    }
+
+    /// Calendar edits must work offline. They reuse a decision only for the same
+    /// morning; an unforecast future morning keeps the configured normal time.
+    func applyCalendarSettings() async {
+        let saved = settings
+        let settings = effectiveSchedulingSettings
+        let rulesRestricted = saved.scheduleFingerprint() != settings.scheduleFingerprint()
+        if rulesRestricted {
+            // Keep already armed alarms through the current ring window. If calendar
+            // exceptions were the only enabled days, do not erase the existing plan;
+            // the user needs to choose basic repeat days before a replacement exists.
+            guard hasEnabledAlarmDay, restrictedRulesTransitionIsSafe else { return }
+        }
+        guard hasScheduledAlarm, !isScheduling, settingsRemovalTask == nil, let registered = scheduledFingerprint else { return }
+        let current = effectiveSchedulingSettings.scheduleFingerprint()
+        guard current.homeAddress == registered.homeAddress, current.workAddress == registered.workAddress else { return }
+        if !settings.calendarSettings.isActive, settings.selectedWeekdays.isEmpty {
+            await removeScheduledAlarm(statusKey: "calendar_off_no_weekdays")
+            return
+        }
+        isScheduling = true
+        scheduleErrorMessage = nil
+        autoRefreshTask?.cancel()
+        var succeeded = false
+        defer {
+            finishScheduling()
+            if succeeded { reconcileScheduledAlarmWithSettings() }
+        }
+        do {
+            guard try await notificationScheduler.requestAuthorization() else {
+                statusMessage = if #available(iOS 26.0, *) {
+                    String(localized: "status_alarm_permission_denied")
+                } else { String(localized: "status_permission_denied") }
+                scheduleErrorMessage = statusMessage
+                return
+            }
+            if settings.usesDatedSchedule {
+                try await registerCalendar(settings: settings, refreshWeather: false)
+            } else {
+                try await restoreWeeklySchedule()
+            }
+            succeeded = true
+        } catch {
+            if settings.isDisasterSuspensionEnabled || scheduledFingerprint?.disasterSettings != nil {
+                disasterScheduleNeedsAttention = true
+                await previewScheduler.cancelPreviews()
+            }
+            updateScheduleStaleness()
+            statusMessage = String.localizedStringWithFormat(String(localized: "status_schedule_failed"), Self.userFacingMessage(for: error))
+            scheduleErrorMessage = statusMessage
+        }
+    }
+
+    private func finishScheduling() {
+        isScheduling = false
+        if pendingHolidayUpdate || pendingDisasterUpdate {
+            pendingHolidayUpdate = false
+            pendingDisasterUpdate = false
+            Task { await applyCalendarSettings() }
+        }
+    }
+
+    private func restoreWeeklySchedule() async throws {
+        let snapshot = effectiveSchedulingSettings
+        let previous = scheduledAlarmSummary
+        let probability = previous?.maximumPrecipitationProbability ?? 0
+        var summary = AlarmTimeCalculator.nextAlarmDateForWeatherCheck(alarmTime: snapshot.alarmTime,
+            leadTimeMinutes: snapshot.rainLeadTimeMinutes, shouldApplyLeadTime: probability >= snapshot.rainProbabilityThreshold,
+            rainProbabilityThreshold: snapshot.rainProbabilityThreshold, maximumPrecipitationProbability: probability,
+            selectedWeekdays: snapshot.selectedWeekdays)
+        let now = Date()
+        let base = CalendarAlarmPlan.make(settings: snapshot, holidays: holidayCalendar, rain: false, now: now, days: 8)
+        if let next = base.occurrences.first {
+            let hasSameForecast = previous?.calendarForecastDate == next.normalDate
+                || (previous?.calendarPlan == nil && previous?.normalAlarmDate == next.normalDate)
+            let earlier = next.normalDate.addingTimeInterval(Double(-snapshot.rainLeadTimeMinutes * 60))
+            let rain = hasSameForecast && probability >= snapshot.rainProbabilityThreshold && earlier > now
+            summary.normalAlarmDate = next.normalDate
+            summary.scheduledAlarmDate = rain ? earlier : next.normalDate
+            summary.weatherRefreshDate = earlier
+            summary.exceedsRainThreshold = rain
+            summary.leadTimeMinutes = rain ? snapshot.rainLeadTimeMinutes : 0
+            summary.maximumPrecipitationProbability = hasSameForecast ? probability : 0
+        }
+        let selectedSound = snapshot.soundSelection(ringDate: summary.scheduledAlarmDate, normalDate: summary.normalAlarmDate)
+        try await notificationScheduler.scheduleAlarm(at: summary.scheduledAlarmDate, normalAlarmDate: summary.normalAlarmDate,
+            weekdays: snapshot.selectedWeekdays, sound: selectedSound.sound, soundFileNameOverride: selectedSound.fileNameOverride,
+            snoozeMinutes: snapshot.effectiveSnoozeMinutes, title: String(localized: "notification_title"), body: String(localized: "notification_body_normal"))
+        scheduledAlarmSummary = summary
+        scheduledFingerprint = snapshot.scheduleFingerprint()
+        updateScheduleStaleness()
+        statusMessage = String(localized: "status_alarm_scheduled")
+        BackgroundWeatherRefresh.scheduleNextRun(before: summary.weatherRefreshDate)
+        await CalendarCoverageReminder.cancel()
+        await replanEveningPreviews(requestingAuthorization: true)
+    }
+
+    private func registerCalendar(settings snapshot: CommuteAlarmSettings, refreshWeather: Bool) async throws {
+        let now = Date()
+        let previous = scheduledAlarmSummary
+        var plan = CalendarAlarmPlan.make(settings: snapshot, holidays: holidayCalendar, rain: false, now: now, days: Self.calendarHorizonDays)
+        if let previous, previous.scheduledAlarmDate <= now, now < previous.normalAlarmDate {
+            plan.occurrences.removeAll { $0.normalDate == previous.normalAlarmDate }
+        }
+        let appliedFeed = disasterRefreshFailed ? nil : disasterFeed
+        let filtered = DisasterAlarmPlan.filtering(plan, settings: snapshot,
+            feed: appliedFeed, now: now)
+        plan = filtered.plan
+        var next = plan.occurrences.first
+        var probability = 0.0
+        var rain = false
+        var place: String?
+        var checkedAt: Date?
+        var forecastDate: Date?
+        if let next, let previous,
+           previous.calendarForecastDate == next.normalDate || (previous.calendarPlan == nil && previous.normalAlarmDate == next.normalDate) {
+            forecastDate = next.normalDate
+            probability = previous.maximumPrecipitationProbability
+            rain = probability >= snapshot.rainProbabilityThreshold
+            place = previous.wettestSegmentName
+        }
+        if refreshWeather, let next {
+            do {
+                let checkDate = next.normalDate.addingTimeInterval(Double(-snapshot.rainLeadTimeMinutes * 60))
+                let service = routeWeatherService
+                let timeout = calendarWeatherTimeout
+                let weather = try await withThrowingTaskGroup(of: RouteWeatherSnapshot.self) { group in
+                    group.addTask {
+                        try await service.fetchRouteWeather(from: snapshot.homeAddress, homeLocation: snapshot.homeResolvedLocation,
+                            to: snapshot.workAddress, workLocation: snapshot.workResolvedLocation, mode: snapshot.commuteMode, around: checkDate)
+                    }
+                    group.addTask {
+                        try await Task.sleep(for: timeout)
+                        throw URLError(.timedOut)
+                    }
+                    defer { group.cancelAll() }
+                    return try await group.next()!
+                }
+                probability = weather.maximumPrecipitationProbability
+                rain = weather.exceedsRainThreshold(snapshot.rainProbabilityThreshold)
+                place = weather.segments.max { $0.precipitationProbability < $1.precipitationProbability }?.name
+                checkedAt = weather.checkedAt
+                forecastDate = next.normalDate
+                routeWeatherSnapshot = weather
+            } catch {
+                try Task.checkCancellation()
+                // Date exceptions still apply when the forecast cannot update.
+            }
+        }
+        // Network work may have crossed the normal alarm minute. Never submit a
+        // fixed alarm in the past or attach that forecast to the following day.
+        plan.occurrences.removeAll { $0.ringDate <= Date() }
+        next = plan.occurrences.first
+        if forecastDate != next?.normalDate {
+            forecastDate = nil; rain = false; probability = 0; place = nil
+        }
+        // Only the next occurrence has a forecast; later dates retain normal time
+        // until a foreground/background run evaluates their own morning.
+        if rain, let next {
+            let earlier = next.normalDate.addingTimeInterval(Double(-snapshot.rainLeadTimeMinutes * 60))
+            if earlier > Date() { plan.occurrences[0].ringDate = earlier } else { rain = false }
+        }
+        plan.applySounds(from: snapshot)
+        try await notificationScheduler.scheduleCalendar(plan, sound: snapshot.alarmSound, soundFileNameOverride: snapshot.soundFileNameOverride,
+            snoozeMinutes: snapshot.effectiveSnoozeMinutes, title: String(localized: "notification_title"), body: String(localized: "notification_body_normal"))
+        let normal = next?.normalDate ?? plan.coveredUntil
+        let summary = ScheduledAlarmSummary(normalAlarmDate: normal, scheduledAlarmDate: plan.occurrences.first?.ringDate ?? normal,
+            weatherRefreshDate: normal.addingTimeInterval(Double(-snapshot.rainLeadTimeMinutes * 60)), exceedsRainThreshold: rain,
+            leadTimeMinutes: rain ? snapshot.rainLeadTimeMinutes : 0, rainProbabilityThreshold: snapshot.rainProbabilityThreshold,
+            maximumPrecipitationProbability: probability, wettestSegmentName: place, calendarPlan: plan, calendarForecastDate: forecastDate)
+        var committedSummary = summary
+        committedSummary.disasterSkips = filtered.skips
+        scheduledAlarmSummary = committedSummary
+        scheduledFingerprint = snapshot.scheduleFingerprint()
+        if let checkedAt { lastWeatherEvaluationAt = checkedAt }
+        updateScheduleStaleness()
+        updateAlarmKitRescheduleNotice()
+        statusMessage = String(localized: plan.occurrences.isEmpty ? "calendar_all_silent" : "calendar_schedule_saved")
+        let nextRefresh = min(summary.weatherRefreshDate, now.addingTimeInterval(24 * 3_600))
+        BackgroundWeatherRefresh.scheduleNextRun(before: nextRefresh, now: now)
+        await replanEveningPreviews(requestingAuthorization: !isRunningUnattended, summary: committedSummary, settings: snapshot, now: now)
+        await CalendarCoverageReminder.replace(coveredUntil: plan.coveredUntil)
+        if isRunningUnattended, snapshot.isEveningPreviewEnabled, let previous,
+           Calendar.current.isDate(previous.normalAlarmDate, equalTo: normal, toGranularity: .minute),
+           abs(previous.scheduledAlarmDate.timeIntervalSince(summary.scheduledAlarmDate)) >= 60 {
+            await previewScheduler.notifyDecisionChange(.init(normalAlarmDate: normal, previousRingDate: previous.scheduledAlarmDate,
+                newRingDate: summary.scheduledAlarmDate, maximumProbability: probability, threshold: snapshot.rainProbabilityThreshold, place: place, timeFormat: settings.timeFormat))
+        }
+        await reportDisasterSync(feed: appliedFeed, committedDuringScheduling: true)
+    }
+
     private func nextWeatherCheckDate(for settings: CommuteAlarmSettings, now: Date = Date()) -> Date {
-        AlarmTimeCalculator.nextAlarmDateForWeatherCheck(
+        if settings.usesDatedSchedule {
+            let plan = CalendarAlarmPlan.make(settings: settings, holidays: holidayCalendar, rain: true, now: now, days: Self.calendarHorizonDays)
+            return plan.occurrences.first?.ringDate ?? now.addingTimeInterval(24 * 3_600)
+        }
+        return AlarmTimeCalculator.nextAlarmDateForWeatherCheck(
             alarmTime: settings.alarmTime,
             leadTimeMinutes: settings.rainLeadTimeMinutes,
             shouldApplyLeadTime: false,

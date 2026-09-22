@@ -1,9 +1,7 @@
 import XCTest
 @testable import RainyClock
 
-/// Covers the 1.6.3 sync contract: parameter edits silently re-register the alarm,
-/// address edits remove it until the user explicitly reschedules, and the alarm
-/// that ends up registered always matches exactly one fingerprint.
+/// Covers explicit scheduling and the foreground UI's automatic scheduling flow.
 @MainActor
 final class AlarmViewModelSchedulingTests: XCTestCase {
     private var storage: UserDefaults!
@@ -32,6 +30,152 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         return viewModel
     }
 
+    private func makeAutomaticViewModel(spy: SchedulerSpy, confirmed: Bool = true) -> AlarmViewModel {
+        let model = AlarmViewModel(routeWeatherService: MockRouteWeatherService(),
+            routePreviewService: AutomaticRoutePreview(), notificationScheduler: spy,
+            previewScheduler: AutomaticPreviewScheduler(), settingsStorage: storage,
+            autoRefreshDebounce: .milliseconds(80))
+        if confirmed {
+            model.setAddressFromSuggestion("Home Street 1", location: AutomaticRoutePreview.home, field: .home)
+            model.setAddressFromSuggestion("Work Street 2", location: AutomaticRoutePreview.work, field: .work)
+        } else {
+            model.settings.homeAddress = "Home Street 1"
+            model.settings.workAddress = "Work Street 2"
+        }
+        return model
+    }
+
+    func testConfirmedRouteOnlyCreatesInitialAlarmAfterForegroundActivation() async throws {
+        let spy = SchedulerSpy()
+        let model = makeAutomaticViewModel(spy: spy)
+        model.settings.snoozeDurationMinutes = 9
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(spy.authorizationCalls, 0)
+
+        model.activateAutomaticScheduling()
+        model.activateAutomaticScheduling()
+        try await waitUntil("initial automatic alarm") { model.hasScheduledAlarm && !model.isScheduling }
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
+        XCTAssertEqual(spy.scheduleCalls.first?.snoozeMinutes, 9)
+        XCTAssertNil(model.scheduleErrorMessage)
+    }
+
+    func testWetWeeklyAlarmUsesEarlySoundAndDryAlarmUsesNormalSound() async throws {
+        for rainy in [true, false] {
+            let spy = SchedulerSpy()
+            let model = makeViewModel(spy: spy)
+            model.settings.homeAddress = rainy ? "Rain Street" : "Clear Street"
+            model.settings.alarmTime = Date().addingTimeInterval(3 * 3_600)
+            model.settings.alarmSound = .softPiano
+            model.settings.earlyAlarmSound = .digitalBeep
+            await model.evaluateRouteAndScheduleAlarm()
+            let call = try XCTUnwrap(spy.scheduleCalls.first)
+            XCTAssertEqual(call.sound, rainy ? .digitalBeep : .softPiano)
+            XCTAssertEqual(call.soundFileNameOverride, rainy ? "DigitalBeep.wav" : "SoftPiano.wav")
+            XCTAssertEqual(call.date < call.normalAlarmDate, rainy)
+        }
+    }
+
+    func testZeroLeadTimeRemainsInvalidAndDoesNotRegisterEitherSound() async {
+        let spy = SchedulerSpy()
+        let model = makeViewModel(spy: spy)
+        model.settings.homeAddress = "Rain Street"
+        model.settings.rainLeadTimeMinutes = 0
+        model.settings.alarmSound = .softPiano
+        model.settings.earlyAlarmSound = .digitalBeep
+        XCTAssertFalse(model.canSchedule)
+        await model.evaluateRouteAndScheduleAlarm()
+        XCTAssertTrue(spy.scheduleCalls.isEmpty)
+        XCTAssertFalse(model.hasScheduledAlarm)
+    }
+
+    func testDraftAndUnconfirmedPreviewNeverAutomaticallyArm() async throws {
+        let spy = SchedulerSpy()
+        let model = makeAutomaticViewModel(spy: spy, confirmed: false)
+        model.activateAutomaticScheduling()
+        model.settings.rainLeadTimeMinutes = 20
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(spy.authorizationCalls, 0)
+
+        await model.previewRoute()
+        model.confirmSuggestedAddress(.home)
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(spy.authorizationCalls, 0)
+        XCTAssertTrue(model.requiresSuggestedAddressConfirmation)
+
+        model.confirmSuggestedAddress(.work)
+        try await waitUntil("both addresses confirmed") { model.hasScheduledAlarm && !model.isScheduling }
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
+    }
+
+    func testAddressEditRemovesOldAlarmThenConfirmationAutomaticallyRearms() async throws {
+        let spy = SchedulerSpy()
+        let model = makeAutomaticViewModel(spy: spy)
+        model.activateAutomaticScheduling()
+        try await waitUntil("initial alarm") { model.hasScheduledAlarm && !model.isScheduling }
+
+        model.settings.homeAddress = "A new draft"
+        try await waitUntil("old route removed") { !model.hasScheduledAlarm }
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
+        XCTAssertEqual(spy.cancelCount, 1)
+
+        await model.previewRoute()
+        model.confirmSuggestedAddress(.home)
+        try await waitUntil("replacement route armed") { spy.scheduleCalls.count == 2 && !model.isScheduling }
+        XCTAssertEqual(model.settings.homeAddress, "A new draft")
+        XCTAssertTrue(model.hasScheduledAlarm)
+        XCTAssertFalse(model.isScheduleStale)
+    }
+
+    func testFailedAutomaticRegistrationDoesNotLoopAndARelevantEditRetries() async throws {
+        let spy = SchedulerSpy()
+        spy.scheduleFailure = TestError.registrationRejected
+        let model = makeAutomaticViewModel(spy: spy)
+        model.activateAutomaticScheduling()
+        try await waitUntil("automatic registration failure") { model.scheduleErrorMessage != nil && !model.isScheduling }
+        XCTAssertFalse(model.hasScheduledAlarm)
+        model.activateAutomaticScheduling()
+        model.settings.timeFormat = .twentyFourHour
+        await model.previewRoute()
+        try await Task.sleep(for: .milliseconds(650))
+        XCTAssertEqual(spy.authorizationCalls, 1)
+
+        spy.scheduleFailure = nil
+        model.settings.rainLeadTimeMinutes += 5
+        try await waitUntil("edited settings retried") { model.hasScheduledAlarm && !model.isScheduling }
+        XCTAssertEqual(spy.authorizationCalls, 2)
+        XCTAssertNil(model.scheduleErrorMessage)
+    }
+
+    func testClearingEveryWeekdayTurnsOffAndSelectingADayRearms() async throws {
+        let spy = SchedulerSpy()
+        let model = makeAutomaticViewModel(spy: spy)
+        model.activateAutomaticScheduling()
+        try await waitUntil("initial alarm") { model.hasScheduledAlarm && !model.isScheduling }
+        let originalWeekdays = model.settings.selectedWeekdays
+        model.settings.selectedWeekdays = []
+        try await waitUntil("all days disabled") { !model.hasScheduledAlarm }
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
+        model.settings.selectedWeekdays = originalWeekdays
+        try await waitUntil("weekday reenabled") { spy.scheduleCalls.count == 2 && !model.isScheduling }
+        XCTAssertEqual(spy.scheduleCalls.last?.weekdays, originalWeekdays)
+    }
+
+    func testPermissionFailureIsExposedAndManualRetryClearsIt() async throws {
+        let spy = SchedulerSpy()
+        spy.isAuthorized = false
+        let model = makeAutomaticViewModel(spy: spy)
+        model.activateAutomaticScheduling()
+        try await waitUntil("permission failure") { model.scheduleErrorMessage != nil && !model.isScheduling }
+        XCTAssertFalse(model.hasScheduledAlarm)
+        spy.isAuthorized = true
+        await model.evaluateRouteAndScheduleAlarm()
+        XCTAssertTrue(model.hasScheduledAlarm)
+        XCTAssertNil(model.scheduleErrorMessage)
+    }
+
     func testParameterChangeAutoRefreshesTheScheduledAlarm() async throws {
         let spy = SchedulerSpy()
         let viewModel = makeViewModel(spy: spy)
@@ -43,11 +187,31 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         viewModel.settings.snoozeDurationMinutes = 9
 
         try await waitUntil("auto refresh re-registered the alarm") {
-            spy.scheduleCalls.count == 2
+            // The spy records the request before its async method returns.
+            // Wait for the view model to publish the completed registration.
+            spy.scheduleCalls.count == 2 && !viewModel.isScheduling
         }
         XCTAssertEqual(spy.scheduleCalls.last?.snoozeMinutes, 9)
         XCTAssertFalse(viewModel.isScheduleStale)
         XCTAssertEqual(spy.cancelCount, 0)
+    }
+
+    func testTimeFormatImmediatelyUpdatesWeatherStatusWithoutChangingAlarm() async throws {
+        let spy = SchedulerSpy()
+        let viewModel = makeViewModel(spy: spy)
+        await viewModel.evaluateRouteAndScheduleAlarm()
+        let snapshot = try XCTUnwrap(viewModel.routeWeatherSnapshot)
+        let twelveHourStatus = viewModel.statusMessage
+        let originalSummary = viewModel.scheduledAlarmSummary
+        XCTAssertTrue(twelveHourStatus.contains(ClockTimeFormat.twelveHour.dateTime(snapshot.forecastAt)))
+
+        viewModel.settings.timeFormat = .twentyFourHour
+        XCTAssertNotEqual(viewModel.statusMessage, twelveHourStatus)
+        XCTAssertTrue(viewModel.statusMessage.contains(ClockTimeFormat.twentyFourHour.dateTime(snapshot.forecastAt)))
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
+        XCTAssertEqual(viewModel.scheduledAlarmSummary, originalSummary)
+        XCTAssertFalse(viewModel.isScheduleStale)
     }
 
     func testAddressChangeRemovesTheAlarmInsteadOfRefreshing() async throws {
@@ -209,6 +373,14 @@ private final class SchedulerSpy: NotificationScheduling, @unchecked Sendable {
     private var storedScheduleCalls: [ScheduleCall] = []
     private var storedCancelCount = 0
     private var storedScheduleFailure: Error?
+    private var storedAuthorizationCalls = 0
+    private var storedIsAuthorized = true
+
+    var authorizationCalls: Int { lock.withLock { storedAuthorizationCalls } }
+    var isAuthorized: Bool {
+        get { lock.withLock { storedIsAuthorized } }
+        set { lock.withLock { storedIsAuthorized = newValue } }
+    }
 
     /// Set to make the next registration throw, standing in for AlarmKit or
     /// `UNUserNotificationCenter` refusing the alarm.
@@ -226,7 +398,10 @@ private final class SchedulerSpy: NotificationScheduling, @unchecked Sendable {
     }
 
     func requestAuthorization() async throws -> Bool {
-        true
+        lock.withLock {
+            storedAuthorizationCalls += 1
+            return storedIsAuthorized
+        }
     }
 
     func scheduleAlarm(
@@ -262,4 +437,32 @@ private final class SchedulerSpy: NotificationScheduling, @unchecked Sendable {
             storedCancelCount += 1
         }
     }
+}
+
+@MainActor
+private struct AutomaticRoutePreview: RoutePreviewService {
+    static let home = ResolvedMapLocation(latitude: 25.03, longitude: 121.56,
+        displayAddress: "Home Street 1", resolution: .exact)
+    static let work = ResolvedMapLocation(latitude: 25.05, longitude: 121.52,
+        displayAddress: "Work Street 2", resolution: .exact)
+
+    func previewRoute(from homeAddress: String, homeLocation: ResolvedMapLocation?,
+        to workAddress: String, workLocation: ResolvedMapLocation?,
+        mode: CommuteAlarmSettings.CommuteMode) async throws -> RoutePreview {
+        var home = homeLocation ?? Self.home
+        var work = workLocation ?? Self.work
+        home.displayAddress = homeAddress
+        work.displayAddress = workAddress
+        return RoutePreview(homeCoordinate: home.coordinate, workCoordinate: work.coordinate,
+            homeLocation: home, workLocation: work, route: nil)
+    }
+}
+
+private struct AutomaticPreviewScheduler: EveningPreviewScheduling {
+    func authorizationStatus() async -> EveningPreviewAuthorization { .authorized }
+    func requestAuthorization() async -> Bool { true }
+    func replacePreviews(_ previews: [EveningPreview]) async {}
+    func cancelPreviews() async {}
+    func showSample(_ preview: EveningPreview) async {}
+    func notifyDecisionChange(_ change: AlarmDecisionChange) async {}
 }

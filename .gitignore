@@ -23,3 +23,12 @@ build/
 # itself lives in ~/.config/rainyclock/, outside the working tree.
 *.p8
 DerivedDataDevice/
+
+# Backend dependencies and local emulator state; no production credentials.
+weather-proxy/node_modules/
+weather-proxy/.env*
+weather-proxy/*debug.log
+weather-proxy/.firebase/
+
+# Duplicate archives of the variant PNGs beside them; docs/ is published, keep it lean.
+docs/weather-variants-*/*.zip

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2E69EE8E535B5134A640C71B /* MapKitRouteWeatherConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6D08A04FFD3CFBE372F71C /* MapKitRouteWeatherConcurrencyTests.swift */; };
+		4B06DA9FA2EFC88785EB9038 /* CommuteWeatherCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B1778DF5CA6C6C8A77EFFB /* CommuteWeatherCard.swift */; };
 		01D38ACAF517A7C2D707E95E /* RewardedAdController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AD002638D80D3B245F91C05 /* RewardedAdController.swift */; };
 		055C98A97C952DCC1CC69CC0 /* preview-gentle-en.m4a in Resources */ = {isa = PBXBuildFile; fileRef = EF02EAB9B27600D9E3C12FA1 /* preview-gentle-en.m4a */; };
 		05874822BCC1F7733B2BEE1F /* preview-sergeant-en.m4a in Resources */ = {isa = PBXBuildFile; fileRef = BD49BAED1D38DE6ABCBCAB8E /* preview-sergeant-en.m4a */; };
@@ -81,6 +83,42 @@
 		E02AA2444353D39C4B42A1E9 /* GeneratedVoiceAssemblerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9606BA5A5CBAB2AB6039C090 /* GeneratedVoiceAssemblerTests.swift */; };
 		F78A594DA66B7682BD358744 /* preview-mom-zh.m4a in Resources */ = {isa = PBXBuildFile; fileRef = BEF28F46540B76D9879B6DA7 /* preview-mom-zh.m4a */; };
 		F7F9A507A2726D0344BDA3B7 /* AlarmViewModelSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C8C3492E7E1E5211E865AC /* AlarmViewModelSchedulingTests.swift */; };
+		67664C1679824F549620C8C2 /* AlarmCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D88150359A4C4BFAB18D9387 /* AlarmCalendar.swift */; };
+		347C7D176046FFDF11C42ECF /* TomorrowAlarmStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB13F2ED53F8ACAC7B0614E7 /* TomorrowAlarmStatus.swift */; };
+		41B6019EF16B4568AAB5EACE /* holidays-2026.csv in Resources */ = {isa = PBXBuildFile; fileRef = ABCB28AFABF0447EAD130835 /* holidays-2026.csv */; };
+		A6B0F442C27D4EF487A9EF11 /* holidays-2027.csv in Resources */ = {isa = PBXBuildFile; fileRef = 6B8E087BD62645968E5ADC0A /* holidays-2027.csv */; };
+		6AE2DA1205964423B91E6927 /* holiday-sources.json in Resources */ = {isa = PBXBuildFile; fileRef = D18F3C1D8B414AD782438C15 /* holiday-sources.json */; };
+		AAE49BA13E13482CB4EE5A03 /* taiwan-districts.json in Resources */ = {isa = PBXBuildFile; fileRef = A8D38FD7936C462E8087F59E /* taiwan-districts.json */; };
+		C73BA4941F41415199204F27 /* taiwan-townships.geojson in Resources */ = {isa = PBXBuildFile; fileRef = 07E5CD29252F41B4AE24C323 /* taiwan-townships.geojson */; };
+		A1E1B2389F5D4EA2A77D1549 /* AlarmCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC478AD2838B46E7AA4C980F /* AlarmCalendarTests.swift */; };
+		E531F97C99456938421950DD /* DisasterRouteRegionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 524D666A0225DF4675D4379A /* DisasterRouteRegionTests.swift */; };
+		458B706D6F013F77F1A3D937 /* TomorrowAlarmStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83A3396B9A5FC852AF30E11E /* TomorrowAlarmStatusTests.swift */; };
+		397187DB34F24195B40332A7 /* SettingsCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 940BC0BD776A4E1CA33BF369 /* SettingsCalendarView.swift */; };
+		6BAF6997A43C49D2B958B804 /* DisasterSuspension.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAB6B006C9443C388B4BC1B /* DisasterSuspension.swift */; };
+		1FD0A8B8B1B3432D95620B57 /* DisasterAlarmPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09F2856AEBC649E29CF1015D /* DisasterAlarmPlan.swift */; };
+		474E75413A37466BBB6F6573 /* DisasterPushRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C4E8272377A459094E870B8 /* DisasterPushRegistration.swift */; };
+		9244C55278B14DE78405F3DC /* DisasterSyncReceipt.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17D016D1C2249D38CB3306B /* DisasterSyncReceipt.swift */; };
+		A806D64BFCC4462380BD992E /* TaiwanDisasterMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B3D0600F9C1432BAA565C90 /* TaiwanDisasterMap.swift */; };
+		41D44D574F9E458E8F211BD7 /* DisasterMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4818466D8AB1463AAACDC293 /* DisasterMapView.swift */; };
+		0D209CC29ECF43D8B3402848 /* DisasterMapStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2E3864C9B7F4CDDAB3D17DC /* DisasterMapStatus.swift */; };
+		F4BB652E57BD42428208BB0D /* DisasterSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4FBFEB6E654F098455B551 /* DisasterSettingsView.swift */; };
+		1944CE10E63E4AB1A100ED00 /* DisasterSuspensionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFE1A889960F43859158FC22 /* DisasterSuspensionTests.swift */; };
+		21C1B31823A64159AD4155C3 /* DisasterIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA6D7E56C91429E9C763402 /* DisasterIntegrationTests.swift */; };
+		BEADA7DC3DAA48CF95C11D36 /* DisasterSyncReceiptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5175751FACE4FE38B2C9A99 /* DisasterSyncReceiptTests.swift */; };
+		5E07AA7284634FFA9A6BD5E2 /* TaiwanDisasterMapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E0ACD7F55434A20B5735CCC /* TaiwanDisasterMapTests.swift */; };
+		58AD176CA3094FD785ABCD05 /* DisasterMapStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F41EAE325524260AB9CE8DE /* DisasterMapStatusTests.swift */; };
+		1F803FB23E9444D898C072E3 /* MembershipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50288D41C3C74D16BED2D80D /* MembershipView.swift */; };
+		C1689447CDF54A888C42E491 /* MembershipModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09057D991C894C34A23AD5AF /* MembershipModels.swift */; };
+		4AA3B53907D742FE842E6367 /* MembershipLegacyPriceProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E58C0C1FE441E8BE01C9B /* MembershipLegacyPriceProbe.swift */; };
+		2E5F94BE8B7D4458850C5D95 /* MembershipSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A8BE989A8944C9FB116A340 /* MembershipSecurity.swift */; };
+		2F877E6B44674DDDA5F04A8C /* MembershipClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05771F955DCB42D5A27D9D37 /* MembershipClient.swift */; };
+		8F2DC58540964EDABA9E658B /* MembershipManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA601E07485145F3AC82B702 /* MembershipManager.swift */; };
+		E7CE6E8A17D7416586EF18D6 /* MembershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904B2BF979344A6ABB930E70 /* MembershipTests.swift */; };
+		38ABA2C657074798B222B397 /* MembershipLegacyPriceProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2C65ECC2D44837BE727569 /* MembershipLegacyPriceProbeTests.swift */; };
+		D2021DA3D3554571956F9CCC /* MembershipRewardFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51FB23E7585B47E485E9D91C /* MembershipRewardFlow.swift */; };
+		00145F4219C44BA1A4258D73 /* MembershipStoreKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9DD135B1874EC8AD51B279 /* MembershipStoreKitTests.swift */; };
+		637B2885F7A34C9299B06A6E /* RainyClockMembership.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 7154F44B61E340CB96450D9D /* RainyClockMembership.storekit */; };
+		8E2D4EB82DB145A3AB8D562C /* MembershipVoiceGeneration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1547AF7021B465DA576E51D /* MembershipVoiceGeneration.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -115,6 +153,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		AC6D08A04FFD3CFBE372F71C /* MapKitRouteWeatherConcurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapKitRouteWeatherConcurrencyTests.swift; sourceTree = "<group>"; };
+		A3B1778DF5CA6C6C8A77EFFB /* CommuteWeatherCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommuteWeatherCard.swift; sourceTree = "<group>"; };
 		07A5A9EAEA066F80FAC943D3 /* GeneratedVoiceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GeneratedVoiceStore.swift; sourceTree = "<group>"; };
 		0A1000112C00000000000001 /* RainyClockApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RainyClockApp.swift; sourceTree = "<group>"; };
 		0A1000122C00000000000001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -192,6 +232,42 @@
 		FDA82D02716704A4024FBA29 /* AlarmSchedulingSettingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AlarmSchedulingSettingsTests.swift; sourceTree = "<group>"; };
 		0A1000AD2C0000000000AD01 /* AdReportTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AdReportTests.swift; sourceTree = "<group>"; };
 		0A1000AD2C0000000000AD05 /* AIVoiceQuotaTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AIVoiceQuotaTests.swift; sourceTree = "<group>"; };
+		D88150359A4C4BFAB18D9387 /* AlarmCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AlarmCalendar.swift"; sourceTree = "<group>"; };
+		AB13F2ED53F8ACAC7B0614E7 /* TomorrowAlarmStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowAlarmStatus.swift; sourceTree = "<group>"; };
+		ABCB28AFABF0447EAD130835 /* holidays-2026.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/holidays-2026.csv"; sourceTree = "<group>"; };
+		6B8E087BD62645968E5ADC0A /* holidays-2027.csv */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/holidays-2027.csv"; sourceTree = "<group>"; };
+		D18F3C1D8B414AD782438C15 /* holiday-sources.json */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/holiday-sources.json"; sourceTree = "<group>"; };
+		A8D38FD7936C462E8087F59E /* taiwan-districts.json */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/taiwan-districts.json"; sourceTree = "<group>"; };
+		07E5CD29252F41B4AE24C323 /* taiwan-townships.geojson */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Resources/taiwan-townships.geojson"; sourceTree = "<group>"; };
+		AC478AD2838B46E7AA4C980F /* AlarmCalendarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmCalendarTests.swift; sourceTree = "<group>"; };
+		524D666A0225DF4675D4379A /* DisasterRouteRegionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisasterRouteRegionTests.swift; sourceTree = "<group>"; };
+		83A3396B9A5FC852AF30E11E /* TomorrowAlarmStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowAlarmStatusTests.swift; sourceTree = "<group>"; };
+		940BC0BD776A4E1CA33BF369 /* SettingsCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCalendarView.swift; sourceTree = "<group>"; };
+		ADAB6B006C9443C388B4BC1B /* DisasterSuspension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClock/Services/DisasterSuspension.swift"; sourceTree = SOURCE_ROOT; };
+		09F2856AEBC649E29CF1015D /* DisasterAlarmPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClock/Services/DisasterAlarmPlan.swift"; sourceTree = SOURCE_ROOT; };
+		6C4E8272377A459094E870B8 /* DisasterPushRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClock/Services/DisasterPushRegistration.swift"; sourceTree = SOURCE_ROOT; };
+		F17D016D1C2249D38CB3306B /* DisasterSyncReceipt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClock/Services/DisasterSyncReceipt.swift"; sourceTree = SOURCE_ROOT; };
+		8B3D0600F9C1432BAA565C90 /* TaiwanDisasterMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClock/TaiwanDisasterMap.swift"; sourceTree = SOURCE_ROOT; };
+		4818466D8AB1463AAACDC293 /* DisasterMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClock/DisasterMapView.swift"; sourceTree = SOURCE_ROOT; };
+		B2E3864C9B7F4CDDAB3D17DC /* DisasterMapStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClock/Services/DisasterMapStatus.swift"; sourceTree = SOURCE_ROOT; };
+		CE4FBFEB6E654F098455B551 /* DisasterSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClock/DisasterSettingsView.swift"; sourceTree = SOURCE_ROOT; };
+		FFE1A889960F43859158FC22 /* DisasterSuspensionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClockTests/DisasterSuspensionTests.swift"; sourceTree = SOURCE_ROOT; };
+		CEA6D7E56C91429E9C763402 /* DisasterIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClockTests/DisasterIntegrationTests.swift"; sourceTree = SOURCE_ROOT; };
+		F5175751FACE4FE38B2C9A99 /* DisasterSyncReceiptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClockTests/DisasterSyncReceiptTests.swift"; sourceTree = SOURCE_ROOT; };
+		8E0ACD7F55434A20B5735CCC /* TaiwanDisasterMapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClockTests/TaiwanDisasterMapTests.swift"; sourceTree = SOURCE_ROOT; };
+		9F41EAE325524260AB9CE8DE /* DisasterMapStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClockTests/DisasterMapStatusTests.swift"; sourceTree = SOURCE_ROOT; };
+		50288D41C3C74D16BED2D80D /* MembershipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipView.swift; sourceTree = "<group>"; };
+		09057D991C894C34A23AD5AF /* MembershipModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipModels.swift; sourceTree = "<group>"; };
+		7C4E58C0C1FE441E8BE01C9B /* MembershipLegacyPriceProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipLegacyPriceProbe.swift; sourceTree = "<group>"; };
+		0A8BE989A8944C9FB116A340 /* MembershipSecurity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipSecurity.swift; sourceTree = "<group>"; };
+		05771F955DCB42D5A27D9D37 /* MembershipClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipClient.swift; sourceTree = "<group>"; };
+		EA601E07485145F3AC82B702 /* MembershipManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipManager.swift; sourceTree = "<group>"; };
+		904B2BF979344A6ABB930E70 /* MembershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipTests.swift; sourceTree = "<group>"; };
+		7B2C65ECC2D44837BE727569 /* MembershipLegacyPriceProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipLegacyPriceProbeTests.swift; sourceTree = "<group>"; };
+		51FB23E7585B47E485E9D91C /* MembershipRewardFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipRewardFlow.swift; sourceTree = "<group>"; };
+		BE9DD135B1874EC8AD51B279 /* MembershipStoreKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipStoreKitTests.swift; sourceTree = "<group>"; };
+		7154F44B61E340CB96450D9D /* RainyClockMembership.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Configuration/RainyClockMembership.storekit; sourceTree = SOURCE_ROOT; };
+		E1547AF7021B465DA576E51D /* MembershipVoiceGeneration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipVoiceGeneration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -235,9 +311,12 @@
 		0A1000312C00000000000001 /* RainyClock */ = {
 			isa = PBXGroup;
 			children = (
+				50288D41C3C74D16BED2D80D /* MembershipView.swift */,
 				0A1000112C00000000000001 /* RainyClockApp.swift */,
 				0A1000922C00000000000002 /* AppEnvironment.swift */,
 				0A1000122C00000000000001 /* ContentView.swift */,
+				A3B1778DF5CA6C6C8A77EFFB /* CommuteWeatherCard.swift */,
+				940BC0BD776A4E1CA33BF369 /* SettingsCalendarView.swift */,
 				0A1000F02C00000000000005 /* LevelPlayBannerView.swift */,
 				0A1000F82C00000000000005 /* AdConsentSheet.swift */,
 				0A1000A02C00000000000003 /* PrivacyInfo.xcprivacy */,
@@ -273,6 +352,11 @@
 				A0D3D02201171DF13F744C9A /* preview-sergeant-zh.m4a */,
 				8609FAE441DF3D157DF646BD /* preview-steady-en.m4a */,
 				DDC50EA36C988E419DE6D554 /* preview-steady-zh.m4a */,
+				ABCB28AFABF0447EAD130835 /* holidays-2026.csv */,
+				6B8E087BD62645968E5ADC0A /* holidays-2027.csv */,
+				D18F3C1D8B414AD782438C15 /* holiday-sources.json */,
+				A8D38FD7936C462E8087F59E /* taiwan-districts.json */,
+				07E5CD29252F41B4AE24C323 /* taiwan-townships.geojson */,
 			);
 			path = RainyClock;
 			sourceTree = "<group>";
@@ -300,6 +384,13 @@
 		0A1000342C00000000000001 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				E1547AF7021B465DA576E51D /* MembershipVoiceGeneration.swift */,
+				51FB23E7585B47E485E9D91C /* MembershipRewardFlow.swift */,
+				EA601E07485145F3AC82B702 /* MembershipManager.swift */,
+				05771F955DCB42D5A27D9D37 /* MembershipClient.swift */,
+				0A8BE989A8944C9FB116A340 /* MembershipSecurity.swift */,
+				09057D991C894C34A23AD5AF /* MembershipModels.swift */,
+				7C4E58C0C1FE441E8BE01C9B /* MembershipLegacyPriceProbe.swift */,
 				0A1000142C00000000000001 /* AlarmTimeCalculator.swift */,
 				0A1001012C00000000000009 /* ConsentManager.swift */,
 				0A1000F32C00000000000008 /* GooglePlaceResolver.swift */,
@@ -320,6 +411,16 @@
 				0A1000AD2C0000000000AD07 /* EveningPreview.swift */,
 				3AD002638D80D3B245F91C05 /* RewardedAdController.swift */,
 				C21DFB581C278C05ABFA0647 /* AdReport.swift */,
+				D88150359A4C4BFAB18D9387 /* AlarmCalendar.swift */,
+				AB13F2ED53F8ACAC7B0614E7 /* TomorrowAlarmStatus.swift */,
+				CE4FBFEB6E654F098455B551 /* DisasterSettingsView.swift */,
+				6C4E8272377A459094E870B8 /* DisasterPushRegistration.swift */,
+				F17D016D1C2249D38CB3306B /* DisasterSyncReceipt.swift */,
+				8B3D0600F9C1432BAA565C90 /* TaiwanDisasterMap.swift */,
+				4818466D8AB1463AAACDC293 /* DisasterMapView.swift */,
+				B2E3864C9B7F4CDDAB3D17DC /* DisasterMapStatus.swift */,
+				09F2856AEBC649E29CF1015D /* DisasterAlarmPlan.swift */,
+				ADAB6B006C9443C388B4BC1B /* DisasterSuspension.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -335,11 +436,24 @@
 		0A1000482C00000000000002 /* RainyClockTests */ = {
 			isa = PBXGroup;
 			children = (
+				7154F44B61E340CB96450D9D /* RainyClockMembership.storekit */,
+				BE9DD135B1874EC8AD51B279 /* MembershipStoreKitTests.swift */,
+				904B2BF979344A6ABB930E70 /* MembershipTests.swift */,
+				7B2C65ECC2D44837BE727569 /* MembershipLegacyPriceProbeTests.swift */,
 				0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */,
 				0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */,
 				0A1000AD2C0000000000AD05 /* AIVoiceQuotaTests.swift */,
 				0A1000AD2C0000000000AD0B /* AlarmDecisionChangeTests.swift */,
 				0A1000AD2C0000000000AD09 /* EveningPreviewPlannerTests.swift */,
+				AC478AD2838B46E7AA4C980F /* AlarmCalendarTests.swift */,
+				524D666A0225DF4675D4379A /* DisasterRouteRegionTests.swift */,
+				83A3396B9A5FC852AF30E11E /* TomorrowAlarmStatusTests.swift */,
+				AC6D08A04FFD3CFBE372F71C /* MapKitRouteWeatherConcurrencyTests.swift */,
+				CEA6D7E56C91429E9C763402 /* DisasterIntegrationTests.swift */,
+				F5175751FACE4FE38B2C9A99 /* DisasterSyncReceiptTests.swift */,
+				8E0ACD7F55434A20B5735CCC /* TaiwanDisasterMapTests.swift */,
+				9F41EAE325524260AB9CE8DE /* DisasterMapStatusTests.swift */,
+				FFE1A889960F43859158FC22 /* DisasterSuspensionTests.swift */,
 				0A1000AD2C0000000000AD01 /* AdReportTests.swift */,
 				FDA82D02716704A4024FBA29 /* AlarmSchedulingSettingsTests.swift */,
 				39C8C3492E7E1E5211E865AC /* AlarmViewModelSchedulingTests.swift */,
@@ -484,6 +598,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				637B2885F7A34C9299B06A6E /* RainyClockMembership.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -491,6 +606,11 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAE49BA13E13482CB4EE5A03 /* taiwan-districts.json in Resources */,
+				C73BA4941F41415199204F27 /* taiwan-townships.geojson in Resources */,
+				6AE2DA1205964423B91E6927 /* holiday-sources.json in Resources */,
+				A6B0F442C27D4EF487A9EF11 /* holidays-2027.csv in Resources */,
+				41B6019EF16B4568AAB5EACE /* holidays-2026.csv in Resources */,
 				0A1000082C00000000000001 /* Assets.xcassets in Resources */,
 				0A1000122C00000000000002 /* AlarmTone.wav in Resources */,
 				0A1000B12C00000000000003 /* RainyClock.wav in Resources */,
@@ -535,11 +655,23 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				00145F4219C44BA1A4258D73 /* MembershipStoreKitTests.swift in Sources */,
+				E7CE6E8A17D7416586EF18D6 /* MembershipTests.swift in Sources */,
+				38ABA2C657074798B222B397 /* MembershipLegacyPriceProbeTests.swift in Sources */,
 				0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */,
 				0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */,
 				0A1000AD2C0000000000AD06 /* AIVoiceQuotaTests.swift in Sources */,
 				0A1000AD2C0000000000AD0C /* AlarmDecisionChangeTests.swift in Sources */,
 				0A1000AD2C0000000000AD0A /* EveningPreviewPlannerTests.swift in Sources */,
+				A1E1B2389F5D4EA2A77D1549 /* AlarmCalendarTests.swift in Sources */,
+				E531F97C99456938421950DD /* DisasterRouteRegionTests.swift in Sources */,
+				458B706D6F013F77F1A3D937 /* TomorrowAlarmStatusTests.swift in Sources */,
+				2E69EE8E535B5134A640C71B /* MapKitRouteWeatherConcurrencyTests.swift in Sources */,
+				21C1B31823A64159AD4155C3 /* DisasterIntegrationTests.swift in Sources */,
+				BEADA7DC3DAA48CF95C11D36 /* DisasterSyncReceiptTests.swift in Sources */,
+				5E07AA7284634FFA9A6BD5E2 /* TaiwanDisasterMapTests.swift in Sources */,
+				58AD176CA3094FD785ABCD05 /* DisasterMapStatusTests.swift in Sources */,
+				1944CE10E63E4AB1A100ED00 /* DisasterSuspensionTests.swift in Sources */,
 				0A1000AD2C0000000000AD02 /* AdReportTests.swift in Sources */,
 				D9AFFD3EDD2005FE2CE06FEC /* AlarmSchedulingSettingsTests.swift in Sources */,
 				F7F9A507A2726D0344BDA3B7 /* AlarmViewModelSchedulingTests.swift in Sources */,
@@ -551,8 +683,28 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8E2D4EB82DB145A3AB8D562C /* MembershipVoiceGeneration.swift in Sources */,
+				D2021DA3D3554571956F9CCC /* MembershipRewardFlow.swift in Sources */,
+				8F2DC58540964EDABA9E658B /* MembershipManager.swift in Sources */,
+				2F877E6B44674DDDA5F04A8C /* MembershipClient.swift in Sources */,
+				2E5F94BE8B7D4458850C5D95 /* MembershipSecurity.swift in Sources */,
+				C1689447CDF54A888C42E491 /* MembershipModels.swift in Sources */,
+				4AA3B53907D742FE842E6367 /* MembershipLegacyPriceProbe.swift in Sources */,
+				1F803FB23E9444D898C072E3 /* MembershipView.swift in Sources */,
+				67664C1679824F549620C8C2 /* AlarmCalendar.swift in Sources */,
+				347C7D176046FFDF11C42ECF /* TomorrowAlarmStatus.swift in Sources */,
+				F4BB652E57BD42428208BB0D /* DisasterSettingsView.swift in Sources */,
+				474E75413A37466BBB6F6573 /* DisasterPushRegistration.swift in Sources */,
+				9244C55278B14DE78405F3DC /* DisasterSyncReceipt.swift in Sources */,
+				A806D64BFCC4462380BD992E /* TaiwanDisasterMap.swift in Sources */,
+				41D44D574F9E458E8F211BD7 /* DisasterMapView.swift in Sources */,
+				0D209CC29ECF43D8B3402848 /* DisasterMapStatus.swift in Sources */,
+				1FD0A8B8B1B3432D95620B57 /* DisasterAlarmPlan.swift in Sources */,
+				6BAF6997A43C49D2B958B804 /* DisasterSuspension.swift in Sources */,
 				0A1000012C00000000000001 /* RainyClockApp.swift in Sources */,
 				0A1000022C00000000000001 /* ContentView.swift in Sources */,
+				4B06DA9FA2EFC88785EB9038 /* CommuteWeatherCard.swift in Sources */,
+				397187DB34F24195B40332A7 /* SettingsCalendarView.swift in Sources */,
 				0A1000F12C00000000000005 /* LevelPlayBannerView.swift in Sources */,
 				0A1000F92C00000000000005 /* AdConsentSheet.swift in Sources */,
 				0A1000032C00000000000001 /* CommuteAlarmSettings.swift in Sources */,
@@ -696,6 +848,68 @@
 			};
 			name = Debug;
 		};
+		E476222B14EA4B33A659E176 /* Debug Sandbox */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = "Debug Sandbox";
+		};
 		0A1000632C00000000000001 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -754,11 +968,12 @@
 		0A1000712C00000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_ATTEST_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = RainyClock/RainyClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = RainyClock/Info.plist;
@@ -767,7 +982,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.6.9;
+				MARKETING_VERSION = 1.7.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClock;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -780,14 +995,15 @@
 			};
 			name = Debug;
 		};
-		0A1000722C00000000000001 /* Release */ = {
+		5E582C7FC2B24DA7A0370191 /* Debug Sandbox */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APP_ATTEST_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = RainyClock/RainyClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = RainyClock/Info.plist;
@@ -796,7 +1012,38 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.6.9;
+				MARKETING_VERSION = 1.7.0;
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClock;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) MEMBERSHIP_SANDBOX";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = "Debug Sandbox";
+		};
+		0A1000722C00000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APP_ATTEST_ENVIRONMENT = production;
+				ASSETCATALOG_COMPILER_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = RainyClock/RainyClock.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 34;
+				DEVELOPMENT_TEAM = MQJ88U9NAJ;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = RainyClock/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.7.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClock;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -814,11 +1061,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.6.9;
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClockTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -835,11 +1082,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.6.9;
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClockTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -856,7 +1103,7 @@
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RainyClockAlarmWidget/Info.plist;
@@ -868,7 +1115,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.9;
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClock.AlarmWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -882,12 +1129,12 @@
 			};
 			name = Debug;
 		};
-		6DD77525E7A77156FA34726E /* Release */ = {
+		7093D8D5A0D4425ABF85B014 /* Debug Sandbox */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 28;
+				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RainyClockAlarmWidget/Info.plist;
@@ -899,7 +1146,38 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.9;
+				MARKETING_VERSION = 1.7.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClock.AlarmWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = "Debug Sandbox";
+		};
+		6DD77525E7A77156FA34726E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 34;
+				DEVELOPMENT_TEAM = MQJ88U9NAJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = RainyClockAlarmWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Rainy Clock Alarm";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.shukaihu.RainyClock.AlarmWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -921,6 +1199,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0A1000622C00000000000001 /* Debug */,
+				E476222B14EA4B33A659E176 /* Debug Sandbox */,
 				0A1000632C00000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
@@ -930,6 +1209,7 @@
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0A1000712C00000000000001 /* Debug */,
+				5E582C7FC2B24DA7A0370191 /* Debug Sandbox */,
 				0A1000722C00000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
@@ -949,6 +1229,7 @@
 			buildConfigurations = (
 				6DD77525E7A77156FA34726E /* Release */,
 				340FE7ACB99ECF7A09E9D219 /* Debug */,
+				7093D8D5A0D4425ABF85B014 /* Debug Sandbox */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

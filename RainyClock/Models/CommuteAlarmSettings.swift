@@ -3,6 +3,13 @@ import Foundation
 struct CommuteAlarmSettings: Codable, Equatable {
     static let allWeekdays = Set(1...7)
 
+    enum SoundSlot: String, CaseIterable, Identifiable, Sendable {
+        case normal
+        case early
+
+        var id: String { rawValue }
+    }
+
     enum CommuteMode: String, CaseIterable, Codable, Identifiable, Equatable {
         case car
         case scooter
@@ -153,6 +160,16 @@ struct CommuteAlarmSettings: Codable, Equatable {
         }
     }
 
+    var timeFormat: ClockTimeFormat = .twelveHour
+    var calendarSettings = AlarmCalendarSettings()
+    var observesWorkSuspensions = true
+    var observesSchoolSuspensions = false
+    // Opt-in, including upgrades from versions that only displayed these choices.
+    var isDisasterSuspensionEnabled = false
+    var homeSuspensionRegion: DisasterRegion?
+    var workSuspensionRegion: DisasterRegion?
+    var usesDatedSchedule: Bool { calendarSettings.isActive || isDisasterSuspensionEnabled }
+
     var homeAddress: String = ""
     var workAddress: String = ""
     var homeResolvedLocation: ResolvedMapLocation?
@@ -174,6 +191,10 @@ struct CommuteAlarmSettings: Codable, Equatable {
     /// be read back into a text field.
     var aiVoicePersona: VoicePersona = .default
     var aiVoiceText: String = ""
+    var earlyAlarmSound: AlarmSound = .rainyClock
+    var earlyAIVoiceFileName: String?
+    var earlyAIVoicePersona: VoicePersona = .default
+    var earlyAIVoiceText: String = ""
     var isSnoozeEnabled: Bool = true
     var snoozeDurationMinutes: Int = 5
     /// The 9 p.m. "tomorrow morning" notification before each selected
@@ -195,6 +216,13 @@ struct CommuteAlarmSettings: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        calendarSettings = try values.decodeIfPresent(AlarmCalendarSettings.self, forKey: .calendarSettings) ?? AlarmCalendarSettings()
+        observesWorkSuspensions = try values.decodeIfPresent(Bool.self, forKey: .observesWorkSuspensions) ?? true
+        observesSchoolSuspensions = try values.decodeIfPresent(Bool.self, forKey: .observesSchoolSuspensions) ?? false
+        isDisasterSuspensionEnabled = try values.decodeIfPresent(Bool.self, forKey: .isDisasterSuspensionEnabled) ?? false
+        homeSuspensionRegion = try values.decodeIfPresent(DisasterRegion.self, forKey: .homeSuspensionRegion)
+        workSuspensionRegion = try values.decodeIfPresent(DisasterRegion.self, forKey: .workSuspensionRegion)
+        timeFormat = try values.decodeIfPresent(ClockTimeFormat.self, forKey: .timeFormat) ?? .twelveHour
         homeAddress = try values.decodeIfPresent(String.self, forKey: .homeAddress) ?? ""
         workAddress = try values.decodeIfPresent(String.self, forKey: .workAddress) ?? ""
         homeResolvedLocation = try values.decodeIfPresent(ResolvedMapLocation.self, forKey: .homeResolvedLocation)
@@ -215,6 +243,19 @@ struct CommuteAlarmSettings: Codable, Equatable {
         aiVoiceFileName = try values.decodeIfPresent(String.self, forKey: .aiVoiceFileName)
         aiVoicePersona = try values.decodeIfPresent(VoicePersona.self, forKey: .aiVoicePersona) ?? .default
         aiVoiceText = try values.decodeIfPresent(String.self, forKey: .aiVoiceText) ?? ""
+        // Before separate sound slots existed, the same clip rang at both times.
+        // Preserve that exact choice, including its generated voice, on upgrade.
+        let decodedEarlySound = try values.decodeIfPresent(AlarmSound.self, forKey: .earlyAlarmSound) ?? alarmSound
+        earlyAlarmSound = AlarmSound.restorableCases.contains(decodedEarlySound) ? decodedEarlySound : .rainyClock
+        if values.contains(.earlyAlarmSound) {
+            earlyAIVoiceFileName = try values.decodeIfPresent(String.self, forKey: .earlyAIVoiceFileName)
+            earlyAIVoicePersona = try values.decodeIfPresent(VoicePersona.self, forKey: .earlyAIVoicePersona) ?? .default
+            earlyAIVoiceText = try values.decodeIfPresent(String.self, forKey: .earlyAIVoiceText) ?? ""
+        } else {
+            earlyAIVoiceFileName = aiVoiceFileName
+            earlyAIVoicePersona = aiVoicePersona
+            earlyAIVoiceText = aiVoiceText
+        }
         isSnoozeEnabled = try values.decodeIfPresent(Bool.self, forKey: .isSnoozeEnabled) ?? true
         let decodedSnoozeDuration = try values.decodeIfPresent(Int.self, forKey: .snoozeDurationMinutes) ?? 5
         snoozeDurationMinutes = min(max(decodedSnoozeDuration, Self.snoozeDurationRange.lowerBound), Self.snoozeDurationRange.upperBound)
@@ -228,7 +269,7 @@ struct CommuteAlarmSettings: Codable, Equatable {
     }
 }
 
-struct RouteWeatherSnapshot: Equatable {
+struct RouteWeatherSnapshot: Codable, Equatable {
     var checkedAt: Date
     var forecastAt: Date
     var segments: [RouteWeatherSegment]
@@ -242,8 +283,8 @@ struct RouteWeatherSnapshot: Equatable {
     }
 }
 
-struct RouteWeatherSegment: Identifiable, Equatable {
-    enum Condition: String, Equatable, Sendable {
+struct RouteWeatherSegment: Codable, Identifiable, Equatable {
+    enum Condition: String, Codable, Equatable, Sendable {
         case clear
         case cloudy
         case rain
@@ -259,6 +300,8 @@ struct RouteWeatherSegment: Identifiable, Equatable {
 /// snapshot against the live settings tells whether the scheduled alarm still
 /// matches what the user currently has configured.
 struct AlarmScheduleFingerprint: Codable, Equatable {
+    var calendarSettings: AlarmCalendarSettings? = nil
+    var disasterSettings: DisasterScheduleFingerprint? = nil
     var homeAddress: String
     var workAddress: String
     var commuteMode: CommuteAlarmSettings.CommuteMode
@@ -272,6 +315,8 @@ struct AlarmScheduleFingerprint: Codable, Equatable {
     /// change: the existing reconcile pass then re-registers the alarm with the new
     /// clip without any extra plumbing.
     var aiVoiceFileName: String?
+    var earlyAlarmSoundRawValue: String
+    var earlyAIVoiceFileName: String?
     var isSnoozeEnabled: Bool
     var snoozeDurationMinutes: Int
 }
@@ -285,6 +330,8 @@ extension AlarmScheduleFingerprint {
     /// user edits the alarm time, sees no warning, and gets woken at the old one.
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        calendarSettings = try values.decodeIfPresent(AlarmCalendarSettings.self, forKey: .calendarSettings)
+        disasterSettings = try values.decodeIfPresent(DisasterScheduleFingerprint.self, forKey: .disasterSettings)
         homeAddress = try values.decode(String.self, forKey: .homeAddress)
         workAddress = try values.decode(String.self, forKey: .workAddress)
         commuteMode = try values.decode(CommuteAlarmSettings.CommuteMode.self, forKey: .commuteMode)
@@ -295,6 +342,10 @@ extension AlarmScheduleFingerprint {
         rainProbabilityThreshold = try values.decode(Double.self, forKey: .rainProbabilityThreshold)
         alarmSoundRawValue = try values.decode(String.self, forKey: .alarmSoundRawValue)
         aiVoiceFileName = try values.decodeIfPresent(String.self, forKey: .aiVoiceFileName)
+        earlyAlarmSoundRawValue = try values.decodeIfPresent(String.self, forKey: .earlyAlarmSoundRawValue) ?? alarmSoundRawValue
+        earlyAIVoiceFileName = values.contains(.earlyAlarmSoundRawValue)
+            ? try values.decodeIfPresent(String.self, forKey: .earlyAIVoiceFileName)
+            : aiVoiceFileName
         isSnoozeEnabled = try values.decodeIfPresent(Bool.self, forKey: .isSnoozeEnabled) ?? true
         snoozeDurationMinutes = try values.decodeIfPresent(Int.self, forKey: .snoozeDurationMinutes) ?? 5
     }
@@ -304,6 +355,10 @@ extension CommuteAlarmSettings {
     func scheduleFingerprint(calendar: Calendar = .current) -> AlarmScheduleFingerprint {
         let time = calendar.dateComponents([.hour, .minute], from: alarmTime)
         return AlarmScheduleFingerprint(
+            calendarSettings: calendarSettings.isActive ? calendarSettings : nil,
+            disasterSettings: isDisasterSuspensionEnabled ? DisasterScheduleFingerprint(
+                home: homeSuspensionRegion, destination: workSuspensionRegion,
+                observesWork: observesWorkSuspensions, observesSchool: observesSchoolSuspensions) : nil,
             homeAddress: homeAddress.trimmingCharacters(in: .whitespacesAndNewlines),
             workAddress: workAddress.trimmingCharacters(in: .whitespacesAndNewlines),
             commuteMode: commuteMode,
@@ -314,6 +369,8 @@ extension CommuteAlarmSettings {
             rainProbabilityThreshold: rainProbabilityThreshold,
             alarmSoundRawValue: alarmSound.rawValue,
             aiVoiceFileName: alarmSound == .aiVoice ? aiVoiceFileName : nil,
+            earlyAlarmSoundRawValue: earlyAlarmSound.rawValue,
+            earlyAIVoiceFileName: earlyAlarmSound == .aiVoice ? earlyAIVoiceFileName : nil,
             isSnoozeEnabled: isSnoozeEnabled,
             snoozeDurationMinutes: snoozeDurationMinutes
         )
@@ -327,16 +384,70 @@ extension CommuteAlarmSettings {
     /// this falls back to a shipped tone rather than naming a file that is not there.
     /// A wrong-sounding alarm is recoverable; a silent one is not.
     var soundFileNameOverride: String? {
-        switch alarmSound {
+        soundFileNameOverride(for: .normal)
+    }
+
+    func sound(for slot: SoundSlot) -> AlarmSound {
+        slot == .early ? earlyAlarmSound : alarmSound
+    }
+
+    mutating func setSound(_ sound: AlarmSound, for slot: SoundSlot) {
+        if slot == .early { earlyAlarmSound = sound } else { alarmSound = sound }
+    }
+
+    func voiceFileName(for slot: SoundSlot) -> String? {
+        slot == .early ? earlyAIVoiceFileName : aiVoiceFileName
+    }
+
+    func voicePersona(for slot: SoundSlot) -> VoicePersona {
+        slot == .early ? earlyAIVoicePersona : aiVoicePersona
+    }
+
+    func voiceText(for slot: SoundSlot) -> String {
+        slot == .early ? earlyAIVoiceText : aiVoiceText
+    }
+
+    mutating func setVoice(fileName: String, persona: VoicePersona, text: String, for slot: SoundSlot) {
+        if slot == .early {
+            earlyAIVoiceFileName = fileName
+            earlyAIVoicePersona = persona
+            earlyAIVoiceText = text
+            earlyAlarmSound = .aiVoice
+        } else {
+            aiVoiceFileName = fileName
+            aiVoicePersona = persona
+            aiVoiceText = text
+            alarmSound = .aiVoice
+        }
+    }
+
+    var generatedVoiceFileNames: Set<String> {
+        Set([aiVoiceFileName, earlyAIVoiceFileName].compactMap { $0 })
+    }
+
+    func soundFileNameOverride(for slot: SoundSlot) -> String? {
+        switch sound(for: slot) {
         case .systemDefault:
             nil
         case .aiVoice:
-            aiVoiceFileName.flatMap(GeneratedVoiceStore.existingFileName(named:))
+            voiceFileName(for: slot).flatMap(GeneratedVoiceStore.existingFileName(named:))
                 ?? AlarmSound.rainyClock.fileName
         default:
-            alarmSound.fileName
+            sound(for: slot).fileName
         }
     }
+
+    /// Use the time actually registered, not just a wet forecast: a zero lead
+    /// time or a missed early time still rings with the normal sound.
+    func soundSelection(ringDate: Date, normalDate: Date) -> AlarmSoundSelection {
+        let slot: SoundSlot = ringDate < normalDate ? .early : .normal
+        return AlarmSoundSelection(sound: sound(for: slot), fileNameOverride: soundFileNameOverride(for: slot))
+    }
+}
+
+struct AlarmSoundSelection: Codable, Equatable, Sendable {
+    var sound: CommuteAlarmSettings.AlarmSound
+    var fileNameOverride: String?
 }
 
 struct ScheduledAlarmSummary: Codable, Equatable {
@@ -351,6 +462,10 @@ struct ScheduledAlarmSummary: Codable, Equatable {
     /// "住家", "路程 ½", "公司" — so the evening preview can say which part of the
     /// commute moved the alarm. Absent in summaries stored before 1.6.9.
     var wettestSegmentName: String?
+    var calendarPlan: CalendarAlarmPlan?
+    var calendarForecastDate: Date?
+    /// Published only after the corresponding system schedule was committed.
+    var disasterSkips: [AppliedDisasterSkip]? = nil
 }
 
 extension ScheduledAlarmSummary {
@@ -361,8 +476,24 @@ extension ScheduledAlarmSummary {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> ScheduledAlarmSummary {
-        let weekdays = selectedWeekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : selectedWeekdays
         var summary = self
+        if let plan = calendarPlan {
+            if let next = plan.occurrences.first(where: { $0.ringDate > now }) {
+                let checkOffset = weatherRefreshDate.timeIntervalSince(normalAlarmDate)
+                summary.normalAlarmDate = next.normalDate
+                summary.scheduledAlarmDate = next.ringDate
+                summary.weatherRefreshDate = next.normalDate.addingTimeInterval(checkOffset)
+                summary.exceedsRainThreshold = next.ringDate < next.normalDate
+                summary.leadTimeMinutes = Int(next.normalDate.timeIntervalSince(next.ringDate) / 60)
+                if calendarForecastDate != next.normalDate {
+                    summary.maximumPrecipitationProbability = 0
+                    summary.wettestSegmentName = nil
+                    summary.calendarForecastDate = nil
+                }
+            }
+            return summary
+        }
+        let weekdays = selectedWeekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : selectedWeekdays
         summary.scheduledAlarmDate = Self.nextOccurrence(
             of: scheduledAlarmDate,
             weekdays: Self.shiftedWeekdays(weekdays, from: normalAlarmDate, to: scheduledAlarmDate, calendar: calendar),
@@ -432,5 +563,28 @@ extension ScheduledAlarmSummary {
         }
 
         return date
+    }
+}
+
+/// A display preference only: never changes a Date or the scheduled alarm time.
+enum ClockTimeFormat: String, Codable, CaseIterable, Identifiable, Sendable {
+    case twelveHour, twentyFourHour
+    var id: String { rawValue }
+    var title: String { String(localized: self == .twelveHour ? "clock_format_12" : "clock_format_24") }
+
+    func time(_ date: Date, locale: Locale = .current, timeZone: TimeZone = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = timeZone
+        let chinese = locale.language.languageCode?.identifier == "zh"
+        formatter.amSymbol = chinese ? "上午" : "AM"
+        formatter.pmSymbol = chinese ? "下午" : "PM"
+        formatter.dateFormat = self == .twentyFourHour ? "HH:mm" : (chinese ? "a h:mm" : "h:mm a")
+        return formatter.string(from: date)
+    }
+
+    func dateTime(_ date: Date) -> String {
+        date.formatted(date: .abbreviated, time: .omitted) + " " + time(date)
     }
 }

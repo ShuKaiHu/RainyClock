@@ -2,13 +2,12 @@ import Foundation
 
 /// How many spoken alarms a device may generate.
 ///
-/// Three are free, and after that each one costs a rewarded video. The count
-/// lives entirely on the device: there is no account to attach it to, and
-/// keeping it local means the feature adds no data collection to a privacy label
-/// that currently declares none.
+/// One initial generation is free, and after that each one costs a rewarded
+/// video. This is the legacy, device-local allowance; when membership is enabled,
+/// the server owns the allowance instead. It never resets at midnight.
 ///
 /// It is written to the keychain as well as `UserDefaults`, so that deleting
-/// and reinstalling the app does not hand out three more. Through 1.6.8 it did,
+/// and reinstalling the app does not hand out another generation. Through 1.6.8 it did,
 /// and that was described here as a deliberate trade against "an identifier
 /// that survives deletion" — but a counter is not an identifier: nothing leaves
 /// the phone, nothing is unique, and nothing links this install to any other.
@@ -22,7 +21,9 @@ import Foundation
 /// which is the case this exists for.
 @MainActor
 enum AIVoiceQuota {
-    static let freeGenerations = 3
+    // Keep the existing keys and used count when lowering the initial allowance.
+    // Already-used generations are not reset, and earned ad credits stay intact.
+    static let freeGenerations = 1
 
     private static let usedKey = "aiVoiceGenerationsUsed"
     private static let creditsKey = "aiVoiceEarnedCredits"
@@ -61,6 +62,10 @@ enum AIVoiceQuota {
     }
 
     static var freeRemaining: Int { max(0, freeGenerations - used) }
+
+    /// A migration claim only. The backend quarantines this unverifiable legacy
+    /// balance; reading it never grants server credit or consumes the local balance.
+    static var earnedCredits: Int { max(0, credits) }
 
     static var remaining: Int { freeRemaining + credits }
 

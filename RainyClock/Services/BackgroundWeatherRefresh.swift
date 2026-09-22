@@ -181,16 +181,26 @@ enum BackgroundWeatherRefresh {
 /// stay identical whether they were produced in the foreground or at 5 a.m.
 @MainActor
 enum CommuteAlarmRefresher {
+    private static var processModel: AlarmViewModel?
+
+    /// Foreground, BGTask and APNs callbacks must share the same in-flight
+    /// fetch/scheduling guards. Separate models can otherwise commit an older
+    /// announcement after a newer withdrawal while the app launches.
+    static func currentModel() -> AlarmViewModel {
+        if let processModel { return processModel }
+        let model = AlarmViewModel(routeWeatherService: AppEnvironment.routeWeatherService,
+            notificationScheduler: SystemAlarmScheduler())
+        processModel = model
+        return model
+    }
+
     struct Outcome {
         var didReschedule: Bool
         var nextWeatherRefreshDate: Date?
     }
 
     static func refreshArmedAlarm() async -> Outcome {
-        let viewModel = AlarmViewModel(
-            routeWeatherService: AppEnvironment.routeWeatherService,
-            notificationScheduler: SystemAlarmScheduler()
-        )
+        let viewModel = currentModel()
 
         guard viewModel.hasScheduledAlarm else {
             // Nothing armed: stop the chain instead of waking up forever.
@@ -198,9 +208,11 @@ enum CommuteAlarmRefresher {
         }
 
         let didReschedule = await viewModel.refreshScheduledAlarmUnattended()
+        let next = viewModel.scheduledAlarmSummary?.weatherRefreshDate
         return Outcome(
             didReschedule: didReschedule,
-            nextWeatherRefreshDate: viewModel.scheduledAlarmSummary?.weatherRefreshDate
+            nextWeatherRefreshDate: viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled
+                ? min(next ?? .distantFuture, Date().addingTimeInterval(6 * 3_600)) : next
         )
     }
 }

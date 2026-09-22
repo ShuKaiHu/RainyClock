@@ -5,37 +5,46 @@ import UIKit
 
 struct ContentView: View {
     private enum AppTab {
-        case route
         case alarm
+        case settings
     }
 
     @StateObject var viewModel: AlarmViewModel
     @ObservedObject private var consentManager = ConsentManager.shared
     @ObservedObject private var recentAds = RecentAds.shared
+    @ObservedObject private var membership = MembershipManager.shared
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
-    @State private var selectedTab: AppTab = .route
+    @State private var selectedTab: AppTab = .alarm
+    @State private var settingsRequest: SettingsNavigationRequest?
     var showsWeatherAttribution = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            RouteTabView(
-                viewModel: viewModel,
-                showsWeatherAttribution: showsWeatherAttribution
-            )
-                .tag(AppTab.route)
+            AlarmHomeView(viewModel: viewModel, showsWeatherAttribution: showsWeatherAttribution) { category, anchor in
+                settingsRequest = SettingsNavigationRequest(category: category, anchor: anchor)
+                selectedTab = .settings
+            }
+                .tabItem { Label("tab_alarm", systemImage: "alarm") }
+                .tag(AppTab.alarm)
 
-            AlarmTabView(viewModel: viewModel)
-            .tag(AppTab.alarm)
+            SettingsTabView(viewModel: viewModel, showsWeatherAttribution: showsWeatherAttribution,
+                            request: $settingsRequest)
+                .tabItem { Label("tab_settings", systemImage: "gearshape") }
+                .tag(AppTab.settings)
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
+        // Each tab owns a NavigationStack. Page-style hosting can leave one of
+        // those stacks off-screen after a push/pop or a keyboard transition.
+        // Use normal tab containment while keeping our existing bottom controls.
+        .tabViewStyle(.automatic)
+        .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomControls
         }
         .background(Color.appBackground.ignoresSafeArea())
         .preferredColorScheme(.dark)
         // A GDPR user answers once before the first ad request; the same sheet
-        // reopens from the Alarm tab's privacy row to change the answer later.
+        // reopens from the Settings tab's privacy row to change the answer later.
         .sheet(isPresented: $consentManager.isConsentSheetPresented) {
             AdConsentSheet()
         }
@@ -49,10 +58,14 @@ struct ContentView: View {
             }
         }
         .task {
+            Task { await membership.start() }
+            if !AppEnvironment.isRunningTests { viewModel.activateAutomaticScheduling() }
+            Task { await DisasterPushRegistration.shared.update(enabled: viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled) }
             consentManager.requestConsentThenStartAds()
             // The armed alarm repeats weekly with the rain decision that was current
             // when it was scheduled; opening the app is what brings that decision up
             // to date. No-op when it is still fresh.
+            await viewModel.refreshHolidays()
             await viewModel.refreshScheduledAlarmIfWeatherIsStale()
             // After the refresh, so a fresh registration has already planned the
             // previews and this only fires for an install that has never been
@@ -67,6 +80,7 @@ struct ContentView: View {
             // Harmless after the first activation: the SDK starts only once,
             // and AppLovin retries a failed handshake on its own.
             consentManager.requestConsentThenStartAds()
+            Task { await DisasterPushRegistration.shared.update(enabled: viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled) }
             Task {
                 await viewModel.refreshScheduledAlarmIfWeatherIsStale()
             }
@@ -77,17 +91,17 @@ struct ContentView: View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 tabButton(
-                    title: String(localized: "tab_route"),
-                    systemImage: "map",
-                    tab: .route
-                )
-                tabButton(
                     title: String(localized: "tab_alarm"),
                     systemImage: "alarm",
                     tab: .alarm
                 )
+                tabButton(
+                    title: String(localized: "tab_settings"),
+                    systemImage: "gearshape",
+                    tab: .settings
+                )
             }
-            .padding(6)
+            .padding(4)
             .background(.ultraThinMaterial, in: Capsule())
             .background(Color.white.opacity(0.04), in: Capsule())
             .overlay(
@@ -96,12 +110,12 @@ struct ContentView: View {
             )
             .shadow(color: .black.opacity(0.35), radius: 14, x: 0, y: 8)
             .padding(.horizontal, 34)
-            .padding(.top, 12)
-            .padding(.bottom, 22)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
 
             // Kept out of the hierarchy until consent is settled and LevelPlay
             // has finished initialising, so no ad request can precede either.
-            if !AppEnvironment.isRunningTests, consentManager.canRequestAds {
+            if !AppEnvironment.isRunningTests, consentManager.canRequestAds, !membership.entitlements.removeBanner {
                 LevelPlayBannerView(adUnitID: AppEnvironment.levelPlayBannerAdUnitID)
                     // The banner configures its `LPMBannerAdView` once, so a revised
                     // consent choice or a late ATT grant only reaches the ad request
@@ -117,7 +131,7 @@ struct ContentView: View {
             // nothing to tap. Sits *under* the creative rather than over it —
             // mediation terms forbid obscuring an ad — and only once a banner
             // has actually been shown, so there is something to report.
-            if recentAds.banner != nil {
+            if recentAds.banner != nil, !membership.entitlements.removeBanner {
                 HStack {
                     Spacer()
                     // The tap target is the words, not the row: a full-width
@@ -142,18 +156,20 @@ struct ContentView: View {
 
     private func tabButton(title: String, systemImage: String, tab: AppTab) -> some View {
         Button {
-            withAnimation(.easeInOut) {
-                selectedTab = tab
-            }
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            selectedTab = tab
         } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 20, weight: selectedTab == tab ? .semibold : .regular))
+                    .font(.system(size: 18, weight: selectedTab == tab ? .semibold : .regular))
                 Text(title)
                     .font(.caption)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(
                 Group {
                     if selectedTab == tab {
@@ -165,213 +181,451 @@ struct ContentView: View {
             .foregroundStyle(selectedTab == tab ? Color.accentColor : Color.secondary)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
     }
 }
 
-private struct RouteTabView: View {
+private struct AlarmHomeView: View {
+    @ObservedObject var viewModel: AlarmViewModel
+    let showsWeatherAttribution: Bool
+    let openSettings: (SettingsCategory, String?) -> Void
+    @State private var now = Date()
+    @State private var isVisible = false
+    @Environment(\.scenePhase) private var scenePhase
+
+    private var tomorrow: TomorrowAlarmStatus { viewModel.tomorrowStatus(now: now) }
+    private var routeIncomplete: Bool {
+        viewModel.settings.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || viewModel.settings.workAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    private var scheduleIssue: String? {
+        if let message = viewModel.scheduleErrorMessage { return message }
+        if viewModel.requiresAlarmKitReschedule { return String(localized: "alarmkit_reschedule_notice") }
+        if AppEnvironment.supportsTemporaryClosures && viewModel.disasterScheduleNeedsAttention { return String(localized: "disaster_schedule_uncertain") }
+        if viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled && viewModel.disasterRefreshFailed {
+            return String(localized: "ux_closure_update_failed")
+        }
+        if viewModel.isScheduleStale && !viewModel.isScheduling { return String(localized: "ux_schedule_update_needed") }
+        if !viewModel.isScheduling, let registered = tomorrow.registeredRingDate,
+           registered != tomorrow.expectedRingDate {
+            return String(localized: "ux_schedule_update_needed")
+        }
+        return nil
+    }
+
+    var body: some View {
+        GeometryReader { _ in
+            ViewThatFits(in: .vertical) {
+                homeContent(compact: false)
+                homeContent(compact: true)
+                ScrollView { homeContent(compact: true) }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+        .padding(.horizontal, 20).padding(.top, 8)
+        .background(Color.appBackground)
+        .onAppear { now = Date(); isVisible = true; refreshWeather() }
+        .onDisappear { isVisible = false }
+        .onChange(of: TomorrowWeatherRequest(settings: viewModel.settings, now: now)) { _, _ in
+            if isVisible { refreshWeather() }
+        }
+        .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) {
+            now = $0
+            if isVisible && scenePhase == .active {
+                refreshWeather()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active && isVisible {
+                now = Date()
+                refreshWeather()
+            }
+        }
+    }
+
+    private func refreshWeather(force: Bool = false) {
+        let model = viewModel, date = now
+        // Let an in-flight forecast finish and populate the cache when the user
+        // changes tabs. Visibility changes must not cancel the initial request.
+        // The model coalesces duplicates and rejects results for changed settings.
+        Task { await model.refreshTomorrowWeatherIfNeeded(now: date, force: force) }
+    }
+
+    private func homeContent(compact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: compact ? 10 : 14) {
+            Text("tab_alarm").font(compact ? .title.bold() : .largeTitle.bold())
+            hero(compact: compact)
+            if let message = scheduleIssue {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    Text(message).font(.caption).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    if viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled && viewModel.disasterRefreshFailed
+                        && viewModel.scheduleErrorMessage == nil {
+                        Button("ux_category_calendar") { openSettings(.calendar, nil) }
+                            .font(.caption.weight(.semibold))
+                    } else {
+                        Button("ux_retry") { Task { await viewModel.evaluateRouteAndScheduleAlarm() } }
+                            .font(.caption.weight(.semibold)).disabled(viewModel.isScheduling || !viewModel.canSchedule)
+                    }
+                }.padding(12).background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
+            }
+            weatherCard(compact: compact)
+        }
+    }
+
+    private func hero(compact: Bool) -> some View {
+        VStack(spacing: compact ? 8 : 12) {
+            Button { openSettings(.calendar, nil) } label: {
+                HStack {
+                    Text("ux_tomorrow")
+                    Spacer()
+                    Text(tomorrow.day.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
+                }
+                .font(.title3.bold())
+                .lineLimit(1).minimumScaleFactor(0.85)
+                .contentShape(Rectangle())
+            }.buttonStyle(.plain)
+            if let ring = tomorrow.expectedRingDate {
+                Button { openSettings(.time, "wake") } label: {
+                    VStack(spacing: 3) {
+                        Text("ux_expected_ring").font(.caption).foregroundStyle(.secondary)
+                        Text(viewModel.settings.timeFormat.time(ring))
+                            .font(.system(size: compact ? 50 : 62, weight: .regular, design: .rounded))
+                            .lineLimit(1).minimumScaleFactor(0.65).monospacedDigit()
+                        if !AlarmCalendarSettings.calendar.isDate(ring, inSameDayAs: tomorrow.day) {
+                            Text(ring.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }.frame(maxWidth: .infinity)
+                }.buttonStyle(.plain)
+            } else {
+                Button { openSettings(tomorrow.reason == .routeIncomplete ? .route : .calendar, nil) } label: {
+                    Text(tomorrow.reason == .routeIncomplete ? "ux_not_set" : "ux_tomorrow_skipped")
+                        .font(.system(size: compact ? 32 : 38, weight: .medium, design: .rounded))
+                        .padding(.vertical, compact ? 8 : 12).frame(maxWidth: .infinity)
+                }.buttonStyle(.plain)
+            }
+            if let reason = reason {
+                Button {
+                    openSettings(tomorrow.reason == .rain ? .time : (tomorrow.reason == .routeIncomplete ? .route : .calendar),
+                                 tomorrow.reason == .rain ? "rain" : nil)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: tomorrow.reason == .rain ? "cloud.rain" : (tomorrow.expectedRingDate == nil ? "bell.slash" : "calendar"))
+                            .foregroundStyle(Color.accentColor)
+                        Text(reason).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                    }.font(.subheadline).frame(maxWidth: .infinity)
+                }.buttonStyle(.plain)
+            }
+        }.padding(compact ? 15 : 18)
+            .frame(maxWidth: .infinity)
+            .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+    }
+
+    private func weatherCard(compact: Bool) -> some View {
+        CommuteWeatherCard(
+            weather: tomorrow.weather,
+            homeAddress: viewModel.settings.homeAddress,
+            workAddress: viewModel.settings.workAddress,
+            mode: viewModel.settings.commuteMode,
+            compact: compact,
+            isActive: isVisible,
+            isLoading: viewModel.isRefreshingTomorrowWeather || isWaitingForFirstForecast,
+            notice: weatherNotice,
+            hasError: tomorrow.weatherRefreshFailed || tomorrow.weatherIsStale,
+            showsWeatherAttribution: showsWeatherAttribution,
+            openRoute: { openSettings(.route, nil) },
+            retry: { refreshWeather(force: true) }
+        )
+    }
+
+    private var weatherNotice: String? {
+        if tomorrow.weatherRefreshFailed { return String(localized: "ux_tomorrow_weather_failed") }
+        if tomorrow.weatherIsStale { return String(localized: "ux_tomorrow_weather_stale") }
+        if tomorrow.weather == nil {
+            if routeIncomplete { return String(localized: "ux_route_needed") }
+            return String(localized: "ux_tomorrow_weather_loading")
+        }
+        return nil
+    }
+
+    private var isWaitingForFirstForecast: Bool {
+        tomorrow.weather == nil && !routeIncomplete && !tomorrow.weatherRefreshFailed
+    }
+
+    private var reason: String? {
+        switch tomorrow.reason {
+        case .normal: return nil
+        case .rain:
+            if let weather = tomorrow.weather, !tomorrow.weatherIsStale {
+                return String.localizedStringWithFormat(String(localized: "ux_rain_applied_forecast"),
+                                                        Int((weather.maximumPrecipitationProbability * 100).rounded()), tomorrow.leadTimeMinutes)
+            }
+            return String.localizedStringWithFormat(String(localized: "ux_rain_applied"), tomorrow.leadTimeMinutes)
+        case .holiday:
+            if let name = tomorrow.holidayName, !name.isEmpty {
+                return String.localizedStringWithFormat(String(localized: "ux_tomorrow_holiday_named"), name)
+            }
+            return String(localized: "ux_tomorrow_holiday")
+        case .manual: return String(localized: tomorrow.expectedRingDate == nil ? "ux_tomorrow_manual_skip" : "ux_tomorrow_manual_ring")
+        case .weekend: return String(localized: "ux_tomorrow_weekend")
+        case .unselectedWeekday: return String(localized: "ux_tomorrow_unselected")
+        case .disaster: return String(localized: "ux_tomorrow_closure")
+        case .routeIncomplete: return String(localized: "ux_route_needed")
+        }
+    }
+
+}
+
+struct RouteTabView: View {
     private static let routeModes: [CommuteAlarmSettings.CommuteMode] = [
-        .car,
-        .scooter,
-        .publicTransit,
-        .walking
+        .car, .scooter, .publicTransit, .walking
     ]
 
     private enum AddressField: Hashable {
-        case home
-        case work
+        case home, work
+    }
+
+    private enum Setting: String, Identifiable {
+        case home, work, mode
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .home: String(localized: "home_label")
+            case .work: String(localized: "work_label")
+            case .mode: String(localized: "mode")
+            }
+        }
     }
 
     @ObservedObject var viewModel: AlarmViewModel
-    let showsWeatherAttribution: Bool
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    var navigationRequest: SettingsNavigationRequest? = nil
+    var onNavigationRequestHandled: (UUID) -> Void = { _ in }
+    var isActive = true
+    @AppStorage("routePreviewExpanded") private var isRoutePreviewExpanded = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var addressCompleter = AddressSearchCompleter()
     @FocusState private var focusedAddressField: AddressField?
+    @State private var presentedSetting: Setting?
     @State private var expandedAddressSuggestionField: AddressField?
     @State private var addressSelectionGeneration = 0
     @State private var previewTask: Task<Void, Never>?
-    @State private var weatherTask: Task<Void, Never>?
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        VStack(spacing: 12) {
-                            AddressFieldRow(
-                                label: String(localized: "home_label"),
-                                placeholder: String(localized: "home_address"),
-                                text: $viewModel.settings.homeAddress,
-                                isInvalid: viewModel.invalidAddressFields.contains(.home),
-                                suggestedMatch: viewModel.suggestedAddressMatches[CommuteAddressField.home],
-                                focusedField: $focusedAddressField,
-                                field: .home,
-                                onSubmit: submitAddressSearch,
-                                onClear: { clearAddress(.home) },
-                                onConfirmSuggestion: { viewModel.confirmSuggestedAddress(.home) },
-                                onChooseAnotherSuggestion: { focusAddressForSuggestion(.home) }
-                            )
-                            AddressFieldRow(
-                                label: String(localized: "work_label"),
-                                placeholder: String(localized: "work_address"),
-                                text: $viewModel.settings.workAddress,
-                                isInvalid: viewModel.invalidAddressFields.contains(.work),
-                                suggestedMatch: viewModel.suggestedAddressMatches[CommuteAddressField.work],
-                                focusedField: $focusedAddressField,
-                                field: .work,
-                                onSubmit: submitAddressSearch,
-                                onClear: { clearAddress(.work) },
-                                onConfirmSuggestion: { viewModel.confirmSuggestedAddress(.work) },
-                                onChooseAnotherSuggestion: { focusAddressForSuggestion(.work) }
-                            )
-
-                            if shouldShowAddressCompletionPanel {
-                                AddressCompletionList(
-                                    completions: addressCompleter.completions,
-                                    isSearching: addressCompleter.isSearching
-                                ) { completion in
-                                    Task { @MainActor in
-                                        await selectAddressCompletion(completion)
-                                    }
-                                }
-                            }
-                        }
-
-                        // The label keeps its intrinsic width, so at an
-                        // accessibility text size it would eat most of the row
-                        // and leave the pills too narrow to read. Put it on its
-                        // own line there instead.
-                        modeRowLayout {
-                            Text("mode")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .fixedSize(horizontal: true, vertical: false)
-                                .frame(minWidth: 44, alignment: .leading)
-                            RouteModePicker(
-                                selection: $viewModel.settings.commuteMode,
-                                modes: Self.routeModes
-                            )
-                        }
-                        .padding(14)
-                        .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-                    }
-
-                    if let preview = viewModel.routePreview {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text("route_preview")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-
-                            RoutePreviewMapView(preview: preview)
-
-                            if let expectedTravelTimeMinutes = preview.expectedTravelTimeMinutes,
-                               let distanceKilometers = preview.distanceKilometers {
-                                HStack(spacing: 12) {
-                                    MetricCard(
-                                        title: String(localized: "route_preview_travel_time"),
-                                        value: String.localizedStringWithFormat(
-                                            String(localized: "route_preview_minutes_value"),
-                                            expectedTravelTimeMinutes
-                                        )
-                                    )
-                                    MetricCard(
-                                        title: String(localized: "route_preview_distance"),
-                                        value: String.localizedStringWithFormat(
-                                            String(localized: "route_preview_distance_value"),
-                                            distanceKilometers
-                                        )
-                                    )
-                                }
-                            }
-
-                            Text(viewModel.routePreviewStatusMessage)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else if viewModel.isPreviewingRoute || viewModel.routePreviewStatusMessage != String(localized: "route_preview_empty") {
-                        Text(viewModel.routePreviewStatusMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Text("route_weather")
-                                .font(.title.weight(.bold))
-                            Spacer()
-                            if viewModel.isRefreshingRouteWeather {
-                                ProgressView()
-                            }
-                        }
-
-                        if let snapshot = viewModel.routeWeatherSnapshot {
-                            RouteWeatherGrid(segments: snapshot.segments)
-                        } else {
-                            RouteWeatherPlaceholderCards()
-                        }
-
-                        Text(viewModel.routeWeatherStatusMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-
-                        // WeatherKit attribution must always be visible where weather
-                        // data is presented, not only once a forecast has loaded.
-                        if showsWeatherAttribution {
-                            WeatherAttributionView()
-                        }
-                    }
+        ScrollView {
+            VStack(spacing: 14) {
+                VStack(spacing: 0) {
+                    routeSettingRow("home_label", icon: "house", value: viewModel.settings.homeAddress, setting: .home)
+                    Divider().padding(.leading, 48)
+                    routeSettingRow("work_label", icon: "building.2", value: viewModel.settings.workAddress, setting: .work)
+                    Divider().padding(.leading, 48)
+                    routeSettingRow("mode", icon: modeIcon(viewModel.settings.commuteMode),
+                                    value: viewModel.settings.commuteMode.displayName, setting: .mode)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 0)
-                .padding(.bottom, 20)
+                .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                routePreviewCard
             }
-            .navigationTitle(String(localized: "tab_route"))
-            .toolbar(.hidden, for: .navigationBar)
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("done") {
-                        focusedAddressField = nil
-                    }
-                }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+        }
+        .navigationTitle(String(localized: "tab_route"))
+        .toolbar(.hidden, for: .navigationBar)
+        .background(Color.appBackground)
+        .sheet(item: $presentedSetting, onDismiss: submitAddressSearch) { setting in
+            settingSheet(setting)
+        }
+        .task(id: navigationRequest?.id) {
+            guard let navigationRequest, navigationRequest.category == .route else { return }
+            switch navigationRequest.anchor {
+            case "home": presentedSetting = .home
+            case "work": presentedSetting = .work
+            case "mode": presentedSetting = .mode
+            default: break
             }
-            .background(Color.appBackground)
+            onNavigationRequestHandled(navigationRequest.id)
         }
-        .onAppear {
-            normalizeRouteMode()
-            scheduleRoutePreview()
-            scheduleRouteWeather()
+        .onChange(of: isActive, initial: true) { _, active in
+            if active {
+                normalizeRouteMode()
+                scheduleRoutePreview()
+            } else {
+                stopRouteTasks()
+            }
         }
-        .onDisappear {
-            previewTask?.cancel()
-            weatherTask?.cancel()
-        }
-        .onChange(of: focusedAddressField) { _, _ in
-            updateAddressCompletions()
-        }
+        .onDisappear { stopRouteTasks() }
+        .onChange(of: focusedAddressField) { _, _ in updateAddressCompletions() }
         .onChange(of: viewModel.settings.homeAddress) { _, _ in
+            addressSelectionGeneration += 1
             updateAddressCompletions()
         }
         .onChange(of: viewModel.settings.workAddress) { _, _ in
+            addressSelectionGeneration += 1
             updateAddressCompletions()
         }
         .onChange(of: viewModel.settings.commuteMode) { _, _ in
+            guard isActive else { return }
             normalizeRouteMode()
             scheduleRoutePreview()
-            scheduleRouteWeather()
-        }
-        .onChange(of: viewModel.settings.alarmTime) { _, _ in
-            scheduleRouteWeather()
-        }
-        .onChange(of: viewModel.settings.selectedWeekdays) { _, _ in
-            scheduleRouteWeather()
         }
     }
 
-    private var modeRowLayout: AnyLayout {
-        dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
-            : AnyLayout(HStackLayout(spacing: 12))
+    private func routeSettingRow(_ title: LocalizedStringKey, icon: String, value: String, setting: Setting) -> some View {
+        Button { presentedSetting = setting } label: {
+            SettingsEntryRow(title: title, icon: icon, value: value)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var routePreviewCard: some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+                    isRoutePreviewExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 11) {
+                    Image(systemName: "map").foregroundStyle(Color.accentColor).frame(width: 20)
+                    Text("route_preview")
+                    Spacer()
+                    if viewModel.isPreviewingRoute { ProgressView().controlSize(.small) }
+                    Image(systemName: "chevron.down")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isRoutePreviewExpanded ? 180 : 0))
+                }
+                .font(.body).frame(minHeight: 28).padding(.horizontal, 16).padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(isRoutePreviewExpanded ? "route_preview_collapse" : "route_preview_expand"))
+            .accessibilityIdentifier("routePreviewDisclosure")
+
+            if isRoutePreviewExpanded {
+                VStack(spacing: 0) {
+                    if let preview = viewModel.routePreview {
+                        RoutePreviewMapView(preview: preview)
+                            .padding(.horizontal, 16).padding(.bottom, 16)
+
+                        if let travelMinutes = preview.expectedTravelTimeMinutes,
+                           let distance = preview.distanceKilometers {
+                            Divider().padding(.leading, 48)
+                            routeMetricRow("route_preview_travel_time", icon: "clock",
+                                           value: String.localizedStringWithFormat(String(localized: "route_preview_minutes_value"), travelMinutes))
+                            Divider().padding(.leading, 48)
+                            routeMetricRow("route_preview_distance", icon: "point.topleft.down.curvedto.point.bottomright.up",
+                                           value: String.localizedStringWithFormat(String(localized: "route_preview_distance_value"), distance))
+                        }
+                    }
+                    if viewModel.routePreview?.route == nil {
+                        Text(viewModel.routePreviewStatusMessage)
+                            .font(.footnote).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16).padding(.bottom, 16)
+                    }
+                }
+            }
+        }
+        .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private func routeMetricRow(_ title: LocalizedStringKey, icon: String, value: String) -> some View {
+        HStack(spacing: 11) {
+            Image(systemName: icon).foregroundStyle(Color.accentColor).frame(width: 20)
+            Text(title)
+            Spacer(minLength: 8)
+            Text(value).foregroundStyle(.secondary)
+        }
+        .font(.body).frame(minHeight: 28).padding(.horizontal, 16).padding(.vertical, 12)
+    }
+
+    private func settingSheet(_ setting: Setting) -> some View {
+        NavigationStack {
+            ScrollView {
+                if setting == .mode {
+                    VStack(spacing: 0) {
+                        ForEach(Self.routeModes) { mode in
+                            Button {
+                                viewModel.settings.commuteMode = mode
+                                presentedSetting = nil
+                            } label: {
+                                HStack(spacing: 11) {
+                                    Image(systemName: modeIcon(mode)).foregroundStyle(Color.accentColor).frame(width: 20)
+                                    Text(mode.displayName).foregroundStyle(.primary)
+                                    Spacer()
+                                    if mode == viewModel.settings.commuteMode {
+                                        Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+                                    }
+                                }
+                                .font(.body).frame(minHeight: 28).padding(.horizontal, 16).padding(.vertical, 12)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(mode == viewModel.settings.commuteMode ? .isSelected : [])
+                            if mode != Self.routeModes.last { Divider().padding(.leading, 48) }
+                        }
+                    }
+                    .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .padding(20)
+                } else {
+                    VStack(spacing: 14) {
+                        addressEditor(setting == .home ? .home : .work)
+                        if shouldShowAddressCompletionPanel {
+                            AddressCompletionList(completions: addressCompleter.completions,
+                                                  isSearching: addressCompleter.isSearching) { completion in
+                                Task { @MainActor in await selectAddressCompletion(completion) }
+                            }
+                        }
+                    }
+                    .padding(20)
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background(Color.appBackground)
+            .navigationTitle(setting.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button { presentedSetting = nil } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel(Text("clock_close"))
+                }
+            }
+            .task {
+                if setting != .mode {
+                    focusedAddressField = setting == .home ? .home : .work
+                }
+            }
+        }
+        .presentationDetents(setting == .mode ? [.height(390)] : [.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func addressEditor(_ field: AddressField) -> some View {
+        let modelField: CommuteAddressField = field == .home ? .home : .work
+        return AddressFieldRow(
+            label: String(localized: field == .home ? "home_label" : "work_label"),
+            placeholder: String(localized: field == .home ? "home_address" : "work_address"),
+            text: field == .home ? $viewModel.settings.homeAddress : $viewModel.settings.workAddress,
+            isInvalid: viewModel.invalidAddressFields.contains(modelField),
+            suggestedMatch: viewModel.suggestedAddressMatches[modelField],
+            focusedField: $focusedAddressField,
+            field: field,
+            onSubmit: submitAddressSearch,
+            onClear: { clearAddress(field) },
+            onConfirmSuggestion: { viewModel.confirmSuggestedAddress(modelField) },
+            onChooseAnotherSuggestion: { focusAddressForSuggestion(field) }
+        )
+    }
+
+    private func modeIcon(_ mode: CommuteAlarmSettings.CommuteMode) -> String {
+        switch mode {
+        case .car: "car"
+        case .scooter: "scooter"
+        case .publicTransit: "tram"
+        case .walking: "figure.walk"
+        }
     }
 
     private func normalizeRouteMode() {
@@ -382,15 +636,23 @@ private struct RouteTabView: View {
         viewModel.settings.commuteMode = .car
     }
 
+    private func stopRouteTasks() {
+        focusedAddressField = nil
+        addressCompleter.clear()
+        previewTask?.cancel()
+    }
+
     private func submitAddressSearch() {
         focusedAddressField = nil
         expandedAddressSuggestionField = nil
         addressCompleter.clear()
         scheduleRoutePreview(delay: .zero)
-        scheduleRouteWeather(delay: .zero)
     }
 
     private func clearAddress(_ field: AddressField) {
+        // Clearing must invalidate a lookup immediately, before SwiftUI delivers
+        // the text-change callback on its next update.
+        addressSelectionGeneration += 1
         switch field {
         case .home:
             viewModel.settings.homeAddress = ""
@@ -404,7 +666,6 @@ private struct RouteTabView: View {
         expandedAddressSuggestionField = nil
         addressCompleter.clear()
         previewTask?.cancel()
-        weatherTask?.cancel()
         viewModel.clearRoutePreview()
         viewModel.clearRouteWeather()
     }
@@ -426,12 +687,14 @@ private struct RouteTabView: View {
 
         addressSelectionGeneration += 1
         let generation = addressSelectionGeneration
+        let requestedInput = targetField == .home ? viewModel.settings.homeAddress : viewModel.settings.workAddress
 
         let fallbackAddress = [completion.title, completion.subtitle]
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .joined(separator: ", ")
         let resolvedLocation = await MapItemResolver.resolvedLocation(for: completion)
-        guard generation == addressSelectionGeneration else {
+        let currentInput = targetField == .home ? viewModel.settings.homeAddress : viewModel.settings.workAddress
+        guard generation == addressSelectionGeneration, currentInput == requestedInput else {
             return
         }
 
@@ -458,6 +721,7 @@ private struct RouteTabView: View {
     }
 
     private func updateAddressCompletions(forceRefresh: Bool = false) {
+        guard isActive else { addressCompleter.clear(); return }
         switch focusedAddressField {
         case .home:
             addressCompleter.update(query: viewModel.settings.homeAddress, forceRefresh: forceRefresh)
@@ -470,6 +734,7 @@ private struct RouteTabView: View {
     }
 
     private func scheduleRoutePreview(delay: Duration = .milliseconds(700)) {
+        guard isActive else { return }
         previewTask?.cancel()
         // Cancellation cannot abort an already-running fetch, so also invalidate it —
         // otherwise its stale result could land during the debounce delay below.
@@ -493,75 +758,9 @@ private struct RouteTabView: View {
         }
     }
 
-    private func scheduleRouteWeather(delay: Duration = .milliseconds(700)) {
-        weatherTask?.cancel()
-        viewModel.supersedeRouteWeather()
-        weatherTask = Task {
-            guard viewModel.canPreviewRoute else {
-                await MainActor.run {
-                    viewModel.clearRouteWeather()
-                }
-                return
-            }
-
-            if delay > .zero {
-                try? await Task.sleep(for: delay)
-                guard !Task.isCancelled else {
-                    return
-                }
-            }
-
-            await viewModel.refreshRouteWeather()
-        }
-    }
 }
 
-/// The two ad rows every region or some region needs: the GDPR consent
-/// re-entry, and the App Review 2.5.18 report route, which is required
-/// everywhere and so is not behind `showsPrivacyOptions`. The report button
-/// builds its mail at tap time so the body carries the ads shown *by then*.
-private struct AdSupportCard: View {
-    @ObservedObject private var consentManager = ConsentManager.shared
-    @Environment(\.openURL) private var openURL
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("ad_support_header")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-
-            // Only GDPR regions have a choice to revisit — the geography
-            // answer from LevelPlay init decides.
-            if consentManager.showsPrivacyOptions {
-                HStack {
-                    Text("ad_privacy_options")
-                    Spacer()
-                    Button("ad_privacy_options_manage") {
-                        consentManager.presentPrivacyOptions()
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
-                }
-            }
-
-            HStack {
-                Text("report_ad")
-                Spacer()
-                Button("report_ad_action") {
-                    openURL(AdReport.mailURL())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
-            }
-        }
-        .font(.subheadline)
-        .padding(18)
-        .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-    }
-}
-
-private struct AlarmTabView: View {
+struct AlarmTimeSettingsView: View {
     private static let weekdayGridSpacing: CGFloat = 12
     private static let weekdayLabelInset: CGFloat = 4
 
@@ -570,8 +769,6 @@ private struct AlarmTabView: View {
     @ObservedObject var viewModel: AlarmViewModel
     @ObservedObject private var consentManager = ConsentManager.shared
     @State private var showsAIVoiceSheet = false
-    @State private var sampleNoticeVisible = false
-    @State private var soundBeforeAIVoice: CommuteAlarmSettings.AlarmSound?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     // Only consulted at accessibility text sizes, where the row wraps and the
     // chip finally has room to grow. Capped so AX5 doesn't produce a chip
@@ -584,282 +781,132 @@ private struct AlarmTabView: View {
     @State private var previewingSound: CommuteAlarmSettings.AlarmSound?
     @State private var soundPreviewTask: Task<Void, Never>?
 
+    var navigationRequest: SettingsNavigationRequest? = nil
+    var onNavigationRequestHandled: (UUID) -> Void = { _ in }
+    @State private var presentedSetting: Setting?
+    private enum Setting: String, Identifiable {
+        case time, rain, normalSound, earlySound, snooze, evening
+        var id: String { rawValue }
+        var soundSlot: CommuteAlarmSettings.SoundSlot? {
+            switch self {
+            case .normalSound: .normal
+            case .earlySound: .early
+            default: nil
+            }
+        }
+        var title: String {
+            switch self {
+            case .time: String(localized: "ux_wake_time")
+            case .rain: String(localized: "ux_rain_earlier")
+            case .normalSound: String(localized: "alarm_sound_normal")
+            case .earlySound: String(localized: "alarm_sound_early")
+            case .snooze: String(localized: "ux_snooze")
+            case .evening: String(localized: "ux_evening")
+            }
+        }
+    }
+
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // The geometry reader is what lets every chip share one
-                        // font size; the grid's height is fixed either way, so
-                        // it costs no layout ambiguity.
-                        GeometryReader { proxy in
-                            let labelSize = weekdayLabelSize(inRowOfWidth: proxy.size.width)
-
-                            VStack(spacing: Self.weekdayGridSpacing) {
-                                ForEach(Array(weekdayRows.enumerated()), id: \.offset) { _, row in
-                                    HStack(spacing: Self.weekdayGridSpacing) {
-                                        ForEach(row, id: \.self) { weekday in
-                                            weekdayChip(for: weekday, labelSize: labelSize)
-                                        }
-
-                                        // Keep the short trailing row's chips the
-                                        // same width as the full row's.
-                                        ForEach(Array(row.count..<weekdayColumnCount), id: \.self) { _ in
-                                            Color.clear
-                                                .frame(maxWidth: .infinity)
-                                                .frame(height: weekdayChipHeight)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .frame(height: weekdayGridHeight)
-
-                        Button {
-                            showsTimePicker = true
-                        } label: {
-                            Text(timeText(for: viewModel.settings.alarmTime))
-                                .font(.system(size: 60, weight: .regular, design: .rounded))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
-                    }
-                    .padding(22)
-                    .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
-
-                    VStack(spacing: 18) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("rain_lead_time")
-                                Spacer()
-                                Text(String.localizedStringWithFormat(String(localized: "rain_lead_time_value"), viewModel.settings.rainLeadTimeMinutes))
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Slider(value: rainLeadTimeSliderValue, in: 1...60, step: 1)
-                        }
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("rain_threshold")
-                                Spacer()
-                                Text("\(Int(viewModel.settings.rainProbabilityThreshold * 100))%")
-                                    .foregroundStyle(.secondary)
-                            }
-                            Slider(value: $viewModel.settings.rainProbabilityThreshold, in: 0.1...0.9, step: 0.05)
-                        }
-
-                        HStack {
-                            Text("alarm_sound")
-                            Spacer()
-                            Menu {
-                                Picker("alarm_sound", selection: $viewModel.settings.alarmSound) {
-                                    ForEach(soundChoices) { sound in
-                                        Text(sound.displayName).tag(sound)
-                                    }
-                                }
-                            } label: {
-                                Text(viewModel.settings.alarmSound.displayName)
-                                    .foregroundStyle(.secondary)
-                            }
-                            // Selecting the spoken alarm opens the sheet, but only
-                            // on a change — so once it is chosen there is nothing
-                            // left to tap to edit it. This is that.
-                            if viewModel.settings.alarmSound == .aiVoice {
-                                Button {
-                                    stopSoundPreview()
-                                    showsAIVoiceSheet = true
-                                } label: {
-                                    Image(systemName: "square.and.pencil")
-                                        .font(.title3)
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(Color.accentColor)
-                                .accessibilityLabel(Text("alarm_sound_ai_voice"))
-                            }
-                            // The system alarm tone lives in iOS, not in the app
-                            // bundle, so there is nothing to play here.
-                            if !viewModel.settings.alarmSound.usesSystemAlarmTone {
-                                Button {
-                                    toggleSelectedSoundPreview()
-                                } label: {
-                                    Image(systemName: isPreviewingSelectedSound ? "stop.circle.fill" : "play.circle.fill")
-                                        .font(.title3)
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(Color.accentColor)
-                                .accessibilityLabel(Text("preview_alarm_sound"))
-                            }
-                        }
-
-                        Toggle(isOn: $viewModel.settings.isSnoozeEnabled) {
-                            Text("snooze")
-                        }
-                        .tint(Color.accentColor)
-
-                        if viewModel.settings.isSnoozeEnabled {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text("snooze_duration")
-                                    Spacer()
-                                    Text(String.localizedStringWithFormat(String(localized: "snooze_duration_value"), viewModel.settings.snoozeDurationMinutes))
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Slider(
-                                    value: snoozeDurationSliderValue,
-                                    in: Double(CommuteAlarmSettings.snoozeDurationRange.lowerBound)...Double(CommuteAlarmSettings.snoozeDurationRange.upperBound),
-                                    step: 1
-                                )
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Toggle(isOn: $viewModel.settings.isEveningPreviewEnabled) {
-                                Text("evening_preview")
-                            }
-                            .tint(Color.accentColor)
-
-                            if viewModel.settings.isEveningPreviewEnabled {
-                                HStack {
-                                    Text("evening_preview_time")
-                                    Spacer()
-                                    DatePicker(
-                                        "evening_preview_time",
-                                        selection: $viewModel.settings.eveningPreviewTime,
-                                        displayedComponents: .hourAndMinute
-                                    )
-                                    .labelsHidden()
-                                    .tint(Color.accentColor)
-                                }
-
-                                HStack(alignment: .firstTextBaseline) {
-                                    Text("evening_preview_hint")
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                    Spacer()
-                                    // Sends one now-ish, so the shape of the thing can
-                                    // be seen before the first real evening. Also the
-                                    // most natural moment to ask for permission.
-                                    Button("evening_preview_send_sample") {
-                                        Task {
-                                            sampleNoticeVisible = !(await viewModel.sendSampleEveningPreview())
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-                                    .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(Color.accentColor)
-                                    .fixedSize()
-                                }
-                                if sampleNoticeVisible {
-                                    Text("evening_preview_denied")
-                                        .font(.footnote)
-                                        .foregroundStyle(.orange)
-                                }
-                            }
-                        }
-                    }
-                    .padding(18)
-                    .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-
-                    Button {
-                        Task { await viewModel.evaluateRouteAndScheduleAlarm() }
-                    } label: {
-                        Label(
-                            viewModel.isScheduling ? String(localized: "checking_route") : String(localized: "schedule_smart_alarm"),
-                            systemImage: "alarm"
-                        )
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color.accentColor)
-                    .disabled(!viewModel.canSchedule || viewModel.isScheduling)
-
-                    // Colour answers "is an alarm actually armed right now?" at a
-                    // glance: green = armed and matching the settings above,
-                    // orange = armed but syncing/stale, grey = nothing armed.
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: scheduleStatusIcon)
-                        Text(viewModel.statusMessage)
-                    }
-                    .font(.subheadline.weight(viewModel.hasScheduledAlarm ? .semibold : .regular))
-                    .foregroundStyle(scheduleStatusColor)
-
-                    if let summary = viewModel.scheduledAlarmSummary {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("scheduled_result")
-                                .font(.headline)
-                            if viewModel.isScheduleStale {
-                                Label(String(localized: "schedule_stale_notice"), systemImage: "exclamationmark.triangle.fill")
-                                    .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(.orange)
-                            }
-                            if viewModel.requiresAlarmKitReschedule {
-                                Label(String(localized: "alarmkit_reschedule_notice"), systemImage: "bell.badge.fill")
-                                    .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(.orange)
-                            }
-                            MetricRow(title: String(localized: "normal_alarm"), value: summary.normalAlarmDate.formatted(date: .omitted, time: .shortened))
-                            MetricRow(title: String(localized: "scheduled_alarm"), value: summary.scheduledAlarmDate.formatted(date: .abbreviated, time: .shortened))
-                            MetricRow(title: String(localized: "weather_refresh"), value: summary.weatherRefreshDate.formatted(date: .abbreviated, time: .shortened))
-                            MetricRow(title: String(localized: "rain_threshold"), value: "\(Int(summary.rainProbabilityThreshold * 100))%")
-                            MetricRow(title: String(localized: "route_max"), value: "\(Int(summary.maximumPrecipitationProbability * 100))%")
-                            MetricRow(title: String(localized: "rain_adjustment"), value: rainAdjustmentText(for: summary))
-                        }
-                        .padding(18)
-                        .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    }
-
-                    // Ad housekeeping, last and apart from the alarm's own
-                    // settings — where the privacy policy and "contact us" rows
-                    // of most apps live. It used to sit between the snooze
-                    // slider and the schedule button, which read as an alarm
-                    // setting that had wandered in.
-                    AdSupportCard()
+        ScrollView {
+            VStack(spacing: 14) {
+                settingsGroup {
+                    settingRow("ux_wake_time", icon: "clock", value: timeText(for: viewModel.settings.alarmTime), setting: .time)
+                    Divider().padding(.leading, 48)
+                    settingRow("ux_early_time", icon: "cloud.rain", value: String.localizedStringWithFormat(String(localized: "rain_lead_time_value"), viewModel.settings.rainLeadTimeMinutes), setting: .rain)
+                    Divider().padding(.leading, 48)
+                    settingRow("rain_threshold", icon: "drop", value: "\(Int(viewModel.settings.rainProbabilityThreshold * 100))%", setting: .rain)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 0)
-                .padding(.bottom, 20)
+                settingsGroup {
+                    settingRow("alarm_sound_early", icon: "cloud.rain", value: viewModel.settings.sound(for: .early).displayName, setting: .earlySound)
+                    Divider().padding(.leading, 48)
+                    settingRow("alarm_sound_normal", icon: "music.note", value: viewModel.settings.sound(for: .normal).displayName, setting: .normalSound)
+                    Divider().padding(.leading, 48)
+                    settingRow("ux_snooze", icon: "timer", value: viewModel.settings.isSnoozeEnabled ? String.localizedStringWithFormat(String(localized: "snooze_duration_value"), viewModel.settings.snoozeDurationMinutes) : String(localized: "ux_off"), setting: .snooze)
+                    Divider().padding(.leading, 48)
+                    settingRow("ux_evening", icon: "moon", value: viewModel.settings.isEveningPreviewEnabled ? timeText(for: viewModel.settings.eveningPreviewTime) : String(localized: "ux_off"), setting: .evening)
+                }
+            }.padding(.horizontal, 20).padding(.bottom, 20)
+        }
+        .background(Color.appBackground)
+        .sheet(item: $presentedSetting, onDismiss: stopSoundPreview) { setting in
+            settingSheet(setting)
+                .sheet(isPresented: $showsAIVoiceSheet) {
+                    AIVoiceSheet(viewModel: viewModel, slot: setting.soundSlot ?? .normal)
+                }
+        }
+        .task(id: navigationRequest?.id) {
+            guard let navigationRequest, navigationRequest.category == .time else { return }
+            // The parent routes legacy repeat-day links to Calendar.
+            guard navigationRequest.anchor != "weekdays" else { return }
+            switch navigationRequest.anchor {
+            case "wake": presentedSetting = .time
+            case "rain": presentedSetting = .rain
+            case "evening": presentedSetting = .evening
+            default: break
             }
-            .navigationTitle(String(localized: "tab_alarm"))
-            .toolbar(.hidden, for: .navigationBar)
-            .background(Color.appBackground)
+            onNavigationRequestHandled(navigationRequest.id)
         }
-        .onChange(of: viewModel.settings.alarmSound) { previous, current in
-            soundSelectionChanged(from: previous, to: current)
-        }
-        .sheet(isPresented: $showsAIVoiceSheet, onDismiss: aiVoiceSheetDismissed) {
-            AIVoiceSheet(viewModel: viewModel)
-        }
-        .sheet(isPresented: $showsTimePicker) {
+        .onAppear { clampRainLeadTime() }
+        .onDisappear { stopSoundPreview() }
+    }
+
+    private func settingRow(_ title: LocalizedStringKey, icon: String, value: String, setting: Setting) -> some View {
+        Button { presentedSetting = setting } label: {
+            SettingsEntryRow(title: title, icon: icon, value: value)
+        }.buttonStyle(.plain)
+    }
+
+    private func settingsGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0, content: content)
+            .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    @ViewBuilder private func settingSheet(_ setting: Setting) -> some View {
+        if setting == .time {
+            ClockTimePicker(time: $viewModel.settings.alarmTime, format: viewModel.settings.timeFormat,
+                            title: setting.title, formatSelection: $viewModel.settings.timeFormat)
+        } else {
             NavigationStack {
-                DatePicker(
-                    "normal_alarm",
-                    selection: $viewModel.settings.alarmTime,
-                    displayedComponents: .hourAndMinute
-                )
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .padding()
-                .presentationDetents([.height(320)])
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("done") {
-                            showsTimePicker = false
+                ScrollView {
+                    VStack(spacing: 20) {
+                        switch setting {
+                        case .rain:
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack { Text("ux_early_time"); Spacer(); Text(String.localizedStringWithFormat(String(localized: "rain_lead_time_value"), viewModel.settings.rainLeadTimeMinutes)).foregroundStyle(Color.accentColor) }
+                                Slider(value: rainLeadTimeSliderValue, in: 1...60, step: 1)
+                            }
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack { Text("rain_threshold"); Spacer(); Text("\(Int(viewModel.settings.rainProbabilityThreshold * 100))%").foregroundStyle(Color.accentColor) }
+                                Slider(value: $viewModel.settings.rainProbabilityThreshold, in: 0.1...0.9, step: 0.05)
+                            }
+                        case .normalSound, .earlySound:
+                            soundSettings(for: setting.soundSlot ?? .normal)
+                        case .snooze:
+                            Toggle("ux_snooze", isOn: $viewModel.settings.isSnoozeEnabled)
+                            if viewModel.settings.isSnoozeEnabled {
+                                HStack { Text("snooze_duration"); Spacer(); Text(String.localizedStringWithFormat(String(localized: "snooze_duration_value"), viewModel.settings.snoozeDurationMinutes)).foregroundStyle(Color.accentColor) }
+                                Slider(value: snoozeDurationSliderValue, in: Double(CommuteAlarmSettings.snoozeDurationRange.lowerBound)...Double(CommuteAlarmSettings.snoozeDurationRange.upperBound), step: 1)
+                            }
+                        case .evening:
+                            Toggle("ux_evening", isOn: $viewModel.settings.isEveningPreviewEnabled)
+                            if viewModel.settings.isEveningPreviewEnabled {
+                                DatePicker("evening_preview_time", selection: $viewModel.settings.eveningPreviewTime, displayedComponents: .hourAndMinute)
+                                    .datePickerStyle(.wheel).labelsHidden()
+                                    .environment(\.locale, Locale(identifier: viewModel.settings.timeFormat == .twentyFourHour ? "en_GB" : (Locale.current.language.languageCode?.identifier == "zh" ? "zh_TW" : "en_US")))
+                            }
+                        case .time: EmptyView()
                         }
-                    }
+                    }.font(.body).padding(22)
                 }
+                .navigationTitle(setting.title).navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) {
+                    Button { presentedSetting = nil } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel(Text("clock_close"))
+                } }
+                .background(Color.appBackground)
             }
-        }
-        .onAppear {
-            clampRainLeadTime()
-        }
-        .onDisappear {
-            stopSoundPreview()
+            .presentationDetents(setting.soundSlot != nil ? [.large] : [.height(390)])
+            .presentationDragIndicator(.visible)
         }
     }
 
@@ -1003,11 +1050,40 @@ private struct AlarmTabView: View {
     /// language, which put "AM" in front of the English strings for a Simplified
     /// Chinese device. `.dateTime` answers both questions from the resolved locale.
     private func timeText(for date: Date) -> String {
-        date.formatted(.dateTime.hour().minute())
+        viewModel.settings.timeFormat.time(date)
     }
 
-    private var isPreviewingSelectedSound: Bool {
-        previewingSound == viewModel.settings.alarmSound
+    @ViewBuilder private func soundSettings(for slot: CommuteAlarmSettings.SoundSlot) -> some View {
+        let selected = viewModel.settings.sound(for: slot)
+        ForEach(soundChoices) { sound in
+            Button { selectSound(sound, for: slot) } label: {
+                HStack {
+                    Text(sound.displayName).foregroundStyle(.primary)
+                    Spacer()
+                    if selected == sound { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+                }.frame(minHeight: 32).contentShape(Rectangle())
+            }.buttonStyle(.plain)
+        }
+        if selected == .aiVoice {
+            Button("ai_voice_edit") { stopSoundPreview(); showsAIVoiceSheet = true }
+        }
+        let otherSlot: CommuteAlarmSettings.SoundSlot = slot == .early ? .normal : .early
+        if let fileName = viewModel.settings.voiceFileName(for: otherSlot),
+           GeneratedVoiceStore.existingFileName(named: fileName) != nil,
+           selected != .aiVoice || fileName != viewModel.settings.voiceFileName(for: slot) {
+            Button(LocalizedStringKey(slot == .early ? "ai_voice_use_normal" : "ai_voice_use_early")) {
+                stopSoundPreview()
+                var settings = viewModel.settings
+                settings.setVoice(fileName: fileName, persona: settings.voicePersona(for: otherSlot),
+                                  text: settings.voiceText(for: otherSlot), for: slot)
+                viewModel.settings = settings
+            }
+        }
+        if !selected.usesSystemAlarmTone {
+            Button { toggleSelectedSoundPreview(for: slot) } label: {
+                Label("preview_alarm_sound", systemImage: previewingSound == selected ? "stop.circle.fill" : "play.circle.fill")
+            }
+        }
     }
 
     /// The picker's contents. `aiVoice` appears only where it can actually be
@@ -1021,36 +1097,24 @@ private struct AlarmTabView: View {
         return choices
     }
 
-    /// Choosing the spoken alarm means writing it, so the picker opens the sheet
-    /// rather than selecting a file that may not exist yet. Backing out without a
-    /// clip puts the previous tone back — leaving `aiVoice` selected with nothing
-    /// behind it would show a sound the alarm would not actually ring.
-    private func soundSelectionChanged(from previous: CommuteAlarmSettings.AlarmSound,
-                                       to current: CommuteAlarmSettings.AlarmSound) {
-        guard current == .aiVoice, previous != .aiVoice, !showsAIVoiceSheet else {
-            return
-        }
+    /// Select a saved voice without generating again. A new voice is selected
+    /// only after saving succeeds, so cancelling leaves this slot unchanged.
+    private func selectSound(_ sound: CommuteAlarmSettings.AlarmSound, for slot: CommuteAlarmSettings.SoundSlot) {
         stopSoundPreview()
-        soundBeforeAIVoice = previous
-        showsAIVoiceSheet = true
-    }
-
-    private func aiVoiceSheetDismissed() {
-        guard viewModel.settings.alarmSound == .aiVoice,
-              viewModel.settings.aiVoiceFileName.flatMap(GeneratedVoiceStore.existingFileName) == nil,
-              let previous = soundBeforeAIVoice else {
-            soundBeforeAIVoice = nil
+        if sound == .aiVoice,
+           viewModel.settings.voiceFileName(for: slot).flatMap(GeneratedVoiceStore.existingFileName) == nil {
+            showsAIVoiceSheet = true
             return
         }
-        viewModel.settings.alarmSound = previous
-        soundBeforeAIVoice = nil
+        viewModel.settings.setSound(sound, for: slot)
     }
 
-    private func toggleSelectedSoundPreview() {
-        if isPreviewingSelectedSound {
+    private func toggleSelectedSoundPreview(for slot: CommuteAlarmSettings.SoundSlot) {
+        let sound = viewModel.settings.sound(for: slot)
+        if previewingSound == sound {
             stopSoundPreview()
         } else {
-            previewSound(viewModel.settings.alarmSound)
+            previewSound(sound, for: slot)
         }
     }
 
@@ -1058,9 +1122,9 @@ private struct AlarmTabView: View {
     /// own container. The alarm itself never needs to know the difference — both
     /// paths resolve a bare file name — but this player opens the file directly,
     /// so it does.
-    private func previewURL(for sound: CommuteAlarmSettings.AlarmSound) -> URL? {
+    private func previewURL(for sound: CommuteAlarmSettings.AlarmSound, slot: CommuteAlarmSettings.SoundSlot) -> URL? {
         if sound == .aiVoice {
-            return viewModel.settings.aiVoiceFileName.flatMap(GeneratedVoiceStore.url(named:))
+            return viewModel.settings.voiceFileName(for: slot).flatMap(GeneratedVoiceStore.url(named:))
         }
         let parts = sound.fileName.split(separator: ".", maxSplits: 1).map(String.init)
         guard let resource = parts.first, let ext = parts.dropFirst().first else {
@@ -1069,9 +1133,9 @@ private struct AlarmTabView: View {
         return Bundle.main.url(forResource: resource, withExtension: ext)
     }
 
-    private func previewSound(_ sound: CommuteAlarmSettings.AlarmSound) {
+    private func previewSound(_ sound: CommuteAlarmSettings.AlarmSound, for slot: CommuteAlarmSettings.SoundSlot) {
         stopSoundPreview()
-        guard let url = previewURL(for: sound),
+        guard let url = previewURL(for: sound, slot: slot),
               let player = try? AVAudioPlayer(contentsOf: url) else {
             return
         }
@@ -1148,83 +1212,6 @@ private enum RowLabelFont {
     }
 }
 
-private struct RouteModePicker: View {
-    private static let gridSpacing: CGFloat = 6
-    private static let labelInset: CGFloat = 8
-
-    @Binding var selection: CommuteAlarmSettings.CommuteMode
-    let modes: [CommuteAlarmSettings.CommuteMode]
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .subheadline) private var scaledLabelSize: CGFloat = 15
-
-    var body: some View {
-        GeometryReader { proxy in
-            let labelSize = labelSize(inRowOfWidth: proxy.size.width)
-
-            VStack(spacing: Self.gridSpacing) {
-                ForEach(rowStarts, id: \.self) { start in
-                    HStack(spacing: Self.gridSpacing) {
-                        ForEach(modes[start..<min(start + columnCount, modes.count)]) { mode in
-                            Button {
-                                selection = mode
-                            } label: {
-                                Text(mode.displayName)
-                                    .font(.system(size: labelSize, weight: .semibold))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.5)
-                                    .allowsTightening(true)
-                                    .padding(.horizontal, Self.labelInset)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: pillHeight)
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.white)
-                            .background(selection == mode ? Color.accentColor : Color.appFieldBackground)
-                            .clipShape(Capsule())
-                        }
-                    }
-                }
-            }
-        }
-        .frame(height: gridHeight)
-    }
-
-    /// Four pills on one row leave each label ~45pt wide at an accessibility
-    /// text size, which truncates every one of them to "…". Two columns give
-    /// the labels room to grow instead.
-    private var columnCount: Int {
-        dynamicTypeSize.isAccessibilitySize ? 2 : modes.count
-    }
-
-    private var rowStarts: [Int] {
-        Array(stride(from: 0, to: modes.count, by: columnCount))
-    }
-
-    /// Sized from the unshrunk text so the pill height does not depend on the
-    /// fitted label size, which in turn depends on the row width.
-    private var pillHeight: CGFloat {
-        UIFont.systemFont(ofSize: scaledLabelSize, weight: .semibold).lineHeight.rounded(.up) + 20
-    }
-
-    private var gridHeight: CGFloat {
-        let rows = (CGFloat(modes.count) / CGFloat(columnCount)).rounded(.up)
-        return rows * pillHeight + (rows - 1) * Self.gridSpacing
-    }
-
-    private func labelSize(inRowOfWidth rowWidth: CGFloat) -> CGFloat {
-        let columns = CGFloat(columnCount)
-        let pillWidth = (rowWidth - Self.gridSpacing * (columns - 1)) / columns
-
-        return RowLabelFont.fittedSize(
-            labels: modes.map(\.displayName),
-            fittingWidth: pillWidth - Self.labelInset * 2,
-            baseSize: scaledLabelSize,
-            weight: .semibold
-        )
-    }
-}
-
 private struct AddressCompletionList: View {
     let completions: [MKLocalSearchCompletion]
     let isSearching: Bool
@@ -1239,12 +1226,12 @@ private struct AddressCompletionList: View {
                             .controlSize(.small)
                     } else {
                         Image(systemName: "magnifyingglass")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.body.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
 
                     Text(String(localized: isSearching ? "address_suggestions_loading" : "address_suggestions_empty"))
-                        .font(.subheadline.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(.secondary)
 
                     Spacer()
@@ -1259,13 +1246,13 @@ private struct AddressCompletionList: View {
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "magnifyingglass")
-                                .font(.subheadline.weight(.semibold))
+                                .font(.body.weight(.semibold))
                                 .foregroundStyle(.secondary)
                                 .frame(width: 22)
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(completion.title)
-                                    .font(.subheadline.weight(.semibold))
+                                    .font(.body.weight(.semibold))
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
                                 if !completion.subtitle.isEmpty {
@@ -1372,13 +1359,14 @@ private struct AddressFieldRow<Field: Hashable>: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
                 Text(label)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(isInvalid ? Color.red : .secondary)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
                     .frame(minWidth: 44, alignment: .leading)
 
                 TextField(placeholder, text: $text)
+                    .font(.body)
                     .textContentType(.fullStreetAddress)
                     .submitLabel(.search)
                     .focused(focusedField, equals: field)
@@ -1463,292 +1451,7 @@ private struct AddressFieldRow<Field: Hashable>: View {
     }
 }
 
-private struct MetricCard: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.headline)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-private struct MetricRow: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(title)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .multilineTextAlignment(.trailing)
-        }
-    }
-}
-
-/// The card count is dynamic: the two endpoints, plus up to three interior
-/// samples once the commute is long enough. Five cards in one `HStack` are
-/// wider than the screen — they clip at both edges and drag the whole page's
-/// horizontal margins with them — so the cards move onto two rows instead.
-///
-/// Five of them do that as a **W**: stops 1, 3 and 5 on the top row, stops 2
-/// and 4 dropped onto a second row nesting in the gaps between them. Every
-/// card then still sits further right than the one before it, so the row reads
-/// home → office left to right, which a plain 3+2 grid loses — there the
-/// fourth stop starts a new row at the far left, behind the second.
-private struct RouteWeatherGrid: View {
-    private static let spacing: CGFloat = 10
-
-    let segments: [RouteWeatherSegment]
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var rowWidth: CGFloat = 0
-
-    var body: some View {
-        if usesStaggeredRows {
-            staggeredRows
-        } else {
-            wrappedRows
-        }
-    }
-
-    private var staggeredRows: some View {
-        VStack(spacing: Self.spacing) {
-            HStack(spacing: Self.spacing) {
-                ForEach(topIndices, id: \.self) { index in
-                    RouteWeatherCard(segment: segments[index], peers: segments)
-                }
-            }
-            .background(rowWidthReader)
-
-            HStack(spacing: Self.spacing) {
-                ForEach(bottomIndices, id: \.self) { index in
-                    RouteWeatherCard(segment: segments[index], peers: segments)
-                }
-            }
-            // One card lands the lower row exactly between the two above it.
-            .padding(.horizontal, staggerInset)
-        }
-    }
-
-    private var wrappedRows: some View {
-        VStack(spacing: Self.spacing) {
-            ForEach(rowStarts, id: \.self) { start in
-                let end = min(start + columnCount, segments.count)
-
-                HStack(spacing: Self.spacing) {
-                    ForEach(segments[start..<end]) { segment in
-                        RouteWeatherCard(segment: segment, peers: segments)
-                    }
-
-                    // Keep a short trailing row's cards the same width as a
-                    // full row's rather than letting them stretch.
-                    ForEach(Array((end - start)..<columnCount), id: \.self) { _ in
-                        Color.clear
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-            }
-        }
-    }
-
-    private var rowWidthReader: some View {
-        GeometryReader { proxy in
-            Color.clear
-                .onChange(of: proxy.size.width, initial: true) { _, width in
-                    rowWidth = width
-                }
-        }
-    }
-
-    /// An even count would put as many cards on the lower row as the upper one,
-    /// leaving no gap to nest into; only an odd count staggers. In practice the
-    /// sampler produces two, three or five. Accessibility sizes stay on the
-    /// wrapped rows — a W at those sizes is back to five cards' worth of width.
-    private var usesStaggeredRows: Bool {
-        !dynamicTypeSize.isAccessibilitySize && segments.count >= 5 && !segments.count.isMultiple(of: 2)
-    }
-
-    private var topIndices: [Int] {
-        Array(stride(from: 0, to: segments.count, by: 2))
-    }
-
-    private var bottomIndices: [Int] {
-        Array(stride(from: 1, to: segments.count, by: 2))
-    }
-
-    private var staggerInset: CGFloat {
-        guard rowWidth > 0, !topIndices.isEmpty else {
-            return 0
-        }
-
-        let columns = CGFloat(topIndices.count)
-        let cardWidth = (rowWidth - Self.spacing * (columns - 1)) / columns
-        return (cardWidth + Self.spacing) / 2
-    }
-
-    /// Two endpoints alone keep the historical side-by-side pair.
-    private var columnCount: Int {
-        min(max(segments.count, 1), dynamicTypeSize.isAccessibilitySize ? 2 : 3)
-    }
-
-    private var rowStarts: [Int] {
-        Array(stride(from: 0, to: segments.count, by: columnCount))
-    }
-}
-
-private struct RouteWeatherCard: View {
-    let segment: RouteWeatherSegment
-    /// Every card on screen, this one included. Their titles and rain figures
-    /// are laid out invisibly behind this card's own so each line reserves the
-    /// same height in every card, which keeps the three tiers on shared
-    /// baselines. Without it a one-line "Cloudy" makes its card's stack shorter
-    /// than a neighbour's two-line "62% precipitation", and centring that
-    /// shorter stack drops the title below the titles either side of it.
-    let peers: [RouteWeatherSegment]
-
-    var body: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                ForEach(peers.indices, id: \.self) { index in
-                    title(peers[index].name)
-                        .hidden()
-                }
-
-                title(segment.name)
-            }
-
-            Image(systemName: segment.condition.iconName)
-                .symbolRenderingMode(.multicolor)
-                .font(.system(size: 42))
-                .foregroundStyle(segment.condition.color)
-
-            ZStack {
-                ForEach(peers.indices, id: \.self) { index in
-                    conditionLabel(Self.conditionText(for: peers[index]))
-                        .hidden()
-                }
-
-                conditionLabel(conditionText)
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: 150)
-        .padding(.vertical, 18)
-        .padding(.horizontal, 8)
-        .background(
-            LinearGradient(
-                colors: [Color(red: 0.02, green: 0.12, blue: 0.15), Color(red: 0.02, green: 0.28, blue: 0.42)],
-                startPoint: .top,
-                endPoint: .bottom
-            ),
-            in: RoundedRectangle(cornerRadius: 30, style: .continuous)
-        )
-    }
-
-    private func title(_ text: String) -> some View {
-        Text(text)
-            .font(.headline.weight(.semibold))
-            .lineLimit(2)
-            .multilineTextAlignment(.center)
-            .minimumScaleFactor(0.7)
-    }
-
-    private func conditionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
-            .lineLimit(2)
-            .multilineTextAlignment(.center)
-            .minimumScaleFactor(0.6)
-    }
-
-    private var conditionText: String {
-        Self.conditionText(for: segment)
-    }
-
-    static func conditionText(for segment: RouteWeatherSegment) -> String {
-        switch segment.condition {
-        case .clear:
-            return String(localized: "weather_clear")
-        case .cloudy:
-            return String(localized: "weather_cloudy")
-        case .rain:
-            return String.localizedStringWithFormat(
-                String(localized: "precipitation_value"),
-                Int(segment.precipitationProbability * 100)
-            )
-        }
-    }
-}
-
-private struct RouteWeatherPlaceholderCards: View {
-    private let titles = [
-        String(localized: "segment_home_area"),
-        String(localized: "segment_office_area")
-    ]
-
-    var body: some View {
-        HStack(spacing: 10) {
-            ForEach(titles, id: \.self) { title in
-                VStack(spacing: 12) {
-                    Text(title)
-                        .font(.headline.weight(.semibold))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.7)
-
-                    Image(systemName: "cloud.sun.fill")
-                        .symbolRenderingMode(.multicolor)
-                        .font(.system(size: 42))
-
-                    Text("weather_waiting")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, minHeight: 150)
-                .padding(.vertical, 18)
-                .padding(.horizontal, 8)
-                .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
-            }
-        }
-    }
-}
-
-private extension RouteWeatherSegment.Condition {
-    var iconName: String {
-        switch self {
-        case .clear:
-            "sun.max.fill"
-        case .cloudy:
-            "cloud.sun.fill"
-        case .rain:
-            "cloud.rain.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .clear:
-            .yellow
-        case .cloudy:
-            .cyan
-        case .rain:
-            .blue
-        }
-    }
-}
-
-private extension Color {
+extension Color {
     static let appBackground = Color.black
     static let appCardBackground = Color(red: 0.12, green: 0.12, blue: 0.13)
     static let appFieldBackground = Color(red: 0.18, green: 0.18, blue: 0.20)

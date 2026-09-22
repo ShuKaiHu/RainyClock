@@ -77,20 +77,18 @@ final class AIVoiceQuotaTests: XCTestCase {
 
     // MARK: - Quota
 
-    func testFreshDeviceHasThreeFree() {
-        XCTAssertEqual(AIVoiceQuota.freeRemaining, 3)
-        XCTAssertEqual(AIVoiceQuota.remaining, 3)
+    func testFreshDeviceHasOneInitialFreeGeneration() {
+        XCTAssertEqual(AIVoiceQuota.freeRemaining, 1)
+        XCTAssertEqual(AIVoiceQuota.remaining, 1)
         XCTAssertTrue(AIVoiceQuota.canGenerate)
     }
 
     func testConsumingSpendsFreeBeforeCredits() {
         AIVoiceQuota.grantCredit()
         AIVoiceQuota.consume()
-        AIVoiceQuota.consume()
-        AIVoiceQuota.consume()
 
         XCTAssertEqual(AIVoiceQuota.freeRemaining, 0)
-        XCTAssertEqual(AIVoiceQuota.remaining, 1, "the credit is still there after the free three")
+        XCTAssertEqual(AIVoiceQuota.remaining, 1, "the earned credit survives spending the initial free generation")
 
         AIVoiceQuota.consume()
         XCTAssertEqual(AIVoiceQuota.remaining, 0)
@@ -102,16 +100,14 @@ final class AIVoiceQuotaTests: XCTestCase {
 
     func testCountIsWrittenToBothTheKeychainAndTheMirror() throws {
         AIVoiceQuota.consume()
-        AIVoiceQuota.consume()
 
-        XCTAssertEqual(UserDefaults.standard.integer(forKey: "aiVoiceGenerationsUsed"), 2)
+        XCTAssertEqual(UserDefaults.standard.integer(forKey: "aiVoiceGenerationsUsed"), 1)
         try requireKeychain()
-        XCTAssertEqual(store.integer(forKey: "aiVoiceGenerationsUsed"), 2)
+        XCTAssertEqual(store.integer(forKey: "aiVoiceGenerationsUsed"), 1)
     }
 
     func testCountSurvivesAReinstall() throws {
         try requireKeychain()
-        AIVoiceQuota.consume()
         AIVoiceQuota.consume()
         AIVoiceQuota.grantCredit()
 
@@ -119,8 +115,8 @@ final class AIVoiceQuotaTests: XCTestCase {
         // leaves the keychain.
         clearMirror()
 
-        XCTAssertEqual(AIVoiceQuota.freeRemaining, 1)
-        XCTAssertEqual(AIVoiceQuota.remaining, 2)
+        XCTAssertEqual(AIVoiceQuota.freeRemaining, 0)
+        XCTAssertEqual(AIVoiceQuota.remaining, 1)
     }
 
     func testCountLeftByAnEarlierBuildIsPickedUpFromTheMirror() throws {
@@ -128,8 +124,8 @@ final class AIVoiceQuotaTests: XCTestCase {
         UserDefaults.standard.set(2, forKey: "aiVoiceGenerationsUsed")
         UserDefaults.standard.set(1, forKey: "aiVoiceEarnedCredits")
 
-        XCTAssertEqual(AIVoiceQuota.freeRemaining, 1)
-        XCTAssertEqual(AIVoiceQuota.remaining, 2)
+        XCTAssertEqual(AIVoiceQuota.freeRemaining, 0)
+        XCTAssertEqual(AIVoiceQuota.remaining, 1)
 
         try requireKeychain()
         // Carried into the keychain by the read, so the next reinstall keeps it.
@@ -138,6 +134,25 @@ final class AIVoiceQuotaTests: XCTestCase {
 
         // Once the keychain has a value, a lower mirror cannot override it.
         UserDefaults.standard.set(0, forKey: "aiVoiceGenerationsUsed")
-        XCTAssertEqual(AIVoiceQuota.freeRemaining, 1)
+        XCTAssertEqual(AIVoiceQuota.freeRemaining, 0)
+    }
+
+    func testUpgradingThreeGenerationAllowanceKeepsUsageAndEarnedCredits() {
+        for previouslyUsed in 0...3 {
+            store.removeAll()
+            clearMirror()
+            UserDefaults.standard.set(previouslyUsed, forKey: "aiVoiceGenerationsUsed")
+            UserDefaults.standard.set(2, forKey: "aiVoiceEarnedCredits")
+
+            XCTAssertEqual(AIVoiceQuota.freeRemaining, max(1 - previouslyUsed, 0))
+            XCTAssertEqual(AIVoiceQuota.earnedCredits, 2)
+            XCTAssertEqual(AIVoiceQuota.remaining, max(1 - previouslyUsed, 0) + 2)
+            XCTAssertEqual(UserDefaults.standard.integer(forKey: "aiVoiceGenerationsUsed"), previouslyUsed)
+
+            AIVoiceQuota.consume()
+            XCTAssertEqual(AIVoiceQuota.freeRemaining, 0)
+            XCTAssertEqual(AIVoiceQuota.earnedCredits, previouslyUsed == 0 ? 2 : 1)
+            XCTAssertEqual(UserDefaults.standard.integer(forKey: "aiVoiceGenerationsUsed"), max(previouslyUsed, 1))
+        }
     }
 }

@@ -23,9 +23,19 @@ protocol NotificationScheduling: Sendable {
         title: String,
         body: String
     ) async throws
+    func scheduleCalendar(_ plan: CalendarAlarmPlan, sound: CommuteAlarmSettings.AlarmSound,
+                          soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws
     /// Removes every alarm this scheduler owns without arming a replacement. Used
     /// when an address change invalidates the scheduled route.
     func cancelScheduledAlarms() async
+}
+
+enum CalendarSchedulingError: Error { case unsupported }
+extension NotificationScheduling {
+    func scheduleCalendar(_ plan: CalendarAlarmPlan, sound: CommuteAlarmSettings.AlarmSound,
+                          soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws {
+        throw CalendarSchedulingError.unsupported
+    }
 }
 
 /// Routes scheduling to AlarmKit where it exists and to local notifications
@@ -76,6 +86,17 @@ struct SystemAlarmScheduler: NotificationScheduling {
         )
     }
 
+    func scheduleCalendar(_ plan: CalendarAlarmPlan, sound: CommuteAlarmSettings.AlarmSound,
+                          soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws {
+        if #available(iOS 26.0, *) {
+            try await AlarmKitScheduler().scheduleCalendar(plan, sound: sound, soundFileNameOverride: soundFileNameOverride,
+                                                         snoozeMinutes: snoozeMinutes, title: title, body: body)
+        } else {
+            try await LocalNotificationScheduler().scheduleCalendar(plan, sound: sound, soundFileNameOverride: soundFileNameOverride,
+                                                                  snoozeMinutes: snoozeMinutes, title: title, body: body)
+        }
+    }
+
     func cancelScheduledAlarms() async {
         // Both paths, not either: an install that upgraded to iOS 26 without
         // rescheduling still owns notification alarms alongside AlarmKit's.
@@ -89,17 +110,23 @@ struct SystemAlarmScheduler: NotificationScheduling {
 /// Serializes every pending-notification mutation: schedule/acknowledge/re-arm run to
 /// completion one at a time, so concurrent entry points (the notification delegate and
 /// the scenePhase activation handler) cannot interleave their remove/add sequences.
-private actor AlarmRegistrationQueue {
+actor AlarmRegistrationQueue {
     private var lastTask: Task<Void, Never>?
 
     func run<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) async throws -> T {
+        try Task.checkCancellation()
         let previous = lastTask
         let task = Task<T, Error> {
             await previous?.value
+            try Task.checkCancellation()
             return try await operation()
         }
         lastTask = Task { _ = try? await task.value }
-        return try await task.value
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 }
 
@@ -186,9 +213,60 @@ struct LocalNotificationScheduler: NotificationScheduling {
         )
 
         try await Self.registrationQueue.run {
-            Self.storePlan(plan)
             try await Self.register(plan: plan, silencingWindowEndingAt: nil)
+            Self.storePlan(plan)
         }
+    }
+
+    func scheduleCalendar(_ plan: CalendarAlarmPlan, sound: CommuteAlarmSettings.AlarmSound,
+                          soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws {
+        let stored = StoredAlarmPlan(scheduledAt: Date(), ringDate: plan.occurrences.first?.ringDate ?? plan.coveredUntil,
+            normalAlarmDate: plan.occurrences.first?.normalDate ?? plan.coveredUntil,
+            weekdays: [], soundRawValue: sound.rawValue, soundFileNameOverride: soundFileNameOverride,
+            followUpIntervalMinutes: snoozeMinutes ?? 0, title: title, body: body, calendarPlan: plan)
+        try await Self.registrationQueue.run {
+            try await Self.registerDated(plan: stored)
+            Self.storePlan(stored)
+        }
+    }
+
+    /// Each date has stable request identifiers: replacing one is atomic in UN.
+    /// Snapshot old requests for rollback if any add fails. Retire superseded
+    /// requests first to avoid iOS silently dropping alarms over its 64 limit.
+    private static func registerDated(plan: StoredAlarmPlan) async throws {
+        guard let dated = plan.calendarPlan else { return }
+        let center = UNUserNotificationCenter.current()
+        let previous = await center.pendingNotificationRequests().filter { $0.identifier.hasPrefix(identifierPrefix) }
+        center.removePendingNotificationRequests(withIdentifiers: previous.map(\.identifier))
+        var added: [String] = []
+        do {
+            for occurrence in dated.occurrences {
+                var offsets = [0]
+                if let interval = plan.followUpIntervalMinutes, interval > 0 { offsets.append(interval * 60) }
+                for offset in offsets {
+                    let fire = occurrence.ringDate.addingTimeInterval(Double(offset))
+                    guard fire > Date() else { continue }
+                    let id = "\(identifierPrefix)-date-\(AlarmCalendarSettings.key(for: occurrence.normalDate))-\(offset)"
+                    let content = UNMutableNotificationContent()
+                    content.title = plan.title; content.body = plan.body
+                    let selectedSound = occurrence.resolvedSound(fallback: .init(
+                        sound: CommuteAlarmSettings.AlarmSound(rawValue: plan.soundRawValue) ?? .rainyClock,
+                        fileNameOverride: plan.soundFileNameOverride))
+                    content.sound = notificationSound(for: selectedSound); content.categoryIdentifier = categoryIdentifier
+                    content.userInfo = ["normalDay": AlarmCalendarSettings.key(for: occurrence.normalDate)]
+                    let trigger = UNCalendarNotificationTrigger(dateMatching: AlarmCalendarSettings.calendar.dateComponents([.calendar, .timeZone, .year, .month, .day, .hour, .minute, .second], from: fire), repeats: false)
+                    try await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+                    added.append(id)
+                }
+            }
+        } catch {
+            center.removePendingNotificationRequests(withIdentifiers: added)
+            for old in previous { try? await center.add(old) }
+            throw error
+        }
+        let keep = Set(added)
+        center.removePendingNotificationRequests(withIdentifiers: previous.map(\.identifier).filter { !keep.contains($0) })
+        clearRearmFlag()
     }
 
     /// Silences the remainder of the ring session the tapped notification belongs to,
@@ -216,6 +294,15 @@ struct LocalNotificationScheduler: NotificationScheduling {
                 return
             }
 
+            if let dated = plan.calendarPlan {
+                let interval = Double((plan.followUpIntervalMinutes ?? 0) * 60 + 60)
+                if let occurrence = dated.occurrences.last(where: { $0.ringDate <= deliveredAt && deliveredAt < $0.ringDate.addingTimeInterval(interval) }) {
+                    let prefix = "\(Self.identifierPrefix)-date-\(AlarmCalendarSettings.key(for: occurrence.normalDate))-"
+                    let pending = await center.pendingNotificationRequests()
+                    center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(prefix) })
+                }
+                return
+            }
             let window = Self.followUpWindow(for: plan)
             let windowEnd = deliveredAt.addingTimeInterval(window)
             guard windowEnd > Date() else {
@@ -243,69 +330,75 @@ struct LocalNotificationScheduler: NotificationScheduling {
 
     private static func register(plan: StoredAlarmPlan, silencingWindowEndingAt windowEnd: Date?) async throws {
         let center = UNUserNotificationCenter.current()
+        let previous = await center.pendingNotificationRequests().filter { $0.identifier.hasPrefix(identifierPrefix) }
         await removeAllPendingAlarmRequests(center: center)
+        do {
+            let content = UNMutableNotificationContent()
+            content.title = plan.title
+            content.body = plan.body
+            content.sound = notificationSound(for: plan)
+            content.categoryIdentifier = categoryIdentifier
 
-        let content = UNMutableNotificationContent()
-        content.title = plan.title
-        content.body = plan.body
-        content.sound = notificationSound(for: plan)
-        content.categoryIdentifier = categoryIdentifier
+            // The ring date may sit on an earlier day than the normal alarm (rain lead time
+            // crossing midnight), so every selected weekday shifts by the same day delta.
+            let calendar = Calendar.current
+            let dayShift = calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: plan.normalAlarmDate),
+                to: calendar.startOfDay(for: plan.ringDate)
+            ).day ?? 0
+            let timeComponents = calendar.dateComponents([.hour, .minute, .second], from: plan.ringDate)
+            let offsets = ringOffsets(for: plan)
+            var silencedTrigger = false
 
-        // The ring date may sit on an earlier day than the normal alarm (rain lead time
-        // crossing midnight), so every selected weekday shifts by the same day delta.
-        let calendar = Calendar.current
-        let dayShift = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: plan.normalAlarmDate),
-            to: calendar.startOfDay(for: plan.ringDate)
-        ).day ?? 0
-        let timeComponents = calendar.dateComponents([.hour, .minute, .second], from: plan.ringDate)
-        let offsets = ringOffsets(for: plan)
-        var silencedTrigger = false
-
-        for weekday in plan.weekdays.sorted() {
-            for offset in offsets {
-                let components = normalizedComponents(
-                    weekday: weekday,
-                    dayShift: dayShift,
-                    timeComponents: timeComponents,
-                    offset: offset
-                )
-                let repeatingTrigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-                var trigger: UNNotificationTrigger = repeatingTrigger
-
-                if let windowEnd,
-                   let nextFireDate = repeatingTrigger.nextTriggerDate(),
-                   nextFireDate < windowEnd {
-                    // Re-registering this repeating trigger would ring again inside the
-                    // acknowledged window. Fall back to a weekly time-interval trigger
-                    // anchored at next week's occurrence — it keeps repeating (with
-                    // minor drift) even if the app is never activated again, and
-                    // rearmAlarmsIfNeeded restores the precise calendar version.
-                    silencedTrigger = true
-                    guard let nextWeekFireDate = calendar.date(byAdding: .day, value: 7, to: nextFireDate),
-                          nextWeekFireDate.timeIntervalSinceNow > 60 else {
-                        continue
-                    }
-                    trigger = UNTimeIntervalNotificationTrigger(
-                        timeInterval: nextWeekFireDate.timeIntervalSinceNow,
-                        repeats: true
+            for weekday in plan.weekdays.sorted() {
+                for offset in offsets {
+                    let components = normalizedComponents(
+                        weekday: weekday,
+                        dayShift: dayShift,
+                        timeComponents: timeComponents,
+                        offset: offset
                     )
+                    let repeatingTrigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+                    var trigger: UNNotificationTrigger = repeatingTrigger
+
+                    if let windowEnd,
+                       let nextFireDate = repeatingTrigger.nextTriggerDate(),
+                       nextFireDate < windowEnd {
+                        // Re-registering this repeating trigger would ring again inside the
+                        // acknowledged window. Fall back to a weekly time-interval trigger
+                        // anchored at next week's occurrence — it keeps repeating (with
+                        // minor drift) even if the app is never activated again, and
+                        // rearmAlarmsIfNeeded restores the precise calendar version.
+                        silencedTrigger = true
+                        guard let nextWeekFireDate = calendar.date(byAdding: .day, value: 7, to: nextFireDate),
+                              nextWeekFireDate.timeIntervalSinceNow > 60 else {
+                            continue
+                        }
+                        trigger = UNTimeIntervalNotificationTrigger(
+                            timeInterval: nextWeekFireDate.timeIntervalSinceNow,
+                            repeats: true
+                        )
+                    }
+
+                    let request = UNNotificationRequest(
+                        identifier: alarmIdentifier(for: weekday, offset: offset),
+                        content: content,
+                        trigger: trigger
+                    )
+                    try await center.add(request)
                 }
-
-                let request = UNNotificationRequest(
-                    identifier: alarmIdentifier(for: weekday, offset: offset),
-                    content: content,
-                    trigger: trigger
-                )
-                try await center.add(request)
             }
-        }
 
-        if silencedTrigger, let windowEnd {
-            setRearmFlag(after: windowEnd)
-        } else {
-            clearRearmFlag()
+            if silencedTrigger, let windowEnd {
+                setRearmFlag(after: windowEnd)
+            } else {
+                clearRearmFlag()
+            }
+        } catch {
+            await removeAllPendingAlarmRequests(center: center)
+            for request in previous { try? await center.add(request) }
+            throw error
         }
     }
 
@@ -358,12 +451,16 @@ struct LocalNotificationScheduler: NotificationScheduling {
     /// default tone silently — hence `GeneratedVoiceStore.assembledDuration` and the
     /// existence check behind `soundFileNameOverride`.
     private static func notificationSound(for plan: StoredAlarmPlan) -> UNNotificationSound {
-        let sound = CommuteAlarmSettings.AlarmSound(rawValue: plan.soundRawValue) ?? .rainyClock
-        if sound == .systemDefault {
+        notificationSound(for: .init(sound: CommuteAlarmSettings.AlarmSound(rawValue: plan.soundRawValue) ?? .rainyClock,
+                                      fileNameOverride: plan.soundFileNameOverride))
+    }
+
+    private static func notificationSound(for selection: AlarmSoundSelection) -> UNNotificationSound {
+        if selection.sound == .systemDefault {
             return .default
         }
 
-        let fileName = plan.soundFileNameOverride ?? sound.fileName
+        let fileName = selection.fileNameOverride ?? selection.sound.fileName
         guard !fileName.isEmpty else {
             return UNNotificationSound(named: UNNotificationSoundName(CommuteAlarmSettings.AlarmSound.rainyClock.fileName))
         }
@@ -420,6 +517,7 @@ struct LocalNotificationScheduler: NotificationScheduling {
         var followUpIntervalMinutes: Int?
         var title: String
         var body: String
+        var calendarPlan: CalendarAlarmPlan?
     }
 
     private static func storePlan(_ plan: StoredAlarmPlan) {

@@ -120,6 +120,99 @@ final class AlarmSchedulingSettingsTests: XCTestCase {
 
     // MARK: - Schedule fingerprint
 
+    func testLegacyGeneratedVoiceMigratesIntoBothSoundSlots() throws {
+        let stored = #"{"alarmSound":"aiVoice","aiVoiceFileName":"ai-old.wav","aiVoicePersona":"mom","aiVoiceText":"Time to wake up"}"#
+        let settings = try JSONDecoder().decode(CommuteAlarmSettings.self, from: Data(stored.utf8))
+        for slot in CommuteAlarmSettings.SoundSlot.allCases {
+            XCTAssertEqual(settings.sound(for: slot), .aiVoice)
+            XCTAssertEqual(settings.voiceFileName(for: slot), "ai-old.wav")
+            XCTAssertEqual(settings.voicePersona(for: slot), .mom)
+            XCTAssertEqual(settings.voiceText(for: slot), "Time to wake up")
+        }
+        XCTAssertEqual(settings.generatedVoiceFileNames, ["ai-old.wav"])
+    }
+
+    func testSeparateSoundAndVoiceChoicesSurviveStorageIndependently() throws {
+        var settings = CommuteAlarmSettings()
+        settings.setVoice(fileName: "ai-normal.wav", persona: .gentle, text: "Normal", for: .normal)
+        settings.setVoice(fileName: "ai-early.wav", persona: .sergeant, text: "Early", for: .early)
+        settings.setSound(.brightChime, for: .early)
+        let restored = try JSONDecoder().decode(CommuteAlarmSettings.self, from: JSONEncoder().encode(settings))
+        XCTAssertEqual(restored.sound(for: .normal), .aiVoice)
+        XCTAssertEqual(restored.voiceText(for: .normal), "Normal")
+        XCTAssertEqual(restored.sound(for: .early), .brightChime)
+        XCTAssertEqual(restored.voiceFileName(for: .early), "ai-early.wav")
+        XCTAssertEqual(restored.voicePersona(for: .early), .sergeant)
+        XCTAssertEqual(restored.generatedVoiceFileNames, ["ai-normal.wav", "ai-early.wav"])
+    }
+
+    func testSoundUsesActualRingTimeIncludingZeroLeadAndMidnightCrossing() {
+        var settings = CommuteAlarmSettings()
+        settings.alarmSound = .softPiano
+        settings.earlyAlarmSound = .digitalBeep
+        let normal = Date(timeIntervalSince1970: 86_400)
+        XCTAssertEqual(settings.soundSelection(ringDate: normal, normalDate: normal).sound, .softPiano)
+        XCTAssertEqual(settings.soundSelection(ringDate: normal.addingTimeInterval(-1_800), normalDate: normal).sound, .digitalBeep)
+        // A delayed ring also belongs to the normal slot.
+        XCTAssertEqual(settings.soundSelection(ringDate: normal.addingTimeInterval(60), normalDate: normal).sound, .softPiano)
+    }
+
+    func testMissingEarlyVoiceFallsBackWithoutChangingTheNormalSound() {
+        var settings = CommuteAlarmSettings()
+        settings.alarmSound = .softPiano
+        settings.setVoice(fileName: "missing-\(UUID()).wav", persona: .mom, text: "Early", for: .early)
+        XCTAssertEqual(settings.soundFileNameOverride(for: .early), CommuteAlarmSettings.AlarmSound.rainyClock.fileName)
+        XCTAssertEqual(settings.soundFileNameOverride(for: .normal), CommuteAlarmSettings.AlarmSound.softPiano.fileName)
+    }
+
+    func testChangingEitherSoundSlotInvalidatesTheScheduleFingerprint() {
+        var settings = CommuteAlarmSettings()
+        let original = settings.scheduleFingerprint()
+        settings.earlyAlarmSound = .morningBell
+        XCTAssertNotEqual(settings.scheduleFingerprint(), original)
+        let withEarly = settings.scheduleFingerprint()
+        settings.setVoice(fileName: "ai-early.wav", persona: .steady, text: "Early", for: .early)
+        XCTAssertNotEqual(settings.scheduleFingerprint(), withEarly)
+        let voice = settings.scheduleFingerprint()
+        settings.earlyAIVoiceFileName = "ai-early-replacement.wav"
+        XCTAssertNotEqual(settings.scheduleFingerprint(), voice)
+    }
+
+    func testLegacyVoiceFingerprintMatchesMigratedTwoSlotSettings() throws {
+        let legacySettings = #"{"alarmSound":"aiVoice","aiVoiceFileName":"ai-old.wav"}"#
+        let settings = try JSONDecoder().decode(CommuteAlarmSettings.self, from: Data(legacySettings.utf8))
+        var oldFingerprint = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(settings.scheduleFingerprint())) as? [String: Any])
+        oldFingerprint.removeValue(forKey: "earlyAlarmSoundRawValue")
+        oldFingerprint.removeValue(forKey: "earlyAIVoiceFileName")
+        let restored = try JSONDecoder().decode(AlarmScheduleFingerprint.self, from: JSONSerialization.data(withJSONObject: oldFingerprint))
+        XCTAssertEqual(restored, settings.scheduleFingerprint())
+    }
+
+    func testDatedPlanPersistsOneEarlySoundAndNormalSoundsForLaterDays() throws {
+        var settings = CommuteAlarmSettings()
+        settings.alarmSound = .softPiano
+        settings.earlyAlarmSound = .digitalBeep
+        let firstNormal = Date(timeIntervalSince1970: 86_400)
+        let secondNormal = firstNormal.addingTimeInterval(86_400)
+        var plan = CalendarAlarmPlan(occurrences: [
+            .init(normalDate: firstNormal, ringDate: firstNormal.addingTimeInterval(-1_800)),
+            .init(normalDate: secondNormal, ringDate: secondNormal)
+        ], coveredUntil: secondNormal.addingTimeInterval(86_400))
+        plan.applySounds(from: settings)
+        let restored = try JSONDecoder().decode(CalendarAlarmPlan.self, from: JSONEncoder().encode(plan))
+        XCTAssertEqual(restored.occurrences[0].soundSelection?.sound, .digitalBeep)
+        XCTAssertEqual(restored.occurrences[0].soundSelection?.fileNameOverride, "DigitalBeep.wav")
+        XCTAssertEqual(restored.occurrences[1].soundSelection?.sound, .softPiano)
+        XCTAssertEqual(restored.occurrences[1].soundSelection?.fileNameOverride, "SoftPiano.wav")
+    }
+
+    func testLegacyDatedOccurrenceKeepsItsOriginalPlanSound() throws {
+        let occurrence = try JSONDecoder().decode(CalendarAlarmPlan.Occurrence.self,
+            from: Data(#"{"normalDate":86400,"ringDate":84600}"#.utf8))
+        let legacySound = AlarmSoundSelection(sound: .aiVoice, fileNameOverride: "ai-existing.wav")
+        XCTAssertEqual(occurrence.resolvedSound(fallback: legacySound), legacySound)
+    }
+
     func testFingerprintStoredBeforeSnoozeExistedStillDecodes() throws {
         // Regression guard: if this throws, the "settings changed — reschedule"
         // notice silently stops working for every upgraded install.

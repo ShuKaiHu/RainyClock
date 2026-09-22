@@ -28,6 +28,7 @@ struct EveningPreview: Equatable, Sendable {
         )
         /// A later selected weekday; the morning's refresh will decide it.
         case upcoming(normalAlarmDate: Date)
+        case dayOff(normalAlarmDate: Date)
     }
 
     let identifier: String
@@ -38,6 +39,7 @@ struct EveningPreview: Equatable, Sendable {
     /// says so, because then nothing but opening the app brings the decision
     /// up to date. This is the only place the app tells those users.
     let canRefreshInBackground: Bool
+    var timeFormat: ClockTimeFormat = .twentyFourHour
 }
 
 /// A ring the evening preview announced that a later unattended run moved.
@@ -53,6 +55,7 @@ struct AlarmDecisionChange: Equatable, Sendable {
     let maximumProbability: Double
     let threshold: Double
     let place: String?
+    var timeFormat: ClockTimeFormat = .twentyFourHour
 
     var movedLater: Bool { newRingDate > previousRingDate }
 
@@ -84,7 +87,10 @@ enum EveningPreviewPlanner {
         checkedAt: Date,
         now: Date,
         canRefreshInBackground: Bool,
-        calendar: Calendar = .current
+        calendar: Calendar = AlarmCalendarSettings.calendar,
+        calendarSettings: AlarmCalendarSettings = AlarmCalendarSettings(),
+        holidays: HolidayCalendar = HolidayCalendar(),
+        timeFormat: ClockTimeFormat = .twentyFourHour
     ) -> [EveningPreview] {
         let weekdays = selectedWeekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : selectedWeekdays
         let time = calendar.dateComponents([.hour, .minute], from: summary.normalAlarmDate)
@@ -96,7 +102,7 @@ enum EveningPreviewPlanner {
             guard let day = calendar.date(byAdding: .day, value: dayOffset, to: todayStart),
                   let alarm = calendar.date(bySettingHour: time.hour ?? 7, minute: time.minute ?? 30, second: 0, of: day),
                   alarm > now,
-                  weekdays.contains(calendar.component(.weekday, from: alarm)),
+                  (weekdays.contains(calendar.component(.weekday, from: alarm)) || (calendarSettings.isEnabled && calendarSettings.overrides[AlarmCalendarSettings.key(for: alarm, calendar: calendar)] != nil)),
                   let eve = calendar.date(byAdding: .day, value: -1, to: alarm),
                   let fireDate = calendar.date(bySettingHour: preview.hour ?? 21, minute: preview.minute ?? 0, second: 0, of: eve),
                   // An evening already gone gets nothing: the person is either in
@@ -106,7 +112,12 @@ enum EveningPreviewPlanner {
             }
 
             let isArmedRing = calendar.isDate(alarm, equalTo: summary.normalAlarmDate, toGranularity: .minute)
-            let kind: EveningPreview.Kind = isArmedRing
+                && (summary.calendarPlan == nil || summary.calendarForecastDate == summary.normalAlarmDate)
+            let disasterSilent = (summary.disasterSkips ?? []).contains {
+                calendar.isDate($0.normalDate, equalTo: alarm, toGranularity: .minute)
+            }
+            let silent = disasterSilent || (calendarSettings.isActive && !calendarSettings.decision(on: alarm, weekdays: weekdays, holidays: holidays, calendar: calendar).rings)
+            let kind: EveningPreview.Kind = silent ? .dayOff(normalAlarmDate: alarm) : isArmedRing
                 ? .decision(
                     rain: summary.exceedsRainThreshold,
                     normalAlarmDate: summary.normalAlarmDate,
@@ -123,7 +134,8 @@ enum EveningPreviewPlanner {
                 identifier: identifier(forAlarmOn: alarm, calendar: calendar),
                 fireDate: fireDate,
                 kind: kind,
-                canRefreshInBackground: canRefreshInBackground
+                canRefreshInBackground: canRefreshInBackground,
+                timeFormat: timeFormat
             ))
         }
 
@@ -164,7 +176,8 @@ enum EveningPreviewPlanner {
                 place: String(localized: "segment_home_area"),
                 checkedAt: now
             ),
-            canRefreshInBackground: canRefreshInBackground
+            canRefreshInBackground: canRefreshInBackground,
+            timeFormat: settings.timeFormat
         )
     }
 
@@ -184,6 +197,7 @@ enum EveningPreviewText {
     }
 
     static func body(for preview: EveningPreview) -> String {
+        let format = preview.timeFormat
         switch preview.kind {
         case let .decision(rain, normalAlarmDate, scheduledAlarmDate, leadTimeMinutes, maximumProbability, threshold, place, checkedAt):
             let where_ = place ?? String(localized: "evening_preview_route")
@@ -193,22 +207,25 @@ enum EveningPreviewText {
                     where_,
                     percent(maximumProbability),
                     percent(threshold),
-                    time(normalAlarmDate),
-                    time(scheduledAlarmDate),
+                    format.time(normalAlarmDate),
+                    format.time(scheduledAlarmDate),
                     leadTimeMinutes,
-                    checked(checkedAt)
+                    checked(checkedAt, format: format)
                 )
                 : String.localizedStringWithFormat(
                     String(localized: "evening_preview_clear"),
                     where_,
                     percent(maximumProbability),
                     percent(threshold),
-                    time(normalAlarmDate),
-                    checked(checkedAt)
+                    format.time(normalAlarmDate),
+                    checked(checkedAt, format: format)
                 )
             return preview.canRefreshInBackground
                 ? decision
                 : decision + " " + String(localized: "evening_preview_no_background")
+
+        case .dayOff:
+            return String(localized: "evening_preview_day_off")
 
         case let .upcoming(normalAlarmDate):
             let key = preview.canRefreshInBackground
@@ -216,13 +233,12 @@ enum EveningPreviewText {
                 : "evening_preview_upcoming_no_background"
             return String.localizedStringWithFormat(
                 String(localized: String.LocalizationValue(key)),
-                time(normalAlarmDate)
+                format.time(normalAlarmDate)
             )
         }
     }
 
-    /// 24-hour, zero-padded, no day-period word: "07:30", not "清晨7:30". The
-    /// user's call — the period word is noise once the hour is unambiguous.
+    /// Decision-change notices follow the same display preference as previews.
     static var changeTitle: String {
         String(localized: "alarm_change_title")
     }
@@ -234,13 +250,9 @@ enum EveningPreviewText {
             where_,
             percent(change.maximumProbability),
             percent(change.threshold),
-            time(change.newRingDate),
+            change.timeFormat.time(change.newRingDate),
             change.minutesMoved
         )
-    }
-
-    private static func time(_ date: Date) -> String {
-        date.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
     }
 
     private static func percent(_ probability: Double) -> Int {
@@ -249,8 +261,8 @@ enum EveningPreviewText {
 
     /// Weekday and time, no year: the check is always within the week, and
     /// "2026年9月7日 晚上7:58" in a two-line banner spent most of it on the year.
-    private static func checked(_ date: Date) -> String {
-        date.formatted(.dateTime.weekday(.abbreviated).hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+    private static func checked(_ date: Date, format: ClockTimeFormat) -> String {
+        date.formatted(.dateTime.weekday(.abbreviated)) + " " + format.time(date)
     }
 }
 
@@ -382,5 +394,28 @@ struct UserNotificationEveningPreviewScheduler: EveningPreviewScheduling {
             .map(\.identifier)
             .filter { $0.hasPrefix(EveningPreviewPlanner.identifierPrefix) }
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+}
+
+/// One reminder before a finite date schedule ends. Independent of the optional
+/// evening previews: without another foreground/background run there is no way
+/// for iOS to manufacture new alarms after this boundary.
+enum CalendarCoverageReminder {
+    static let identifier = "commute-calendar-renewal"
+    static func replace(coveredUntil: Date) async {
+        guard !AppEnvironment.isRunningTests else { return }
+        let center = UNUserNotificationCenter.current()
+        guard await center.notificationSettings().authorizationStatus == .authorized else { return }
+        let fire = coveredUntil.addingTimeInterval(-7 * 86_400 + 18 * 3_600)
+        guard fire > Date() else { return }
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "calendar_renew_title")
+        content.body = String(localized: "calendar_renew_body")
+        let trigger = UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fire), repeats: false)
+        try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+    }
+    static func cancel() async {
+        guard !AppEnvironment.isRunningTests else { return }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
     }
 }

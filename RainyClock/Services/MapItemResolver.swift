@@ -7,6 +7,7 @@ struct ResolvedMapLocation: Codable, Equatable, Sendable {
     var longitude: Double
     var displayAddress: String?
     var resolution: AddressResolution
+    var districtName: String? = nil
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -77,11 +78,31 @@ actor MapItemResolver {
                 latitude: coordinate.latitude,
                 longitude: coordinate.longitude,
                 displayAddress: displayAddress,
-                resolution: .exact
+                resolution: .exact,
+                districtName: districtName(for: mapItem.placemark)
             )
         } catch {
             return nil
         }
+    }
+
+    static func districtName(for placemark: CLPlacemark) -> String? {
+        TaiwanMapDistrict.match(countryCode: placemark.isoCountryCode,
+            components: [placemark.administrativeArea, placemark.subAdministrativeArea,
+                         placemark.locality, placemark.subLocality].compactMap { $0 })
+    }
+
+    /// Old saved map points have coordinates but no administrative fields. Enrich
+    /// the same point from Apple Maps, never from a manually entered region.
+    @MainActor
+    static func includingDistrict(_ original: ResolvedMapLocation) async -> ResolvedMapLocation {
+        guard original.districtName == nil else { return original }
+        var result = original
+        let point = CLLocation(latitude: original.latitude, longitude: original.longitude)
+        if let placemark = try? await CLGeocoder().reverseGeocodeLocation(point, preferredLocale: Locale(identifier: "zh_Hant_TW")).first {
+            result.districtName = districtName(for: placemark)
+        }
+        return result
     }
 
     func canResolvePrecisely(_ rawAddress: String) async -> Bool {
@@ -144,7 +165,8 @@ actor MapItemResolver {
                 latitude: coordinate.latitude,
                 longitude: coordinate.longitude,
                 displayAddress: displayAddress,
-                resolution: resolution
+                resolution: resolution,
+                districtName: Self.districtName(for: placemark)
             )
         } catch let error as CLError where error.code == .geocodeFoundNoResult || error.code == .geocodeFoundPartialResult || error.code == .network {
             return nil
@@ -180,7 +202,8 @@ actor MapItemResolver {
                 latitude: coordinate.latitude,
                 longitude: coordinate.longitude,
                 displayAddress: displayAddress,
-                resolution: resolution
+                resolution: resolution,
+                districtName: Self.districtName(for: mapItem.placemark)
             )
         } catch {
             return nil
@@ -707,5 +730,23 @@ actor MapItemResolver {
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
+    }
+}
+
+/// Validate Apple's structured administrative names against the official catalog.
+/// Ambiguous/missing results stay unknown instead of guessing from a POI name.
+enum TaiwanMapDistrict {
+    private struct District: Decodable { var county: String; var district: String }
+    private static let districts: [District] = {
+        guard let url = Bundle.main.url(forResource: "taiwan-districts", withExtension: "json"),
+              let data = try? Data(contentsOf: url), let values = try? JSONDecoder().decode([District].self, from: data) else { return [] }
+        return values
+    }()
+    static func match(countryCode: String?, components: [String]) -> String? {
+        guard countryCode == "TW" else { return nil }
+        let names = Set(components.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "台", with: "臺") })
+        let matches = districts.filter { names.contains($0.county) && names.contains($0.district) }
+        guard matches.count == 1, let match = matches.first else { return nil }
+        return match.county + match.district
     }
 }

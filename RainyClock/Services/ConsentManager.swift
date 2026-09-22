@@ -60,6 +60,30 @@ final class ConsentManager: ObservableObject {
     private var isAdSdkReady = false
     private var isGDPRUser = false
     private var hasFinishedConsentFlow = false
+    private var rewardUserID: String?
+    private var initializedRewardUserID: String?
+
+    func invalidateMembershipRewardIdentity() {
+        rewardUserID = nil
+        canRequestAds = false
+    }
+
+    /// LevelPlay's signed callback covers the immutable initialization user ID.
+    /// It does not authenticate arbitrary dynamic/custom callback parameters.
+    func configureRewardIdentity(_ userID: String) -> Bool {
+        if hasStartedAdSdk, initializedRewardUserID != userID {
+            canRequestAds = false
+            return false
+        }
+        rewardUserID = userID
+        updateCanRequestAds()
+        return true
+    }
+
+    var canRequestMembershipRewards: Bool {
+        canRequestAds && (!MembershipManager.shared.isConfigured ||
+            (rewardUserID != nil && rewardUserID == initializedRewardUserID))
+    }
 
     private init() {}
 
@@ -67,7 +91,8 @@ final class ConsentManager: ObservableObject {
     /// every activation — the work happens at most once per launch, and a
     /// failed SDK handshake unlatches it so the next foreground can retry.
     func requestConsentThenStartAds() {
-        guard !AppEnvironment.isRunningTests, !hasStartedConsentFlow else {
+        if MembershipManager.shared.isConfigured, rewardUserID == nil { return }
+        guard AppEnvironment.allowsAdvertising, !hasStartedConsentFlow else {
             return
         }
         hasStartedConsentFlow = true
@@ -133,7 +158,7 @@ final class ConsentManager: ObservableObject {
     /// and `GADApplicationIdentifier` are gone on purpose — do not bring them
     /// back. Unity's own demand fills through LevelPlay.
     private func startAdSdk() {
-        guard !hasStartedAdSdk else {
+        guard AppEnvironment.allowsAdvertising, !hasStartedAdSdk else {
             return
         }
         hasStartedAdSdk = true
@@ -160,7 +185,10 @@ final class ConsentManager: ObservableObject {
         }
         #endif
 
-        let initRequest = LPMInitRequestBuilder(appKey: appKey).build()
+        let builder = LPMInitRequestBuilder(appKey: appKey)
+        if let rewardUserID { _ = builder.withUserId(rewardUserID) }
+        initializedRewardUserID = rewardUserID
+        let initRequest = builder.build()
         LevelPlay.initWith(initRequest) { [weak self] _, error in
             Task { @MainActor in
                 self?.adSdkDidInitialize(error: error)
@@ -191,6 +219,7 @@ final class ConsentManager: ObservableObject {
     /// but the session's opening requests then go out without the advertising
     /// identifier even when the user would have allowed tracking.
     private func finishConsentFlow() async {
+        guard AppEnvironment.allowsAdvertising else { return }
         hasFinishedConsentFlow = true
         await requestTrackingAuthorizationIfNeeded()
 
@@ -212,7 +241,7 @@ final class ConsentManager: ObservableObject {
     /// has not reached the foreground defers to
     /// `requestTrackingAuthorizationIfDeferred()`.
     private func requestTrackingAuthorizationIfNeeded() async {
-        guard !AppEnvironment.isRunningTests else {
+        guard AppEnvironment.allowsAdvertising else {
             return
         }
 
@@ -240,7 +269,10 @@ final class ConsentManager: ObservableObject {
     private func updateCanRequestAds() {
         // A GDPR user needs an answer on file — either answer — before the
         // first request; everyone else only waits for the SDK itself.
-        let allowsAdRequests = isAdSdkReady && (!isGDPRUser || storedConsent != nil)
+        let identityMatches = !MembershipManager.shared.isConfigured ||
+            (rewardUserID != nil && rewardUserID == initializedRewardUserID)
+        let allowsAdRequests = AppEnvironment.allowsAdvertising && isAdSdkReady &&
+            identityMatches && (!isGDPRUser || storedConsent != nil)
 
         guard allowsAdRequests != canRequestAds else {
             return

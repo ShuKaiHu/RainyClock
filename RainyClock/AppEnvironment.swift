@@ -1,6 +1,39 @@
 import Foundation
 
+/// No advertising SDK traffic until a verified Apple transaction identifies the
+/// production store. TestFlight uses Sandbox even with production App Attest.
+enum MembershipAdvertisingGate {
+    private final class State: @unchecked Sendable {
+        let lock = NSLock()
+        var environment: MembershipAppleEnvironment?
+    }
+    private static let state = State()
+
+    static var environment: MembershipAppleEnvironment? {
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        return state.environment
+    }
+
+    static func setVerifiedEnvironment(_ environment: MembershipAppleEnvironment?) {
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        state.environment = environment
+    }
+}
+
 enum AppEnvironment {
+    /// Deferred from 1.7.0 to 1.7.1. Keep saved preferences and implementation,
+    /// but exclude the feature from this release's UI, scheduling and networking.
+    static let supportsTemporaryClosures = false
+
+    /// Public HTTPS service base URL. NCDR and APNs credentials remain on the server.
+    static var dayOffServiceURL: URL? {
+        guard let value = Bundle.main.object(forInfoDictionaryKey: "DayOffServiceURL") as? String,
+              let url = URL(string: value), url.scheme == "https", url.host != nil else { return nil }
+        return url
+    }
+
     /// The LevelPlay banner unit — created in the Unity LevelPlay dashboard,
     /// and iOS-only: LevelPlay ad units are per-platform. There is no separate
     /// always-fill test unit id; development fill comes from the Test Suite
@@ -23,6 +56,27 @@ enum AppEnvironment {
 
     static var isRunningTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    /// Simulator UI testing and Apple Sandbox membership builds/launches
+    /// must not initialize the production ad SDK or request advertising consent.
+    static var allowsAdvertising: Bool {
+        #if targetEnvironment(simulator)
+        false
+        #else
+        allowsDeviceAdvertising(isRunningTests: isRunningTests, arguments: ProcessInfo.processInfo.arguments)
+        #endif
+    }
+
+    static func allowsDeviceAdvertising(isRunningTests: Bool, arguments: [String],
+                                        sandboxBuild: Bool = MembershipConfiguration.isSandboxBuild,
+                                        verifiedAppleEnvironment: MembershipAppleEnvironment? = MembershipAdvertisingGate.environment) -> Bool {
+        #if DEBUG
+        // Apply this even when its service URL is absent or invalid, before the
+        // membership/reward identity flow could allow normal advertising again.
+        if MembershipConfiguration.sandboxTesting(arguments: arguments, sandboxBuild: sandboxBuild) { return false }
+        #endif
+        return !isRunningTests && verifiedAppleEnvironment == .production
     }
 
     static var routeWeatherService: any RouteWeatherService {
