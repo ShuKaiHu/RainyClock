@@ -25,6 +25,8 @@ hold the whole repo — the separation is by branch, not by directory.
 
 ## Shared references
 
+- Voice-classification backend migration, deployed 2026-09-16 (Gemini 3.1 Flash-Lite on Vertex;
+  existing Cloud TTS voices retained) → [verification, samples and rollback](annotation-migration-2026-09-16/README.md)
 - Product reasoning and rejected alternatives, both platforms → `docs/PRODUCT_DECISIONS.md`
 - Day-off suppression (typhoon 停班停課 + 國定假日), both platforms → `docs/DAYOFF-SPEC.md`,
   with `docs/dayoff-fixtures.json` (the contract) and `docs/dayoff-corpus-summary.json` (the evidence)

@@ -1,0 +1,139 @@
+{
+  "model": "gemini-3.1-flash-lite",
+  "location": "us",
+  "results": [
+    {
+      "language": "zh-Hant",
+      "persona": "steady",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 1514
+    },
+    {
+      "language": "zh-Hant",
+      "persona": "bright",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 1272
+    },
+    {
+      "language": "zh-Hant",
+      "persona": "gentle",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 808
+    },
+    {
+      "language": "zh-Hant",
+      "persona": "buddy",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 849
+    },
+    {
+      "language": "zh-Hant",
+      "persona": "mom",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 925
+    },
+    {
+      "language": "zh-Hant",
+      "persona": "sergeant",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 770
+    },
+    {
+      "language": "en",
+      "persona": "steady",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 881
+    },
+    {
+      "language": "en",
+      "persona": "bright",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 814
+    },
+    {
+      "language": "en",
+      "persona": "gentle",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 856
+    },
+    {
+      "language": "en",
+      "persona": "buddy",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 910
+    },
+    {
+      "language": "en",
+      "persona": "mom",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 816
+    },
+    {
+      "language": "en",
+      "persona": "sergeant",
+      "emotions": [
+        "cheerful",
+        "urgent",
+        "encouraging"
+      ],
+      "ok": true,
+      "elapsedMs": 877
+    }
+  ],
+  "warnings": []
+}

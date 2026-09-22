@@ -11,10 +11,10 @@ Ongoing state and the backlog live in `docs/STATUS-IOS.md`; this file is the sub
 
 | Item | Status |
 | --- | --- |
-| App version | `1.6.7` — the Google-to-Unity-LevelPlay ad migration |
-| Build number | `26` (`25` shipped as 1.6.6; `24` was superseded before submission) |
-| Review status | `1.6.7 (26)` submitted 2026-08-30, awaiting review |
-| Last released | `1.6.6` — released to the App Store 2026-08-18 |
+| App version | `1.7.0` — membership, calendar and redesigned alarm/settings |
+| Build number | `34` — read-only Sandbox price comparison; 27 focused tests passed; uploaded 2026-09-21 21:58; internal TestFlight available; 22:05 device evidence: SK1 and SK2 both return USA/USD, native monthly purchase sheet shows NT$10; display mismatch remains unresolved |
+| Review status | 1.7.0 draft still selects build 30; not submitted. TestFlight card USD / Apple sheet TWD requires real-device verification |
+| Last released | `1.6.9` — public listing confirmed 2026-09-10 |
 | Bundle identifier | `com.shukaihu.RainyClock` |
 | Extension bundle identifier | `com.shukaihu.RainyClock.AlarmWidget` (added in `1.6.3`) |
 | Device family | iPhone only |
@@ -248,6 +248,34 @@ The 使用者指標 / user metrics panel in AdMob shows zeros because the app in
 or Google Analytics SDK. It is not a signal about real usage; App Store Connect's 分析 tab is.
 
 ## Archiving and Uploading
+
+**`1.7.0 (31)` uploaded 2026-09-21 20:57:26 (Asia/Taipei).** Membership startup failures
+are now visible, unknown membership is not labeled Free plan, and manual actions show
+privacy-safe failure diagnostics separately from background refreshes. All 50 focused iOS
+tests and Release archive passed; app/widget match, App Attest is production, and no local
+StoreKit configuration is bundled. Apple processing is complete and internal group `SKHU tester`
+has access; testing instructions were saved. This is a diagnostic build,
+not proof that the TestFlight purchase/currency issue is fixed. No review submission or
+public release. Logs: `/tmp/rainyclock-170-31-archive.log`, `/tmp/rainyclock-170-31-upload.log`.
+The existing IronSource dSYM warning remains non-blocking.
+
+
+**`1.7.0 (30)` uploaded 2026-09-21 19:43:35 (Asia/Taipei).** Archive/export succeeded,
+and ASC processing is complete. Internal TestFlight group `SKHU tester` includes build 30.
+App/widget versions match and App Attest is production; membership URL now points to the
+isolated Production/TestFlight service. The known IronSource dSYM warning remains non-blocking.
+The 1.7.0 version draft has build 30 attached and manual release selected. No review submission
+or public release has occurred. Current service validation and blockers are recorded in
+[1.7.0 release readiness](1.7.0-RELEASE-READINESS.md). Logs:
+`/tmp/rainyclock-170-30-archive.log`, `/tmp/rainyclock-170-30-upload.log`.
+
+**`1.7.0 (29)` uploaded 2026-09-16 22:19:55 (Asia/Taipei).** Release archive and CLI
+export succeeded with automatic signing and `manageAppVersionAndBuildNumber=false`.
+Apple reported `Upload succeeded` and `Uploaded package is processing`; subsequent ASC
+processing completion is not yet confirmed, and this build has not been submitted for review.
+App and widget versions match. The membership backend URL remains empty, and disaster
+closures remain disabled until 1.7.1. The known IronSource dSYM warning was non-blocking.
+Logs: `/tmp/rainyclock-170-29-archive.log`, `/tmp/rainyclock-170-29-upload.log`.
 
 **`1.6.9 (28)` uploaded 2026-09-07.** Fourth release through the CLI path, same command,
 same dSYM warning. The archive check gained the three `BGTaskSchedulerPermittedIdentifiers`

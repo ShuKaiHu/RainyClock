@@ -11,24 +11,997 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-09-07.
+Last updated: 2026-09-22.
+
+> **下一個 AI 請先讀 [2026-09-22 iOS 交接檔](HANDOFF-IOS-2026-09-22.md)。**
+> 已集中整理實際送審結果、最新方案、雲端環境、價格問題與驗收缺項；以下仍保留歷史時序。
+> 9/22 本輪僅整理交接文件，未重新查詢 ASC／雲端、修改程式、建置、部署或發布。
+
+## ASC 1.7.0（34）已由使用者提交審查 — 2026-09-21
+
+- 使用者提供 ASC 成功頁「已提交 4 個項目」。前一張草稿截圖已確認四項為
+  **iOS App 1.7.0（34）、RainyClock Plus 訂閱群組、RainyClock Plus Monthly、
+  RainyClock One-Time Purchase**；年訂閱未包含在本次提交。
+- 使用者已接續補入商品審查圖片並將兩個商品加入同一份提交；先前「缺 IAP
+  圖片／只有兩項草稿／尚未送出」是歷史狀態，不再當作目前阻擋。
+- 目前可確認的是**提交成功，尚無審核通過或公開上線證據**。先前已保存手動
+  發佈設定；本輪未改發佈方式，也未代為提交、發布或建立定時監看。
+- 6.5 吋舊圖是否移除、聯絡欄位最後內容未再次讀回，不由提交成功推定其結果。
+  TestFlight 價格差異與其他未完成的實機驗收仍保留；送審成功不等於功能驗收通過。
+- 本輪只依使用者提供的 ASC 截圖更新文件，未修改程式、重新建置或部署。
+
+## ASC 1.7.0（34）已加入送審草稿，尚未送出 — 2026-09-21 晚間
+
+- 使用者已手動上傳截圖目錄的原始 PNG。ASC 的 **iPhone 6.9 吋**繁中與英文均已讀回
+  六張新版圖；繁中順序為 `01-alarm`、`02-time`、`03b-route-collapsed`、`03-route`、
+  `04-calendar-settings`、`05-alarm-calendar`，英文前四張相同、最後兩張順序相反。
+  **6.5 吋仍是舊圖**：繁中 `C1/C2/C3`、英文 `E2/E1/E3`，不能記成全部尺寸已更新。
+- 1.7.0 版本草稿已選擇並保存 **build 34**；App 已加入 **9 月 21 日 22:23 建立的
+  App Review submission 草稿**，仍未正式提交、未公開發布。手動發佈設定保留。
+- 一般審查說明已在 ASC 保存並讀回，使用
+  [build 34 英文說明](appstore-review-notes-1.7.0-34.txt)，取代舊 build 30 草稿。
+  其中明示 TestFlight 價格差異、廣告限制及尚未完成的端到端驗收。
+- 月訂閱與買斷的審查備註均已保存；各自按「加入審查」皆被明確擋下：
+  **「你必須為審查資訊新增截圖。」** 下一步是為兩商品各手動加入 IAP 審查圖，
+  再重新檢查可加入狀態。一般商店截圖不會自動填入商品的審查截圖欄。
+- `RainyClock Plus` 訂閱群組已加入同一份 22:23 草稿；目前**恰為 App 1.7.0（34）
+  與訂閱群組兩項**。Apple 阻擋最後提交：「新的訂閱群組須與該群組內的自動續訂型
+  訂閱項目一同提交。」月訂閱仍因缺 IAP 審查圖未加入，買斷也未加入；年訂閱維持
+  未提交，不應加入。補圖後須先加入月訂閱與買斷，再重讀提交檢查結果。
+- 最後只讀核對 ASC 版本頁欄位，已確認**審查聯絡電話與 Email 均未填寫**。
+  待使用者自行補齊，或明確授權沿用其聯絡資料；未代填、未在文件記錄個資。
+  月訂閱審查區亦再次確認只有「選擇檔案」、沒有圖片，可接續手動補圖。
+- 卡片 USD／Apple 原生付款 TWD 暫列疑似 TestFlight metadata 問題，尚未證實同一根因，
+  也不保證正式安裝正常；本輪沒有據此要求新 build。沒有程式修改、建置、測試或部署。
+  本節取代下方歷史中的「草稿仍為 30／新版商店圖尚未上傳」，其他驗收缺項仍保留。
+
+## 商城價格真機結果 — 2026-09-21 22:05，build 34
+
+- 使用者已完成 TestFlight 1.7.0（34）、iOS 26.6.2 的比較：SK2 商店為 USA，
+  方案卡為月費 $1／買斷 $10（USD）；SK1 商品同為 USD，商店由 unavailable 變為
+  USA，查詢後 SK2 仍為 USA。同次回報的 Apple 原生月訂閱確認頁為 NT$10。
+- **兩套商品查詢均未取得付款頁的台灣價格；SK1 不能作為本次問題的替代來源。**
+  不能再把診斷狀態寫成「待使用者回傳」，或要求重複 refresh／重裝同類改版。
+- 這是查價／商店資料與付款頁不一致的實機證據，與 Apple 公告的 TestFlight
+  Storefront metadata 問題相符；尚不足以斷言精確的系統根因或正式 App Store
+  安裝必定正常。截圖也不是購買已完成的證據。
+- 台灣／美國定價、付款流程與會員權益不變。本輪只補驗收紀錄，未新增 build、
+  未送審；隱藏價格、手動選地區或其他顯示替代方案尚未決定。
+
+## 商城價格來源進一步查核 — 2026-09-21，build 34 已可內測
+
+- 已透過裝置資訊確認 iPhone 16 Pro 安裝 1.7.0（33）；不能再一律要求升級 33。
+  使用者再次確認規則為台灣商城 NT$10／100、美國商城 US$1／10，中文／英文不影響。
+  價目規則沒有爭議，尚待解決的是 TestFlight 讀到 USA/USD、原生付款卻為 TWD。
+- 新增「會員與方案 → ⋯ → 檢查測試商店價格」，只在已驗證 Apple Sandbox 或隔離
+  Local StoreKit 測試顯示。比較方案卡商品、SK2 商店、SK1 商店與 `SKProductsRequest`
+  取得的 `priceLocale`／價格，供同一 TestFlight、同手機帳號實測。
+- 檢查不購買、不登入／刷新 Apple 身分、不變更權益；不記錄帳號、會員 ID、JWS 或
+  裝置識別碼。SK1 每次查詢獨立，10 秒逾時，離開可取消。正式方案價格與付款仍走原流程。
+- 此為診斷工具，**不是已修好美元顯示**。SK1／SwiftUI ProductView 沒有官方保證可
+  避開同類 TestFlight metadata 問題，不能任選較像正確答案的幣別、用舊交易價格冒充
+  目前售價，或以手機語言／GPS 推定商城。測試／上傳結果見 [驗收](1.7.0-RELEASE-READINESS.md)。
+- 27 項測試（含實際 Local StoreKit 兩套查詢）全過，0 失敗／跳過；隔離模擬器已
+  檢視新頁版面。Release archive 通過，21:58:05 上傳成功，Apple 已完成處理，
+  內部 `SKHU tester` 可更新 1.7.0（34）。未改後端、未由 Xcode 覆蓋手機、未送審。
+
+## TestFlight 方案價與 Apple 付款價不一致 — 2026-09-21 21:19
+
+- 使用者截圖確認 Apple 付款視窗已能開啟，原生視窗為 **NT$10／月**，App 卡片仍是
+  **$1／月**。截圖未確認 build number，不能把這次成功直接歸於 build 32。
+- 實機 iPhone 16 Pro 為 iOS 26.6.2。Apple 在
+  [iOS 27 release notes](https://developer.apple.com/documentation/ios-ipados-release-notes/ios-ipados-27-release-notes)
+  列出 TestFlight `Storefront` metadata 可能錯誤的修正（181766819／FB23646993）。
+  此為相符的系統問題線索，**不是已證明本機必然同一 bug**；先前診斷 `USA/USD`
+  只證明 API 回報值，不能推定付款帳號其實是美國。無須以語言／GPS 改寫價格。
+- build 33 已完成：補會員頁返回、前景、付款／恢復購買結束後商品更新；比對抓取前後
+  商店 ID／幣別，矛盾則丟棄並最多重試一次；重疊要求共用最新查詢。
+  價格錯誤與會員結果分開，不清權益，購買先保存再更新價格。
+- 合計 81 項 focused／Local StoreKit 測試通過，0 失敗、0 跳過，獨立覆核及 Release
+  archive 通過，21:35:10 已上傳，約 21:39 Apple 處理完成，內部 `SKHU tester` 可更新。
+  尚未送審／公開發布。
+- 若系統持續一致地回傳錯誤 USA/USD，本修法仍無法辨識付款頁實際 TWD；
+  需真機驗收，不承諾重新抓價已修好系統問題。進度見 [驗收](1.7.0-RELEASE-READINESS.md)。
+
+## TestFlight（31）已定位重複 Apple 認證 — 2026-09-21 21:00
+
+- 真機已成功建立會員：後端 challenge／session 均 200。接著手動同步因重做 Apple
+  refresh 失敗，診斷碼 `StoreKit.StoreKitError/3` 在 iOS 原生 enum 測試中對應
+  `userCancelled`；這表示認證流程未完成，不能當作後端斷線或推定使用者主動取消。
+- 同畫面 `store=USA · currency=USD`，StoreKit 回報美國商品；21:19 已確認原生
+  付款視窗卻為 TWD。台灣 ASC 定價仍 TWD 10／100，不能用介面語言改寫價格。
+- 修正版（32）已完成：先驗證 shared App Transaction，同帳號有效 session 直接向後端
+  對帳；只有必要時再要求 Apple refresh。AI 結果查詢不再重複完整同步。70 項 focused
+  tests、獨立程式覆核與 Release archive 均通過。21:16:15 上傳成功，Apple 已完成處理，
+  內部 `SKHU tester` 可更新。詳細證據、驗證邊界及上傳狀態見
+  [上傳與接線驗收](1.7.0-RELEASE-READINESS.md)。真機升級與購買流程仍待確認。
+
+## TestFlight 會員同步與美元顯示待釐清 — 2026-09-21 20:40 後
+
+- TestFlight（30）重新整理後仍顯示美元，按 Choose plan 約轉圈 10 秒、沒有 Apple
+  付款確認頁。ASC 即時讀回台灣月訂閱 TWD 10／買斷 TWD 100，archive 30 亦確認沒有
+  本機 StoreKit 設定；新會員服務未見同期 HTTP 請求，尚不能歸因為帳號地區或價格設定。
+- 準備（31）改善錯誤可見性及最小診斷：尚未驗證不再誤顯示 Free plan，手動失敗
+  明確提示階段與安全錯誤碼；保留所有 Apple／App Attest 驗證與 StoreKit 當地定價。
+  50 項 focused 測試與 Release archive 通過，錯誤 UI 已在隔離模擬器驗收；20:57:26
+  上傳（31）成功，Apple 已完成處理並提供內部 `SKHU tester` 測試；已保存診斷步驟。
+  **不代表真機根因已修復，也尚未送審或公開發布**。
+- 詳細證據與後續結果見 [上傳與接線驗收](1.7.0-RELEASE-READINESS.md)。
+
+## 1.7.0（30）LevelPlay 官方回呼已通過，TestFlight 仍在核對 — 2026-09-21 晚間
+
+- 使用者確認 LevelPlay 已儲存、同意將所選私鑰放入 Secret Manager。已建立
+  `membership-levelplay:1`，只授予會員執行帳號此 secret 的讀取權限；不記錄私鑰值。
+- verifier 已移除自行設定的 16 字元最低長度，仍拒絕空白／缺漏密鑰、驗證原字串簽章、
+  固定獎勵數量與事件防重。後續又修正官方 `YYYYMMDDHHMM` 被誤當 Unix 時間的錯誤。
+  最新服務為 `rainyclock-membership-00005-5pm`，100% traffic，health 200；48 項相關
+  測試及 Firestore Emulator 全套 189 項均通過、零跳過。
+- 官方 Dashboard callback 使用隔離 TestFlight fixture，沒有真會員／Apple 身分或購買。
+  原官方通知修後重送 HTTP 200、入帳一次，相同通知重送仍一次；Dashboard 再測顯示
+  **Your callback settings are valid**，新事件 141 ms / HTTP 200，只增加對應的一次。
+  所有隔離測試資料已清除，LevelPlay 顯示 **Your S2S settings have been saved**、S2S On。
+  此為官方回呼、持久入帳及防重驗收，不等同真機看廣告至生成的完整流程。
+- 使用者回報生成保存及重播成功只扣一次，但新 Production／TestFlight 資料庫沒有
+  對應會員／session／生成。手機安裝的版本確為 1.7.0（30），同版本的 Debug Sandbox
+  仍可能使用舊端點；20:08 舊服務確有 challenge／purchases，不能據此推定是哪台手機。
+  已請使用者直接由 TestFlight 開啟並同步會員。未把先前回報列為新後端完整驗收成功。
+- 新商店 UI 中英文各 6 張、Local StoreKit 審查圖各一張已備妥，均 1320×2868；
+  [截圖說明](appstore-1.7.0-screenshots/README.md) 明示真實 WeatherKit 與本機付款測試範圍。
+  ASC 上傳被 Chrome 擴充功能的檔案 URL 權限擋住，已請使用者開啟；尚未上傳截圖。
+  未提交 App Review／未公開發布。完整狀態見
+  [上傳與接線驗收](1.7.0-RELEASE-READINESS.md)。下節 revision 2 是先前驗收快照。
+
+## 1.7.0（30）最新驗收：TTS 已回傳音訊、刪除排程已驗證 — 2026-09-21
+
+- 新會員服務目前 revision `rainyclock-membership-00002-m5j`，映像為
+  `sha256:1cd2844a1b03b0714149aac28768df055b64203d7138c7820cf1def49ad806c3`。
+  Production／TestFlight Sandbox 維持分庫、分身分與 production App Attest；舊 Debug
+  Sandbox 另行隔離。詳細資源與驗收見 [1.7.0 上傳與接線驗收](1.7.0-RELEASE-READINESS.md)。
+- 19:43 紀錄的 Cloud TTS 逾時已修正為美國供應商端點：英文 11.33 秒取得有效 2.89 秒
+  PCM；繁中分類 1.269 秒＋合成 8.404 秒，合計 9.787 秒取得有效 3.091 秒 PCM。
+  這是雲端供應商成功證據，**不是新 TestFlight 真機完整生成／保存／扣額度驗收**。
+- 最終後端全套＋Firestore Emulator **184 通過、0 失敗、0 跳過**，證據
+  `/tmp/rainyclock-membership-final-emulator-tests-20260921.log`；繁中真實 TTS 證據
+  `/tmp/rainyclock-membership-zh-us-final-logs-20260921.json`。iOS 本輪 45 個不同測試及
+  Release archive 已通過；沒有把模擬測試計為真實退款／續訂驗收。
+- 刪除維護 Job／Scheduler 已部署，每 5 分鐘 OAuth 派送；實際 HTTP 200 與成功
+  execution `rainyclock-membership-deletion-v9gc5` 對應受控 Sandbox 清理，音訊與
+  session 已移除，Production 未寫入。詳見[維護紀錄](../weather-proxy/membership/MAINTENANCE.md)。
+  尚待設定失敗／backlog 通知告警；受控清理不等於所有使用者刪帳 UI 均已驗收。
+- 公開隱私政策已由 `main` commit `4bad86ac44733cb6b1a6cc86575c535d59a7baf7` 發布；
+  HTTP 確認頁面日期「21 September 2026」，並有會員、AI 用量、保存與刪除揭露。
+  ASC 隱私問卷亦已發布，11 種資料類型讀回無未完成警告：新增音訊、使用者 ID、購買、
+  其他診斷資料均為 App 功能、與身分連結、不追蹤；其他使用者內容改為連結身分。
+  裝置 ID、產品互動與廣告資料增加 App 功能並保留原廣告／追蹤設定，原概略位置、
+  當機及效能項目維持原設定。
+  ASC 繁中／英文商店文字已保存，build 30 掛入 1.7.0 草稿、手動發佈，內部 TestFlight
+  群組為 `SKHU tester`。**未提交 App Review／未公開發布**。
+- 剩餘阻擋：LevelPlay S2S 私鑰待使用者授權 Save、後續安全
+  接線及官方測試 callback；新 TestFlight 真機會員認回、購買、AI 保存重下載、實際退款、
+  關閉續訂／到期與重裝換機仍待驗收。正式廣告在 Sandbox／TestFlight 保持停用。
+  首次 IAP 送審連結與最新 UI 截圖也需完成。防重摘要無自動到期的保留需求仍須審查。
+
+## 1.7.0（30）已上傳，新會員正式／TestFlight 接線 — 2026-09-21 19:43
+
+以下保留當時紀錄；其中 Cloud TTS 逾時已由上方最新驗收結果取代。
+
+最新狀態見 [上傳與接線驗收](1.7.0-RELEASE-READINESS.md)。Release URL 已啟用、雙環境
+後端已部署、兩個 Firestore 資料庫已建立。Apple 已完成 build 30 處理，並加入 TestFlight
+內部群組。**未公開送審／發布**：Cloud TTS 真實生成逾時、LevelPlay S2S 尚待設定與驗收，
+TestFlight 新接線仍須真機確認。以下 19:22「只有 Sandbox／URL 空白」為當時盤點，已由本節取代。
+
+## 台灣月訂閱驗收與正式上傳盤點 — 2026-09-21 19:22
+
+- 使用者真機截圖確認 Subscriber、月費 NT$10、買斷 NT$100、Subscribed 停用按鈕與
+  有效至 19:26、Auto-renewal On、每日一次，並表示滿意。Firestore 該會員已驗證
+  Sandbox monthly、status=1、autoRenewStatus=1、未撤銷；11:21 UTC 的 session、
+  purchases 及 Apple notification 均200。5分鐘效期為 Sandbox 加速週期，非正式月費週期。
+- 買斷與月訂閱購入、UI與後端權益已有實測。實際退款、關閉續訂／到期、換機／重裝
+  恢復、每日 AI 成功保存／失敗與廣告 S2S 尚未全部端到端驗收。
+- **尚不能直接正式送審收費版**：一般 Release 會員 URL 仍空白；雲端只有會員 Sandbox
+  （Apple Sandbox＋development App Attest、TTS_DISABLED=1、未配置 LevelPlay 私鑰）
+  與既有 weather 服務。正式會員服務尚未部署，測試服務目前無法履行付費每日 AI。
+- TestFlight／App Review 使用 production App Attest，現有 development 驗證入口不能
+  直接沿用；正式 Release 還須安全分流測試／正式 Apple 購買資料，隔離權益與資料。
+- 既有本地 archive 為 9/16 建立的 1.7.0（29）、會員 URL 空白，不含 9/21 最新修改。
+  後續完成服務與驗收後須提高 App／widget build number、重新封存／上傳，並將首次
+  月訂閱、訂閱群組與買斷一併加入版本送審。未因使用者詢問可否上傳而執行正式部署／送審。
+
+## Sandbox 桌面重開失效修正 — 2026-09-21 19:13 後
+
+- 使用者切換台灣沙盒帳號、從手機重新開 App 後又見方案未開放與正式 banner。
+  根因是測試網址及廣告隔離只存在於 Xcode launch arguments／environment；與購買資格無關。
+- 新增專用 **Debug Sandbox** configuration，Sandbox scheme 的 Run 使用它並保留
+  StoreKit Configuration=None；App 的 `DEBUG && MEMBERSHIP_SANDBOX` 固定測試端點，
+  從桌面啟動亦有效。Xcode UI 同步移除快取的舊參數／環境變數；Test 仍 Debug、Archive
+  仍 Release，一般版會員 URL 不變。沿用原 Sandbox keychain namespace，不重設會員／額度。
+- Sandbox build 在任何啟動方式皆停用廣告；測試退款入口亦採相同組態判斷。Release
+  忽略測試參數及編譯條件，無 DEBUG 即不能開測試端點。
+- Storefront.updates 重新載入商品；同步會員失敗仍更新商品，購買前再載入當地商品，
+  載入期間不沿用舊地區 Product，且較舊請求不能覆蓋新結果。切換 Apple 帳號仍須明確
+  使用「⋯ → 同步會員狀態」取得已驗證新身份；不以地區變化冒充會員切換。
+- Configuration／Membership／StoreKit **35 項通過、0 失敗、0 跳過**，紀錄
+  `/tmp/rainyclock-sandbox-relaunch-tests-20260921.log`。Debug Sandbox 實機建置成功，
+  `/tmp/rainyclock-sandbox-relaunch-device-build-20260921.log`，編譯確認 App 同時有 DEBUG
+  和 MEMBERSHIP_SANDBOX。實際組態來源在非 DEBUG 編譯下另有 7 項隔離斷言通過。
+- 使用者解鎖後 Xcode 已安裝啟動 iPhone 16 Pro（PID 91796）；再停止偵錯，以**零額外
+  參數／環境變數**獨立啟動成功（19:20:51、PID 91802），隔秒測試後端 challenge 200，
+  證實測試設定不再依賴 Xcode。紀錄 `/tmp/rainyclock-sandbox-persistent-launch-20260921.json`。
+  台灣會員同步、當地價格畫面及月訂閱購買仍需使用者在手機完成；不把啟動成功當購買成功。
+
+## 會員頁簡化與真機買斷驗收 — 2026-09-21
+
+- 使用者 18:55 截圖確認 One-time member、會員編號、每日可用一次、買斷 Purchased，
+  月訂閱已由買斷涵蓋。Cloud Run 10:54–10:55 UTC 的 session、purchases、Apple notification
+  皆有 200；讀取 Sandbox Firestore 該會員確認 environment=Sandbox、有效 lifetime 交易。
+  此為真機買斷實測證據，不代表月訂閱、退款、換機或 AI／廣告已全面驗收。
+- 最新方案排序改為月訂閱在前、買斷在後，英文 **Monthly subscription**；上方標題與價格
+  分兩行，避免長英文擠壓。ASC 英文顯示名稱亦已保存並讀回；既有買斷優先權益不變。
+- 底下操作卡改收進右上角「⋯／會員管理」；同步、恢復購買、管理訂閱、刪除會員皆仍可達。
+  訂閱卡保留到期時間與 Auto-renewal 狀態，點該列開 Apple 管理頁；Sandbox 顯示時間供
+  加速續訂驗收，App 不自行變更 Apple 續訂設定。
+- Membership／StoreKit **23 項通過、0 失敗、0 跳過**，
+  `/tmp/rainyclock-membership-menu-tests-20260921.log`。另實機 Debug 建置通過，
+  `/tmp/rainyclock-membership-menu-device-build-20260921.log`；Xcode Sandbox scheme 已重跑
+  iPhone 16 Pro，新程序 PID 91590。
+- 為退回測試買斷，DEBUG＋Sandbox 會員＋Sandbox launch 下新增「Refund sandbox purchase」
+  管理選單入口，再檢查 verified 交易 environment=Sandbox 才開 Apple 退款表單。沒有直接
+  修改後端權益；送出只表示申請，仍由已驗證撤銷交易／REFUND 通知更新。使用者確認
+  已送出後，11:10 UTC Apple 最新簽章交易仍 revocationDate=null，Refund History 為空，
+  通知歷史只見 ONE_TIME_CHARGE。Xcode 實機 console 有 Apple 退款表單 cancelled／
+  unknown error，故**退款尚未驗收成功**。11:06 的通知 HTTP 200 不能單獨當退款證據。
+  可先用另一個尚未購買的台灣 Sandbox 帳號測月訂閱；美國買斷保留，未清空 ASC 紀錄
+  或手改付費權益。正式資料未變更。
+
+## iPhone 會員測試啟動排查 — 2026-09-21
+
+- 使用者實機的「Plans are not available for purchase yet」與 banner 表示本次沒有啟用
+  Sandbox 配置，不代表商品讀取或付款驗證失敗；未配置時根本不載入商品。
+- 已完成最新版 Debug 實機建置並安裝到指定 iPhone 16 Pro，含路線預覽收合；一般版
+  會員網址未變更，Sandbox health 正常。使用者解鎖後於 18:50 成功以 Sandbox 參數與網址
+  啟動，裝置工具確認 launched；手機價格顯示、會員同步及購買仍待實機畫面驗收。
+  詳細紀錄與後續驗收見 [MEMBERSHIP-STAGING.md](MEMBERSHIP-STAGING.md)。
+- 18:51 後續截圖雖有價格且無 banner，認證 sheet 卻標示 `Environment: Xcode`：
+  僅證明 App 測試參數已生效，Apple 仍用先前 Local 交易環境，**不是 Sandbox 商品驗收**。
+  已重新載入 Xcode 專案、將目前方案由 Local 切至 Sandbox，親自確認 Run → Options →
+  StoreKit Configuration 為 None，再由 Xcode Run 成功啟動指定 iPhone 16 Pro。
+  仍待使用者在 Apple sheet 確認 Sandbox 及完成同步／購買；OK 認證本身不授予付費權益。
+
+## 買斷解鎖日曆、優先於訂閱 — 2026-09-21（最新權益）
+
+- 使用者明確將月訂閱及買斷都設為移除 banner＋日曆；買斷永久持有當前權益。
+  兩者並存顯示買斷會員，已有有效買斷不再允許重複月訂閱新購。真實 Apple 訂閱仍保留
+  效期、續訂狀態與管理入口，不代為取消或宣稱取消。
+- 使用者另行確認 AI 規則不變：付費共用每日一次，額外每次需廣告；免費仍初始一次。
+  訂閱到期而有效買斷存在時，日曆繼續可用；只有已無日曆權益才採原安全重排銜接。
+- 定價與地區沿用下節。臨時放假仍延至 1.7.1，本次不擴張其未來買斷資格。
+- 後端 domain／HTTP **43 項通過、0 失敗、1 跳過**（缺 Emulator 的那一項）；
+  `/tmp/rainyclock-lifetime-calendar-backend-20260921.log`。
+- 本輪 iOS **61 項通過、0 失敗**：Membership／Configuration／StoreKit／AlarmSchedulingSettings
+  第一批 55 項，加 MembershipScheduling 第二批 6 項；Simulator App 建置完成。
+  紀錄：`/tmp/rainyclock-lifetime-route-ios-tests-20260921.log`、
+  `/tmp/rainyclock-lifetime-scheduling-tests-20260921.log`。下節 28／8 是稍早移除年方案批次。
+- Sandbox 已部署 **`rainyclock-membership-sandbox-00004-kkd`**，讀回確認 100% 流量。
+  為保留其他 session 修改，以既有上線映像衍生僅變更 `service.js` 的 calendar 判斷，
+  不整包部署工作目錄。映像內 5 項退款／到期等驗證通過；health 200 enabled=true、
+  未授權 status POST 401，既有安全驗證及 TTS_DISABLED 保持。完整 digest／Cloud Build
+  與紀錄見 [staging](MEMBERSHIP-STAGING.md)，正式 weather 未改，真機端到端未驗收。
+- ASC 買斷英文、繁中說明已保存並重讀核對，加入日曆及每日 AI；價格不變，未送審。
+
+## Route 設定樣式統一 — 2026-09-21
+
+- 後續加入路線預覽右上角展開／收合箭頭（整列標題亦可點），預設展開；收合時隱藏
+  地圖、距離與預估時間，保留標題。以獨立 AppStorage 偏好記住選擇，不改鬧鐘設定或
+  底層路線計算；載入中或尚未設定地址時仍可收合，支援減少動態效果。
+- 收合改動另行 Simulator 建置通過：`/tmp/rainyclock-route-collapse-build-20260921.log`。
+  專用 iOS 26.2 模擬器實際驗證右上角點按、展開／收合與 App 重啟後記住收合狀態；
+  展開後 Taipei Main Station → Taipei 101 的開車地圖、23 分鐘／6.7 公里正常顯示，
+  再收合後地圖及兩個資訊列均消失。此次未另裝實機。
+- Route 改用與 Time／Calendar 相同的 `SettingsEntryRow` 卡片，住家、公司、交通方式
+  各有清楚入口；住家／公司各自開地址編輯 sheet，交通方式即選即保存。
+- 保留路線地圖、距離與時間；移除 Route 頁面的天氣內容及專用載入工作。
+  Alarm 的天氣預覽與鬧鐘排程需要的天氣查詢保持不變。
+- SettingsCalendar 呼叫與會員提示文案同步修正。上方 iOS 61 項與 Simulator 建置已通過。
+- 專用 `RainyClockMembershipTests`／iOS 26.2 模擬器視覺驗收：Time、Route 卡片列比對一致；
+  Home／Work 編輯 sheet 均可開關，分別輸入 Taipei Main Station／Taipei 101，返回後值保留。
+  選步行即關閉選單並同步主頁；地圖更新為 94 分鐘／6.1 km、兩端位置正確，Route 卡片
+  與下方 tab 不遮擋。Route 無天氣區塊，Alarm 仍保留原本 Tomorrow weather。
+- 本輪未驗證 autocomplete 建議點選，不宣稱所有路線操作都已全面驗收；未安裝實機，
+  模擬器結果不代表 iPhone Sandbox 登入、購買或會員端到端成功。
+
+## 會員定價改為月訂閱與買斷 — 2026-09-21
+
+- 使用者最新指定美國 US$1／月、買斷 US$10；台灣 NT$10／月、買斷 NT$100。
+  不再提供年訂閱優惠方案，取代下方 9/16 的三方案及舊價格。買斷日曆權益由同日後續
+  決定更新，見上節；每日 AI 與 1.7.0 隱藏臨時放假的範圍不變，價格仍由 StoreKit 提供。
+- ASC 已保存並重讀核對上述美國／台灣價格；月訂閱、買斷都只供應美國＋台灣共 2 地區，
+  未來新地區自動開放 OFF。台灣價格獨立指定；其他地區價格尚未定案且未供應。
+  詳見 [會員測試環境](MEMBERSHIP-STAGING.md)，未提交或正式發布。
+- 9/21 使用者最新確認及附圖的兩列資料證實 **台灣、美國兩個 Sandbox 帳號皆已建立**。
+  圖上標題／總數顯示 1 與兩列不一致，不以該數字否定使用者及兩列證據。先前空列表、
+  台灣 1 筆及美國待建立皆為已取代的中間狀態；憑證由使用者保管，不存入 repo。
+  帳號建立不代表已登入手機；真機商品讀取、App Attest、購買與會員認回仍待驗收。
+- iOS 新購目錄及方案畫面只列買斷、月訂閱；年方案 ID 保留給已驗證歷史交易／恢復，
+  新購入口不再提供。免費、買斷、月訂閱及歷史權益相容的重點驗證已完成：
+  MembershipStoreKit／Membership 共 **28 項通過、0 失敗**，`xcodebuild TEST SUCCEEDED`，
+  Simulator App 建置成功。紀錄：`/tmp/rainyclock-membership-two-plans-tests-20260921.log`；
+  結果：`/tmp/RainyClock-Membership-Pricing-DerivedData/Logs/Test/Test-RainyClock Membership Local-2026.09.21_17-09-00-+0800.xcresult`。
+- 後端方案／權益重點測試 **8 項通過、0 失敗、0 跳過**：
+  `/tmp/rainyclock-pricing-domain-20260921.log`。此為較早定價批次本機驗證，當時未部署；
+  後續買斷日曆 Sandbox 部署見上節，真機購買仍未驗收。
+- 年方案 `6812814314` 已停止銷售，重讀供應管理確認 **0 個國家或地區**。
+  買斷以美國 US$10 作全球基準調整，再把台灣手動固定 NT$100；重新開啟目前價格確認
+  台灣在手動 1 地區、美國為其餘 174 自動群組中的 US$10。其他自動換算地區價格不等於
+  已核准商品定價，且未開放供應。所有新價格與供應已保存；未送審。定價批次之後的
+  買斷日曆 Sandbox 部署另記上節，正式會員並未部署。
+
+## 會員獨立 Google Cloud Sandbox 已接入 Apple 金鑰 — 2026-09-16
+
+- 使用者授權後在既有 `rainyclock` 專案建立 `membership-sandbox` Firestore Standard／
+  Native／asia-east1、專用 Cloud Run、限定資料庫的 IAM、Secret Manager 身分密鑰、
+  deny-all rules、7 組 TTL 與 PCM 免索引。原 weather proxy revision `00012-win` 保持不變。
+- 使用者已建立 `RainyClock Membership Sandbox` IAP key；驗證後保存於 repo 外及
+  `membership-sandbox-apple-iap` v1（asia-east1），專用 SA 可讀並掛載
+  `/secrets/apple/SubscriptionKey.p8`。金鑰名稱不限制 Sandbox，限制由後端環境實施。
+- 同一映像的 revision `rainyclock-membership-sandbox-00003-vsr` 已啟用：
+  **公開 HTTPS invocation、`MEMBERSHIP_ENABLED=1`、`TTS_DISABLED=1`**；
+  Apple／App Attest／session 認證仍強制執行。網址及配置見 [MEMBERSHIP-STAGING.md](MEMBERSHIP-STAGING.md)。
+- 真實 Apple Sandbox `getNotificationHistory` 最初認證成功、回傳空歷史。ASC Sandbox
+  通知網址已保存並重讀確認，Production URL 空白。等待設定傳播後，15:27:51Z 的 TEST
+  請求成功，15:28:28Z 查詢 `sendAttempts=SUCCESS`；官方 SignedDataVerifier＋線上憑證
+  查核確認真實簽章為 Sandbox／`com.shukaihu.RainyClock`／TEST。Cloud Run 確認
+  `15:27:52.124678Z` 對應通知 POST 200（revision `00003-vsr`），TEST 通知串接已通過。
+  先前四次 `4040007` 已解除；TEST 不建立購買／額度 ledger，也不代表 IAP 認回已完成。
+  結果：`/tmp/rainyclock-membership-apple-notification-result.json`（無 JWS／token）。
+  Cloud Run 證據：`/tmp/rainyclock-membership-apple-notification-cloud-log.json`。
+- 9/16 當時尚無 Sandbox 測試帳號；9/17 使用者截圖已確認台灣及美國帳號均建立，
+  目前待真機驗收，見上方最新狀態。
+- ASC 初次盤點為零，後續已建 `RainyClock Plus` 群組 `22390056`，月方案 `6812814060`
+  （1 個月）與年方案 `6812814314`（1 年）均設 level 1；已修正初建預設的 1／2 分級。
+  非消耗型 `RainyClock One-Time Purchase` 為 `6812814810`；Product ID 見 staging 文件。
+  9/16 當時使用者批准僅美國 Sandbox 測試，三商品儲存並核對月 US$1／年 US$10／買斷 US$5、
+  USA only、未來新地區自動開放 OFF。年方案為預付 1 年，未設 12 個月承諾逐月付款。
+  以上為當時歷史狀態；價格與年方案已由 9/21 決策取代。當時非美國地區均不可售，
+  Apple 自動產生的對應價不是已批准正式售價。
+  六筆商品與兩筆群組英文／繁中本地化已儲存並重讀驗證；群組名稱 `RainyClock Plus`，
+  使用 App 名稱 `Rainy Clock`，精確商品文字見 staging 文件。
+  UI「準備提交」，均未提交／發布；審查截圖未提供，家庭共享關閉。真機商品讀取與購買仍未測。
+- 新 `RainyClock Membership Sandbox` scheme 只供 Debug 真機，無 `.storekit`、只接受 HTTPS
+  origin；權益／session／App Attest Keychain 依測試網域隔離。這個明確測試模式完全停用廣告。
+- 後端含 Emulator 151 項全過；最後 health／challenge 上限入口 18 項全過。
+  iOS focused 27 項全過，廣告防護後配置 9 項全過，正常 unsigned Release 建置成功；
+  正式 URL 空白，沒有 Sandbox 參數、網址或 StoreKit 測試 bundle 混進 Release。
+- 本輪尚未安裝或啟動真機，App Attest、購買／認回、LevelPlay、AI 端到端均未測。
+  Apple API 憑證可用不代表上述流程已通過；完整缺項見 staging 文件。
+- 真雲端專用 Job 的 8 個並行交易驗證成功、測試紀錄已清理；未授權 Firestore 讀寫 403。
+  7 組 TTL 皆 ACTIVE。啟用後 `/health` 200／`enabled=true`、challenge 200、缺少 session
+  401、無效 Apple 簽章 401、舊 `/v1/tts` 404。先前 `00002-6bc` private／會員關閉
+  的 503／IAM 403 是建立初期紀錄，已由此次啟用狀態取代。
+
+## App Store Connect 商務資料提交後狀態 — 2026-09-16
+
+- 使用者提供提交後截圖：台灣稅務、美國外國受益人證明及 W-8BEN 都「已完成」。
+  銀行與付費 App 協議仍「正在處理」，DSA「審查中」；尚不能視為已可收費。
+- **稍後實際讀取 ASC：付費 App 協議已「有效」，銀行帳戶已「使用中」。** DSA 本輪未重查。
+  後續先準備買斷、月／年商品與會員後端設定，
+  付費協議 Active 後執行 Apple Sandbox 真機驗證；會員啟用後需重新建置上傳。
+  目前已上傳的 1.7.0（29）仍沒有會員服務 URL；後續 Sandbox 部署與商品草稿見上節，均未送審。
+
+## 1.7.0（29）已上傳 App Store Connect — 2026-09-16 22:19
+
+- 使用目前工作目錄的 RainyClock Release 封存；App／widget 都是 1.7.0（29），
+  保留既有未提交修改。一般 RainyClock scheme，不含 StoreKit 測試設定或測試 bundle。
+- **22:19:55 Apple 回覆 Upload succeeded / Uploaded package is processing；
+  xcodebuild EXPORT SUCCEEDED、exit 0。** 尚未送審、發布或確認 ASC 後續處理完成。
+- 封存確認正式 VoiceProxyURL、12 個預覽音檔、沒有 GAD keys，唯一嵌入 framework 為
+  IronSource。MembershipServiceURL 仍空白；這不是會員付款正式開通版，颱風功能仍延至 1.7.1。
+- 上傳僅有已知 IronSource.framework 缺少 dSYM 警告，不阻擋上傳，該 SDK 的 crash
+  堆疊可能無法完整符號化。建置編號未自動增加。
+- ASC 瀏覽器停在登入頁，未確認此帳戶的銀行／稅務／協議狀態；已查官方需求並補到
+  `MEMBERSHIP-AND-PAYMENTS.md`。未代簽協議、填寫銀行／稅務資訊或部署會員後端。
+
+封存：`build/RainyClock-1.7.0-29.xcarchive`。
+紀錄：`/tmp/rainyclock-170-29-archive.log`、`/tmp/rainyclock-170-29-archive-check.json`、
+`/tmp/rainyclock-170-29-upload.log`。
+
+## 鬧鐘首頁文字、點擊範圍與天氣動畫 — 2026-09-16 22:12
+
+- Tomorrow／明天與日期統一為稍大的 title3 粗體；同一列共用字體設定。
+- 天氣卡移除整張點擊導向與右上角箭頭，只留 Home、Work 位置區及中央交通方式
+  三個按鈕。標題、預報文字、天空、兩側裝飾線不導向 Route。
+- 太陽旋轉速度加快 4 倍，光線長度 10→14pt；雨滴速度約加倍、加長並略增粗；
+  雲層移動頻率加快 3 倍、振幅 20→32pt，雨與雲對比稍提高。
+  原 RGB 配色、24fps 設定、減少動態效果與離開前景暫停的機制保留。
+- Simulator 與簽署 iPhone Debug 建置成功、簽章檢查通過。實際點擊驗證三個入口可
+  導向 Route，卡片標題／預報／空白处不跳頁；晴雨混合及陰天畫面檢查、短動畫錄製完成。
+  本輪為 UI 修改，未新增對照實作的單元測試，也未重跑先前已通過的會員／後端測試。
+- **22:12 安裝到 iPhone 16 Pro，22:12:47 裝置查詢確認 1.7.0（29）**；原地更新，
+  未清資料、未自行啟動手機 App、未上架或部署後端。
+
+紀錄：`/tmp/rainyclock-home-polish-simulator-build.log`、
+`/tmp/rainyclock-home-polish-device-build.log`、
+`/tmp/rainyclock-home-polish-iphone16pro-install.json`、
+`/tmp/rainyclock-home-polish-iphone16pro-verified.json`。
+動態預览：`/tmp/rainyclock-home-polish-sun-rain.mov`、`/tmp/rainyclock-home-polish-cloudy.mov`。
+
+## 最新版再次安裝到 iPhone 16 Pro — 2026-09-16 21:59
+
+- 使用者要求實機測試，重新建置目前工作目錄的 RainyClock Debug，簽章驗證通過。
+  App／widget 都是 1.7.0（29），採原 Bundle ID 原地更新，沒有解除安裝或重置資料。
+- **21:59 安裝成功，21:59:15 裝置查詢確認**，目標為 Shu-Kai Hu 的 iPhone16Pro，
+  本輪包含初始免費一次、兩種響鈴設定及最新會員方案／續訂介面修改。
+  未自行啟動手機 App、測試響鈴或請求廣告；未部署後端、未上架。
+- 真機會員服務 URL 仍空白，本機 StoreKit 模式仍限 Simulator；手機可測基本功能及
+  舊免費 AI 流程，不能據此驗證付款、訂閱限制或付費每日額度。
+- 既有 2026-08-30 紀錄顯示該 iPhone 16 Pro 已登記 LevelPlay Test devices；
+  本輪未重新核對平台。廣告驗收前須確認登記仍有效。`-showLevelPlayTestSuite` 會
+  啟動官方工具，但不隔離 App 的普通 banner 請求，不能單靠該旗標保證無正式流量。
+- 測試清單已更新至 [1.7.0 實機指南](1.7.0-DEVICE-TEST-GUIDE.md)。
+
+紀錄：`/tmp/rainyclock-latest-iphone16pro-build.log`、
+`/tmp/rainyclock-latest-iphone16pro-install.json`、
+`/tmp/rainyclock-latest-iphone16pro-verified.json`。
+
+## 已訂閱方案與自動續訂顯示 — 2026-09-16
+
+- 目前月／年方案的按鈕改成灰色「已訂閱」及效期；買斷顯示灰色「已購買」。
+  其他訂閱方案可更換，Apple 已安排下期切换的方案顯示「下次續訂生效」。
+- 會員狀態卡顯示目前方案、有效日期與自動續訂狀態；點該列進入 Apple 訂閱管理。
+  取消續訂仍保留當期權益。未知資訊顯示待確認，未提供自行宣告續訂狀態的開關。
+- 本機以已驗證交易及 renewalInfo 配對；正式版由後端查核 Apple Server API／V2 通知。
+  新增三個可選權益欄位，舊快取相容；後端獨立合併續訂簽章時間，防止舊通知回退。
+- 訂閱狀態更新、管理頁返回與回前景會同步；工作階段失效時標示快取並提示手動同步，
+  不自動打開 Apple 登入。購買前再次檢查最新權益，避免重複打開已生效方案。
+- 完整 iOS XCTest：**263 通過、0 失敗**。後端含 Firestore Emulator：
+  **142 通過、0 失敗、0 跳過**。未部署後端、未上架、未更新實體手機。
+- 最後補上快取提示與購買前重查後，重新建置並執行會員相關 **18 項測試全通過**。
+- 專用 Simulator 的 Xcode 本機測試購買已實際驗證：月方案按鈕停用且有日期；
+  自動續訂列可開啟 Apple「Edit Subscription [Xcode]」，取消後立即顯示已關閉，
+  仍是訂閱會員且保留效期。使用者的 iPhone 17 測試交易未改動。
+- 最後調整灰色按鈕文字對比，Xcode 再次建置／啟動成功並確認狀態重啟仍保留。
+  已將執行目的地切回 iPhone 17（26.2），scheme 為 RainyClock Membership Local；
+  使用者可重新 Run 取得新版，本次未自行啟動其測試裝置。
+
+紀錄：`/tmp/rainyclock-renewal-ios-tests.log`、`/tmp/rainyclock-renewal-ios-final-tests.log`、
+`/tmp/rainyclock-renewal-backend-all.log`。
+
+## 免費初始一次、提前／原定時間鈴聲 — 2026-09-16
+
+- 免費 AI 初始額度從 3 改為 1（非每日），本機仍沿用原 used 計數與廣告獎勵。
+  新會員後端 grant=1；已存在的後端 ledger 保留、不補發。付費每日一次保持不變。
+- 「時間」有「提早響鈴」和「原定時間響鈴」，各保存音色、AI 檔案、角色與台詞。
+  舊 JSON／排程指紋將原音色及 AI 資料沿用到兩邊；更改一邊不影響另一邊。
+- 每週、背景重排依實際響鈴時間選聲音；日曆逐日記錄，各日期與稍後提醒用自己的音檔。
+  已錯過提早時間而維持正常響鈴時使用正常音色，零提前仍遵循既有設定驗證。
+- AI 只有保存成功才切換該設定，取消編輯不改原音色；可重用另一邊已保存 AI 音檔，
+  試聽／播放／套用都不扣次。生成中暫停取消和下拉關閉，避免跨頁並行生成與結果覆寫。
+  暫不清除舊生成音檔，避免刪到已排程／響鈴／稍後提醒仍引用的檔案。
+- 後端含 Firestore Emulator：**136 通過、0 失敗、0 跳過**。
+  iOS 完整 XCTest：**258 通過、0 失敗**；簽署 iPhone Debug build 成功。
+  首輪新測試誤用既有不允許的提前 0 分鐘，已修正為驗證拒絕，未放寬產品驗證。
+- 專用 Simulator 實際選擇 Early=Morning Bell、Regular=Soft Piano，重啟後各自保留；
+  打開一般 AI 編輯再取消仍保留 Soft Piano。英文 AI 標題縮短以免截斷；
+  初始 1 次的英文字串改單數。最終 UI build 通過，未呼叫真實生成／廣告。
+  使用者正在操作的 iPhone 17 StoreKit 測試交易未改動；本次未更新安裝到實體手機。
+- 會員後端仍未啟用，Simulator 廣告仍停用，Local StoreKit AI 額度仍為 0；
+  這些測試不代表正式付款／廣告回呼或真機實際響鈴端到端通過。無正式部署／上架。
+
+紀錄：`/tmp/rainyclock-free-one-backend-all.log`、
+`/tmp/rainyclock-split-sounds-ios-tests-final.log`、
+`/tmp/rainyclock-split-sounds-device-build.log`。
+最終介面建置：`/tmp/rainyclock-split-sounds-ui-build.log`。
+
+## 會員手動驗收說明 — 2026-09-16
+
+- 會員方案卡片順序改為「買斷 → 月訂閱 → 年訂閱」。Membership Local Simulator build
+  通過，紀錄 `/tmp/rainyclock-membership-plan-order-build.log`；重新 Run 即可看到新順序。
+- 測試指南補齊免費／僅買斷／僅訂閱的畫面矩陣、Xcode 測試交易重置與恢復步驟。
+  明確註明真機一般版尚未啟用會員限制；Simulator 廣告停用，本機 AI 額度為 0，
+  不能把介面與假購買驗證當成正式廣告／每日額度端到端驗證。
+- StoreKit 本機商品說明清除延至 1.7.1 的颱風功能，補上繁體中文商品名稱與說明。
+  JSON 格式檢查通過；未改商品 ID、價格、群組或 App 程式，未重新安裝或部署。
+
+## 月曆水平分頁與今天標記 — 2026-09-16
+
+- `AlarmCalendarView` 改用原生水平分頁，日期頁隨手指移動，不再逐格淡出／淡入。
+  前後月份箭頭、年份選單與「今天」共用月份選取；支援當年至次年。
+- 日期外框只標記今天，點其他日期只切換響鈴與有效修改橘點。
+  分頁高度保留六週空間，上限避免圖例被推到畫面底部；無上下捲動。
+- Simulator 與簽署 iPhone Debug build 成功，App／widget 版本仍為 1.7.0（29）。
+  Simulator 實際確認日期點選與還原、今天外框、箭頭換月、六週月份、Today 返回。
+  CUA 拖曳未觸發模擬器滑頁，未將該次自動操作列為手勢通過；真機滑動手感待使用者確認。
+- **20:58 安裝到 iPhone 16 Pro，20:59 裝置查詢確認版本**；原地更新，未啟動手機 App。
+  紀錄：`/tmp/rainyclock-calendar-slide-simulator-build.log`、
+  `/tmp/rainyclock-calendar-slide-device-build.log`、
+  `/tmp/rainyclock-calendar-slide-iphone16pro-install.json`、
+  `/tmp/rainyclock-calendar-slide-iphone16pro-verified.json`。
+
+## 1.7.0 發布範圍與美國日曆 — 2026-09-16
+
+**已於 20:32 更新安裝到使用者的 iPhone 16 Pro，20:34 裝置查詢確認 1.7.0（29）。**
+採原 App ID 原地更新，未解除安裝、未啟動手機 App、未發布 App Store 或部署後端。
+手機測試步驟見 [1.7.0 測試指南](1.7.0-DEVICE-TEST-GUIDE.md)。
+
+- 使用者決定將颱風／天災臨時放假保留至 **1.7.1**。中央 release gate 關閉；
+  日曆設定、會員方案、狀態提示及公開隱私草稿不再公開此功能。
+  原程式、偏好、地圖、快取與服務保留，詳見 [1.7.1 備忘](1.7.1-DEFERRED-DISASTER.md)。
+- 有效排程副本忽略臨時放假；舊 skip 在安全時機替換，失敗保留舊排程並允許重試。
+  背景與推播不下載／套用公告，僅保留撤销舊推播註冊所需清理。
+- 美國來源已可選，依 OPM 常態聯邦假日與標準補假規則離線計算，含跨年補假及
+  Juneteenth 從 2021 年生效。規則支援 2000–2100，超範圍回到星期並標示資料不可用。
+  州、學校、公司、輪班及一次性行政放假由使用者手動調整；台灣快取不套用到美國。
+- 明天鬧鐘的休假名稱依選定國家取得；手動日期優先，恢復相同規則時不留橘點。
+- **完整 iOS XCTest：246 通過、0 失敗、0 跳過**；含新增 14 項美國日期／狀態與
+  停用災害後排程／推播回歸。簽署真機 Debug build 及簽章檢查通過。
+- Simulator 實際確認可選美國、2026/11/11 與 11/26 不響、11/27 響；點 11/26
+  兩次可恢復且移除橘點；日曆無颱風入口、方案頁無颱風權益。
+- 會員服務 URL 仍為空，付款未開放；真機不能用本版驗證付費每日額度。
+  StoreKit 本機測試繼續使用 Simulator scheme，平台實測缺項仍見下方會員段落。
+
+驗證紀錄：`/tmp/rainyclock-170-us-calendar-tests.log`、
+`/tmp/rainyclock-170-us-calendar-device-build.log`、
+`/tmp/rainyclock-170-us-iphone16pro-install.json`、
+`/tmp/rainyclock-170-us-iphone16pro-verified.json`。
+
+## Membership implementation — 2026-09-16 (local/test only)
+
+已加入免註冊 Apple 會員、StoreKit 2、Firestore 額度與 LevelPlay S2S 獎勵驗證。
+**當時會員開關預設關閉，未部署會員服務或啟用收費。** 以下為先前本機實作批次的
+歷史驗證及當時待辦；後續 Sandbox 雲端部署／Apple 接線以本文件最上方最新紀錄為準。
+一般 App 的正式會員開關仍關閉。
+既有 UI、天氣與臨時放假修改仍保留；沒有修改 Android，也沒有提交其他 session 的變更。
+完整規則與限制見 [會員與付款](MEMBERSHIP-AND-PAYMENTS.md)，環境及資料結構見
+[後端操作說明](../weather-proxy/membership/README.md)。
+
+- 月／年／買斷商品、當地 StoreKit 價格、方案頁、會員狀態、恢復、管理訂閱及刪除入口。
+  恢復購買只恢復權益，不同步鬧鐘設定或手機已存音檔。
+- Apple 簽章與 Server API 對帳、Notifications V2 去重；App Attest challenge、工作階段、
+  請求內容綁定與重放防護。iOS 17 使用現行 SDK 的 appTransactionID back-deployment。
+- 每日一次、跨裝置原子預留、同請求重試、音訊可靠保存後才扣、失败同來源退款、
+  中斷租約回收與下載重試。所有 paid 方案共用一次；免費仍初始三次加獎勵。
+- 使用者已確認當地午夜／不累積，買斷與訂閱重疊規則，以及到期保留設定與安全重排。
+  暫時離線或替換排程失敗不清除既有鬧鐘。
+- LevelPlay 獎勵只由簽章 callback 入帳；手機只查詢。換帳號撤銷舊 session 與廣告 ID，
+  已初始化舊 ID 的 LevelPlay 須重啟 App 才能換會員。模擬器禁用廣告 SDK。
+- 舊額度 claim 保留待查核；未擅自補發或清空。**舊額度遷移與匿名語音端點切換仍待決定**；
+  目前保留舊免費流程，不能宣稱整個既有語音服務已強制會員限額。
+- 會員刪除立即撤銷存取，資料清理可重試；不取消 Apple 訂閱、不清手機鬧鐘與完成音檔。
+  隱私政策／manifest／App Store metadata 只有本機草稿，公開揭露尚未發布。
+
+### 驗證紀錄
+
+- **後端 134 項通過、0 失敗、0 跳過**，包含 Firestore Emulator 真實 transaction、
+  跨裝置並行、重複事件、成功後扣次、失敗退款、跨日／時區、到期／退款、刪除及
+  重放拒絕。廣告同 event ID 或同已驗證簽章內容都只入帳一次。
+  記錄：`/tmp/rainyclock-membership-all-backend-final.log`。
+- **iOS 26.2 完整 XCTest：232 通過、0 失敗、0 跳過**，包含 StoreKit 本機購買、恢復、
+  續訂、到期、退款與待批准，以及即將響鈴時禁止到期重排。StoreKit 異步通知以有上限
+  的條件等待驗證。記錄：`/tmp/rainyclock-membership-ios-26.2-final-tests.log`。
+- **Generic iOS Release 建置成功**（未簽署、未安裝），最低 iOS 17、原 Bundle ID、
+  `1.7.0 (29)` 與空白會員 URL 已確認。記錄：`/tmp/rainyclock-membership-device-release-build.log`。
+- Xcode 26.6 / iOS 26.5 的 StoreKit service 曾回報 `Error saving configuration file` /
+  `not installed for development`；改用同機已安装的 iOS 26.2 runtime 可成功。
+  這是本機 StoreKit 環境，**不是 App Store Sandbox 或正式付款測試**。
+- 另以專用 Simulator 實際打開方案頁、看到 StoreKit 本地化價格，完成標示 Xcode／不收費的
+  測試購買，確認畫面由「免費方案」更新為「訂閱會員」。
+- 尚未執行真機 App Attest、Apple Sandbox 換機／重裝完整往返、真實 Server Notifications、
+  LevelPlay dashboard test callback／Test Suite；未產生正式廣告流量。
+
+### 當時列出的正式開放前工作（進度見最上方最新紀錄）
+
+1. 重新盤點 Google Cloud 資源：本次 `rainyclock` 的 Firestore 查詢返回 `SERVICE_DISABLED`。
+   經另行處理後建立 Standard / Native / asia-east1、服務帳號最小權限、Secrets、TTL／索引、
+   刪除維護工作與監控，先部署隔離測試環境。
+2. App Store Connect 建立月／年同群組與買斷商品；美國 $1／$10／$5，其他商店價格待決定。
+   補 App Store Server API key／issuer、App ID、Apple 根憑證、Sandbox／正式通知 URL；
+   Apple Developer 啟用 App Attest 並更新 profile。
+3. LevelPlay 設定每次 reward=1、private key、S2S callback；只能以官方測試装置／Test Suite
+   驗證，不能用正式廣告反覆測試。
+4. 決定舊額度遷移、舊端點相容策略，以及刪除後最少防重摘要的保留期限；完成實際
+   Sandbox／真機驗收，發布隱私政策並更新 App Store 隱私標籤後才可啟用會員開關。
+5. 首次免費帳號沒有任何 IAP 時，須實測 Server API history 會回傳 `200` 空集合；
+   Apple 未保證 `4040010` 表示免費帳號。目前查核失敗便不發 session，需在 Sandbox
+   驗證此首次使用流程，不能吞掉錯誤以宣告驗證成功。正式入口限流也須配置可信代理／
+   雲端入口；現有以轉送標頭計算的 IP 限流只作輔助。
 
 ## Where things stand
 
 | | Version | State |
 | --- | --- | --- |
-| **In review** | `1.6.9 (28)` | **Submitted 2026-09-07** with the 1.6.9 What's New and the merged review note. The ad report done the industry's way, the AI voice quota surviving a reinstall, and the evening-before preview notification — see below. Check the listing, not this row, for whether it has gone live |
-| **Live on the App Store** | `1.6.8` | **Released 2026-09-01**, first attempt — confirmed against the public listing, not against this file. The AI voice alarm. Production checked after release: weather and `/v1/tts` both answer 200 |
+| **Local development** | `1.7.0 (29)` | Owner-authorized integration in `RainyClock-iOS/`: calendar, disaster feed/client/scheduler/receipts and native township map copied from the separate preview; native two-tab UX integrated. Accepted purple-rain palette and native weather animations installed on the owner's iPhone 16 Pro on September 16 at 00:48, including earlier startup/cache/concurrent-fetch improvements. Latest full XCTest including membership: 232 passed, 0 skipped (iOS 26.2). Membership is local/test only and disabled by default; see above. Simulator layout/category taps/calendar editing checked; native swipe feel awaits phone validation. No archive/upload, no live disaster backend. See current handoff below |
+| **Live on the App Store** | `1.6.9` (submitted build `28`) | **Confirmed 2026-09-10** against the Taiwan public listing and Apple's lookup API. Release timestamp `2026-09-07T21:33:44Z`, i.e. **2026-09-08 05:33:44 Asia/Taipei**. Evening-before previews, ad reporting, and AI voice quota persistence. The public listing confirms the version, not the build number |
+| Superseded | `1.6.8` | **Released 2026-09-01**, first attempt — confirmed against the public listing, not against this file. The AI voice alarm. Production checked after release: weather and `/v1/tts` both answer 200 |
 | Superseded | `1.6.7` | **Released 2026-08-30.** The ad-provider migration. Confirmed against the public listing on 2026-08-31 — this row had still been claiming 正在等待審查, the third time this file has gone stale the same way |
 | Superseded | `1.6.6` | Released 2026-08-18 |
 | Superseded | `1.6.5` | Released 2026-08-04 |
 | Rejected, then resolved | `1.6.4 (19)` | Rejected 2026-08-01 on 5.1.2(i) and 2.1(a); both answered, and the fixes reached users in 1.6.5 |
 | Superseded | `1.6.3 (18)` | Released 2026-07-28 |
 
+## Voice backend update — 2026-09-16
+
+Owner requested the screenshot's classification-model migration and backend rollout.
+`weather-proxy/annotate.js` now defaults to `gemini-3.1-flash-lite` at the Vertex US
+multi-region endpoint, with canonical REST `thinkingConfig.thinkingLevel: MINIMAL`.
+It retains schema/per-sentence neutral fallback, ignores thought parts and emits structured
+fallback metadata without user text or credentials. Existing Cloud TTS voices/model remain.
+**73 backend tests passed; 12 live classification and 12 staged speech-generation checks
+passed** across both languages and all six personas. Audio format/signal/duration were checked;
+subjective voice listening remains available through the saved samples.
+Cloud Run `asia-east1` revision `rainyclock-weather-proxy-00012-win` was promoted from staged
+0% to **100% production traffic**, verified **September 16 at 19:20 Asia/Taipei**.
+Real App URL weather and speech checks both returned 200. Existing env/secrets, runtime
+resources and service account were preserved. No phone update is required for this backend
+change; existing audio clips stay unchanged until regenerated.
+Evidence, samples and rollback: [migration report](annotation-migration-2026-09-16/README.md).
+This does not deploy the separate day-off service or change the App Store release.
+
+## Current handoff — 2026-09-15: integrate previews into 1.7.0
+
+The owner has now authorized merging all reviewed preview features into the original
+`RainyClock-iOS/` workspace for simulator review. Earlier instructions to leave that directory
+unchanged applied to the separate-preview phase, which is retained in
+`RainyClock-dayoff-preview/`. This is a local working-tree integration, not a commit, release,
+archive or server deployment. App and widget remain `1.7.0 (29)` with their original
+`com.shukaihu.RainyClock` / `com.shukaihu.RainyClock.AlarmWidget` identities and original app name.
+Pre-merge backup: `/tmp/RainyClock-1.7.0-before-merge-20260915-220445.tar.gz`.
+
+- **Purple rain palette (September 16, subsequent owner refinement):** Changed only rain's
+  sky, cloud and raindrop RGB values to deep violet/lavender. Sunny and cloudy styling remain
+  exactly as reviewed in palette v2. Simulator build passed
+  (`/tmp/rainyclock-weather-palette-v3-build.log`). The five rain-containing combinations were
+  recaptured using the native Simulator Save Screen command; the four unchanged clear/cloudy
+  screenshots were retained byte-for-byte. Updated grid, originals, provenance and ZIP:
+  `docs/weather-variants-2026-09-16-palette-v3/`. On the owner's request, the signed device
+  build passed and was installed on their iPhone 16 Pro **September 16, 00:48 Asia/Taipei**.
+  Signature verification and `devicectl` confirmed the original app/widget identities and
+  `1.7.0 (29)`. Updated in place without uninstalling or launching the phone app. Simulator
+  preview entry points are excluded from the physical build; real forecast/animation logic
+  remains active. Logs: `/tmp/rainyclock-weather-palette-v3-device-build.log`,
+  `/tmp/rainyclock-purple-iphone16pro-install.json`,
+  `/tmp/rainyclock-purple-iphone16pro-verified.json`.
+- **Weather palette refinement (September 16):** Sunny skies now use a clearer, saturated
+  sky blue with a warmer amber sun, sharper rays and a smaller halo. Cloudy skies use neutral
+  silver gray and pale clouds; rain uses deep blue, cool clouds and more visible rain streaks.
+  Brighter secondary text and quiet text zones retain readability. Layout, endpoint blending,
+  animation behavior and forecast/alarm logic are unchanged. The Simulator build passed
+  (`/tmp/rainyclock-weather-palette-v2-build.log`); all nine Home/Work combinations were
+  captured and visually reviewed in iPhone 17 Pro / iOS 26.5 Simulator. Full native captures,
+  a contact sheet and ZIP are in `docs/weather-variants-2026-09-16-palette-v2/`, preserving
+  the original set. No forecast or alarm tests were added for this visual-only change.
+  These previews contain explicit sample data. This palette is included in the subsequent
+  purple-rain revision installed on the physical phone at 00:48, documented above.
+- **Weather startup latency (September 16, after owner's phone feedback):** The prior
+  forecast pipeline waited for Directions, then sampled Home, interior points and Work one
+  by one; its tomorrow cache lived only in memory. The home view also keyed its task to
+  visibility, allowing an appearance transition to cancel the first request. Home now starts
+  one coalesced model refresh on appearance/request change and lets it finish when switching
+  tabs. A central progress indicator appears immediately when no matching forecast exists.
+  A versioned `tomorrowWeatherRecord.v1` stores the full request and snapshot, synchronously
+  restoring matching data before the first render. Fresh data (30 minutes) skips networking;
+  stale matching data remains labeled stale while refreshing. Date, forecast time, time zone,
+  route addresses/coordinates and mode must match; invalid data, cancellation, old responses
+  and failed updates cannot replace a valid cache. This is display cache only, not a recorded
+  successful alarm registration. Weather acquisition now starts Home/Work alongside Directions,
+  then samples the bounded interior points concurrently without changing route order or
+  omitting the rainiest point. No first-request latency guarantee is claimed for Apple/network
+  service time; no live iPhone speed measurement has been taken.
+  Final Simulator and signed device builds passed. Full XCTest: **208 passed, 6 existing
+  unsigned Keychain cases skipped, 0 failed** (214 total): four new persistent-cache tests,
+  six concurrency/order/error/cancellation tests, and strengthened old-response persistence
+  assertions. Result: `/tmp/RainyClock-1.7.0-DerivedData/Logs/Test/Test-RainyClock-2026.09.16_00-14-52-+0800.xcresult`.
+  Simulator checked immediate startup progress, tab changes and the final single in-card
+  loading indicator. Matching-cache first-render and no-network behavior were tested with
+  injected data, because Simulator still cannot obtain live WeatherKit authorization.
+  Installed the final signed build on the owner's iPhone 16 Pro **September 16, 00:16**;
+  `devicectl` verified `com.shukaihu.RainyClock`, `1.7.0 (29)`. No uninstall or phone launch.
+  Logs: `/tmp/rainyclock-1.7.0-weather-fast-tests-final.log`,
+  `/tmp/rainyclock-1.7.0-weather-fast-device-build.log`,
+  `/tmp/rainyclock-weather-fast-iphone16pro-install.json`.
+- **Animated commute weather and settings regrouping (September 16):** Alarm now has only
+  the tomorrow hero and a Home/Work weather card, with route addresses and travel mode inside
+  the weather card. Different endpoint conditions blend horizontally; matching conditions use
+  one sky. Native Canvas rain, slowly drifting clouds and a soft rotating/pulsing sun animate
+  at at most 24 fps and pause offscreen, in background, or with Reduce Motion. Missing weather
+  stays neutral, never pretending to be sunny; forecast retry/stale errors and WeatherKit
+  attribution remain visible. The Time/Route/Calendar shortcut rows were removed; hero date,
+  time/reason and weather card still open the corresponding settings. Repeat days moved to
+  Calendar using the same saved weekday set; wake-up, early alarm and threshold share one Time
+  card. Turning closure rules off hides both closure preferences and the map. Normal closure
+  pages no longer offer examples, Demo or the ellipsis menu, and the verbose source footer was
+  removed. The map keeps a linked NLSC credit and an accessible region list.
+  The reported Tainan geometry matches the pinned official source; round joins fix exaggerated
+  highlight spikes and interior house/building markers identify Home/Work. Three new geometry
+  regressions cover name/boundary association, shared edges, projection, marker containment and
+  outline extent. Evidence: [township boundary report](TAIWAN-TOWNSHIP-BOUNDARIES.md).
+  A separate **Debug Simulator only** `-weather-scene-preview` entry can exercise clear/rain,
+  all-rain, all-cloudy, all-clear and unavailable states with explicit sample labels. It never
+  loads the real model, writes forecasts/settings, starts ads or initializes notifications.
+  Simulator visual checks confirmed those weather styles, native animation movement, normal
+  homepage fit, inline route addresses, the new Time group, and Calendar's hidden map when off.
+  The actual forecast remains unavailable in Simulator; synthetic previews are not live data.
+  Final normal-screen checks confirmed route navigation from the sky card, removal of examples,
+  source footer, ellipsis and Demo, Home/Work marker selection in Tainan, and hidden map after
+  restoring the original closure switch to off. Actual midnight rollover also advanced Tomorrow
+  from September 16 to September 17. Full XCTest: **198 passed, 6 existing unsigned Keychain
+  tests skipped, 0 failed** (204 total), including the three new geometry regressions.
+  Result: `/tmp/RainyClock-1.7.0-DerivedData/Logs/Test/Test-RainyClock-2026.09.16_00-02-07-+0800.xcresult`.
+  Signed device build passed; installed and verified on the owner's physical iPhone 16 Pro
+  **September 16, 00:03 Asia/Taipei**, retaining `com.shukaihu.RainyClock`, `1.7.0 (29)`.
+  No uninstall or phone launch. Logs: `/tmp/rainyclock-1.7.0-sky-tests-final.log`,
+  `/tmp/rainyclock-1.7.0-sky-device-build.log`, `/tmp/rainyclock-sky-iphone16pro-install.json`.
+- **Tomorrow overview and route-linked closures (later September 15 refinement):** Alarm
+  now projects tomorrow's normal alarm day, including a visible skipped result for weekends,
+  holidays, manual silence or temporary closures. It shows the expected time and rain reason,
+  plus tomorrow's home/destination weather; the route maximum explains an early alarm. The
+  normal Enabled badge, evening-reminder row and weather-check timestamp were removed.
+  Tomorrow weather has a separate request/cache keyed by normal date, lead-time forecast
+  point, time zone, addresses, map points and travel mode. It never registers alarms or treats
+  a successful forecast as a successful registration; exact tomorrow registrations remain
+  visible while forecasts are pending, and mismatched projections retain an update warning.
+  Calendar has separate ordinary-calendar and temporary-closure switches; US explicitly says
+  not supported yet. Other shows notification/background states inline, and bottom tabs keep
+  44-point minimum targets with less vertical padding. Closure details display Route addresses
+  and automatically derived county/township, with no independent picker. Legacy manual regions
+  are migrated before comparing schedule fingerprints, and late previews cannot overwrite a
+  newly selected map point. Full XCTest passed: **195 passed, 6 existing unsigned Keychain
+  cases skipped, 0 failed** (201 total), including 14 tomorrow-projection/transport tests and
+  6 route-region regressions. Result:
+  `/tmp/RainyClock-1.7.0-DerivedData/Logs/Test/Test-RainyClock-2026.09.15_23-33-43-+0800.xcresult`.
+  Final Simulator and signed device builds passed. Simulator checks confirmed the tomorrow
+  date/time, forecast failure state, shorter bottom tabs, inline notification/background rows,
+  separate calendar/closure switches, disabled US source with the unsupported label, and
+  read-only Route addresses with county/township. Both switches were restored to their original
+  off values. Live successful WeatherKit forecasts were unavailable in Simulator; forecast and
+  skip/early scenarios were validated with injected test data.
+  **23:40 Asia/Taipei: installed this revision on the owner's physical iPhone 16 Pro**;
+  `devicectl` verified `com.shukaihu.RainyClock`, `1.7.0 (29)`. No uninstall or phone launch.
+  Final build logs: `/tmp/rainyclock-1.7.0-tomorrow-final-sim-build.log` and
+  `/tmp/rainyclock-1.7.0-tomorrow-device-build.log`; installation receipt:
+  `/tmp/rainyclock-tomorrow-iphone16pro-install.json`.
+- **Settings/calendar refinement (same day, after first device install):** Time, Route and
+  Other primary labels/values share the system body size. Holiday source offers Taiwan and a
+  disabled United States option. Legacy weekly settings remain compatible until Taiwan is
+  explicitly selected. The orange calendar marker now compares the manual result with the
+  current base calendar/weekday result; toggling back removes the override. Today and Done
+  occupy the top corners, the legend is the final content, and horizontal drags change month
+  without vertical scrolling. Calendar navigation uses typed destinations so an Alarm shortcut
+  correctly exits retained details. Six new calendar regression tests cover comparison,
+  toggling back, changing base rules and persistence. Latest XCTest: **175 passed, 6 existing
+  unsigned Keychain tests skipped, 0 failed** (181 total), result
+  `/tmp/RainyClock-1.7.0-DerivedData/Logs/Test/Test-RainyClock-2026.09.15_22-45-16-+0800.xcresult`.
+  Simulator interaction is now available: month swipes, Today/Done, marker restoration,
+  disabled US option, typography and calendar shortcut return were exercised successfully.
+  Settings categories use native page-style TabView. The UI automation tool's drag events
+  contained only touchesBegan/touchesEnded with different positions and no touchesMoved,
+  so they cannot exercise native pager/ScrollView pans. Temporary recognizer diagnostics
+  established this limitation and were removed; category taps were checked, while physical
+  swipe feel remains an owner check. Final Simulator and signed device builds succeeded;
+  all four category buttons were rechecked in the final native pager build. The original
+  calendar enable switch and test date were restored after interaction checks.
+  **23:04 Asia/Taipei: installed the final refinement on the owner's physical iPhone 16 Pro**
+  and `devicectl` verified `com.shukaihu.RainyClock`, `1.7.0 (29)`. No uninstall or phone launch.
+  Final build logs: `/tmp/rainyclock-1.7.0-settings-final-sim-build.log` and
+  `/tmp/rainyclock-1.7.0-settings-final-device-build.log`; installation receipt:
+  `/tmp/rainyclock-settings-iphone16pro-install.json`.
+- **iPhone 16 Pro installed (2026-09-15):** signed Debug build succeeded and updated the
+  owner's connected physical iPhone 16 Pro from `1.6.9 (28)` to `1.7.0 (29)` using the
+  original bundle ID, without uninstalling. `devicectl` verified the installed version.
+  Build: `/tmp/RainyClock-1.7.0-Device-DerivedData/Build/Products/Debug-iphoneos/RainyClock.app`;
+  log: `/tmp/rainyclock-1.7.0-iphone16pro-build.log`. The app was not launched as part of
+  this install request; real-device alarm/background/push acceptance remains pending.
+  繁中：已更新安裝至實體 iPhone 16 Pro 並核對版本，未先刪除 App，待使用者開啟驗收。
+- **Navigation integrated:** top tabs **鬧鐘 / 設定**; settings categories **時間 / 路線 /
+  日曆 / 其他**. The alarm tab presents status and links to corresponding settings. Calendar,
+  temporary-suspension settings and the township map belong under **日曆**. Preserve the prior
+  route editor and the dark/blue rounded style; save edits directly without an Apply button or
+  settings-completed banner. Other settings contain support and notifications/background updates.
+  Foreground automatic scheduling may arm the first alarm only after both route addresses are
+  confirmed and resolved and remaining settings are valid; typing address drafts does not arm it.
+- **Disaster implementation:** shared Node service polls NCDR's formal API, iOS processes only
+  matching announcements and applies local schedules, then sends authenticated receipts.
+  The map is a separate read-only presentation. See [DISASTER-PREVIEW.md](DISASTER-PREVIEW.md)
+  and [DISASTER-MAP-PREVIEW.md](DISASTER-MAP-PREVIEW.md).
+- **Not enabled in production:** `DayOffServiceURL` is blank; NCDR key, a deployed HTTPS service,
+  APNs credentials/capability/signing and physical-device background behavior remain unconfigured
+  or unverified. Receipt acceptance is historical processing evidence, not guaranteed push
+  delivery. Calendar/disaster subscription billing and StoreKit entitlement gates are not implemented.
+- **Reliability:** fixed-date scheduling uses a 27-day rolling window and needs future execution
+  to extend it. Missing background opportunities and partial AlarmKit replacement failures remain
+  device-validation concerns; simulator builds do not prove timely background delivery or ringing.
+- **Validated after integration:** Debug simulator build and XCTest passed: **169 passed, 6
+  existing unsigned Keychain tests skipped, 0 failed** (175 total), including six new initial
+  autoscheduling cases. Result: `/tmp/RainyClock-1.7.0-DerivedData/Logs/Test/Test-RainyClock-2026.09.15_22-13-10-+0800.xcresult`.
+  The final home clock-refresh UI adjustment was subsequently rebuilt successfully. This was
+  the initial integration run; the later refinement and interaction results above supersede it.
+  Installed and launched the original bundle on iPhone 17 Pro / iOS 26.5; verified installed executable matches the final build.
+  Follow [1.7.0-SIMULATOR-CHECKLIST.md](1.7.0-SIMULATOR-CHECKLIST.md).
+- **Backend validated after integration:** `npm ci` in `RainyClock-iOS/dayoff-service` completed
+  with audit 0; all 52 tests passed under Node 22.23.2, with 0 failures/skips. Fixtures and fake
+  transports only; no official credentials or real APNs requests were used.
+- **Simulator ads:** `AppEnvironment.allowsAdvertising` disables advertising/ATT paths on all
+  simulators; no launch flag is needed, and original production keys remain intact for device builds.
+
+繁中：目前已獲授權將預覽合回原 1.7.0 開發目錄，並保留合入前備份及獨立預覽。
+這次只做本機整合與模擬器檢視，沒有發布 App 或啟用正式停班停課服務；金鑰、部署、
+真機推播／排程驗證及收費權益仍未完成。後面的 9 月 10 日 handoff 與舊 backlog 是
+歷史紀錄，停班停課的現況以此節與天災文件為準。
+
 **Ships with 1.6.6 (edited in ASC 2026-08-13):** both app names change — 繁體中文
 `RainyClock` → `Rainy Clock`, English `Rainy Clock: Rain Alarm` → `Rainy-Clock`. Plain
 "Rainy Clock" is still name-squatted in the English locale (409 on rename), but the
 hyphenated variant was accepted (details in `docs/appstore-metadata.md`).
+
+## Handoff verification — 2026-09-10 (intake, before 1.7.0 work)
+
+Read the dated release table and the actual implementation before treating older sections below
+as current tasks. This file retains development history, including decisions since superseded.
+
+- **Working tree:** iOS is `RainyClock-iOS/` on `ios/main`; Android has a separate worktree.
+  At intake, HEAD was `d86c848`, clean and three commits ahead of the locally recorded
+  `origin/ios/main`. Those three commits contain day-off documentation, not feature code.
+- **Current runtime:** Swift 6 / SwiftUI, minimum iOS 17. `AppEnvironment` uses real
+  `MapKitRouteWeatherService` in Debug as well as Release; README's mock-only Debug description
+  is obsolete. iOS 26+ uses AlarmKit; iOS 17–25 uses local notifications.
+- **There is a backend:** `weather-proxy/` provides the Android weather relay and iOS AI voice
+  generation. `tts.js` currently calls Google Cloud Text-to-Speech with service-account auth;
+  the earlier Gemini Developer API discussion and "AI voice — in progress" heading below are
+  historical. AI voice shipped in 1.6.8. The older "No backend" descriptions are obsolete.
+- **Day-off is still unimplemented (v0 against spec v2).** The 28 parser fixtures and 25
+  decision fixtures exist, but are not yet loaded by iOS tests. They describe the intended
+  cross-platform contract; they do not currently enforce it in CI.
+- **Resolve spec inconsistencies before implementing day-off:** §5, §9 step 5 and the v2
+  changelog require schedule-time `CommuteAlarmMetadata` and no App Group, while §6 Path B
+  and §9 step 4 still mention an App Group. The fixture field guide defines
+  `affectsMorningAlarm` solely by day part, but parse-25 through parse-28 use `false` despite
+  `dayPart: full` (compare parse-13's normal/full/true). The changelog still says 107 ids
+  lack `_i_`, while the corrected body and corpus summary say 324. Do not silently change
+  fixture expectations to fit an implementation. §8's `both` AND/OR choice still needs the
+  owner's answer before starting typhoon suppression; holiday work can precede it.
+- **Outstanding device checks:** morning decision-change notification, the preview's
+  background-refresh-disabled sentence, rewarded-ad reporting, and actual delete/reinstall
+  quota persistence remain unconfirmed by this handoff. The preview delivery and banner
+  creative id were already seen before the 1.6.9 upload. Adding Unity Ads demand remains
+  backlog work; the old AdMob tasks must not be revived.
+- **Local verification today:** Xcode 26.6 simulator Debug build passed without signing;
+  app and extension both report `1.6.9 (28)`. All 46 `weather-proxy` unit tests passed.
+  The iOS unit suite and physical-device checks were not rerun; the 92-test result below
+  remains the recorded September 7 run. No app was launched to exercise production ads.
+
+繁體中文交接摘要：1.6.9 已上架，非送審中；AI 語音已在 1.6.8 推出，已有 Cloud Run
+後端。停班停課／國定假日只有 v2 規格與案例，尚未實作或接入 iOS 測試。後續從國定假日
+開始，停班停課的「兩者」判斷仍待 owner 確認，且必須先處理上述規格矛盾。任何天氣更新
+失敗都應保留原鬧鐘；任何停班判斷不確定都應照響。只在本工作目錄維護 iOS 狀態。
+
+## 1.7.0 (29) — Settings and editable alarm calendar
+
+Owner confirmed 2026-09-10: implement holidays and manual date exceptions in this version;
+leave temporary work/school suspensions to a later version. Work and school are **independent
+switches**, not a mutually exclusive three-way mode. Manual ring/silent overrides take
+priority over all automatic rules. The future meaning of both switches being enabled for
+mixed work/school announcements still needs its own decision before that feature ships.
+
+### Implemented locally
+
+- Third **Settings** tab. Calendar enable/source/editor, 12/24-hour display, evening preview controls, independent
+  work/school preferences, map-derived home/destination districts, generic ad report/privacy options,
+  system settings, help/privacy links and version. The per-banner report stays beside its ad.
+- Removed **Send a preview** from the user interface and its view-model action. The normal
+  evening preview remains, including a silent-day message. Internal planner fixtures remain.
+- Month calendar covering every month of the current and following year. Each date shows
+  ring/silent; a tap toggles it. Manual dates have an orange marker, a restore action, and a
+  year-reset confirmation. Past days are read-only. Accessibility text sizes use a day list.
+- Calendar is **off by default**, using weekly settings so upgrading does not alter existing alarms. Enabling
+  **Taiwan office calendar** skips official off days (including weekends) among the selected
+  weekdays. A make-up workday outside selected weekdays requires a manual ring override.
+  Missing holiday data leaves the weekly rule in effect and explains that in the date detail.
+- Bundled complete 2026/2027 DGPA CSVs (730 days). Source: data.gov.tw dataset 14718; exact
+  download URLs/license/date in `RainyClock/Resources/holiday-sources.json`. Refresh monthly
+  or explicitly; validate full-year date uniqueness, row count, encoding and schema before
+  replacing cached data. The in-app live update succeeded on the simulator on September 10.
+- Bundled 368 districts from NCDR's official Taiwan_Geocode.xlsx, accessed September 10:
+  https://alerts.ncdr.nat.gov.tw/web/StaticFile/Document/Taiwan_Geocode.xlsx . These validate Apple's
+  structured county/district fields for the route's map points; no manual district picker remains.
+  Work/school switches **save preferences only**; this limitation is visible in Settings.
+- Manual edits persist by Gregorian normal-alarm date, not the rain-adjusted date. They work
+  offline and re-register an armed alarm after a debounce. Only a successful registration
+  publishes its summary/fingerprint. A failed attempt retains the old summary and shows drift.
+- Calendar mode schedules fixed dates, not weekly repeating alarms with impossible exceptions.
+  iOS 26+: 366-day horizon via AlarmKit; replacement batch is registered before old alarms are
+  retired. iOS 17–25: 27 days with one optional follow-up per date, leaving capacity for seven
+  previews, the coverage reminder and the existing decision-change notice. Local notifications
+  snapshot/restore old requests on registration error. Non-calendar mode keeps weekly repeats.
+- Only the next occurrence has a weather decision. Later dates remain at normal time until
+  evaluated. No forecast means the UI says so; advancing to another date does not borrow the
+  previous day's rain probability. Editing holiday rules does not depend on a network forecast.
+- Calendar UI states the coverage date and expiry; foreground/background refresh extends it,
+  with a notification scheduled seven days before expiry. **Without another app execution,
+  dated alarms stop at the coverage boundary.** iOS background refresh is not guaranteed.
+  Time-zone changes rebuild the plan when the app next runs. Rules beyond the current horizon
+  remain saved but are not yet registered as system alarms.
+
+### UI follow-up — 2026-09-10
+
+- Owner reported the lower-right Done control and black Alarm / intermittently black Settings.
+  Reproduced the black Alarm page in the existing simulator: the bottom selector remained,
+  but the selected page had no content/accessibility elements.
+- Replaced page-style TabView hosting with normal tab containment, retaining the custom
+  bottom selector and each tab's NavigationStack. Removed animated page selection; the selected
+  tab now has its accessibility selected trait. Switch with the bottom tabs (no horizontal paging).
+- Removed the route keyboard's Done toolbar. Tapping gaps in the route content dismisses focus;
+  switching tabs resigns the keyboard and clears route focus. Interactive scroll dismissal is
+  enabled, and the keyboard Search key still performs the existing address-search submit action.
+  The subsequent preferences follow-up replaces the time picker with immediate edits and a top close control.
+- Verified on iPhone 17 Pro / iOS 26.5: Alarm and Settings render after the fix; six successive
+  cross-tab switches retain content, including leaving Settings' pushed calendar and returning.
+  Keyboard open → Alarm dismisses the keyboard and displays the page; tapping the content gap
+  dismisses the keyboard and suggestions without changing either address. No keyboard Done row.
+- Simulator Debug build passed. This follow-up changes view containment / keyboard handling only;
+  no new alarm-engine changes. Preview copy has a blank ad key; the project production key and
+  existing simulator addresses are retained. No upload or physical-device installation performed.
+
+### Preferences follow-up — 2026-09-10
+
+- Removed the redundant calendar link from Alarm. Settings is the only entry to the month editor.
+- Added **Use calendar for alarm dates**. Off hides the source, month editor, coverage and holiday
+  update controls, and restores weekly scheduling without deleting holiday/manual preferences.
+  On restores them. If no weekdays are selected, switching off a manual-only calendar cancels
+  its alarm instead of accidentally enabling every weekday. Existing development-build calendar
+  choices migrate with their previous behavior; 1.6.9 upgrades and new installs default off.
+- Added **AM/PM / 24-hour** in Settings. Applied to the Alarm clock, result/status times, both
+  time pickers, evening-preview times and notification text. Traditional Chinese uses only
+  上午/下午, including midnight and noon. Existing pending previews are replaced with updated
+  text; their firing dates and the registered alarm do not change for a display-only edit.
+- Removed manual home/destination region selection. Resolve administrative fields from the
+  route's Apple Maps points, enriching older stored coordinates when needed. Validate against
+  the official district list, normalize 台/臺, and show pending if unknown/ambiguous/foreign.
+  Changing an address discards the previous district. Simulator route returned distinct valid
+  home/destination districts, confirming that both rows use their own map result.
+- Renamed the permission link to **Open iPhone Settings** and explained its purpose: previously
+  denied notifications can be enabled there; background refresh is a separate system control.
+  People who already allowed notifications normally need no further action.
+- Simulator verified: calendar off hides its controls and registers weekly repeats; on restores
+  the dated plan; 07:30/21:00 and 上午 7:30/下午 9:00 update in both tabs and both hour-cycle picker
+  layouts render correctly. Restored the user's calendar-on, AM/PM preferences, preserving their
+  addresses, weekdays and alarm times. No black page or lower-right Done control encountered.
+
+### Validation and release work
+
+- Xcode 26.6 / iOS 26.5 unsigned simulator build and test suite: 120 tests, 6 Keychain skips,
+  zero failures. New tests cover holiday/manual precedence, missing data, old-setting migration,
+  leap/year boundaries, crossing midnight, preview messages, offline edits, failure preservation,
+  restoring weekly scheduling, calendar disable/restore, hour cycles and unchanged firing times,
+  map district matching, avoiding invented forecasts and a slow forecast timing out. The old auto-refresh test now
+  waits for scheduling completion rather than observing a spy call before its async return.
+- Final preference/status follow-up: 18 focused tests passed, including one additional regression
+  proving an already-visible weather status switches hour cycle immediately without rescheduling.
+  Test storage cleanup uses async setup/teardown for the new main-actor preference fixture.
+- Simulator UI: Traditional Chinese Settings/calendar, tap/restore, holiday override,
+  2027 navigation, independent work/school switches, map-derived districts and live data refresh checked. English and largest accessibility-size
+  calendar checked; bottom labels/month navigation adjusted to avoid broken words.
+- A separate disposable AlarmKit probe accepted **800 fixed-date alarms** on the iOS 26.5
+  simulator and cancelled all of them (`remaining 0`). This supports replacement capacity in
+  this environment only; it is not a guarantee about physical devices or every iOS release.
+- The app registered a 246-occurrence calendar plan through September 10, 2027 on the
+  simulator, including a manual ring on Mid-Autumn Festival. After confirming the test route,
+  changing an armed holiday from silent to ring automatically replaced the plan and committed
+  the matching fingerprint (246 occurrences). Test addresses and their alarms were removed. Without a WeatherKit response it
+  showed the normal-time fallback explicitly. Calendar forecast attempts cancel after 12 seconds
+  so a slow request can fall back to date rules; the timeout path has a regression test.
+- Preview install used a copy with an empty LevelPlayAppKey. The project keeps its production
+  key; no production ads were requested during this UI pass.
+- **Before release:** physical-device fixed-date ring/snooze, app termination/reboot, silent
+  holiday followed by working day, manual exception replacement, denied permission, and the
+  iOS 17–25 notification-capacity/coverage renewal path still need device validation. Include
+  the older 1.6.9 outstanding device checks listed below. Do not call this release-ready yet.
+- App and widget versions are 1.7.0 (29). Release/review notes are local drafts in
+  `docs/appstore-metadata.md`; the calendar privacy paragraph is a local draft for publication
+  with 1.7.0. No archive, App Store upload, backend deploy, git commit or push was performed.
+- The temporary-suspension parser and v2 fixture inconsistencies documented at intake remain
+  deferred. This is the iOS holiday/manual subset, not implementation of the full DAYOFF v2 spec.
+
+繁中交接：1.6.9 仍為線上版；1.7.0 已完成本機開發，新增設定、國定假日及可修改月曆。
+上班／上課各自開關，手動設定最高優先。停班停課公告功能留待下一版。日曆排程有明示的
+有效期限，仍需上述實機驗收；目前未上傳或發布。
 
 ## 1.6.9 — the ad report, done the industry's way
 
@@ -234,10 +1207,9 @@ Checklist:
       note with "REPORTING ADS" replaced by the 2.5.18 paragraph, the evening-preview
       paragraph in front, and the AI voice section relabelled "added in 1.6.8". App Privacy
       unchanged.
-- [ ] When it clears review, replace this row with "Live", confirm against the listing
-      (`curl` command below), and move the device-check leftovers — the morning
-      decision-change notice, the background-refresh-off sentence — to the next version's
-      list if they were not seen.
+- [x] **Release confirmed 2026-09-10** against the [Taiwan listing](https://apps.apple.com/tw/app/rainy-clock/id6780500386)
+      and Apple's lookup API: `1.6.9`, released `2026-09-07T21:33:44Z` (September 8 in Taiwan).
+      Remaining device checks are carried forward in the handoff section above.
 
 ## 1.6.7 — off Google ads, onto Unity LevelPlay
 
@@ -901,29 +1873,15 @@ binary. Expected effect is eCPM, not volume — at the current scale the dollars
 either way, and whether the banner is worth keeping at this DAU is a product call, not
 this item.
 
-**Day-off suppression: don't ring on a typhoon 停班停課 day, or on a national holiday.**
-*(Requested 2026-09-10. Researched and specified; nothing implemented. Day-off: implemented against
-spec v0 — the spec is at v2.)* The full specification, verified data sources, parsing rules and the
-cross-platform handoff protocol live in **`docs/DAYOFF-SPEC.md`**, with the executable contract in
-`docs/dayoff-fixtures.json`. The short version: the machine-readable source is
-`https://alerts.ncdr.nat.gov.tw/JSONAtomFeed.ashx?AlertType=33` (DGPA's own announcements, keyless,
-open-licensed) — **not** the `nds.html` page, which is HTML with no date column and a `Disallow: /`
-robots.txt. Holidays come from the official 辦公日曆表 CSV via data.gov.tw dataset 14718, not from
-EventKit. Matching is per **district** and takes the **union of home and destination**; the user
-declares whether their morning is for 上班, 上課, or both. Everything fails open — the alarm rings
-on any error, stale cache, or wording the parser does not recognise.
-
-The hard part is timing, and it is the same wall as item 0 below: DGPA may announce as late as
-04:30, and no backendless iOS app can reliably wake then. The recommended design is therefore that
-the **alarm still rings** and the AlarmKit ring screen tells the user it is a day off, with
-cancelling the alarm outright offered as an opt-in that is default off. This rides on the machinery
-`BackgroundWeatherRefresh` and `EveningPreview` already provide rather than adding a second one —
-and the background AlarmKit rescheduling it needs has shipped since `1.6.5`, so nothing new has to
-be proven there. Two iOS specifics worth knowing before starting: the ring screen's text must ride
-`CommuteAlarmMetadata` because **this project has no App Group entitlement**, and the user's 區 must
-be resolved once in the foreground and confirmed in a picker, because Apple's docs forbid geocoding
-in the background — which is exactly when the alarm decides. Four owner decisions are still open;
-see §8 of the spec, which also records what v2 corrected.
+**Day-off production activation and validation.** Local implementation is now integrated into
+1.7.0 with owner approval (2026-09-15): shared formal NCDR API service, default-off device rules,
+scheduling receipts and a read-only township map. This replaces the earlier unimplemented,
+keyless/backendless proposal. Remaining work is a deployed HTTPS service with NCDR credentials,
+APNs capability/signing/credentials, physical-device background and AlarmKit failure/recovery
+checks, review of the 27-day date coverage limitation, and optional StoreKit entitlement gates.
+Do not report this as live service or infer delivery from a successful push request. Current
+contract: [DISASTER-PREVIEW.md](DISASTER-PREVIEW.md); simulator checks:
+[1.7.0-SIMULATOR-CHECKLIST.md](1.7.0-SIMULATOR-CHECKLIST.md). Android remains separate.
 
 0. **Handle the users whose background refresh can never run.** *(Raised 2026-08-03, approach
    not decided.)* `BackgroundWeatherRefresh` is what makes each morning's alarm reflect that
@@ -968,3 +1926,11 @@ Things that have cost time before and will again.
 - **Version numbers live in two places.** The app's `Info.plist` hardcodes them
   (`GENERATE_INFOPLIST_FILE = NO`) while `RainyClockAlarmWidget` derives them from build
   settings. Both must be bumped together or App Store validation rejects the upload.
+
+## 2026-09-15 — 天災功能獨立預覽階段（歷史紀錄，後續已授權合入）
+
+先在 `RainyClock-dayoff-preview/` 實作官方公告服務、手機判斷、日期略過與選用 APNs；當時未覆蓋原 `RainyClock-iOS/`。後續使用者授權合入 1.7.0，現在以本文件最前方 current handoff 為準。詳見 [DISASTER-PREVIEW.md](DISASTER-PREVIEW.md)。Day-off: preview parser/evaluator verified against spec v2 fixtures; backend API schema v1. 正式金鑰、部署、真機背景驗證與 StoreKit 付費閘門尚未完成；不應視為正式可用。
+
+使用者確認伺服器方案後，預覽加入 authenticated sync receipts 與版本確認查詢；手機僅回報已成功處理的公告，失敗保留待送回報，後續執行機會重試。連續推播會再查最新 Feed，不丟棄同步中的新公告提示。No App Store update is required for each disaster announcement; production rollout remains pending.
+
+原生天災地圖已加入預覽：22 縣市／368 鄉鎮市區、六種狀態、今天／明天、縣市放大、離島小圖及地點定位。公告解析不變更鬧鐘排程。163 iOS tests passed, 6 existing unsigned Keychain tests skipped; visual interaction checks pending Mac unlock. 詳見 [DISASTER-MAP-PREVIEW.md](DISASTER-MAP-PREVIEW.md)。
