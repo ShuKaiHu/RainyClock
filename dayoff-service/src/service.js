@@ -1,12 +1,36 @@
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
 import { LIMITS, parseAtom, parseCAP, officialCapURL, isoTimestamp } from './parser.js';
 import { ServiceError, safeErrorCode } from './errors.js';
-import { readJSON, writeJSON } from './storage.js';
 
 const FEED = 'https://alerts.ncdr.nat.gov.tw/webapi/RssAtomFeed.ashx';
-const STORED_BYTES = 4 * 1024 * 1024;
-export const revisionFor = (notices) => createHash('sha256').update(JSON.stringify(notices)).digest('hex');
+// Firestore documents stop at 1 MiB; the rest of state/current is small, so
+// this leaves room without ever truncating a notice list silently.
+const STORED_NOTICES_BYTES = 900_000;
+const CAP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+// A transaction takes 500 writes; state/current and the broadcast claim need
+// two, so past this many fresh CAPs they are written ahead of the commit.
+const INLINE_CAP_WRITES = 450;
+const hashOf = (text) => createHash('sha256').update(text).digest('hex');
+export const revisionFor = (notices) => hashOf(JSON.stringify(notices));
+// Codes that mean this process must not keep going, as opposed to a source
+// problem the persisted backoff retries on its own.
+const FATAL = new Set(['storage_unavailable', 'lease_lost']);
+
+// The one availability rule, shared with the request-only reader so a cached
+// document and a live poller can never disagree about a 503.
+export function healthFrom({ configured, checkedAt = null, errorCode = null, lastAttemptAt = null, lastSuccessAt = null, nextAttemptAt = 0 }, now, maxCacheAgeMs) {
+  const hasSnapshot = typeof checkedAt === 'string';
+  const available = Boolean(configured && hasSnapshot && errorCode === null && now - Date.parse(checkedAt) <= maxCacheAgeMs);
+  return {
+    configured: Boolean(configured),
+    available,
+    state: available ? 'ready' : (configured ? 'unavailable' : 'not_configured'),
+    errorCode: errorCode ?? (!configured ? 'not_configured' : available ? null : hasSnapshot ? 'stale_cache' : 'not_yet_checked'),
+    lastAttemptAt,
+    lastSuccessAt,
+    nextAttemptAt: nextAttemptAt ? new Date(nextAttemptAt).toISOString() : null
+  };
+}
 
 function retryAfter(value, now) {
   if (!value) return 0;
@@ -51,19 +75,49 @@ async function boundedXML(fetchImpl, url, maximum, signal, now) {
   } finally { await reader.cancel().catch(() => {}); }
 }
 
+// A cached CAP is only reused for the same feed entry, and only after its raw
+// bytes pass the parser again: the document holds xml, never a verdict.
+function restoredCap(doc, entry) {
+  try {
+    if (!doc || doc.id !== entry.id || doc.url !== entry.url || doc.updatedAt !== entry.updatedAt || typeof doc.xml !== 'string') return null;
+    officialCapURL(doc.url);
+    isoTimestamp(doc.updatedAt);
+    return { id: doc.id, url: doc.url, updatedAt: doc.updatedAt, xml: doc.xml, notice: parseCAP(doc.xml, entry.id) };
+  } catch { return null; }
+}
+
+// Fields carried forward when a run fails, so the served snapshot survives a
+// bad poll and only the health fields change. A document of another schema
+// carries nothing forward.
+function carriedState(stored) {
+  const valid = stored?.schemaVersion === 1;
+  return {
+    revision: valid && typeof stored.revision === 'string' ? stored.revision : null,
+    checkedAt: valid && typeof stored.checkedAt === 'string' ? stored.checkedAt : null,
+    sourceUpdatedAt: valid && typeof stored.sourceUpdatedAt === 'string' ? stored.sourceUpdatedAt : null,
+    noticesJSON: valid && typeof stored.noticesJSON === 'string' ? stored.noticesJSON : null,
+    noticeCount: valid && Number.isInteger(stored.noticeCount) ? stored.noticeCount : 0,
+    lastSuccessAt: valid && typeof stored.lastSuccessAt === 'string' ? stored.lastSuccessAt : null,
+    pendingBroadcastRevision: valid && typeof stored.pendingBroadcastRevision === 'string' ? stored.pendingBroadcastRevision : null
+  };
+}
+
 export class SuspensionService {
-  constructor({ apiKey, dataDir, fetchImpl = fetch, now = Date.now, pollIntervalMs = 300_000, maxCacheAgeMs = 900_000, requestTimeoutMs = 10_000, onRevision = async () => {}, log = () => {} }) {
+  constructor({ apiKey, store, owner = null, fetchImpl = fetch, now = Date.now, pollIntervalMs = 300_000, maxCacheAgeMs = 900_000, requestTimeoutMs = 10_000, push = { configured: false, mode: null }, onRevision = async () => {}, log = () => {} }) {
     this.apiKey = apiKey?.trim() ?? '';
-    this.statePath = join(dataDir, 'suspensions.json');
+    this.store = store;
+    this.owner = owner;
     this.fetchImpl = fetchImpl;
     this.now = now;
     this.pollIntervalMs = pollIntervalMs;
     this.maxCacheAgeMs = maxCacheAgeMs;
     this.requestTimeoutMs = requestTimeoutMs;
+    this.push = { configured: Boolean(push?.configured), mode: push?.mode ?? null };
     this.onRevision = onRevision;
     this.log = log;
     this.capCache = new Map();
     this.snapshot = null;
+    this.previousRevision = null;
     this.errorCode = this.apiKey ? 'not_yet_checked' : 'not_configured';
     this.lastAttemptAt = null;
     this.lastSuccessAt = null;
@@ -74,32 +128,32 @@ export class SuspensionService {
     this.stopped = false;
   }
 
+  // Persisted data is never served before a successful current feed check;
+  // only the backoff of an earlier failed run carries over, so a 429
+  // Retry-After is honoured across processes.
   async initialize() {
+    let saved;
     try {
-      const saved = await readJSON(this.statePath, STORED_BYTES);
-      if (!saved) return;
-      if (saved.schemaVersion !== 1 || !Array.isArray(saved.caps) || saved.caps.length > LIMITS.entries) throw new ServiceError('invalid_stored_state');
-      const restored = new Map();
-      for (const item of saved.caps) {
-        if (!item || !item.notice || typeof item.notice.id !== 'string' || item.notice.id !== item.id) throw new ServiceError('invalid_stored_state');
-        officialCapURL(item.url);
-        isoTimestamp(item.updatedAt);
-        // Revalidate raw CAP bytes, not a previously derived or editable verdict.
-        const notice = parseCAP(item.xml, item.id);
-        restored.set(item.id, { ...item, notice });
-      }
-      this.capCache = restored;
-      // Persisted data is not served before a successful current feed check.
-      this.previousRevision = typeof saved.revision === 'string' ? saved.revision : null;
-    } catch {
+      saved = await this.store.get('state/current');
+    } catch (error) {
+      if (error instanceof ServiceError && FATAL.has(error.code)) throw error;
+      saved = undefined;
+    }
+    if (saved === null) return;
+    if (!saved || saved.schemaVersion !== 1 || (saved.revision !== null && typeof saved.revision !== 'string')) {
       this.capCache.clear();
       this.log({ event: 'cache_restore_failed', code: 'invalid_stored_state' });
+      return;
+    }
+    this.previousRevision = saved.revision;
+    if (Number.isInteger(saved.failures) && saved.failures > 0 && Number.isFinite(saved.nextAttemptAt)) {
+      this.failures = saved.failures;
+      this.nextAttemptAt = saved.nextAttemptAt;
     }
   }
 
   health() {
-    const available = Boolean(this.apiKey && this.snapshot && !this.errorCode && this.now() - Date.parse(this.snapshot.checkedAt) <= this.maxCacheAgeMs);
-    return { configured: Boolean(this.apiKey), available, state: available ? 'ready' : (!this.apiKey ? 'not_configured' : 'unavailable'), errorCode: this.errorCode ?? (available ? null : 'stale_cache'), lastAttemptAt: this.lastAttemptAt, lastSuccessAt: this.lastSuccessAt, nextAttemptAt: this.nextAttemptAt ? new Date(this.nextAttemptAt).toISOString() : null };
+    return healthFrom({ configured: Boolean(this.apiKey), checkedAt: this.snapshot?.checkedAt ?? null, errorCode: this.errorCode, lastAttemptAt: this.lastAttemptAt, lastSuccessAt: this.lastSuccessAt, nextAttemptAt: this.nextAttemptAt }, this.now(), this.maxCacheAgeMs);
   }
 
   getSnapshot() {
@@ -109,13 +163,18 @@ export class SuspensionService {
 
   refresh() {
     if (this.inFlight) return this.inFlight;
-    if (this.stopped || !this.apiKey || this.now() < this.nextAttemptAt) return Promise.resolve(false);
+    if (this.stopped || !this.apiKey) return Promise.resolve(false);
+    if (this.now() < this.nextAttemptAt) {
+      this.log({ event: 'source_check_skipped', nextAttemptAt: new Date(this.nextAttemptAt).toISOString() });
+      return Promise.resolve(false);
+    }
     this.inFlight = this.performRefresh().finally(() => { this.inFlight = null; });
     return this.inFlight;
   }
 
   async performRefresh() {
-    this.lastAttemptAt = new Date(this.now()).toISOString();
+    const startedAt = this.now();
+    this.lastAttemptAt = new Date(startedAt).toISOString();
     const cycleAbort = new AbortController();
     this.cycleAbort = cycleAbort;
     const cycleTimer = setTimeout(() => cycleAbort.abort(), 60_000);
@@ -126,12 +185,14 @@ export class SuspensionService {
       url.searchParams.set('apikey', this.apiKey);
       const feed = parseAtom(await boundedXML(this.fetchImpl, url.href, LIMITS.feedBytes, signalFor(), this.now()));
       if (feed.sourceUpdatedAt && Date.parse(feed.sourceUpdatedAt) > this.now() + 300_000) throw new ServiceError('source_time_in_future');
+      const stored = await this.storedCaps(feed.entries.filter((entry) => !this.capCache.has(entry.id)));
       const nextCaps = new Map();
+      const fetched = new Set();
       let cursor = 0, totalBytes = 0;
       const workers = Array.from({ length: Math.min(4, feed.entries.length) }, async () => {
         while (cursor < feed.entries.length) {
           const entry = feed.entries[cursor++];
-          const cached = this.capCache.get(entry.id);
+          const cached = this.capCache.get(entry.id) ?? stored.get(entry.id);
           if (cached && cached.updatedAt === entry.updatedAt && cached.url === entry.url) {
             nextCaps.set(entry.id, cached);
             continue;
@@ -142,6 +203,7 @@ export class SuspensionService {
           const notice = parseCAP(xml, entry.id);
           if (Date.parse(notice.sentAt) > this.now() + 300_000) throw new ServiceError('source_time_in_future');
           nextCaps.set(entry.id, { ...entry, xml, notice });
+          fetched.add(entry.id);
         }
       });
       try { await Promise.all(workers); } catch (error) {
@@ -150,10 +212,13 @@ export class SuspensionService {
         throw error;
       }
       const notices = [...nextCaps.values()].map((item) => item.notice).sort((a, b) => a.sentAt.localeCompare(b.sentAt) || a.id.localeCompare(b.id));
-      const revision = revisionFor(notices);
+      // Hash the exact string that is stored, so the served bytes and the
+      // revision cannot drift apart however the store returns the document.
+      const noticesJSON = JSON.stringify(notices);
+      if (Buffer.byteLength(noticesJSON) > STORED_NOTICES_BYTES) throw new ServiceError('stored_state_too_large');
+      const revision = hashOf(noticesJSON);
       const snapshot = { schemaVersion: 1, checkedAt: new Date(this.now()).toISOString(), sourceUpdatedAt: feed.sourceUpdatedAt, notices, revision };
-      await writeJSON(this.statePath, { schemaVersion: 1, revision, checkedAt: snapshot.checkedAt, sourceUpdatedAt: feed.sourceUpdatedAt, caps: [...nextCaps.values()] }, STORED_BYTES);
-      const changed = revision !== (this.snapshot?.revision ?? this.previousRevision);
+      const changed = await this.commit({ snapshot, noticesJSON, fresh: [...nextCaps.values()].filter((item) => fetched.has(item.id)), startedAt });
       this.capCache = nextCaps;
       this.snapshot = snapshot;
       this.lastSuccessAt = snapshot.checkedAt;
@@ -164,20 +229,103 @@ export class SuspensionService {
       if (changed) void Promise.resolve().then(() => this.onRevision(revision)).catch(() => this.log({ event: 'push_dispatch_failed' }));
       return true;
     } catch (error) {
+      if (error instanceof ServiceError && FATAL.has(error.code)) throw error;
       this.failures += 1;
       this.errorCode = safeErrorCode(error);
       const backoff = Math.min(1_800_000, 30_000 * (2 ** Math.min(this.failures - 1, 6)));
       this.nextAttemptAt = this.now() + Math.max(backoff, error?.retryAfterMs ?? 0);
       this.log({ event: 'source_check_failed', code: this.errorCode });
+      await this.recordFailure(startedAt);
       return false;
     } finally { clearTimeout(cycleTimer); this.cycleAbort = null; }
+  }
+
+  async storedCaps(entries) {
+    if (entries.length === 0) return new Map();
+    const docs = await this.store.getAll(entries.map((entry) => `caps/${entry.id}`));
+    const restored = new Map();
+    entries.forEach((entry, index) => {
+      const item = restoredCap(docs[index], entry);
+      if (item) restored.set(entry.id, item);
+    });
+    return restored;
+  }
+
+  capDocument(item) {
+    const now = this.now();
+    return { id: item.id, url: item.url, updatedAt: item.updatedAt, xml: item.xml, storedAt: new Date(now).toISOString(), expiresAt: new Date(now + CAP_TTL_MS) };
+  }
+
+  // The lease belongs to whoever runs the poll; asserting it inside the same
+  // transaction as the write is what stops a slow, stale run from overwriting
+  // a newer result after its lease has moved on.
+  assertLease(lease) {
+    if (this.owner !== null && lease?.owner !== this.owner) throw new ServiceError('lease_lost');
+  }
+
+  async commit({ snapshot, noticesJSON, fresh, startedAt }) {
+    const inline = fresh.length <= INLINE_CAP_WRITES;
+    if (!inline) for (const item of fresh) await this.store.set(`caps/${item.id}`, this.capDocument(item));
+    return this.store.runTransaction(async (tx) => {
+      const [lease, stored] = await tx.getAll(['state/lease', 'state/current']);
+      this.assertLease(lease);
+      const carried = carriedState(stored);
+      const changed = snapshot.revision !== carried.revision;
+      const now = this.now();
+      tx.set('state/current', {
+        schemaVersion: 1,
+        revision: snapshot.revision,
+        checkedAt: snapshot.checkedAt,
+        sourceUpdatedAt: snapshot.sourceUpdatedAt,
+        noticesJSON,
+        noticeCount: snapshot.notices.length,
+        errorCode: null,
+        failures: 0,
+        lastAttemptAt: this.lastAttemptAt,
+        lastSuccessAt: snapshot.checkedAt,
+        nextAttemptAt: now + this.pollIntervalMs,
+        pendingBroadcastRevision: changed ? snapshot.revision : carried.pendingBroadcastRevision,
+        push: this.push,
+        job: { owner: this.owner, finishedAt: new Date(now).toISOString(), durationMs: now - startedAt, code: null, changed },
+        updatedAt: new Date(now).toISOString()
+      });
+      // A revision that becomes current again after a flip-flop starts a full
+      // pass: the claim is overwritten, not resumed.
+      if (changed) {
+        tx.set(`broadcasts/${snapshot.revision}`, { revision: snapshot.revision, claimedAt: now, state: 'pending', owner: null, leaseUntil: 0, attempts: 0, cursor: null, passComplete: false, accepted: 0, failed: 0, unregistered: 0, retryPending: 0, finishedAt: null, expiresAt: new Date(now + 7 * 24 * 60 * 60 * 1000) });
+      }
+      if (inline) for (const item of fresh) tx.set(`caps/${item.id}`, this.capDocument(item));
+      return changed;
+    });
+  }
+
+  // A failed poll leaves the snapshot fields alone and only records why, so
+  // the reader answers 503 with this code at once and the next run waits.
+  async recordFailure(startedAt) {
+    await this.store.runTransaction(async (tx) => {
+      const [lease, stored] = await tx.getAll(['state/lease', 'state/current']);
+      this.assertLease(lease);
+      const now = this.now();
+      tx.set('state/current', {
+        schemaVersion: 1,
+        ...carriedState(stored),
+        errorCode: this.errorCode,
+        failures: this.failures,
+        lastAttemptAt: this.lastAttemptAt,
+        nextAttemptAt: this.nextAttemptAt,
+        push: this.push,
+        job: { owner: this.owner, finishedAt: new Date(now).toISOString(), durationMs: now - startedAt, code: this.errorCode, changed: false },
+        updatedAt: new Date(now).toISOString()
+      });
+    });
   }
 
   start() {
     if (this.started || this.stopped) return;
     this.started = true;
     const tick = async () => {
-      await this.refresh();
+      try { await this.refresh(); }
+      catch (error) { this.log({ event: 'source_check_aborted', code: safeErrorCode(error) }); }
       if (!this.stopped && this.apiKey) this.timer = setTimeout(tick, Math.max(1000, this.nextAttemptAt - this.now()));
     };
     void tick();
@@ -187,6 +335,6 @@ export class SuspensionService {
     this.stopped = true;
     clearTimeout(this.timer);
     this.cycleAbort?.abort();
-    await this.inFlight;
+    await this.inFlight?.catch(() => {});
   }
 }

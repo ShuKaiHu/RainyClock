@@ -1,0 +1,23 @@
+# A task attempt that exited 1: configuration, Firestore, APNs credentials
+# or an unfinished broadcast (see the exit-code table in README.md). Source
+# failures exit 0 and are covered by dayoff_job_failures instead.
+displayName: rainyclock-dayoff poll execution failed
+combiner: OR
+conditions:
+  - displayName: a task attempt failed in the last 10 minutes
+    conditionThreshold:
+      filter: resource.type = "cloud_run_job" AND resource.labels.job_name = "rainyclock-dayoff-poll" AND metric.type = "run.googleapis.com/job/completed_task_attempt_count" AND metric.labels.result = "failed"
+      comparison: COMPARISON_GT
+      thresholdValue: 0
+      duration: 0s
+      aggregations:
+        - alignmentPeriod: 600s
+          perSeriesAligner: ALIGN_DELTA
+          crossSeriesReducer: REDUCE_SUM
+notificationChannels:
+  - projects/rainyclock/notificationChannels/<CHANNEL_ID>
+alertStrategy:
+  autoClose: 1800s
+documentation:
+  mimeType: text/markdown
+  content: A rainyclock-dayoff-poll task attempt failed. Runbook in dayoff-service/DEPLOYMENT.md (運行手冊).
