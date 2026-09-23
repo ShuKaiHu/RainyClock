@@ -78,7 +78,7 @@ AlarmKit 更新重用未變動日期的 UUID，只新增／淘汰有變化的日
 ## 開發與啟用
 
 1. 開啟 `RainyClock-iOS/RainyClock.xcodeproj`，選 RainyClock scheme。Debug／模擬器 build 無需連線天災後端即可檢視設定及明確標示的地圖範例。
-2. 依 [dayoff-service/README.md](../dayoff-service/README.md)設定 NCDR key，部署單一常駐 Node 22 程序及持久資料卷、HTTPS。此版本不是可直接丟到 request-only Cloud Run／Workers 的無狀態程式；若沿用現有 Cloud Run，需另改為外部排程和共享持久儲存。
+2. 部署 [dayoff-service/](../dayoff-service/)：2026-09-24 起它已是無狀態設計（做法一）——Cloud Scheduler 每 5 分鐘觸發 Cloud Run Job `rainyclock-dayoff-poll` 抓 NCDR、寫 Firestore `dayoff-production`、推播；request-only Cloud Run 服務 `rainyclock-dayoff` 只讀寫 Firestore。指令、環境變數、runbook 與實際執行紀錄在 [dayoff-service/DEPLOYMENT.md](../dayoff-service/DEPLOYMENT.md)；NCDR key 與 APNs 金鑰放 Secret Manager，權限授予由 `dayoff-service/deploy/iam.sh` 手動執行。
 3. 將公開的 HTTPS **服務根網址**填入 `RainyClock/Info.plist` 的 `DayOffServiceURL`。它不是機密；NCDR/APNs key 絕對不要放這裡。
 4. 要啟用推播，需替正式 App bundle ID `com.shukaihu.RainyClock` 核對 Apple Push Notifications capability、有效簽章與 provisioning profile；伺服器設定獨立 APNs key、team、key ID、topic 與 sandbox／production 環境。目前天災 entitlements 宣告 development；TestFlight/App Store 前須确认正式簽章環境。原獨立預覽的 APNs topic 不可直接沿用到本專案。
 5. 真機驗證晚公告、重啟、背景／低耗電、關閉背景更新、強制結束、取消權限、公告撤銷與關閉功能恢復。尚未做這些實測，不能稱已上線。
