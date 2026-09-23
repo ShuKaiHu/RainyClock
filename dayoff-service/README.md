@@ -39,6 +39,7 @@ node --env-file=.env src/server.js
 | `APNS_PRIVATE_KEY_PATH` | 獨立 APNs `.p8` secret 檔路徑，不可挪用 WeatherKit key |
 | `APNS_TOPIC` | 與 iOS App 相同的 bundle identifier |
 | `APNS_PRODUCTION` | `false` 用 sandbox；TestFlight／App Store 設 `true` |
+| `APNS_PUSH_MODE` | `alert`（預設）：對所有裝置送同一則可見推播，由手機的通知擴充功能比對本機行政區後改寫；`background`：舊的靜默同步提示 |
 
 ## HTTP 契約
 
@@ -74,7 +75,7 @@ node --env-file=.env src/server.js
 - `status` 仍保留 Test／Exercise 等狀態；手機只能採用 Actual。`severity` 不等於完整停班／停課判斷。
 - 正常空 Feed 為 `notices: []`；來源出錯、部分 CAP 無法取得、XML 不合法或快取過期，回 **503** `{ "error": "安全的固定錯誤碼" }`，不提供看似成功的空結果。前次好資料仍留磁碟供診斷與重啟快取；重啟後需重新驗證 Feed 才開始提供資料。
 
-`GET /health`：可用回 200，未配置或來源異常回 503。回應包括 `configured`、`available`、`state`、`errorCode`、`lastAttemptAt`、`lastSuccessAt`、`nextAttemptAt` 及 `pushConfigured`。健康狀態不表示每支手機已收到更新。
+`GET /health`：可用回 200，未配置或來源異常回 503。回應包括 `configured`、`available`、`state`、`errorCode`、`lastAttemptAt`、`lastSuccessAt`、`nextAttemptAt`、`pushConfigured` 及 `pushMode`（未配置推播時為 `null`）。健康狀態不表示每支手機已收到更新。
 
 ### 選用的裝置註冊
 
@@ -98,7 +99,11 @@ node --env-file=.env src/server.js
 
 目前 APNs 為可選的更新提示，沒有持久化逐台投遞 outbox 或失敗重送：推播失敗、服務在送完前重啟、或新裝置在 revision 未變時註冊，都不會因為同一 revision 而自動補送。手機註冊完成後須立即 GET 同步，並在前景／背景執行機會時再次同步；發送失敗只留下匿名計數。需要進一步提高送出嘗試率時，可加逐裝置短效 outbox，但仍不能保證 iOS 背景執行。
 
-推播 payload 只包含 `aps.content-available: 1`、`type: "dayoff-sync"` 與 `revision`。使用 `apns-push-type: background` 與優先序 5；**APNs 接受不等於送達，送達也不等於鬧鐘已取消**。iOS 仍須同步最新公告、重新判斷並完成本機 AlarmKit 操作。通知未送达、App 被強制關閉或無可用背景執行機會時，既有鬧鐘維持。
+`alert` 模式（預設，2026-09-23 決定）的 payload 為 `aps.alert` 的 `title-loc-key: dayoff_push_title`／`body-loc-key: dayoff_push_body`、`sound: default`、`mutable-content: 1`、`thread-id: dayoff`，加上 `type: "dayoff-sync"` 與 `revision`；使用 `apns-push-type: alert`、優先序 10、`apns-collapse-id: dayoff-sync`（每台裝置永遠只有一則，新版本取代舊的）、10 小時後過期。**伺服器對所有裝置送完全相同的內容，payload 裡沒有任何縣市或行政區**；手機上的 Notification Service Extension 在 App 未執行時也會被系統喚醒，讀取 App 存在 App Group 的住家／目的地行政區、自行 GET `/v1/suspensions`，再把通知改寫成「符合、相關但不略過、無關（靜音）」三種之一。擴充功能失敗或逾時，系統就照 loc-key 顯示 App 本地化的通用文字。
+
+`background` 模式的 payload 只有 `aps.content-available: 1`、`type: "dayoff-sync"` 與 `revision`，`apns-push-type: background`、優先序 5、1 小時過期。
+
+兩種模式都只是提示：**APNs 接受不等於送達，送達也不等於鬧鐘已取消**。iOS 仍須同步最新公告、重新判斷並完成本機 AlarmKit 操作。通知未送達、App 被強制關閉或無可用背景執行機會時，既有鬧鐘維持。
 
 ### 手機處理完成回報
 

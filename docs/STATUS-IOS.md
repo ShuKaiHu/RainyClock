@@ -26,13 +26,21 @@ Last updated: 2026-09-22.
 - `AppEnvironment.supportsTemporaryClosures` 仍為 `false`；1.7.0 在審，版本號不動。
   1.7.1 開閘前仍缺：NCDR 會員 API key、dayoff-service 的常駐部署（需持久磁碟，不是現有
   request-only Cloud Run 型態）並填入 `DayOffServiceURL`、APNs 金鑰與正式 push capability、
-  真機驗證（晚間公告、重啟、低耗電、關背景更新、強制結束、撤銷、關閉後恢復）、
+  真機驗證（晚間公告、重啟、低耗電、關背景更新、強制結束、撤銷、關閉後恢復、
+  **可見推播在 App 關閉時被擴充功能改寫**）、
   恢復設定入口與方案文案、發布 [1.7.1 備忘](1.7.1-DEFERRED-DISASTER.md) 的隱私條款、
   決定買斷是否包含此功能。
 - 本輪驗證：Debug 建置 0 警告；dayoff-service 52 過；weather-proxy 186 過 3 略過（無
   Emulator）；iOS 全套約 339 項，用 `RainyClock Membership Local` scheme 且**簽章**跑才
   全過 —— `CODE_SIGNING_ALLOWED=NO` 會讓 3 項 Keychain 路由測試失敗，一般 `RainyClock`
   scheme 會讓 StoreKit 測試碰真商店並在模擬器彈出 Apple ID 登入框。
+- **2026-09-23：推播改為作法 B。** dayoff-service 新增 `APNS_PUSH_MODE=alert`（預設）：對所有裝置
+  廣播同一則可見推播、無位置資料、collapse 成一則、10 小時過期；`/health` 回 `pushMode`。iOS 新增
+  `RainyClockDayOffNotification` Notification Service Extension、App Group
+  `group.com.shukaihu.RainyClock`、Time Sensitive entitlement；`DayOffSharedState` 由 AlarmViewModel
+  在儲存設定與排程摘要時鏡射（有效設定，gate 仍生效），`DayOffPushContent` 用同一個評估器把
+  通知改寫成符合／相關／無關／不改。設計見 [DISASTER-PREVIEW.md](DISASTER-PREVIEW.md)。
+  **尚未在真機驗證**：擴充功能需要真的 APNs 推播才會執行；模擬器無法收 APNs。
 - ASC 審查結果本輪未讀到（隔離瀏覽器為登入頁，Gmail 無 Apple 信件）。
   `RainyClock-dayoff-preview/` 工作樹每個檔案都比主工作樹舊，可移除。
 

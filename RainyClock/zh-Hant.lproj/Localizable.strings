@@ -281,6 +281,8 @@
 "disaster_enabled" = "依公告略過鬧鐘";
 "disaster_both_rule" = "停班或停課任一公告即略過鬧鐘。";
 "disaster_choose_rule" = "請至少選擇停班或停課。";
+"dayoff_push_title" = "停班停課公告已更新";
+"dayoff_push_body" = "打開雨天鬧鐘確認明天的鬧鐘。";
 "disaster_region_rule" = "住家或目的地符合公告，就略過該日鬧鐘。路途中途地區不列入。";
 "disaster_choose_region" = "選擇行政區";
 "disaster_refresh" = "檢查最新公告";

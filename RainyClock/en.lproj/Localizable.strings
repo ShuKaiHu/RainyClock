@@ -281,6 +281,8 @@
 "disaster_enabled" = "Skip alarms for announced closures";
 "disaster_both_rule" = "Skip when either work or school is suspended.";
 "disaster_choose_rule" = "Choose work, school, or both.";
+"dayoff_push_title" = "Work/school closure update";
+"dayoff_push_body" = "Open Rainy Clock to check tomorrow's alarm.";
 "disaster_region_rule" = "A matching closure at home or your destination skips that day. Areas along the route are excluded.";
 "disaster_choose_region" = "Choose district";
 "disaster_refresh" = "Check for announcements";

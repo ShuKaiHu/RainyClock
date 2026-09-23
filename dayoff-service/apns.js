@@ -4,6 +4,14 @@ import { createPrivateKey, sign } from 'node:crypto';
 const MAX_PAYLOAD_BYTES = 4096;
 const MAX_RESPONSE_BYTES = 4096;
 const TOKEN_LIFETIME_SECONDS = 50 * 60;
+// 'alert' is the shipped design: a visible push to every registered device, personalised
+// on the phone by its notification service extension against the districts it keeps
+// locally. The server never learns where anyone lives. 'background' is the older silent
+// refresh hint, kept for operators who want it.
+const PUSH_MODES = new Set(['alert', 'background']);
+// An announcement matters until the next morning's alarm; a silent hint only for an hour.
+const ALERT_EXPIRATION_SECONDS = 10 * 3600;
+const BACKGROUND_EXPIRATION_SECONDS = 3600;
 const APNS_REASONS = new Set([
   'BadCollapseId', 'BadDeviceToken', 'BadExpirationDate', 'BadMessageId',
   'BadPriority', 'BadTopic', 'DeviceTokenNotForTopic', 'DuplicateHeaders',
@@ -111,8 +119,9 @@ function parseResponse(response) {
  */
 export function createApnsDispatcher({
   teamId, keyId, privateKey, topic, production = false,
-  timeoutMs = 10_000, transport, now = Date.now,
+  timeoutMs = 10_000, transport, now = Date.now, pushMode = 'alert',
 } = {}) {
+  if (!PUSH_MODES.has(pushMode)) throw new TypeError('Invalid APNs push mode');
   if (typeof teamId !== 'string' || !/^[A-Z0-9]{10}$/.test(teamId)) throw new TypeError('Invalid APNs team ID');
   if (typeof keyId !== 'string' || !/^[A-Z0-9]{10}$/.test(keyId)) throw new TypeError('Invalid APNs key ID');
   if (typeof topic !== 'string' || topic.length > 255 || !/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(topic)) {
@@ -156,7 +165,13 @@ export function createApnsDispatcher({
     if (typeof deviceToken !== 'string' || !/^[a-fA-F0-9]{64}$/.test(deviceToken)) throw new TypeError('Invalid APNs device token');
     if (typeof revision !== 'string' || revision.length === 0) throw new TypeError('Invalid day-off revision');
     if (Buffer.byteLength(revision) > MAX_PAYLOAD_BYTES) throw new RangeError('APNs payload exceeds 4096 bytes');
-    const body = JSON.stringify({ aps: { 'content-available': 1 }, type: 'dayoff-sync', revision });
+    const alert = pushMode === 'alert';
+    // loc-keys resolve in the app's own Localizable.strings, so the fallback the system
+    // shows if the extension fails is still localised and still says nothing about a
+    // specific district. The extension rewrites title, body, sound and urgency.
+    const body = JSON.stringify(alert
+      ? { aps: { alert: { 'title-loc-key': 'dayoff_push_title', 'body-loc-key': 'dayoff_push_body' }, sound: 'default', 'mutable-content': 1, 'thread-id': 'dayoff' }, type: 'dayoff-sync', revision }
+      : { aps: { 'content-available': 1 }, type: 'dayoff-sync', revision });
     if (Buffer.byteLength(body) > MAX_PAYLOAD_BYTES) throw new RangeError('APNs payload exceeds 4096 bytes');
     if (closed) return { ok: false, status: 0, reason: 'Closed', unregistered: false, retryable: false };
     const controller = new AbortController();
@@ -177,10 +192,10 @@ export function createApnsDispatcher({
           headers: {
             ':method': 'POST', ':path': `/3/device/${deviceToken.toLowerCase()}`,
             authorization: `bearer ${providerToken()}`,
-            'apns-topic': topic, 'apns-push-type': 'background', 'apns-priority': '5',
+            'apns-topic': topic, 'apns-push-type': alert ? 'alert' : 'background', 'apns-priority': alert ? '10' : '5',
+            // One visible notification per device, replaced as revisions land, never a pile.
             'apns-collapse-id': 'dayoff-sync',
-            // This is only a refresh hint. Avoid retaining it for an obsolete day.
-            'apns-expiration': String(Math.floor(now() / 1000) + 3600),
+            'apns-expiration': String(Math.floor(now() / 1000) + (alert ? ALERT_EXPIRATION_SECONDS : BACKGROUND_EXPIRATION_SECONDS)),
             'content-type': 'application/json', 'content-length': String(Buffer.byteLength(body)),
           },
           body,
@@ -208,5 +223,5 @@ export function createApnsDispatcher({
     for (const controller of pending) controller.abort();
     sendRequest.close?.();
   }
-  return { send, close };
+  return { send, close, pushMode };
 }

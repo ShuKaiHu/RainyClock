@@ -106,7 +106,7 @@ test('unconfigured health and snapshots are 503; no fallback empty results', asy
   const base = await listen(t, createHTTPServer({ service, registry }));
   const health = await fetch(base + '/health');
   assert.equal(health.status, 503);
-  assert.deepEqual(await health.json(), { configured: false, available: false, state: 'not_configured', errorCode: 'not_configured', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, pushConfigured: false });
+  assert.deepEqual(await health.json(), { configured: false, available: false, state: 'not_configured', errorCode: 'not_configured', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, pushConfigured: false, pushMode: null });
   const snapshot = await fetch(base + '/v1/suspensions');
   assert.equal(snapshot.status, 503);
   assert.deepEqual(await snapshot.json(), { error: 'not_configured' });

@@ -23,18 +23,20 @@ async function main() {
   const pushFields = ['APNS_TEAM_ID', 'APNS_KEY_ID', 'APNS_PRIVATE_KEY_PATH', 'APNS_TOPIC'];
   const pushValues = pushFields.map((name) => process.env[name]?.trim());
   if (pushValues.some(Boolean) && !pushValues.every(Boolean)) throw new Error('invalid_apns_configuration');
+  const pushMode = process.env.APNS_PUSH_MODE?.trim() || 'alert';
+  if (!['alert', 'background'].includes(pushMode)) throw new Error('invalid_apns_configuration');
   if (pushValues.every(Boolean)) {
     if (process.env.APNS_PRODUCTION && !['true', 'false'].includes(process.env.APNS_PRODUCTION)) throw new Error('invalid_apns_configuration');
-    dispatcher = createApnsDispatcher({ teamId: pushValues[0], keyId: pushValues[1], privateKey: await readFile(pushValues[2], 'utf8'), topic: pushValues[3], production: process.env.APNS_PRODUCTION === 'true', timeoutMs: 10_000 });
+    dispatcher = createApnsDispatcher({ teamId: pushValues[0], keyId: pushValues[1], privateKey: await readFile(pushValues[2], 'utf8'), topic: pushValues[3], production: process.env.APNS_PRODUCTION === 'true', timeoutMs: 10_000, pushMode });
   }
   const registry = new DeviceRegistry({ dataDir });
   await registry.initialize();
   const broadcaster = new RevisionBroadcaster({ registry, dispatcher, log });
   const service = new SuspensionService({ apiKey, dataDir, pollIntervalMs, maxCacheAgeMs, requestTimeoutMs, onRevision: (revision) => broadcaster.enqueue(revision), log });
   await service.initialize();
-  const server = createHTTPServer({ service, registry, pushConfigured: Boolean(dispatcher) });
+  const server = createHTTPServer({ service, registry, pushConfigured: Boolean(dispatcher), pushMode: dispatcher ? pushMode : null });
   server.listen(port, process.env.HOST || '127.0.0.1', () => {
-    log({ event: 'listening', port, sourceConfigured: Boolean(apiKey), pushConfigured: Boolean(dispatcher) });
+    log({ event: 'listening', port, sourceConfigured: Boolean(apiKey), pushConfigured: Boolean(dispatcher), pushMode: dispatcher ? pushMode : null });
     service.start();
   });
   let stopping = false;

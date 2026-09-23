@@ -21,7 +21,7 @@ async function deviceBody(request) {
   catch { throw new ServiceError('invalid_device_request'); }
 }
 
-export function createHTTPServer({ service, registry, pushConfigured = false, now = Date.now }) {
+export function createHTTPServer({ service, registry, pushConfigured = false, pushMode = null, now = Date.now }) {
   // Count per socket peer, not caller-supplied proxy headers. In-memory only;
   // a deployment should also enforce edge limits for its public registration API.
   const limits = new Map();
@@ -45,7 +45,7 @@ export function createHTTPServer({ service, registry, pushConfigured = false, no
     try {
       if (request.url === '/health' && request.method === 'GET') {
         const health = service.health();
-        return respond(response, health.available ? 200 : 503, { ...health, pushConfigured });
+        return respond(response, health.available ? 200 : 503, { ...health, pushConfigured, pushMode });
       }
       if (request.url === '/v1/suspensions' && request.method === 'GET') {
         try { return respond(response, 200, service.getSnapshot()); }
