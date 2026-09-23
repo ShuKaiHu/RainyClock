@@ -12,16 +12,21 @@ Ongoing state and the backlog live in `docs/STATUS-IOS.md`; this file is the sub
 | Item | Status |
 | --- | --- |
 | App version | `1.7.0` — membership, calendar and redesigned alarm/settings |
-| Build number | `34` — read-only Sandbox price comparison; 27 focused tests passed; uploaded 2026-09-21 21:58; internal TestFlight available; 22:05 device evidence: SK1 and SK2 both return USA/USD, native monthly purchase sheet shows NT$10; display mismatch remains unresolved |
-| Review status | 1.7.0 draft still selects build 30; not submitted. TestFlight card USD / Apple sheet TWD requires real-device verification |
+| Build number | `35` — location candidate search, ATT timing, notification response crash fixes; 377 tests passed; uploaded 2026-09-23 22:31:20; Apple processing complete, internal TestFlight available. TestFlight USD/native TWD display mismatch remains unconfirmed. |
+| Review status | 1.7.0 (34) rejected 2026-09-23: 6.5-inch screenshots, location lookup, and missing ATT prompt/recording. Build 35 uploaded to TestFlight, not resubmitted. zh-Hant 6.5-inch media verified inheriting the new 6.9-inch screenshots; en-US cleanup still unverified. iOS 27 physical-device validation and recording remain pending. |
 | Last released | `1.6.9` — public listing confirmed 2026-09-10 |
 | Bundle identifier | `com.shukaihu.RainyClock` |
-| Extension bundle identifier | `com.shukaihu.RainyClock.AlarmWidget` (added in `1.6.3`) |
+| Extension bundle identifiers | `com.shukaihu.RainyClock.AlarmWidget`; `com.shukaihu.RainyClock.DayOffNotification` (temporary-closure rollout stays disabled in 1.7.0) |
 | Device family | iPhone only |
 | Primary language | Traditional Chinese |
 
+Latest investigation handoff: [2026-09-23 — TestFlight USD cards / native TWD payment sheet](HANDOFF-IOS-2026-09-23.md). Build 35 does not change product pricing logic; no new physical-device price result has been received.
+
 ## Submission History
 
+- `1.7.0 (35)` — Uploaded to TestFlight 2026-09-23 22:31:20; 377 tests passed, 0 failed/skipped. Includes location, ATT and notification-response crash fixes. Apple processing complete; internal `SKHU tester` (1 tester) has access; bilingual test notes saved and verified. Not submitted to App Review.
+
+- `1.7.0 (34)` — **Rejected** 2026-09-23, submission `5a8a1d24-97da-4eb9-89a7-350274dccc85`: 2.3.3 (6.5-inch screenshots do not sufficiently show the app in use), 2.1(a) (location could not be found), and 2.1 Information Needed (ATT prompt not found; physical-device recording requested). Reviewed on iPad Air 11-inch M3 and iPhone 17 Pro Max running iPadOS/iOS 27.0. Source is the user's review message; no ASC changes or new build in this diagnostic pass. See [findings and resubmission requirements](APP-REVIEW-2026-09-23.md).
 - `1.5 (7)` — **Rejected** 2026-07-22, Guideline 5.1.2(i) (Privacy – Data Use and Sharing): the App Privacy label declared data used to track the user, but the app has no App Tracking Transparency prompt.
 - `1.6 (10)` — Resubmitted 2026-07-23 with the 5.1.2(i) fix below. **Rejected** 2026-07-24, Guideline 5.2.5 (Legal – Apple Sites and Services): WeatherKit data shown without the required Apple Weather attribution mark and legal link.
 - `1.6.1 (16)` — Submitted 2026-07-25 with the 5.2.5 fix (official Apple Weather mark + legal link in the Route tab weather section), a review note explaining WeatherKit usage, and a screen recording captured on a physical iPhone. **Approved 2026-07-26 and released to the App Store the same day.**

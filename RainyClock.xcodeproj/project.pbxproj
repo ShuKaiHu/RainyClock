@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A77000012C00000000000001 /* ConsentManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77000012C00000000000002 /* ConsentManagerTests.swift */; };
+		A77000022C00000000000001 /* NotificationResponseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77000022C00000000000002 /* NotificationResponseTests.swift */; };
 		D0FF0001A1B2C3D4E5F60001 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FF0002A1B2C3D4E5F60001 /* NotificationService.swift */; };
 		D0FF0001A1B2C3D4E5F60002 /* DisasterSuspension.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAB6B006C9443C388B4BC1B /* DisasterSuspension.swift */; };
 		D0FF0001A1B2C3D4E5F60003 /* DayOffSharedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FF0002A1B2C3D4E5F60004 /* DayOffSharedState.swift */; };
@@ -169,6 +171,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A77000012C00000000000002 /* ConsentManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentManagerTests.swift; sourceTree = "<group>"; };
+		A77000022C00000000000002 /* NotificationResponseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationResponseTests.swift; sourceTree = "<group>"; };
 		D0FF0002A1B2C3D4E5F60001 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		D0FF0002A1B2C3D4E5F60002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D0FF0002A1B2C3D4E5F60003 /* RainyClockDayOffNotification.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RainyClockDayOffNotification.entitlements; sourceTree = "<group>"; };
@@ -483,6 +487,8 @@
 				7154F44B61E340CB96450D9D /* RainyClockMembership.storekit */,
 				BE9DD135B1874EC8AD51B279 /* MembershipStoreKitTests.swift */,
 				904B2BF979344A6ABB930E70 /* MembershipTests.swift */,
+				A77000012C00000000000002 /* ConsentManagerTests.swift */,
+				A77000022C00000000000002 /* NotificationResponseTests.swift */,
 				7B2C65ECC2D44837BE727569 /* MembershipLegacyPriceProbeTests.swift */,
 				0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */,
 				0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */,
@@ -739,6 +745,8 @@
 			files = (
 				00145F4219C44BA1A4258D73 /* MembershipStoreKitTests.swift in Sources */,
 				E7CE6E8A17D7416586EF18D6 /* MembershipTests.swift in Sources */,
+				A77000012C00000000000001 /* ConsentManagerTests.swift in Sources */,
+				A77000022C00000000000001 /* NotificationResponseTests.swift in Sources */,
 				38ABA2C657074798B222B397 /* MembershipLegacyPriceProbeTests.swift in Sources */,
 				0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */,
 				0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */,
@@ -883,7 +891,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = RainyClockDayOffNotification/RainyClockDayOffNotification.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RainyClockDayOffNotification/Info.plist;
@@ -914,7 +922,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = RainyClockDayOffNotification/RainyClockDayOffNotification.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RainyClockDayOffNotification/Info.plist;
@@ -945,7 +953,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_ENTITLEMENTS = RainyClockDayOffNotification/RainyClockDayOffNotification.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RainyClockDayOffNotification/Info.plist;
@@ -1158,7 +1166,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = RainyClock/RainyClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = RainyClock/Info.plist;
@@ -1188,7 +1196,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = RainyClock/RainyClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = RainyClock/Info.plist;
@@ -1219,7 +1227,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = RainyClock/RainyClock.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = RainyClock/Info.plist;
@@ -1246,7 +1254,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -1267,7 +1275,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -1288,7 +1296,7 @@
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RainyClockAlarmWidget/Info.plist;
@@ -1319,7 +1327,7 @@
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RainyClockAlarmWidget/Info.plist;
@@ -1350,7 +1358,7 @@
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 34;
+				CURRENT_PROJECT_VERSION = 35;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RainyClockAlarmWidget/Info.plist;

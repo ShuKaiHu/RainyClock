@@ -2,6 +2,128 @@ import CoreLocation
 import XCTest
 @testable import RainyClock
 
+@MainActor
+final class MapItemSearchResultTests: XCTestCase {
+    func testLocalizedFirstResultDoesNotHideLaterMatchingStationWhenReverseLookupFails() async throws {
+        let chineseStation = candidate("台北車站", address: "100台灣臺北市中正區", latitude: 25.0485774)
+        let englishStation = candidate("Taipei Main Station", address: "100台灣臺北市中正區北平西路3號", latitude: 25.0473199)
+
+        let result = try await MapItemResolver.resolveSearchCandidates(
+            [chineseStation, englishStation], query: "Taipei Main Station"
+        ) { _, _ in nil }
+
+        XCTAssertEqual(result, englishStation.location)
+    }
+
+    func testKeepsAppleRankingWhenFirstCandidateCanBeLocalized() async throws {
+        let first = candidate("台北車站", address: "100台灣臺北市中正區", latitude: 25.0485774)
+        let second = candidate("Taipei Main Station", latitude: 25.0473199)
+        let result = try await MapItemResolver.resolveSearchCandidates(
+            [first, second], query: "Taipei Main Station"
+        ) { _, _ in "Taipei Main Station, Zhengzhou Rd, Zhongzheng District, Taipei City" }
+
+        XCTAssertEqual(result?.latitude, first.location.latitude)
+        XCTAssertEqual(result?.displayAddress, "Taipei Main Station, Zhengzhou Rd, Zhongzheng District, Taipei City")
+    }
+
+    func testMatchingPOINameSurvivesReverseLookupReturningOnlyAnUnrelatedStreetLabel() async throws {
+        let station = candidate("Taipei Main Station 台北車站", latitude: 25.0485774)
+        let result = try await MapItemResolver.resolveSearchCandidates(
+            [station], query: "Taipei Main Station"
+        ) { _, _ in "Zhengzhou Rd" }
+
+        XCTAssertEqual(result, station.location)
+    }
+
+    func testMatchingPOIKeepsCoordinatesWhenOptionalLocalizationFails() async throws {
+        let landmark = candidate("Taipei 101 台北101", latitude: 25.033649)
+        let result = try await MapItemResolver.resolveSearchCandidates(
+            [landmark], query: "Taipei 101"
+        ) { _, _ in nil }
+
+        XCTAssertEqual(result, landmark.location)
+    }
+
+    func testUsesAddressMetadataAsWellAsPOIName() async throws {
+        let station = candidate("台北車站", address: "3 Beiping W Rd, Zhongzheng District, Taipei City", latitude: 25.0473199)
+        let result = try await MapItemResolver.resolveSearchCandidates(
+            [station], query: "Taipei Main Station"
+        ) { _, _ in nil }
+
+        XCTAssertEqual(result, station.location)
+    }
+
+    func testDoesNotReturnWrongCityOrUnrelatedCandidatesWhenEveryMatchFails() async throws {
+        let result = try await MapItemResolver.resolveSearchCandidates([
+            candidate("Maan", address: "Fushan Village, Wulai District, New Taipei City", latitude: 24.7789256),
+            candidate("Heping Rd", address: "Kaohsiung City", latitude: 22.63)
+        ], query: "Taipei Main Station") { _, _ in nil }
+
+        XCTAssertNil(result)
+    }
+
+    func testSpecificStreetStillRejectsWrongHouseNumberAndChecksLaterResult() async throws {
+        let wrong = candidate("台南市新市區南科北路231號", latitude: 23.1)
+        let correct = candidate("台南市新市區南科北路1號", latitude: 23.11)
+        let result = try await MapItemResolver.resolveSearchCandidates(
+            [wrong, correct], query: "南科北路1號, 台南市新市區"
+        ) { _, _ in nil }
+
+        XCTAssertEqual(result, correct.location)
+    }
+
+    func testCancellationDuringLocalizationDoesNotPublishCoordinatesOrTryAnotherCandidate() async {
+        let lookup = SuspendedMapLocalization()
+        let first = candidate("台北車站", latitude: 25.0485774)
+        let second = candidate("Taipei Main Station", latitude: 25.0473199)
+        let task = Task {
+            try await MapItemResolver.resolveSearchCandidates([first, second], query: "Taipei Main Station") { _, _ in
+                await lookup.run()
+            }
+        }
+        await lookup.waitUntilStarted()
+        task.cancel()
+        await lookup.finish()
+
+        do {
+            _ = try await task.value
+            XCTFail("A cancelled lookup must not return a stale address")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+    }
+
+    private func candidate(_ name: String, address: String = "", latitude: Double) -> MapSearchCandidate {
+        MapSearchCandidate(
+            location: ResolvedMapLocation(latitude: latitude, longitude: 121.5, displayAddress: name, resolution: .exact),
+            matchingAddress: [name, address].filter { !$0.isEmpty }.joined(separator: ", ")
+        )
+    }
+}
+
+private actor SuspendedMapLocalization {
+    private var continuation: CheckedContinuation<String?, Never>?
+    private var started: CheckedContinuation<Void, Never>?
+
+    func run() async -> String? {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            started?.resume()
+            started = nil
+        }
+    }
+
+    func waitUntilStarted() async {
+        if continuation != nil { return }
+        await withCheckedContinuation { started = $0 }
+    }
+
+    func finish() {
+        continuation?.resume(returning: "Taipei Main Station")
+        continuation = nil
+    }
+}
+
 final class RoutePolylineSamplerTests: XCTestCase {
     func testDegenerateRoutesProduceNoInteriorSamples() {
         // The sampler deleted in the 1.6.5 cleanup trapped on these.

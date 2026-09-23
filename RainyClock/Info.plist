@@ -25,7 +25,7 @@
 		<string>com.shukaihu.RainyClock.previewRefresh</string>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>34</string>
+	<string>35</string>
 	<key>LevelPlayAppKey</key>
 	<string>27d81ff8d</string>
 	<key>GooglePlacesAPIKey</key>

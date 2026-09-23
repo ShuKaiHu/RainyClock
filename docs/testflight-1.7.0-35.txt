@@ -1,0 +1,20 @@
+Rainy Clock 1.7.0 (35)
+
+修正地點搜尋會過早放棄後續候選的問題、ATT 提示時序，以及點擊通知／停止通知鬧鐘時可能閃退的問題。
+
+請優先在 iOS 27 真機測試：
+1. 先直接更新，確認原有設定保留。
+2. 確認「設定 → 隱私權與安全性 → 追蹤 → 允許 App 要求追蹤」已開啟。備份需要的設定後，以新安裝或重置追蹤權限的狀態，從首次啟動開始錄影，錄到 ATT 與後續操作。已選過允許／拒絕時不會每次開啟都再問；受系統限制時也可能不顯示。
+3. 選擇不要追蹤後，確認仍能使用 App。若先出現廣告隱私選擇，完成並關閉後再檢查 ATT。TestFlight 不載入正式廣告。
+4. 設定 Home = Taipei Main Station、Work = Taipei 101，分別測試直接輸入與點選搜尋建議，確認路線預覽、天氣與設定鬧鐘成功。英文與繁中介面均需驗證。
+5. 檢查通知點擊、停止鬧鐘、賴床及鎖定畫面響鈴，確認不閃退，後續鬧鐘仍保留。
+
+仍待真機確認：iOS 27 完整流程與 iPad 相容模式。先前 TestFlight 方案卡 USD／原生付款頁 TWD 差異尚未證實解決；本版未修改定價。這是測試版本，尚未重新送審或公開發布。
+
+Fixed early termination of location searches, ATT presentation ordering, and a possible crash when handling notification responses.
+
+Please test on a physical iOS 27 device: update in place first; then, after preserving any needed settings, record a fresh-install or reset-tracking-permissions launch, the ATT prompt, and the following app flow. Verify that declining tracking still allows normal use. If the ad privacy sheet appears first, complete and dismiss it before ATT. TestFlight does not load production ads.
+
+Test Taipei Main Station to Taipei 101 using both typed queries and search suggestions, in English and Traditional Chinese. Verify route preview, weather, alarm scheduling, notification taps, stopping, snoozing, and ringing while locked. Confirm there is no crash and future alarms remain scheduled.
+
+Physical iOS 27 and iPad compatibility validation remains pending. The previously observed TestFlight USD price-card / TWD native purchase-sheet discrepancy is not confirmed resolved; pricing is unchanged. This build has not been resubmitted to App Review or publicly released.

@@ -11,7 +11,62 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-09-22.
+Last updated: 2026-09-23.
+
+> **最新交接：[2026-09-23 iOS 交接：商品卡美元／付款頁台幣](HANDOFF-IOS-2026-09-23.md)。**
+> 使用者希望由另一個 AI 重新調查這項未解問題；已集中記錄真機證據、既有修正、程式入口與待查事項。
+> build 35 已可內部 TestFlight 測試，但沒有修改商品價格邏輯，也尚無新的真機價格結果。
+
+## 1.7.0（35）TestFlight 修正版 — 2026-09-23
+
+- 使用者授權上傳修正版至 TestFlight。版本保持 1.7.0，App／widget／notification extension
+  同步 build 35；本輪不重新提交 App Review、不公開發布。
+- 包含下方地點搜尋與 ATT 修正，並額外處理 Organizer 取得的 build 34 真機閃退：
+  9/22、iPhone 16 Pro／iOS 26.6.2，通知 didReceive 的 async Objective-C completion
+  在 worker thread 觸發 UIKit assertion。改為明確 completion handler，於 MainActor
+  完成 acknowledgement 後才回呼；新增五項背景入口／主執行緒／完成順序測試。
+- 全套測試發現日曆及天災整合測試依賴共享會員快取，已在測試注入明確權益；正式會員
+  gate 與 1.7.0 的 `supportsTemporaryClosures = false` 未改。
+- iOS 26.5 的本機 StoreKit service 再次出現 configuration / Code 3，已改用既有
+  iOS 26.2 乾淨專用 Simulator 與簽章 Local scheme，完整 **377 項通過、0 失敗、0 跳過**。
+  包含實際 Local StoreKit 購買、恢復、續訂、到期、退款與待批准。舊測試裝置啟動停滯，
+  改用隔離的 `RainyClock Release 35 Tests` 後正常；測試結束已關閉。
+- Release archive 成功，App 與兩個 extension 均為 1.7.0（35），production App Attest、
+  正式會員 URL、兩語系 ATT 文案、無 `.storekit` fixture 及簽章均已核對。
+  **22:31:20 上傳成功**，Apple 已完成處理；內部 `SKHU tester`（1 人）可更新。
+  build ID `c3ad05c5-0e2c-42b5-b7e9-01d605ffd677`。中英文測試說明已保存，
+  ASC「已儲存」與群組 1 人均已讀回確認，沒有覆蓋使用者手機的 App。
+  IronSource 第三方 dSYM 缺漏警告仍存在，未阻擋 upload/export。
+  日誌：`/tmp/rainyclock-170-35/tests-final-passed.log`、`archive-release.log`、`upload.log`。
+- 真機 iOS 27／iPad 流程與 ATT 錄影仍待完成。6.5 吋繁中已讀回使用 6.9 吋新版圖，
+  英文（美國）尚未核對清理結果。先前 TestFlight 價格卡
+  USD／付款 TWD 問題未確認解決；本輪沒有修改定價、後端或 1.7.1 開關。
+- 詳細原因與限制見 [退審報告](APP-REVIEW-2026-09-23.md)，
+  [build 35 測試說明](testflight-1.7.0-35.txt)。
+
+## 1.7.0（34）退審 — 2026-09-23
+
+- 使用者提供 Apple 訊息，submission `5a8a1d24-97da-4eb9-89a7-350274dccc85`：
+  **2.3.3**（6.5 吋截圖多數未展示實際 App）、**2.1(a)**（找不到地點，核心功能無法使用）、
+  **2.1 Information Needed**（找不到 ATT 提示，要求新安裝／重置權限的真機錄影）。
+  裝置為 iPad Air 11-inch M3／iPhone 17 Pro Max，iPadOS／iOS 27.0，網路正常。
+- 本機診斷確認：ATT 與 production-only 廣告開關及會員廣告身分綁定，Sandbox／TestFlight
+  會一起跳過；ATT 因非 active 延後時，SDK 初始化亦未等待授權狀態確定。
+  **使用者補充地址為 Taipei Main station／Taipei 101**；macOS 實際 Apple 查詢兩者皆成功，
+  **尚未重現 iOS 27 案例**。但 MapKit 中文名稱會被現有英文比對拒絕，依賴額外英文反查救回；
+  反查失敗與後續候選未被檢查是後續重現重點。固定台灣偏向不是本案例主要假設。
+- 退審時的舊素材紀錄與 6.5 吋尺寸相符；9/23 使用者清理後，繁中已重新讀回繼承
+  6.9 吋新版圖，英文（美國）尚未核對。詳見[截圖紀錄](appstore-1.7.0-screenshots/README.md)。
+- 後續使用者提供審查截圖：明確失敗的是 **Home / Taipei Main Station**，Work 尚未解析。
+  已修正 `MapItemResolver` 首筆不符就放棄整批候選的缺陷，並保留翻譯失敗前已匹配的名稱／座標。
+  iOS 26.5 模擬器 50 項相關測試全過（含新增 8 項候選回歸）；macOS 實際 Apple 查詢两筆皆成功。
+- ATT 程式已修正：同意流程獨立於會員身分與 production 廣告開關，TestFlight 也可顯示系統提示；
+  GDPR sheet 實際關閉後才要求 ATT，`notDetermined` 時 SDK 保持關閉。拒絕／受限制不阻擋核心功能；
+  模擬器／TestFlight 仍禁止正式廣告流量。新增 19 項同意流程測試，連同會員及鬧鐘排程共 54 項全過。
+  隔離的 iPhone 17 Pro Max／iOS 26.5 模擬器亦實際驗到首開 ATT、拒絕後進入設定且重啟不重問、
+  GDPR sheet 關閉後出現 ATT，再選允許回到首頁；仍不是 Apple 要求的真機影片。
+- 詳見 [退審診斷與重送條件](APP-REVIEW-2026-09-23.md)。尚未重現／驗收 iOS 27 真機完整流程，
+  ATT 真機錄影與英文 6.5 吋素材核對尚未完成；build 35 交付進度見上方最新紀錄。
 
 ## 1.7.1 準備中：颱風／天災臨時放假 — 2026-09-22
 
@@ -24,8 +79,10 @@ Last updated: 2026-09-22.
   `DisasterSuspensionEvaluator` 與設定頁說明文字同步改為 OR。Android 尚未實作，
   升版只是給它的交接訊號。
 - `AppEnvironment.supportsTemporaryClosures` 仍為 `false`；1.7.0 在審，版本號不動。
-  1.7.1 開閘前仍缺：NCDR 會員 API key、dayoff-service 的常駐部署（需持久磁碟，不是現有
-  request-only Cloud Run 型態）並填入 `DayOffServiceURL`、APNs 金鑰與正式 push capability、
+  **dayoff-service 尚未部署在任何地方**：只在本機跑過測試，沒有 NCDR 會員、沒有 API key、
+  沒有 APNs 金鑰，`DayOffServiceURL` 空白；它是常駐輪詢程序、狀態寫本機磁碟，和現有
+  request-only 的 Cloud Run 會員服務不同型，上線前要先決定部署方式。
+  1.7.1 開閘前仍缺：NCDR 會員 API key、dayoff-service 的部署並填入 `DayOffServiceURL`、APNs 金鑰與正式 push capability、
   真機驗證（晚間公告、重啟、低耗電、關背景更新、強制結束、撤銷、關閉後恢復、
   **可見推播在 App 關閉時被擴充功能改寫**）、
   恢復設定入口與方案文案、發布 [1.7.1 備忘](1.7.1-DEFERRED-DISASTER.md) 的隱私條款、
@@ -34,6 +91,10 @@ Last updated: 2026-09-22.
   Emulator）；iOS 全套約 339 項，用 `RainyClock Membership Local` scheme 且**簽章**跑才
   全過 —— `CODE_SIGNING_ALLOWED=NO` 會讓 3 項 Keychain 路由測試失敗，一般 `RainyClock`
   scheme 會讓 StoreKit 測試碰真商店並在模擬器彈出 Apple ID 登入框。
+- **2026-09-23 下午：使用者看過模擬器推播截圖，確認作法 B 的結果「很好」，正式納入 1.7.1 範圍。**
+  模擬器以 `simctl push` 送 alert 模式 payload，App 顯示本地化橫幅「停班停課公告已更新」。
+  這只證明 payload 與權限流程；擴充功能是否被喚醒、改寫是否生效，仍要真機用真 APNs 驗證。
+  橫幅只見標題、未見正文，真機驗證時一併確認 `body-loc-key`。
 - **2026-09-23：推播改為作法 B。** dayoff-service 新增 `APNS_PUSH_MODE=alert`（預設）：對所有裝置
   廣播同一則可見推播、無位置資料、collapse 成一則、10 小時過期；`/health` 回 `pushMode`。iOS 新增
   `RainyClockDayOffNotification` Notification Service Extension、App Group
@@ -44,9 +105,9 @@ Last updated: 2026-09-22.
 - ASC 審查結果本輪未讀到（隔離瀏覽器為登入頁，Gmail 無 Apple 信件）。
   `RainyClock-dayoff-preview/` 工作樹每個檔案都比主工作樹舊，可移除。
 
-> **下一個 AI 請先讀 [2026-09-22 iOS 交接檔](HANDOFF-IOS-2026-09-22.md)。**
-> 已集中整理實際送審結果、最新方案、雲端環境、價格問題與驗收缺項；以下仍保留歷史時序。
-> 9/22 本輪僅整理交接文件，未重新查詢 ASC／雲端、修改程式、建置、部署或發布。
+> **下一個 AI 請先讀 [2026-09-23 iOS 交接檔](HANDOFF-IOS-2026-09-23.md)。**
+> [9/22 交接](HANDOFF-IOS-2026-09-22.md) 與以下時序保留為歷史背景；目前已退審並交付 build 35，
+> 不可沿用舊「34 等待審查／未有 35」狀態。此次交接整理僅改文件，未再建置、部署或發布。
 
 ## ASC 1.7.0（34）已由使用者提交審查 — 2026-09-21
 

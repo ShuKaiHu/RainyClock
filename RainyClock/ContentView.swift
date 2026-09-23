@@ -45,23 +45,18 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         // A GDPR user answers once before the first ad request; the same sheet
         // reopens from the Settings tab's privacy row to change the answer later.
-        .sheet(isPresented: $consentManager.isConsentSheetPresented) {
+        .sheet(isPresented: $consentManager.isConsentSheetPresented, onDismiss: {
+            Task { await consentManager.consentSheetDidClose() }
+        }) {
             AdConsentSheet()
         }
-        // Deliberately not `onDismiss`: the continuation (SDK start, then ATT)
-        // hangs off our own state flipping false — produced only by an answer
-        // or a real swipe-down — instead of UIKit's presentation callbacks,
-        // whose timing around launch is not worth trusting.
-        .onChange(of: consentManager.isConsentSheetPresented) { wasPresented, isPresented in
-            if wasPresented, !isPresented {
-                consentManager.consentSheetDidClose()
-            }
-        }
         .task {
+            // Start ATT before work that may need another system permission.
+            // Membership verification is not a prerequisite for this prompt.
+            await consentManager.requestConsentThenStartAds()
             Task { await membership.start() }
             if !AppEnvironment.isRunningTests { viewModel.activateAutomaticScheduling() }
             Task { await DisasterPushRegistration.shared.update(enabled: viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled) }
-            consentManager.requestConsentThenStartAds()
             // The armed alarm repeats weekly with the rain decision that was current
             // when it was scheduled; opening the app is what brings that decision up
             // to date. No-op when it is still fresh.
@@ -77,9 +72,8 @@ struct ContentView: View {
                 return
             }
 
-            // Harmless after the first activation: the SDK starts only once,
-            // and AppLovin retries a failed handshake on its own.
-            consentManager.requestConsentThenStartAds()
+            // Retry a deferred ATT request or failed SDK init on activation.
+            Task { await consentManager.requestConsentThenStartAds() }
             Task { await DisasterPushRegistration.shared.update(enabled: viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled) }
             Task {
                 await viewModel.refreshScheduledAlarmIfWeatherIsStale()

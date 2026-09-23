@@ -23,6 +23,13 @@ enum AddressResolution: Codable, Sendable, Equatable {
     case suggested
 }
 
+/// Keep Apple's result identity separate from its optional localized label.
+/// A street label returned by reverse geocoding may omit the original POI name.
+struct MapSearchCandidate: Sendable {
+    var location: ResolvedMapLocation
+    var matchingAddress: String?
+}
+
 actor MapItemResolver {
     private let geocoder = CLGeocoder()
     private let googlePlaceResolver = GooglePlaceResolver()
@@ -114,6 +121,7 @@ actor MapItemResolver {
         } catch {
         }
 
+        guard !Task.isCancelled else { return false }
         return await googlePlaceResolver.resolve(queries) != nil
     }
 
@@ -122,6 +130,7 @@ actor MapItemResolver {
             return location
         }
 
+        try Task.checkCancellation()
         if let location = await googlePlaceResolver.resolve(queries) {
             return location
         }
@@ -132,6 +141,7 @@ actor MapItemResolver {
     private func resolveWithAppleMaps(queries: [String]) async throws -> ResolvedMapLocation? {
         let strictQueryCount = Self.strictCandidateQueries(for: queries.first ?? "").count
         for (index, query) in queries.enumerated() {
+            try Task.checkCancellation()
             let resolution: AddressResolution = index < strictQueryCount ? .exact : .suggested
             if let location = try await geocode(query, resolution: resolution) {
                 return location
@@ -152,22 +162,25 @@ actor MapItemResolver {
                 in: nil,
                 preferredLocale: Self.preferredSearchLocale(for: query)
             )
-            guard let placemark = placemarks.first(where: { $0.location != nil }),
-                  let coordinate = placemark.location?.coordinate else {
-                return nil
-            }
-            let displayAddress = Self.displayAddress(for: placemark)
-            guard Self.isAcceptableResolvedAddress(query: query, displayAddress: displayAddress) else {
-                return nil
-            }
+            for placemark in placemarks {
+                try Task.checkCancellation()
+                guard let coordinate = placemark.location?.coordinate else { continue }
+                let displayAddress = Self.displayAddress(for: placemark)
+                guard Self.isAcceptableResolvedAddress(query: query, displayAddress: displayAddress) else {
+                    continue
+                }
 
-            return ResolvedMapLocation(
-                latitude: coordinate.latitude,
-                longitude: coordinate.longitude,
-                displayAddress: displayAddress,
-                resolution: resolution,
-                districtName: Self.districtName(for: placemark)
-            )
+                return ResolvedMapLocation(
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude,
+                    displayAddress: displayAddress,
+                    resolution: resolution,
+                    districtName: Self.districtName(for: placemark)
+                )
+            }
+            return nil
+        } catch is CancellationError {
+            throw CancellationError()
         } catch let error as CLError where error.code == .geocodeFoundNoResult || error.code == .geocodeFoundPartialResult || error.code == .network {
             return nil
         } catch {
@@ -183,31 +196,59 @@ actor MapItemResolver {
 
         do {
             let response = try await MKLocalSearch(request: request).start()
-            guard let mapItem = response.mapItems.first(where: { $0.placemark.location != nil }),
-                  let coordinate = mapItem.placemark.location?.coordinate else {
-                return nil
+            let candidates = response.mapItems.compactMap { mapItem -> MapSearchCandidate? in
+                guard let coordinate = mapItem.placemark.location?.coordinate else { return nil }
+                return MapSearchCandidate(
+                    location: ResolvedMapLocation(
+                        latitude: coordinate.latitude,
+                        longitude: coordinate.longitude,
+                        displayAddress: Self.displayAddress(for: mapItem),
+                        resolution: resolution,
+                        districtName: Self.districtName(for: mapItem.placemark)
+                    ),
+                    matchingAddress: [mapItem.name, mapItem.placemark.title]
+                        .compactMap { $0 }.joined(separator: ", ")
+                )
             }
-            let locale = Self.preferredSearchLocale(for: query)
-            var displayAddress = Self.displayAddress(for: mapItem)
-            // MKLocalSearch results follow the device language; when that clashes with
-            // the language the user typed, re-localize via reverse geocoding.
-            if displayAddress == nil || !Self.scriptMatches(displayAddress!, locale: locale) {
-                displayAddress = await localizedDisplayAddress(at: coordinate, locale: locale) ?? displayAddress
+            return try await Self.resolveSearchCandidates(candidates, query: query) { [self] coordinate, locale in
+                await localizedDisplayAddress(at: coordinate, locale: locale)
             }
-            guard Self.isAcceptableResolvedAddress(query: query, displayAddress: displayAddress) else {
-                return nil
-            }
-
-            return ResolvedMapLocation(
-                latitude: coordinate.latitude,
-                longitude: coordinate.longitude,
-                displayAddress: displayAddress,
-                resolution: resolution,
-                districtName: Self.districtName(for: mapItem.placemark)
-            )
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             return nil
         }
+    }
+
+    static func resolveSearchCandidates(
+        _ candidates: [MapSearchCandidate],
+        query: String,
+        localize: @Sendable (CLLocationCoordinate2D, Locale) async -> String?
+    ) async throws -> ResolvedMapLocation? {
+        try Task.checkCancellation()
+        let locale = preferredSearchLocale(for: query)
+        for candidate in candidates {
+            try Task.checkCancellation()
+            let originalMatches = isAcceptableResolvedAddress(query: query, displayAddress: candidate.matchingAddress)
+            var location = candidate.location
+
+            // Check every result in Apple's ranking. A localized first result
+            // must not hide a later result that matches the user's input.
+            if location.displayAddress == nil || !scriptMatches(location.displayAddress!, locale: locale) {
+                let localized = await localize(location.coordinate, locale)
+                try Task.checkCancellation()
+                if isAcceptableResolvedAddress(query: query, displayAddress: localized) {
+                    location.displayAddress = localized
+                    return location
+                }
+            }
+
+            // Localization is presentation only once the original name/address
+            // matches. Do not discard known coordinates if it fails or returns
+            // only a street name without the POI's identifying words.
+            if originalMatches { return location }
+        }
+        return nil
     }
 
     private func localizedDisplayAddress(at coordinate: CLLocationCoordinate2D, locale: Locale) async -> String? {

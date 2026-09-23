@@ -334,7 +334,7 @@ final class MembershipManager: ObservableObject {
         guard ConsentManager.shared.configureRewardIdentity(identity.userId) else {
             throw MembershipError.server("reward_account_changed_restart_required", 409)
         }
-        ConsentManager.shared.requestConsentThenStartAds()
+        await ConsentManager.shared.requestConsentThenStartAds()
     }
 
     func deleteMembership() async {
