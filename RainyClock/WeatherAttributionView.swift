@@ -46,37 +46,39 @@ struct WeatherAttributionView: View {
 /// Keeps Apple's combined Weather mark in the App Group for the medium widget, which
 /// cannot reach the network (`WeatherAttributionMarkStore`). Runs only where the app
 /// already talks to WeatherKit: the weather card's attribution above, and the
-/// background refresh that fetches tomorrow's forecast. At most weekly per variant.
+/// background refresh that fetches tomorrow's forecast. At most weekly.
 enum WeatherAttributionMarkCache {
     static let refreshInterval: TimeInterval = 7 * 86_400
     @MainActor private static var isRefreshing = false
 
+    /// Returns whether the mark was written. `force` (the DEBUG widget demo) skips the age check.
     @MainActor
+    @discardableResult
     static func refreshIfNeeded(with attribution: WeatherAttribution? = nil,
-                                store: WeatherAttributionMarkStore = .appGroup, now: Date = Date()) async {
+                                store: WeatherAttributionMarkStore = .appGroup, now: Date = Date(),
+                                force: Bool = false) async -> Bool {
         guard !AppEnvironment.isRunningTests, !isRefreshing,
-              store.needsRefresh(now: now, maximumAge: refreshInterval) else { return }
+              force || store.needsRefresh(now: now, maximumAge: refreshInterval) else { return false }
         isRefreshing = true
         defer { isRefreshing = false }
         let resolved: WeatherAttribution
         if let attribution {
             resolved = attribution
         } else {
-            guard let fetched = try? await WeatherService.shared.attribution else { return }
+            guard let fetched = try? await WeatherService.shared.attribution else { return false }
             resolved = fetched
         }
-        var wrote = false
-        let marks: [(WeatherAttributionMarkStore.Variant, URL)] = [
-            (.light, resolved.combinedMarkLightURL), (.dark, resolved.combinedMarkDarkURL)]
-        for (variant, url) in marks {
-            guard !Task.isCancelled,
-                  let (data, response) = try? await URLSession.shared.data(from: url),
-                  (response as? HTTPURLResponse)?.statusCode == 200 else { continue }
-            if store.save(data, for: variant) { wrote = true }
-        }
-        if wrote, TomorrowWidgetPublisher.systemHostsWidget {
+        // Only the variant the widget draws (`WeatherAttributionMarkStore.widgetVariant`).
+        let variant = WeatherAttributionMarkStore.widgetVariant
+        let url = variant == .dark ? resolved.combinedMarkDarkURL : resolved.combinedMarkLightURL
+        guard !Task.isCancelled,
+              let (data, response) = try? await URLSession.shared.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              store.save(data, for: variant) else { return false }
+        if TomorrowWidgetPublisher.systemHostsWidget {
             WidgetCenter.shared.reloadTimelines(ofKind: TomorrowWidgetSnapshot.kind)
         }
+        return true
     }
 }
 

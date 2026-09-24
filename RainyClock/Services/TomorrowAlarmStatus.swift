@@ -28,6 +28,18 @@ struct TomorrowAlarmStatus: Equatable {
     /// A registration exists and was made with these settings (the fingerprint matches).
     /// With it, a ring day that has no registered ring left has already rung.
     var isRegistrationCurrent = false
+    /// This day's ring under the current registration is already behind `now`: it fired (a
+    /// rain lead that crossed midnight rang the evening before), and nothing rings again
+    /// for this day. Display only: the widget keeps saying what that ring was until the
+    /// day begins, never a later time AlarmKit will not fire.
+    var passedRingDate: Date?
+    /// The ring a registration made with OTHER settings (the fingerprint no longer matches:
+    /// a re-registration failed or was deferred) still fires on this day, still ahead of
+    /// `now`. AlarmKit keeps that alarm until a replacement succeeds, so the widget's today
+    /// entry shows it, with "update needed". Display only.
+    var outdatedRegistrationRingDate: Date?
+    /// The outdated registration's ring on this day has already fired: it will not ring again.
+    var outdatedRegistrationHasRung = false
 
     /// The card's (and the decision's) freshness rule. The widget only *warns* after
     /// `TomorrowWidgetSnapshotBuilder.widgetWeatherLifetime`; this is unchanged by that.
@@ -97,6 +109,7 @@ struct TomorrowAlarmStatus: Equatable {
 
         var registered: Date?
         var verified = false
+        var passedRing: Date?
         let registrationIsCurrent = summary != nil && registeredFingerprint == settings.scheduleFingerprint(calendar: calendar)
         if registrationIsCurrent, let summary {
             if let plan = summary.calendarPlan {
@@ -107,6 +120,8 @@ struct TomorrowAlarmStatus: Equatable {
                         let applied = summary.disasterSkips?.first { $0.normalDate == request.normalAlarmDate }
                         verified = verified && applied?.noticeIDs.sorted() == noticeIDs
                     }
+                    // A dated ring the evening before (a lead across midnight) that has fired.
+                    if let ring = registered, ring < now { passedRing = ring }
                 }
             } else if !settings.selectedWeekdays.contains(calendar.component(.weekday, from: day)) {
                 verified = expected == nil
@@ -114,6 +129,33 @@ struct TomorrowAlarmStatus: Equatable {
                 // Never roll today's summary or its rain decision into tomorrow.
                 registered = summary.scheduledAlarmDate
                 verified = registered == expected && freshWeather != nil && reason != .routeIncomplete
+            } else if summary.normalAlarmDate > request.normalAlarmDate {
+                // The weekly repeat rings every selected day at the registration's time of day,
+                // so this day has a slot of its own. Still ahead: a registration made for a later
+                // morning (inside this day's check window, say) fires it too. Behind: it rang
+                // (the pair roll has moved on), and nothing rings for this day again.
+                let slot = request.normalAlarmDate.addingTimeInterval(
+                    -summary.normalAlarmDate.timeIntervalSince(summary.scheduledAlarmDate))
+                // Inclusive, like the roll: at its own second a ring is still ahead.
+                if slot >= now { registered = slot } else { passedRing = slot }
+            }
+        }
+        // A registration with other settings is still armed until a replacement succeeds.
+        var outdatedRing: Date?
+        var outdatedHasRung = false
+        if !registrationIsCurrent, let summary, let fingerprint = registeredFingerprint {
+            if let plan = summary.calendarPlan {
+                if plan.timeZoneID == calendar.timeZone.identifier,
+                   let ring = plan.occurrences.first(where: { calendar.isDate($0.normalDate, inSameDayAs: day) })?.ringDate {
+                    if ring >= now { outdatedRing = ring } else { outdatedHasRung = true }
+                }
+            } else if calendar.isDate(summary.normalAlarmDate, inSameDayAs: day), summary.scheduledAlarmDate >= now {
+                // The caller rolls the summary with the registration's own weekdays.
+                outdatedRing = summary.scheduledAlarmDate
+            } else if summary.normalAlarmDate > day, !calendar.isDate(summary.normalAlarmDate, inSameDayAs: day),
+                      fingerprint.selectedWeekdays.contains(calendar.component(.weekday, from: day)) {
+                // One of its days, and its next ring is a later day's: this day's has fired.
+                outdatedHasRung = true
             }
         }
         var carriedOver = false
@@ -141,7 +183,9 @@ struct TomorrowAlarmStatus: Equatable {
                     reason: reason, holidayName: holidayName, leadTimeMinutes: lead, weather: weather,
                     weatherIsStale: stale, weatherRefreshFailed: weatherRefreshFailed,
                     registeredRingDate: registered, isScheduleVerified: verified, disasterNoticeIDs: noticeIDs,
-                    rainLeadIsCarriedOver: carriedOver, isRegistrationCurrent: registrationIsCurrent)
+                    rainLeadIsCarriedOver: carriedOver, isRegistrationCurrent: registrationIsCurrent,
+                    passedRingDate: passedRing,
+                    outdatedRegistrationRingDate: outdatedRing, outdatedRegistrationHasRung: outdatedHasRung)
     }
 }
 

@@ -59,7 +59,7 @@ final class TomorrowWidgetStringsTests: XCTestCase {
             keys.insert(line.full.key)
             keys.insert(line.short.key)
         }
-        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 43)
+        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 44)
         XCTAssertEqual(Set(TomorrowWidgetStrings.widgetOnlyKeys).count, TomorrowWidgetStrings.widgetOnlyKeys.count)
         for language in languages {
             let widget = try widgetTable(language)
@@ -107,6 +107,14 @@ final class TomorrowWidgetStringsTests: XCTestCase {
         XCTAssertEqual(english["widget_rings_as_usual"], "Rings as usual")
         XCTAssertEqual(chinese["widget_rings_as_usual"], "照常響鈴")
         XCTAssertNil(english["widget_route_rain_chance"], "Route rain % left every family but the medium")
+        // From midnight to the ring the widget shows today's alarm: its name and its first-run
+        // face never promise tomorrow's.
+        for key in ["widget_display_name", "widget_open_to_start"] {
+            XCTAssertFalse(english[key]?.localizedCaseInsensitiveContains("tomorrow") ?? true, key)
+            XCTAssertFalse(chinese[key]?.contains("明天") ?? true, key)
+        }
+        XCTAssertEqual(english["widget_display_name"], "Next Alarm")
+        XCTAssertEqual(chinese["widget_display_name"], "下次鬧鐘")
         // Before the app has published anything there is nothing to refresh.
         for key in ["widget_inline_start", "widget_inline_start_short"] {
             XCTAssertFalse(english[key]?.localizedCaseInsensitiveContains("refresh") ?? true, key)

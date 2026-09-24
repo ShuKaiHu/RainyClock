@@ -38,10 +38,11 @@
 "commute_mode_public_transit" = "Transit";
 
 /* Widget only */
-"widget_display_name" = "Tomorrow's Alarm";
+/* The gallery name. Not "Tomorrow": between midnight and the ring the widget shows today's alarm. */
+"widget_display_name" = "Next Alarm";
 "widget_description" = "Your expected alarm, and whether rain moves it earlier.";
 "widget_open_to_refresh" = "Open the app to refresh";
-"widget_open_to_start" = "Open the app to show tomorrow's alarm";
+"widget_open_to_start" = "Open the app to show your next alarm";
 /* A normal ringing day, on every family but the medium: the decision, not the weather. */
 "widget_rings_as_usual" = "Rings as usual";
 "widget_rain_short" = "Earlier for rain";
@@ -90,3 +91,6 @@
 "widget_inline_today_ring" = "Today %@";
 "widget_inline_today_rain" = "Today %1$@ · %2$d min earlier";
 "widget_inline_today_skipped" = "Today: skipped";
+
+/* VoiceOver hint on the medium widget's weather column, which links to Apple's legal attribution page. */
+"widget_weather_legal_hint" = "Opens Apple Weather's data sources and legal attribution";

@@ -43,12 +43,29 @@ struct TomorrowWidgetView: View {
         }
         // White ink over the sky in full colour; the system's own scheme otherwise.
         .environment(\.colorScheme, style.fullColor ? .dark : systemColorScheme)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: style.accessibilityLabel(presentation,
-                                                                    attributesWeather: family == .systemMedium)))
+        // One label for the whole widget, except where the medium's weather column is a link
+        // of its own (to Apple's legal page): VoiceOver must reach it, so the medium labels
+        // its two halves itself.
+        .modifier(CombinedAccessibility(label: style.accessibilityLabel(presentation),
+                                        isEnabled: !(family == .systemMedium && presentation.showsWeatherColumn)))
     }
 
     @Environment(\.colorScheme) private var systemColorScheme
+}
+
+private struct CombinedAccessibility: ViewModifier {
+    let label: String
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: label))
+        } else {
+            content
+        }
+    }
 }
 
 // MARK: - Shared style
@@ -135,9 +152,11 @@ struct WidgetStyle {
         }
     }
 
-    /// One label for the whole widget: header, expected ring (or the hero), footer, and
-    /// the Apple Weather attribution where weather is shown.
-    func accessibilityLabel(_ presentation: TomorrowWidgetPresentation, attributesWeather: Bool = false) -> String {
+    private var listSeparator: String { isChinese ? "，" : ", " }
+
+    /// The alarm's label: header, expected ring (or the hero) and footer. The whole widget's,
+    /// or the medium's left half when its weather column is a separate link.
+    func accessibilityLabel(_ presentation: TomorrowWidgetPresentation) -> String {
         var pieces = [mediumHeader(presentation, separator: ", ")]
         switch presentation.hero {
         case .time(let ring, _):
@@ -150,8 +169,25 @@ struct WidgetStyle {
         case .openApp(let reason): pieces.append(openAppText(reason))
         }
         if let line = presentation.line { pieces.append(text(line.full)) }
-        if attributesWeather, presentation.day != nil { pieces.append("Apple Weather") }
-        return pieces.joined(separator: isChinese ? "，" : ", ")
+        return pieces.joined(separator: listSeparator)
+    }
+
+    /// The medium's weather column, read as the link it is: each endpoint, the footer, and
+    /// the Apple Weather attribution the link leads to.
+    func weatherAccessibilityLabel(_ status: TomorrowWidgetSnapshot.Entry) -> String {
+        var pieces: [String] = []
+        for (key, endpoint) in [("ux_weather_home", status.forecast?.home), ("ux_weather_work", status.forecast?.work)] {
+            guard let endpoint else { continue }
+            pieces.append([text(key), conditionName(endpoint.condition),
+                           text(LocalizedLine(key: "ux_rain_chance", arguments: [.int(endpoint.percent)]))].joined(separator: " "))
+        }
+        if let notice = status.weatherNotice {
+            pieces.append(text(TomorrowWidgetPresentation.Line.notice(notice).full))
+        } else if let forecast = status.forecast {
+            pieces.append(text(LocalizedLine(key: "ux_weather_updated", arguments: [.string(time(forecast.checkedAt))])))
+        }
+        pieces.append("Apple Weather")
+        return pieces.joined(separator: listSeparator)
     }
 }
 
@@ -378,14 +414,23 @@ private struct MediumTomorrowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            left.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            if let status {
+            if let status, presentation.showsWeatherColumn {
+                left.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: style.accessibilityLabel(presentation)))
                 // The only family with WeatherKit data, so it carries the  Weather mark, and
-                // the column links (through the app) to Apple's legal attribution page.
+                // the column links (through the app) to Apple's legal attribution page. Its
+                // own accessibility element, so VoiceOver can follow the link too.
                 Link(destination: WeatherAttributionMarkStore.legalLinkURL) {
                     weatherColumn(status)
                 }
                 .frame(width: 148)
+                .accessibilityLabel(Text(verbatim: style.weatherAccessibilityLabel(status)))
+                .accessibilityHint(Text(verbatim: style.text("widget_weather_legal_hint")))
+                .accessibilityAddTraits(.isLink)
+            } else {
+                // Today's entry (no forecast) or an open-the-app face: the alarm takes the width.
+                left.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
     }
@@ -453,7 +498,11 @@ private struct MediumTomorrowView: View {
             .font(.caption.weight(.semibold))
             .foregroundStyle(style.primary)
             .lineLimit(1)
-            Spacer(minLength: 4)
+            // The column's only flexible part, and the sun's place: drawn in this gap, it can
+            // never reach the row above or the endpoint names below, whatever the widget's
+            // height, Dynamic Type, or the  Weather row beneath.
+            ColumnSun(home: presentation.home, work: presentation.work, isVisible: style.fullColor)
+                .frame(maxWidth: .infinity, minHeight: 4, maxHeight: .infinity)
             HStack(alignment: .bottom) {
                 endpoint(status.forecast?.home, alignment: .leading)
                 Spacer(minLength: 4)
@@ -509,15 +558,45 @@ private struct MediumTomorrowView: View {
     }
 }
 
-/// Apple's combined " Weather" mark as the app last downloaded it into the App Group,
-/// in the variant for the ink it sits on; the text mark until the first download.
-private struct WeatherAttributionMark: View {
-    let style: WidgetStyle
-    @Environment(\.colorScheme) private var colorScheme
+/// The sun of a clear endpoint, in the weather column's gap between its top row and its
+/// endpoint names (the home side, the work side, or centred when both are clear). Full
+/// colour only, like every sky particle. The card's sun, shrunk to the gap.
+private struct ColumnSun: View {
+    let home: TomorrowWidgetSnapshot.Condition?
+    let work: TomorrowWidgetSnapshot.Condition?
+    let isVisible: Bool
 
     var body: some View {
-        let store = WeatherAttributionMarkStore.appGroup
-        if let data = store.data(for: colorScheme == .dark ? .dark : .light), let image = UIImage(data: data) {
+        Canvas { context, size in
+            guard isVisible else { return }
+            let centers: [CGFloat] = switch (home == .clear, work == .clear) {
+            case (true, true): [0.5]
+            case (true, false): [0.22]
+            case (false, true): [0.78]
+            case (false, false): []
+            }
+            // The rays end 1 pt inside the gap; too small a gap draws nothing.
+            let scale = min(1, (size.height / 2 - 1) / SkyParticles.sunOuterRadius)
+            guard scale > 0.12 else { return }
+            for center in centers {
+                SkyParticles.sun(in: &context, size: size, center: center, centerY: 0.5, scale: scale)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// Apple's combined " Weather" mark as the app last downloaded it into the App Group;
+/// the text mark until the first download.
+private struct WeatherAttributionMark: View {
+    let style: WidgetStyle
+
+    var body: some View {
+        // Always the dark variant, white glyphs: full colour draws it on the sky with white
+        // ink, and accented or clear rendering maps an image's luminance to alpha
+        // (`.accentedDesaturated`), which leaves the light variant's black glyphs invisible.
+        if let data = WeatherAttributionMarkStore.appGroup.data(for: WeatherAttributionMarkStore.widgetVariant),
+           let image = UIImage(data: data) {
             Image(uiImage: image)
                 .resizable()
                 .widgetAccentedRenderingMode(.accentedDesaturated)

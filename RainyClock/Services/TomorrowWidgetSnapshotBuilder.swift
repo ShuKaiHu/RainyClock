@@ -18,7 +18,12 @@ import Foundation
 ///   `todayStatus(now:)`, labelled 今天 / Today. The card keeps saying 明天 / Tomorrow
 ///   about the next day all along: in the app the user is looking at what to change,
 ///   and today's decision is already registered. At the ring (inclusive) plus one second
-///   the widget goes back to tomorrow, as the card is.
+///   the widget goes back to tomorrow, as the card is. Today's entries carry no forecast
+///   (see `todayWeatherNotice`), and the time is what AlarmKit will ring: the registered
+///   ring, or an outdated registration's still armed for today, flagged "update needed".
+/// - Third: a ring that already fired the evening before its day (a rain lead across
+///   midnight, e.g. 00:10 rung at 23:40) is not replaced by a later time AlarmKit will not
+///   fire; until midnight the widget keeps the entry it showed before that ring.
 /// - Card flags (the scheduling error, the AlarmKit reschedule notice and the stale
 ///   schedule) carry forward unchanged, so the widget never drops a warning the app
 ///   has not cleared.
@@ -149,10 +154,12 @@ enum TomorrowWidgetSnapshotBuilder {
                      maximumPercent: percent(weather.maximumPrecipitationProbability))
     }
 
-    /// Today's entries carry no weather notice except "complete your route". The app only
-    /// ever fetches tomorrow's forecast, so nothing could refresh one for a morning that
-    /// has begun (a warning nobody can clear), and the card's other notices name 明天.
-    /// Today's decision is the registration's, which the reason line already states.
+    /// Today's entries carry no forecast and no weather notice except "complete your route".
+    /// The app only ever fetches tomorrow's forecast: the one that decided today is last
+    /// evening's, hours old by midnight, and nothing can refresh it (a stale warning nobody
+    /// could clear), while the card's other notices name 明天. Today's decision is the
+    /// registration's, which the reason line already states; the medium drops its weather
+    /// column for these entries.
     static func todayWeatherNotice(for status: TomorrowAlarmStatus, addressesMissing: Bool) -> TomorrowWidgetSnapshot.WeatherNotice? {
         status.weather == nil && addressesMissing ? .routeNeeded : nil
     }
@@ -161,7 +168,11 @@ enum TomorrowWidgetSnapshotBuilder {
     /// Inclusive: at that exact second the alarm is ringing, and the registration only rolls
     /// on to the next ring once this one is strictly past.
     /// - Today's registered ring: what AlarmKit fires, even where the forecast or a closure
-    ///   now says otherwise (the entry then carries "update needed").
+    ///   now says otherwise (the entry then carries "update needed"). A weekly registration
+    ///   made for a later morning still counts when today's slot of it is ahead.
+    /// - An outdated registration (other settings; its replacement failed or was deferred)
+    ///   still armed for today: its ring, which AlarmKit fires. Once that ring has fired,
+    ///   today is over, whatever the new settings say.
     /// - A day that does not ring: its normal time.
     /// - A ring day whose current registration has no ring left for today: that ring has
     ///   fired (the weekly pair rolled on, the dated occurrence was consumed, or a lead
@@ -169,12 +180,30 @@ enum TomorrowWidgetSnapshotBuilder {
     /// - Nothing registered: the configured time, which is all there is to show.
     static func todayShownUntil(_ status: TomorrowAlarmStatus) -> Date {
         if let registered = status.registeredRingDate { return registered }
+        if let outdated = status.outdatedRegistrationRingDate { return outdated }
+        if status.outdatedRegistrationHasRung { return .distantPast }
         guard let expected = status.expectedRingDate else { return status.normalAlarmDate }
         return status.isRegistrationCurrent ? .distantPast : expected
     }
 
     static func entry(for status: TomorrowAlarmStatus, context: Context, validFrom: Date,
                       isToday: Bool = false) -> TomorrowWidgetSnapshot.Entry {
+        var entry = cardEntry(for: status, context: context, validFrom: validFrom, isToday: isToday)
+        if isToday, let outdated = status.outdatedRegistrationRingDate {
+            // AlarmKit still holds the old registration and rings at its time today; the new
+            // settings' decision is not registered. Show the ring that will happen, flagged.
+            entry.expectedRingDate = outdated
+            entry.ringIsOnAnotherDay = !context.calendar.isDate(outdated, inSameDayAs: status.day)
+            entry.reason = .normal
+            entry.reasonLine = nil
+            entry.leadTimeMinutes = 0
+            entry.scheduleIssue = entry.scheduleIssue ?? .updateNeeded
+        }
+        return entry
+    }
+
+    private static func cardEntry(for status: TomorrowAlarmStatus, context: Context, validFrom: Date,
+                                  isToday: Bool) -> TomorrowWidgetSnapshot.Entry {
         let reason: TomorrowWidgetSnapshot.Reason = switch status.reason {
         case .normal: .normal
         case .rain: .rain
@@ -189,7 +218,7 @@ enum TomorrowWidgetSnapshotBuilder {
                      expectedRingDate: status.expectedRingDate,
                      ringIsOnAnotherDay: status.expectedRingDate.map { !context.calendar.isDate($0, inSameDayAs: status.day) } ?? false,
                      reason: reason, reasonLine: snapshotReasonLine(for: status), leadTimeMinutes: status.leadTimeMinutes,
-                     forecast: forecast(from: status.weather),
+                     forecast: isToday ? nil : forecast(from: status.weather),
                      weatherNotice: isToday ? todayWeatherNotice(for: status, addressesMissing: context.addressesMissing)
                         : widgetWeatherNotice(for: status, addressesMissing: context.addressesMissing, at: validFrom),
                      scheduleIssue: scheduleIssue(for: status, flags: context.flags))
@@ -266,7 +295,14 @@ enum TomorrowWidgetSnapshotBuilder {
                     return entry(for: value, context: context, validFrom: moment, isToday: true)
                 }
             }
-            return entry(for: moment == now ? first : status(moment), context: context, validFrom: moment)
+            let value = moment == now ? first : status(moment)
+            if let passed = value.passedRingDate {
+                // Tomorrow's ring already fired this evening (its rain lead crossed midnight).
+                // Until the day begins, and today's entry hands straight over to the day after,
+                // keep saying what that ring was: never a later time AlarmKit will not fire.
+                return entry(for: status(passed.addingTimeInterval(-epsilon)), context: context, validFrom: moment)
+            }
+            return entry(for: value, context: context, validFrom: moment)
         }
         var entries = [shown(at: now)]
         var cutoff = expires

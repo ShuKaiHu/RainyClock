@@ -232,7 +232,14 @@ final class AlarmViewModel: ObservableObject {
         let cacheNow = Date()
         tomorrowWeatherRecord = TomorrowWeatherRecord.load(from: settingsStorage,
             matching: TomorrowWeatherRequest(settings: settings, now: cacheNow), now: cacheNow)
-        if let storedSummary = Self.loadScheduledAlarmSummary(from: settingsStorage) {
+        if var storedSummary = Self.loadScheduledAlarmSummary(from: settingsStorage) {
+            // A weekly summary stored before 1.8.0 names no decided morning; the stored date,
+            // before the roll below moves it on, is the best record of it. Without this a
+            // relaunch after an early ring reads the rolled morning as the decided one, and
+            // an offline re-registration would re-apply that lead to it (`hasSameForecast`).
+            if storedSummary.calendarPlan == nil, storedSummary.decisionNormalAlarmDate == nil {
+                storedSummary.decisionNormalAlarmDate = storedSummary.normalAlarmDate
+            }
             scheduledAlarmSummary = storedSummary.rollingForward(selectedWeekdays: settings.selectedWeekdays)
             if let plan = storedSummary.calendarPlan {
                 statusMessage = String(localized: plan.occurrences.isEmpty ? "calendar_all_silent" : "calendar_schedule_saved")
@@ -509,10 +516,13 @@ final class AlarmViewModel: ObservableObject {
         let currentRegistration = scheduledAlarmSummary != nil && scheduledFingerprint == effectiveSchedulingSettings.scheduleFingerprint()
         let routeIsReady = invalidAddressFields.isEmpty && !hasUnconfirmedSuggestedAddresses
             && (hasConfirmedAutomaticRoute || currentRegistration)
+        // The registration repeats on the weekdays it was made with; they differ from the
+        // settings' only while it is outdated (then `outdatedRegistrationRingDate` reads it).
+        let registeredWeekdays = scheduledFingerprint?.selectedWeekdays ?? settings.selectedWeekdays
         return TomorrowAlarmStatus.resolve(settings: settings, holidays: holidayCalendar,
             weatherRecord: tomorrowWeatherRecord, weatherRefreshFailed: tomorrowWeatherFailureRequest == request,
             routeIsReady: routeIsReady,
-            summary: displaySummary?.rollingForwardAsPair(selectedWeekdays: settings.selectedWeekdays, now: now,
+            summary: displaySummary?.rollingForwardAsPair(selectedWeekdays: registeredWeekdays, now: now,
                                                           calendar: AlarmCalendarSettings.calendar),
             registeredFingerprint: scheduledFingerprint,
             disasterFeed: disasterFeed, disasterSourceFailed: disasterRefreshFailed, now: now, dayOffset: dayOffset)
@@ -1527,8 +1537,10 @@ final class AlarmViewModel: ObservableObject {
         let now = Date()
         let base = CalendarAlarmPlan.make(settings: snapshot, holidays: holidayCalendar, rain: false, now: now, days: 8)
         if let next = base.occurrences.first {
+            // A weekly summary's own normal date may have been rolled on (a relaunch after its
+            // early ring); the morning its forecast decided is `decisionNormalAlarmDate`.
             let hasSameForecast = previous?.calendarForecastDate == next.normalDate
-                || (previous?.calendarPlan == nil && previous?.normalAlarmDate == next.normalDate)
+                || (previous?.calendarPlan == nil && previous?.decidedNormalAlarmDate == next.normalDate)
             let earlier = next.normalDate.addingTimeInterval(Double(-snapshot.rainLeadTimeMinutes * 60))
             let rain = hasSameForecast && probability >= snapshot.rainProbabilityThreshold && earlier > now
             summary.normalAlarmDate = next.normalDate
@@ -1574,7 +1586,8 @@ final class AlarmViewModel: ObservableObject {
         var checkedAt: Date?
         var forecastDate: Date?
         if let next, let previous,
-           previous.calendarForecastDate == next.normalDate || (previous.calendarPlan == nil && previous.normalAlarmDate == next.normalDate) {
+           previous.calendarForecastDate == next.normalDate
+            || (previous.calendarPlan == nil && previous.decidedNormalAlarmDate == next.normalDate) {
             forecastDate = next.normalDate
             probability = previous.maximumPrecipitationProbability
             rain = probability >= snapshot.rainProbabilityThreshold

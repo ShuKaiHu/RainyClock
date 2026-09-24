@@ -38,10 +38,11 @@
 "commute_mode_public_transit" = "大眾交通";
 
 /* Widget only */
-"widget_display_name" = "明天的鬧鐘";
+/* The gallery name. Not 明天: between midnight and the ring the widget shows today's alarm. */
+"widget_display_name" = "下次鬧鐘";
 "widget_description" = "預計響鈴時間，以及是否因下雨提早。";
 "widget_open_to_refresh" = "開啟 App 更新";
-"widget_open_to_start" = "開啟 App 以顯示明天的鬧鐘";
+"widget_open_to_start" = "開啟 App 以顯示下次鬧鐘";
 /* A normal ringing day, on every family but the medium: the decision, not the weather. */
 "widget_rings_as_usual" = "照常響鈴";
 "widget_rain_short" = "因雨提早";
@@ -91,3 +92,6 @@
 "widget_inline_today_ring" = "今天 %@";
 "widget_inline_today_rain" = "今天 %1$@，提早 %2$d 分鐘";
 "widget_inline_today_skipped" = "今天略過鬧鐘";
+
+/* VoiceOver hint on the medium widget's weather column, which links to Apple's legal attribution page. */
+"widget_weather_legal_hint" = "開啟 Apple 天氣的資料來源與法律聲明";

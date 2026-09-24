@@ -4,9 +4,10 @@ import WidgetKit
 /// The widget's sky: the app's CommuteSky colours and particles, frozen at time 0.
 ///
 /// `.ambient` (small, StandBy) keeps particles quiet and full-bleed so the digits stay
-/// readable; `.scene` (medium) draws the card's scene in the right half, behind the
-/// mini weather card, with the sun shrunk and raised clear of that card's text. Particles are static `Canvas` drawings, never a
-/// `TimelineView`, and appear only in full colour.
+/// readable; `.scene` (medium) draws the card's clouds and rain in the right half, behind
+/// the mini weather card (its sun is drawn by the column itself, `ColumnSun`, in the gap
+/// its text leaves). Particles are static `Canvas` drawings, never a `TimelineView`, and
+/// appear only in full colour.
 struct TomorrowSkyBackground: View {
     enum Layout { case ambient, scene }
 
@@ -140,11 +141,11 @@ struct TomorrowSkyBackground: View {
         Canvas { context, size in
             switch condition {
             case .clear:
-                // Smaller and higher than the card's: the disc and every ray stay in the band
-                // between the weather column's top row (to ~0.21h) and its endpoint labels
-                // (from ~0.55h), so no ray crosses 晴天 / Sunny, 降雨 N%, or the mode glyph.
-                SkyParticles.sun(in: &context, size: size, center: center, centerY: 0.38,
-                                 scale: min(1, size.height * 0.16 / SkyParticles.sunOuterRadius))
+                // No sun here: the medium's weather column draws it in its own gap between the
+                // top row and the endpoint names (`ColumnSun`). A band guessed from the widget's
+                // height cannot follow that layout; the  Weather row pushed the names up into
+                // the old one (0.22h–0.54h), and its rays crossed 晴天 / Sunny.
+                break
             case .cloudy:
                 SkyParticles.clouds(in: &context, size: size, rain: false)
             case .rain:

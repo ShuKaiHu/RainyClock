@@ -477,6 +477,11 @@ struct ScheduledAlarmSummary: Codable, Equatable {
 }
 
 extension ScheduledAlarmSummary {
+    /// The morning whose forecast decided this weekly registration's ring. Rolling moves
+    /// `normalAlarmDate` on after that ring; this does not, so re-registering offline
+    /// reuses a lead only for the morning it was decided for.
+    var decidedNormalAlarmDate: Date { decisionNormalAlarmDate ?? normalAlarmDate }
+
     /// Returns the summary with past dates advanced to their next weekly occurrence,
     /// so a summary reloaded after relaunch still describes the upcoming ring.
     func rollingForward(

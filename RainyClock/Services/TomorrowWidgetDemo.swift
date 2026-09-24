@@ -9,11 +9,14 @@ import WidgetKit
 ///     -widget-demo-scenario <name>|tour     a TomorrowWidgetSamples.Scenario raw value, or the tour
 ///     -widget-demo-clock 12h|24h            clock format written into the snapshot (default 12h)
 ///     -widget-demo-tour-spacing <seconds>   tour step (default 30)
+///     -widget-demo-mark image|text          the medium's  Weather row: fetch Apple's mark into the
+///                                           App Group (needs WeatherKit), or delete it (text fallback)
 enum TomorrowWidgetDemo {
     static let launchArgument = "-widget-demo"
     static let scenarioArgument = "-widget-demo-scenario"      // a Scenario rawValue, or "tour"
     static let clockArgument = "-widget-demo-clock"            // "12h" (default) | "24h"
     static let tourSpacingArgument = "-widget-demo-tour-spacing" // seconds, default 30
+    static let markArgument = "-widget-demo-mark"                // "image" | "text"
     static let tourName = "tour"
     static let defaultTourSpacing: TimeInterval = 30
 
@@ -48,6 +51,25 @@ enum TomorrowWidgetDemo {
         WidgetCenter.shared.reloadTimelines(ofKind: TomorrowWidgetSnapshot.kind)
     }
 
+    enum MarkState: String { case image, text }
+
+    /// The medium widget's  Weather row in either state App Review can meet: Apple's image
+    /// (fetched through WeatherKit, as the app does for real) or the text fallback (no image
+    /// in the App Group). Returns whether the requested state is now in place.
+    @MainActor
+    static func setMark(_ state: MarkState) async -> Bool {
+        let store = WeatherAttributionMarkStore.appGroup
+        switch state {
+        case .image:
+            if await WeatherAttributionMarkCache.refreshIfNeeded(force: true) { return true }
+            return store.data(for: WeatherAttributionMarkStore.widgetVariant) != nil
+        case .text:
+            store.clear()
+            WidgetCenter.shared.reloadTimelines(ofKind: TomorrowWidgetSnapshot.kind)
+            return store.data(for: WeatherAttributionMarkStore.widgetVariant) == nil
+        }
+    }
+
     /// One snapshot whose entries step through every scenario except .expired/.missing, `spacing` apart,
     /// with expiresAt = last + spacing so the tour ends on the expired face.
     @MainActor
@@ -73,6 +95,7 @@ struct TomorrowWidgetDemoHost: View {
     @State private var clock = TomorrowWidgetDemo.launchClock
     @State private var selection: String?
     @State private var appliedLaunchArguments = false
+    @State private var markStatus = TomorrowWidgetDemoHost.currentMarkStatus
 
     var body: some View {
         NavigationStack {
@@ -90,6 +113,14 @@ struct TomorrowWidgetDemoHost: View {
                     }
                 } header: {
                     Text(verbatim: "Widget demo · sample data")
+                }
+                Section {
+                    Button { setMark(.image) } label: { row("mark: Apple image", detail: nil) }
+                    Button { setMark(.text) } label: { row("mark: text fallback", detail: nil) }
+                } header: {
+                    Text(verbatim: "Medium  Weather row")
+                } footer: {
+                    Text(verbatim: markStatus)
                 }
                 Section {
                     ForEach(TomorrowWidgetSamples.Scenario.allCases, id: \.self) { scenario in
@@ -116,9 +147,27 @@ struct TomorrowWidgetDemoHost: View {
         .contentShape(Rectangle())
     }
 
+    private static var currentMarkStatus: String {
+        WeatherAttributionMarkStore.appGroup.data(for: WeatherAttributionMarkStore.widgetVariant) == nil
+            ? "No image in the App Group: the widget draws the text mark."
+            : "Apple's image is in the App Group: the widget draws it."
+    }
+
+    private func setMark(_ state: TomorrowWidgetDemo.MarkState) {
+        markStatus = "Working…"
+        Task { @MainActor in
+            let done = await TomorrowWidgetDemo.setMark(state)
+            markStatus = (done ? "" : "Could not set \(state.rawValue) (WeatherKit unavailable?). ") + Self.currentMarkStatus
+        }
+    }
+
     private func applyLaunchArguments() {
         guard !appliedLaunchArguments else { return }
         appliedLaunchArguments = true
+        if let mark = TomorrowWidgetDemo.argument(after: TomorrowWidgetDemo.markArgument)
+            .flatMap(TomorrowWidgetDemo.MarkState.init(rawValue:)) {
+            setMark(mark)
+        }
         let requested = TomorrowWidgetDemo.argument(after: TomorrowWidgetDemo.scenarioArgument)
         if requested == TomorrowWidgetDemo.tourName {
             startTour()

@@ -63,7 +63,7 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
         var reason: Reason
         var reasonLine: ReasonLine?
         var leadTimeMinutes: Int
-        var forecast: RouteForecast?                    // present even when stale (the card shows it)
+        var forecast: RouteForecast?                    // present even when stale (the card shows it); nil when isToday
         var weatherNotice: WeatherNotice?
         var scheduleIssue: ScheduleIssue?
 
@@ -201,8 +201,8 @@ enum TomorrowWidgetTimeline {
 /// Apple's combined " Weather" mark for the medium widget, the only family that shows
 /// WeatherKit data (D-A). The widget cannot reach the network, so the app downloads the
 /// mark from `WeatherService.shared.attribution` where it already talks to WeatherKit
-/// (`WeatherAttributionMarkCache`) and leaves the PNGs in the App Group container; the
-/// widget draws them, or `fallbackText` until the first download lands.
+/// (`WeatherAttributionMarkCache`) and leaves the PNG in the App Group container; the
+/// widget draws it, or `fallbackText` until the first download lands.
 ///
 /// Apple's requirement (developer.apple.com/weatherkit/get-started, "Apple Weather and
 /// third-party attribution"): an app that displays weather data from Apple must clearly
@@ -217,6 +217,10 @@ struct WeatherAttributionMarkStore: Sendable {
         case dark
     }
 
+    /// The only variant the widget draws: white glyphs survive every rendering mode (full
+    /// colour on the dark sky; accented and clear map luminance to alpha, which would erase
+    /// the light variant's black glyphs). So the app fetches only this one.
+    static let widgetVariant: Variant = .dark
     static let maximumBytes = 512_000
     /// The widget's link into the app, which then opens Apple's legal attribution page.
     static let legalLinkURL = URL(string: "rainyclock://weather-attribution")!
@@ -278,11 +282,18 @@ struct WeatherAttributionMarkStore: Sendable {
         return Date(timeIntervalSince1970: seconds)
     }
 
-    /// Either variant missing, or older than `maximumAge`.
+    /// The widget's variant missing, or older than `maximumAge`.
     func needsRefresh(now: Date, maximumAge: TimeInterval) -> Bool {
-        Variant.allCases.contains { variant in
-            guard let savedAt = savedAt(variant) else { return true }
-            return now.timeIntervalSince(savedAt) > maximumAge
+        guard let savedAt = savedAt(Self.widgetVariant) else { return true }
+        return now.timeIntervalSince(savedAt) > maximumAge
+    }
+
+    /// Deletes the stored marks (the DEBUG demo's text-fallback state).
+    func clear() {
+        for variant in Variant.allCases {
+            for url in [fileURL(for: variant), stampURL(for: variant)].compactMap({ $0 }) {
+                try? FileManager.default.removeItem(at: url)
+            }
         }
     }
 }

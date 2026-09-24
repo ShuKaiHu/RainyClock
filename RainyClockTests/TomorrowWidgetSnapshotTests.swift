@@ -579,7 +579,7 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(today.reasonLine, .rainEarlier(minutes: 30), "Decided by Tuesday's forecast: 因雨提早")
         XCTAssertNil(today.weatherNotice, "Nothing can refresh a forecast for a morning that has begun")
         XCTAssertNil(today.scheduleIssue)
-        XCTAssertNotNil(today.forecast, "The medium still shows the forecast it was decided on")
+        XCTAssertNil(today.forecast, "Last evening's forecast, hours old and beyond refreshing: the medium drops its column")
         // The card, meanwhile, already describes Wednesday.
         XCTAssertEqual(tomorrow(date(15, 0)).day, date(16, 0))
 
@@ -604,10 +604,10 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
                                         today: statusProvider(value, weather: nil, summary: registered, dayOffset: 0))
         XCTAssertTrue(snapshot.isValid)
         XCTAssertEqual(snapshot.expiresAt, date(17, 0))
-        // A registered date still ahead rolls only once strictly past (07:00:01); a projected
-        // weekly repeat already rolls at its own second (`rollingForward`), so Wednesday's
-        // today entry hands over at 07:00:00.
-        XCTAssertEqual(snapshot.entries.map(\.validFrom), [now, date(15, 7, 0, 1), date(16, 0), date(16, 7)])
+        // Both mornings hand over one second after their ring: a registered date rolls only
+        // once strictly past, and a weekly repeat's own slot is still today's ring at its
+        // second (`TomorrowAlarmStatus`, "the weekly repeat rings every selected day").
+        XCTAssertEqual(snapshot.entries.map(\.validFrom), [now, date(15, 7, 0, 1), date(16, 0), date(16, 7, 0, 1)])
         XCTAssertEqual(snapshot.entries.map(\.isToday), [true, false, true, false])
 
         let first = snapshot.entries[0]
@@ -923,7 +923,10 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
 
         let model = AlarmViewModel(notificationScheduler: SilentScheduler(), settingsStorage: storage,
                                    membershipEntitlements: { nil })
-        XCTAssertEqual(model.scheduledAlarmSummary, registered, "init must not roll a future summary")
+        var recorded = registered
+        recorded.decisionNormalAlarmDate = registered.normalAlarmDate
+        XCTAssertEqual(model.scheduledAlarmSummary, recorded,
+                       "init must not roll a future summary; a pre-1.8.0 one gets the morning it was decided for")
 
         let next = alarmCalendar.date(byAdding: .day, value: 1, to: day)!
         let afterRing = model.tomorrowStatus(now: at(day, 7, 31))
@@ -1000,6 +1003,183 @@ extension TomorrowWidgetSnapshotTests {
     }
 }
 
+/// The 2026-09-24 review of D-A to D-D: what AlarmKit will actually do, in the edge cases.
+extension TomorrowWidgetSnapshotTests {
+    /// The entry the widget renders at `moment`, as its timeline picks it.
+    private func shownEntry(_ snapshot: Snapshot, at moment: Date) -> Snapshot.Entry? {
+        let plan = TomorrowWidgetTimeline.plan(snapshot: snapshot, now: moment, currentTimeZoneID: calendar.timeZone.identifier)
+        guard case .status(let entry) = plan.items[0].state else { return nil }
+        return entry
+    }
+
+    /// A rain lead across midnight rang Monday 23:40 for Tuesday's 00:10. Until midnight the
+    /// widget keeps that ring: never 明天 00:10 照常響鈴, which AlarmKit will not ring.
+    func testRingFiredBeforeMidnightIsNotReplacedByOneThatWillNotRing() throws {
+        var value = settings()
+        value.alarmTime = date(15, 0, 10)
+        let registered = summary(normal: date(15, 0, 10), ring: date(14, 23, 40))
+        let publish = date(14, 22)
+        for weather in [record(value, requestedAt: publish, checkedAt: publish), nil] {
+            let label = weather == nil ? "no forecast" : "80% forecast"
+            let snapshot = Builder.snapshot(now: publish, context: context(value, summary: registered),
+                                            status: statusProvider(value, weather: weather, summary: registered),
+                                            today: statusProvider(value, weather: weather, summary: registered, dayOffset: 0))
+            XCTAssertTrue(snapshot.isValid, label)
+            XCTAssertEqual(shownEntry(snapshot, at: date(14, 23, 30))?.expectedRingDate, date(14, 23, 40), label)
+            for moment in [date(14, 23, 40, 1), date(14, 23, 50), date(14, 23, 59, 59)] {
+                let shown = try XCTUnwrap(shownEntry(snapshot, at: moment), label)
+                XCTAssertEqual(shown.day, date(15, 0), label)
+                XCTAssertEqual(shown.expectedRingDate, date(14, 23, 40), "\(label) at \(moment): the ring that served Tuesday")
+                XCTAssertTrue(shown.appliesRainLead, label)
+                XCTAssertEqual(shown.reasonLine, .rainEarlier(minutes: 30), label)
+                XCTAssertNil(shown.scheduleIssue, label)
+                XCTAssertNotEqual(TomorrowWidgetPresentation(.status(shown)).line, .ringsAsUsual, label)
+            }
+            // From midnight Tuesday is over (its ring fired on Monday): Wednesday, as tomorrow.
+            let midnight = try XCTUnwrap(shownEntry(snapshot, at: date(15, 0)), label)
+            XCTAssertFalse(midnight.isToday, label)
+            XCTAssertEqual(midnight.day, date(16, 0), label)
+            XCTAssertEqual(midnight.expectedRingDate, date(15, 23, 40), label)
+            XCTAssertEqual(midnight.reasonLine, .awaitingForecast, label)
+        }
+        // The status says so on its own: the pair roll moved past Tuesday's slot.
+        let tuesday = statusProvider(value, weather: nil, summary: registered)(date(14, 23, 50))
+        XCTAssertEqual(tuesday.passedRingDate, date(14, 23, 40))
+        XCTAssertNil(tuesday.registeredRingDate)
+    }
+
+    /// The alarm time moved in the evening and the re-registration failed (offline, or
+    /// deferred): AlarmKit still holds the old alarm. Today's entry shows that ring, flagged
+    /// "update needed", and ends with it, in either direction of the move.
+    func testTodayShowsTheOutdatedRegistrationAlarmKitStillHolds() throws {
+        for (old, new) in [((7, 30), (8, 0)), ((8, 0), (7, 30))] {
+            var before = settings()
+            before.alarmTime = date(15, old.0, old.1)
+            var after = settings()
+            after.alarmTime = date(15, new.0, new.1)
+            let oldRing = date(15, old.0, old.1)
+            let registered = summary(normal: oldRing, ring: oldRing)
+            let fingerprint = before.scheduleFingerprint(calendar: calendar)
+            func provider(_ offset: Int) -> (Date) -> TomorrowAlarmStatus {
+                { t in
+                    TomorrowAlarmStatus.resolve(
+                        settings: after, holidays: .init(), weatherRecord: nil, weatherRefreshFailed: false,
+                        summary: registered.rollingForwardAsPair(selectedWeekdays: fingerprint.selectedWeekdays, now: t, calendar: self.calendar),
+                        registeredFingerprint: fingerprint, disasterFeed: nil, disasterSourceFailed: false,
+                        now: t, calendar: self.calendar, dayOffset: offset)
+                }
+            }
+            let snapshot = Builder.snapshot(now: date(14, 22),
+                                            context: context(after, summary: registered, flags: .init(isScheduleStale: true)),
+                                            status: provider(1), today: provider(0))
+            let label = "\(old) → \(new)"
+            XCTAssertTrue(snapshot.isValid, label)
+            let today = try XCTUnwrap(shownEntry(snapshot, at: date(15, 0)), label)
+            XCTAssertTrue(today.isToday, label)
+            XCTAssertEqual(today.expectedRingDate, oldRing, "\(label): the ring AlarmKit still has")
+            XCTAssertEqual(today.scheduleIssue, .updateNeeded, label)
+            XCTAssertNil(today.reasonLine, label)
+            XCTAssertEqual(TomorrowWidgetPresentation(.status(today)).line, .issue(.updateNeeded), label)
+            XCTAssertEqual(shownEntry(snapshot, at: oldRing)?.isToday, true, "\(label): through the ring second")
+            let afterRing = try XCTUnwrap(shownEntry(snapshot, at: oldRing.addingTimeInterval(1)), label)
+            XCTAssertFalse(afterRing.isToday, "\(label): the old alarm rang, and nothing else rings today")
+            XCTAssertEqual(afterRing.day, date(16, 0), label)
+            XCTAssertEqual(afterRing.scheduleIssue, .updateNeeded, label)
+        }
+    }
+
+    /// A weekly registration made inside today's check window (07:10, past the 07:00 check
+    /// point) decides Wednesday; when Wednesday is dry its repeat still rings today at 07:30.
+    func testWeeklyRegistrationForALaterMorningStillRingsTodaysSlot() throws {
+        let value = settings()
+        let now = date(15, 7, 10)
+        for (ring, ringsToday) in [(date(16, 7, 30), true), (date(16, 7), false)] {
+            let registered = summary(normal: date(16, 7, 30), ring: ring)
+            let today = statusProvider(value, weather: nil, summary: registered, dayOffset: 0)
+            let snapshot = Builder.snapshot(now: now, context: context(value, summary: registered),
+                                            status: statusProvider(value, weather: nil, summary: registered), today: today)
+            XCTAssertTrue(snapshot.isValid)
+            let first = snapshot.entries[0]
+            if ringsToday {
+                XCTAssertEqual(today(now).registeredRingDate, date(15, 7, 30))
+                XCTAssertTrue(first.isToday)
+                XCTAssertEqual(first.day, date(15, 0))
+                XCTAssertEqual(first.expectedRingDate, date(15, 7, 30))
+                XCTAssertEqual(first.reason, .normal)
+                XCTAssertNil(first.scheduleIssue)
+                XCTAssertEqual(snapshot.entries[1].validFrom, date(15, 7, 30, 1))
+                XCTAssertFalse(snapshot.entries[1].isToday)
+                XCTAssertEqual(snapshot.entries[1].day, date(16, 0))
+            } else {
+                // A rainy Wednesday registers 07:00 weekly, and today's 07:00 has passed.
+                XCTAssertNil(today(now).registeredRingDate)
+                XCTAssertEqual(today(now).passedRingDate, date(15, 7))
+                XCTAssertFalse(first.isToday)
+                XCTAssertEqual(first.day, date(16, 0))
+            }
+        }
+    }
+
+    /// After an early ring a relaunch rolls the stored summary's normal date on to the next
+    /// morning. An offline re-registration then (a holiday refresh, a rules change) must not
+    /// read that rolled morning as the one the forecast decided: it registers the normal time.
+    /// The morning that forecast did decide keeps its lead, even offline.
+    func testOfflineReRegistrationReusesALeadOnlyForTheMorningItWasDecidedFor() async throws {
+        let alarmCalendar = AlarmCalendarSettings.calendar
+        let minute = try XCTUnwrap(alarmCalendar.dateInterval(of: .minute, for: Date())).start
+        for decidedIsAhead in [false, true] {
+            let label = decidedIsAhead ? "decided morning ahead" : "relaunched after its early ring"
+            let decided = minute.addingTimeInterval(decidedIsAhead ? 2 * 3_600 : -2 * 3_600)
+            var value = CommuteAlarmSettings()
+            value.homeAddress = "Home"
+            value.workAddress = "Work"
+            value.selectedWeekdays = Set(1...7)
+            value.alarmTime = decided
+            value.rainLeadTimeMinutes = 30
+            value.rainProbabilityThreshold = 0.5
+            let registered = ScheduledAlarmSummary(
+                normalAlarmDate: decided, scheduledAlarmDate: decided.addingTimeInterval(-1_800),
+                weatherRefreshDate: decided.addingTimeInterval(-1_800), exceedsRainThreshold: true, leadTimeMinutes: 30,
+                rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0.8, decisionNormalAlarmDate: decided)
+            let suite = "TomorrowWidgetSnapshotTests-F1-\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let encoder = JSONEncoder()
+            defaults.set(try encoder.encode(value), forKey: "commuteAlarmSettings")
+            defaults.set(try encoder.encode(registered), forKey: "scheduledAlarmSummaryDisplay")
+            defaults.set(try encoder.encode(value.scheduleFingerprint(calendar: alarmCalendar)), forKey: "scheduledAlarmFingerprint")
+
+            let scheduler = RecordingScheduler()
+            let model = AlarmViewModel(notificationScheduler: scheduler, previewScheduler: QuietPreviews(),
+                                       settingsStorage: defaults, membershipEntitlements: { nil })
+            let next = decidedIsAhead ? decided : try XCTUnwrap(alarmCalendar.date(byAdding: .day, value: 1, to: decided))
+            XCTAssertEqual(model.scheduledAlarmSummary?.normalAlarmDate, next, label)
+            func status() -> TomorrowAlarmStatus {
+                alarmCalendar.isDateInToday(next) ? model.todayStatus() : model.tomorrowStatus()
+            }
+            XCTAssertEqual(status().normalAlarmDate, next, label)
+            XCTAssertEqual(status().rainLeadIsCarriedOver, !decidedIsAhead, label)
+
+            await model.applyCalendarSettings()
+
+            let registeredRing = try XCTUnwrap(scheduler.rings.last, "\(label): re-registered")
+            let summary = try XCTUnwrap(model.scheduledAlarmSummary, label)
+            XCTAssertEqual(summary.normalAlarmDate, next, label)
+            XCTAssertEqual(summary.decisionNormalAlarmDate, next, label)
+            if decidedIsAhead {
+                XCTAssertEqual(registeredRing, next.addingTimeInterval(-1_800), "\(label): its own forecast's lead")
+                XCTAssertTrue(summary.exceedsRainThreshold, label)
+                XCTAssertEqual(status().reason, .rain, label)
+            } else {
+                XCTAssertEqual(registeredRing, next, "\(label): no forecast decided this morning")
+                XCTAssertFalse(summary.exceedsRainThreshold, label)
+                XCTAssertEqual(status().reason, .normal, "\(label): not 因雨提早 for a morning no forecast decided")
+            }
+            XCTAssertFalse(status().rainLeadIsCarriedOver, label)
+        }
+    }
+}
+
 @MainActor
 private final class ReloadCounter {
     var count = 0
@@ -1010,6 +1190,28 @@ private final class SilentScheduler: NotificationScheduling, @unchecked Sendable
     func scheduleAlarm(at date: Date, normalAlarmDate: Date, weekdays: Set<Int>, sound: CommuteAlarmSettings.AlarmSound,
                        soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws {}
     func cancelScheduledAlarms() async {}
+}
+
+/// Records each weekly registration's ring time.
+private final class RecordingScheduler: NotificationScheduling, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [Date] = []
+    var rings: [Date] { lock.withLock { recorded } }
+    func requestAuthorization() async throws -> Bool { true }
+    func scheduleAlarm(at date: Date, normalAlarmDate: Date, weekdays: Set<Int>, sound: CommuteAlarmSettings.AlarmSound,
+                       soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws {
+        lock.withLock { recorded.append(date) }
+    }
+    func cancelScheduledAlarms() async {}
+}
+
+private struct QuietPreviews: EveningPreviewScheduling {
+    func authorizationStatus() async -> EveningPreviewAuthorization { .authorized }
+    func requestAuthorization() async -> Bool { true }
+    func replacePreviews(_ previews: [EveningPreview]) async {}
+    func cancelPreviews() async {}
+    func showSample(_ preview: EveningPreview) async {}
+    func notifyDecisionChange(_ change: AlarmDecisionChange) async {}
 }
 
 /// D-A: the medium widget's  Weather mark and its link to Apple's legal page.
@@ -1031,15 +1233,16 @@ final class WeatherAttributionMarkTests: XCTestCase {
     func testStoreKeepsOnlyBoundedPNGsPerVariant() {
         let store = WeatherAttributionMarkStore(directory: directory)
         let now = Date()
+        // White glyphs: accented and clear rendering map luminance to alpha, which would erase
+        // the light variant's black ones; full colour draws on the dark sky anyway.
+        XCTAssertEqual(WeatherAttributionMarkStore.widgetVariant, .dark)
         XCTAssertNil(store.data(for: .dark))
         XCTAssertTrue(store.needsRefresh(now: now, maximumAge: 60), "Nothing downloaded yet")
         XCTAssertTrue(store.save(png, for: .dark, now: now))
         XCTAssertEqual(store.data(for: .dark), png)
         XCTAssertNil(store.data(for: .light))
-        XCTAssertTrue(store.needsRefresh(now: now, maximumAge: 60), "Both variants are needed")
-        XCTAssertTrue(store.save(png, for: .light, now: now))
-        XCTAssertEqual(store.savedAt(.light)?.timeIntervalSince1970 ?? 0, now.timeIntervalSince1970, accuracy: 0.001)
-        XCTAssertFalse(store.needsRefresh(now: now, maximumAge: 60))
+        XCTAssertFalse(store.needsRefresh(now: now, maximumAge: 60), "Only the variant the widget draws is needed")
+        XCTAssertEqual(store.savedAt(.dark)?.timeIntervalSince1970 ?? 0, now.timeIntervalSince1970, accuracy: 0.001)
         XCTAssertTrue(store.needsRefresh(now: now.addingTimeInterval(120), maximumAge: 60), "Refreshed when old")
 
         XCTAssertFalse(store.save(Data("<html>Not found</html>".utf8), for: .dark), "An error page is not a mark")
@@ -1047,9 +1250,15 @@ final class WeatherAttributionMarkTests: XCTestCase {
         XCTAssertEqual(store.data(for: .dark), png, "A refused download keeps the mark already there")
 
         // A file that is not a PNG is never drawn (the widget falls back to the text mark).
-        try? Data("junk".utf8).write(to: store.fileURL(for: .light)!)
-        XCTAssertNil(store.data(for: .light))
-        XCTAssertNil(store.savedAt(.light))
+        try? Data("junk".utf8).write(to: store.fileURL(for: .dark)!)
+        XCTAssertNil(store.data(for: .dark))
+        XCTAssertNil(store.savedAt(.dark))
+        XCTAssertTrue(store.needsRefresh(now: now, maximumAge: 60))
+
+        // The demo's text-fallback state.
+        XCTAssertTrue(store.save(png, for: .dark, now: now))
+        store.clear()
+        XCTAssertNil(store.data(for: .dark))
         XCTAssertTrue(store.needsRefresh(now: now, maximumAge: 60))
 
         let unavailable = WeatherAttributionMarkStore(directory: nil)
