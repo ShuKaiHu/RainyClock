@@ -50,7 +50,7 @@ function listen(server, port, host) {
 
 async function main() {
   const config = serviceConfig(process.env);
-  const { store, close } = createStoreFromEnv(process.env);
+  const { store, close } = createStoreFromEnv(process.env, { log });
   const service = createSnapshotReader({ store, maxCacheAgeMs: config.maxCacheAgeMs, cacheMs: config.cacheMs });
   const registry = new DeviceRegistry({ store });
   const server = createHTTPServer({ service, registry, pushConfigured: config.pushConfigured, pushMode: config.pushMode, trustForwardedFor: config.trustForwardedFor });

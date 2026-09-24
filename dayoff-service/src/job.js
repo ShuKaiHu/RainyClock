@@ -134,7 +134,7 @@ function exitCodeFor(failure, broadcast) {
 export async function runJob({ env = process.env, store: injectedStore, closeStore = async () => {}, fetchImpl = fetch, transport, now = Date.now, log = defaultLog, stdout = defaultStdout, signal } = {}) {
   const config = jobConfig(env);
   const dispatcher = await createDispatcher(config, transport, now);
-  const { store, close } = injectedStore ? { store: injectedStore, close: closeStore } : createStoreFromEnv(env);
+  const { store, close } = injectedStore ? { store: injectedStore, close: closeStore } : createStoreFromEnv(env, { log });
   const { owner, leaseMs } = config;
   const startedAt = now();
   const summary = { event: 'dayoff_job', severity: 'INFO', ok: true, owner, skipped: null, refreshed: false, changed: false, revision: null, noticeCount: null, errorCode: null, warmup: null, broadcast: null, durationMs: 0 };

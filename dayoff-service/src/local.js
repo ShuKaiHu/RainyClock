@@ -33,7 +33,7 @@ export function localConfig(env = process.env) {
 }
 
 export function localStore(env = process.env) {
-  if (env.FIRESTORE_EMULATOR_HOST) return createStoreFromEnv(env);
+  if (env.FIRESTORE_EMULATOR_HOST) return createStoreFromEnv(env, { log });
   return { store: createMemoryStore(), close: async () => {} };
 }
 

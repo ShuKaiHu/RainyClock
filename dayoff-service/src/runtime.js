@@ -34,8 +34,8 @@ export function integerSetting(env, name, fallback, min, max) {
   return Number(value);
 }
 
-export function createStoreFromEnv(env = process.env) {
+export function createStoreFromEnv(env = process.env, { log } = {}) {
   const { projectId, databaseId, namespace, emulatorHost } = firestoreConfiguration(env);
   const firestore = new Firestore({ projectId, databaseId, ...(emulatorHost ? { host: emulatorHost, ssl: false } : {}) });
-  return { store: createFirestoreStore({ firestore, namespace }), close: () => firestore.terminate() };
+  return { store: createFirestoreStore({ firestore, namespace, log }), close: () => firestore.terminate() };
 }

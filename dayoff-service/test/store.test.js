@@ -263,6 +263,16 @@ test('firestore store: transactions use the native reads and writes, SDK failure
   assert.deepEqual(await store.runTransaction(async (tx) => tx.getAll([])), []);
   await assert.rejects(store.runTransaction(async () => { throw new ServiceError('lease_lost'); }), (error) => error instanceof ServiceError && error.code === 'lease_lost');
   await assert.rejects(store.runTransaction(async () => { throw new Error('UNAVAILABLE: 14 network'); }), (error) => error instanceof ServiceError && error.code === 'storage_unavailable');
+});
+
+test('firestore store: an SDK failure logs only its gRPC status number, never the message', async () => {
+  const events = [];
+  const failing = fakeFirestore({ documents: {} });
+  failing.doc = () => ({ get: async () => { throw Object.assign(new Error('7 PERMISSION_DENIED: Missing or insufficient permissions on dayoffNamespaces/ns/state/current'), { code: 7 }); } });
+  const store = createFirestoreStore({ firestore: failing, namespace: 'ns', log: (event) => events.push(event) });
+  await assert.rejects(store.get('state/current'), /storage_unavailable/);
+  assert.deepEqual(events, [{ severity: 'ERROR', event: 'storage_failure', grpcCode: 7 }]);
+  assert.equal(JSON.stringify(events).includes('dayoffNamespaces'), false);
   const broken = createFirestoreStore({ firestore: fakeFirestore({ failure: new Error('DEADLINE_EXCEEDED') }), namespace: 'ns' });
   for (const operation of [broken.get('state/current'), broken.getAll(['state/current']), broken.list('state'), broken.count('state'), broken.set('state/current', { a: 1 }), broken.delete('state/current'), broken.runTransaction((tx) => tx.get('state/current'))]) {
     await assert.rejects(operation, (error) => error instanceof ServiceError && error.code === 'storage_unavailable');

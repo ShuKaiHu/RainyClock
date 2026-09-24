@@ -107,17 +107,23 @@ function fromFirestore(data) {
 
 // A ServiceError raised by the caller's own logic keeps its code; anything
 // the SDK raises is an outage as far as the HTTP status map is concerned.
-async function guarded(work) {
+// The gRPC status number (7 PERMISSION_DENIED, 14 UNAVAILABLE, 5 NOT_FOUND
+// for a wrong database id) is the one thing worth logging: it tells an IAM
+// mistake from a real outage without repeating the SDK's message, which can
+// quote document paths.
+async function guarded(onFailure, work) {
   try {
     return await work();
   } catch (error) {
     if (error instanceof ServiceError) throw error;
+    onFailure(error);
     throw new ServiceError('storage_unavailable');
   }
 }
 
-export function createFirestoreStore({ firestore, namespace } = {}) {
+export function createFirestoreStore({ firestore, namespace, log = () => {} } = {}) {
   if (!firestore || typeof namespace !== 'string' || !NAMESPACE.test(namespace)) throw new ServiceError('invalid_firestore_configuration');
+  const failed = (error) => log({ severity: 'ERROR', event: 'storage_failure', grpcCode: Number.isInteger(error?.code) ? error.code : null });
   const prefix = `dayoffNamespaces/${namespace}/`;
   const doc = (path) => firestore.doc(prefix + validatePath(path, true));
   const collection = (path, options = {}) => {
@@ -133,7 +139,7 @@ export function createFirestoreStore({ firestore, namespace } = {}) {
   const refs = (paths) => paths.map(doc);
   return {
     kind: 'firestore',
-    runTransaction: (operation) => guarded(() => firestore.runTransaction((native) => operation({
+    runTransaction: (operation) => guarded(failed, () => firestore.runTransaction((native) => operation({
       get: async (path) => readData(await native.get(doc(path))),
       getAll: async (paths) => (paths.length === 0 ? [] : (await native.getAll(...refs(paths))).map(readData)),
       list: async (path, options) => listData(await native.get(collection(path, options)), path),
@@ -141,11 +147,11 @@ export function createFirestoreStore({ firestore, namespace } = {}) {
       set: (path, data) => { native.set(doc(path), validateDocument(data)); },
       delete: (path) => { native.delete(doc(path)); }
     }))),
-    get: (path) => guarded(async () => readData(await doc(path).get())),
-    getAll: (paths) => guarded(async () => (paths.length === 0 ? [] : (await firestore.getAll(...refs(paths))).map(readData))),
-    list: (path, options) => guarded(async () => listData(await collection(path, options).get(), path)),
-    count: (path, options = {}) => guarded(async () => (await collection(path, { where: options.where }).count().get()).data().count),
-    set: (path, data) => guarded(async () => { await doc(path).set(validateDocument(data)); }),
-    delete: (path) => guarded(async () => { await doc(path).delete(); })
+    get: (path) => guarded(failed, async () => readData(await doc(path).get())),
+    getAll: (paths) => guarded(failed, async () => (paths.length === 0 ? [] : (await firestore.getAll(...refs(paths))).map(readData))),
+    list: (path, options) => guarded(failed, async () => listData(await collection(path, options).get(), path)),
+    count: (path, options = {}) => guarded(failed, async () => (await collection(path, { where: options.where }).count().get()).data().count),
+    set: (path, data) => guarded(failed, async () => { await doc(path).set(validateDocument(data)); }),
+    delete: (path) => guarded(failed, async () => { await doc(path).delete(); })
   };
 }
