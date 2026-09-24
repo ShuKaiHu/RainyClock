@@ -1,5 +1,34 @@
 # Product Decisions / 產品決策
 
+## 1.8.0「明天」widget 的四項決定 — 2026-09-24（使用者決定 D-A～D-D，已實作於 `ios/widget`）
+
+- **D-A WeatherKit 標示。** 只有 medium 顯示天氣資料（住家／公司天氣、降雨 %、依天氣畫的天空），
+  並帶 Apple 的  Weather 組合標記與法律頁連結。依據 Apple〈Apple Weather and third-party
+  attribution〉(developer.apple.com/weatherkit/get-started)：顯示 Apple 天氣資料就必須清楚顯示
+   Weather 商標與其他資料來源的法律連結；5.2.5 有 widget 缺標記被退的前例。標記圖由 App 在
+  已經連 WeatherKit 的時候（卡片的 `WeatherAttributionView`、背景更新）下載
+  `combinedMarkLightURL`／`DarkURL` 存進 App Group，widget 畫它；還沒下載前畫文字「 Weather」。
+  medium 的天氣欄是 widget `Link`（`rainyclock://weather-attribution`），App 收到後開
+  `legalPageURL`。**其他尺寸**（small、StandBy、長方形、圓形、inline）只顯示鬧鐘決定：
+  因雨提早 N 分鐘（不帶路線降雨 %）、一般日「照常響鈴」、small 天空只在因雨提早時下雨、其他時候
+  晴天（不畫多雲、不跟預報）、StandBy 不再有天氣符號。天氣「過期／失敗／尚無預報」是資料新舊，
+  保留。**殘餘風險：** Apple 對「value-added」（由天氣資料轉換的產品）另要求標註  Weather 並
+  註明資料已修改；「因雨提早」是否算此類由使用者判斷，目前照 D-A 不在非 medium 尺寸加標記。
+- **D-B 過期。** 背景更新（BGTask）在發布 widget 前也抓明天天氣（`refreshTomorrowWeatherIfNeeded`，
+  只在前 15 秒內開始、會被逾時取消、不登記也不改鬧鐘）。**widget 只在天氣超過 3 小時才警告過期**；
+  卡片維持 30 分鐘。刻意不同：widget 整天掛在畫面上又不能自己更新，卡片是點開才看且會自己更新。
+  鬧鐘決定（`TomorrowAlarmStatus.resolve`）仍用 30 分鐘，沒有改。
+- **D-C 午夜到響鈴前顯示「今天」。** 從當地午夜到今天的鬧鐘響（略過的日子到原本時間），widget
+  所有尺寸顯示**今天**的鬧鐘與原因（例：今天 上午6:40 因雨提早 30 分鐘），響過之後才換「明天」。
+  顯示的是 AlarmKit 實際會響的已登記時間，今天的項目也在那個時間結束；只有午夜後 30 分鐘內預報
+  仍新鮮又和登記不同時，才和卡片一樣顯示預報的決定並標「鬧鐘設定尚未更新完成」。
+  snapshot 事先算好這些項目，App 不用醒著。**卡片不變**，整天都講明天：在 App 裡看的是要改什麼，
+  今天的決定已經登記了。今天的項目不顯示天氣警告（App 只抓明天的預報，今天的無從更新；而且那些
+  文字寫著「明天」）。
+- **D-D 響鈴後沿用的提早。** 週鬧鐘在提早響過之後，隔天仍會在同一個提早時間響；顯示這個時間
+  （真的會響），但在隔天自己的預報決定之前**不說「因雨提早」**，改成「等待明天預報」（今天的項目為
+  「等待今天預報」）。卡片同規則。用同一天的預報決定、只是預報已過期的提早，仍說因雨提早。
+
 ## 颱風／臨時放假改定 1.8.0 — 2026-09-24
 
 - 使用者決定：颱風與天災臨時放假的目標版本由 **1.7.1 改為 1.8.0**；1.7.1 保留給其他工作。
