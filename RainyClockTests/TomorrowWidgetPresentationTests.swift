@@ -50,6 +50,8 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             .closureUncertain: (.alarm, "time", .issue(.closureUncertain)),
             .closureUpdateFailed: (.alarm, "time", .issue(.closureUpdateFailed)),
             .ringPreviousDay: (.rain, "time+original", .reason(.rainForecast(percent: 70, minutes: 30))),
+            // D-D: the registered early time, but neither the rain glyph nor 因雨提早.
+            .carriedOver: (.alarm, "time+original", .reason(.awaitingForecast)),
             .expired: (.refresh, "openApp.expired", nil),
             .missing: (.refresh, "openApp.missing", nil),
         ]
@@ -75,6 +77,7 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertEqual(presentation(.rainForecast).relevanceScore, 50)
         XCTAssertEqual(presentation(.scheduleUpdateNeeded).relevanceScore, 50)
         XCTAssertEqual(presentation(.normalClear).relevanceScore, 10)
+        XCTAssertEqual(presentation(.carriedOver).relevanceScore, 10, "A carried-over lead is not a rain day")
         XCTAssertEqual(presentation(.weekend).relevanceScore, 5)
         XCTAssertEqual(presentation(.routeIncomplete).relevanceScore, 5)
         XCTAssertEqual(presentation(.missing).relevanceScore, 1)

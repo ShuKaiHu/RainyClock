@@ -432,6 +432,8 @@
 "disaster_route_address_missing" = "Set an address in Route first";
 "disaster_route_region_unavailable" = "District not available yet";
 "ux_rain_applied_forecast" = "Route rain %d%%, %d\U00A0min earlier";
+/* The ring is the weekly repeat of an earlier morning's rain lead; tomorrow's own forecast has not decided it yet. */
+"ux_tomorrow_awaiting_forecast" = "Waiting for tomorrow's forecast";
 "ux_closure_update_failed" = "Temporary closure information could not be updated";
 
 /* Commute sky */

@@ -47,11 +47,12 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         return .init(request: request, snapshot: .init(checkedAt: checkedAt, forecastAt: request.forecastDate, segments: segments))
     }
 
+    /// A weekly registration as `evaluateRouteAndScheduleAlarm` records it: decided for `normal`.
     private func summary(normal: Date, ring: Date) -> ScheduledAlarmSummary {
         .init(normalAlarmDate: normal, scheduledAlarmDate: ring, weatherRefreshDate: normal.addingTimeInterval(-1_800),
               exceedsRainThreshold: ring < normal, leadTimeMinutes: ring < normal ? 30 : 0,
               rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: ring < normal ? 0.8 : 0.1,
-              wettestSegmentName: "路程 ½")
+              wettestSegmentName: "路程 ½", decisionNormalAlarmDate: normal)
     }
 
     /// Mirrors `AlarmViewModel.tomorrowStatus(now:)` after D1: the summary is rolled at `t`
@@ -397,7 +398,9 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(afterRing.day, date(16, 0))
         XCTAssertEqual(afterRing.expectedRingDate, date(16, 7))
         XCTAssertEqual(afterRing.reason, .rain)
-        XCTAssertEqual(afterRing.reasonLine, .rainEarlier(minutes: 30))
+        // D-D: Tuesday's forecast decided that 07:00, not Wednesday's.
+        XCTAssertEqual(afterRing.reasonLine, .awaitingForecast)
+        XCTAssertFalse(afterRing.appliesRainLead)
         XCTAssertNil(afterRing.scheduleIssue)
     }
 
@@ -654,6 +657,10 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(afterRing.expectedRingDate, at(next, 7, 0))
         XCTAssertEqual(afterRing.reason, .rain)
         XCTAssertEqual(afterRing.registeredRingDate, at(next, 7, 0))
+        // The stored summary predates `decisionNormalAlarmDate`; the unrolled one the model
+        // holds still names the morning that was decided, so the lead reads as carried over.
+        XCTAssertTrue(afterRing.rainLeadIsCarriedOver)
+        XCTAssertEqual(TomorrowWidgetSnapshotBuilder.reasonLine(for: afterRing), .awaitingForecast)
 
         // Before the ring nothing is rolled: identical to resolving with the stored summary.
         let evening = at(alarmCalendar.date(byAdding: .day, value: -1, to: day)!, 20, 0)

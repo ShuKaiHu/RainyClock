@@ -31,6 +31,9 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
     enum ReasonLine: Codable, Equatable, Sendable {
         case rainForecast(percent: Int, minutes: Int)   // ux_rain_applied_forecast
         case rainEarlier(minutes: Int)                  // ux_rain_applied
+        /// The ring is still earlier, but only because the weekly repeat carried an earlier
+        /// morning's rain lead here (`TomorrowAlarmStatus.rainLeadIsCarriedOver`).
+        case awaitingForecast                           // ux_tomorrow_awaiting_forecast
         case holidayNamed(String)                       // ux_tomorrow_holiday_named
         case holiday, manualSkip, manualRing, weekend, unselectedWeekday, closure, routeNeeded
     }
@@ -57,6 +60,11 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
         var forecast: RouteForecast?                    // present even when stale (the card shows it)
         var weatherNotice: WeatherNotice?
         var scheduleIssue: ScheduleIssue?
+
+        /// A rain lead this day's own forecast decided, as opposed to one carried over.
+        var appliesRainLead: Bool {
+            reason == .rain && leadTimeMinutes > 0 && reasonLine != .awaitingForecast
+        }
 
         func hasSameContent(as other: Entry) -> Bool {
             var copy = self

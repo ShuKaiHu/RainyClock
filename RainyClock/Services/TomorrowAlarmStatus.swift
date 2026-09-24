@@ -18,7 +18,14 @@ struct TomorrowAlarmStatus: Equatable {
     var registeredRingDate: Date?
     var isScheduleVerified: Bool
     var disasterNoticeIDs: [String]
+    /// The early ring is the weekly repeat of an earlier morning's rain decision, rolled
+    /// past that morning's ring, and no fresh forecast for this day has decided it yet.
+    /// The time is still what AlarmKit will ring, so it stays; what it must not claim is
+    /// that rain moved it (`TomorrowWidgetSnapshot.ReasonLine.awaitingForecast`).
+    var rainLeadIsCarriedOver = false
 
+    /// The card's (and the decision's) freshness rule. The widget only *warns* after
+    /// `TomorrowWidgetSnapshotBuilder.widgetWeatherLifetime`; this is unchanged by that.
     static let weatherLifetime: TimeInterval = 30 * 60
 
     static func resolve(settings: CommuteAlarmSettings, holidays: HolidayCalendar,
@@ -103,6 +110,7 @@ struct TomorrowAlarmStatus: Equatable {
                 verified = registered == expected && freshWeather != nil && reason != .routeIncomplete
             }
         }
+        var carriedOver = false
         if expected != nil, freshWeather == nil, let registered {
             let offset = request.normalAlarmDate.timeIntervalSince(registered)
             if offset == 0 || offset == Double(settings.rainLeadTimeMinutes * 60) {
@@ -113,13 +121,21 @@ struct TomorrowAlarmStatus: Equatable {
                 lead = max(0, Int(offset / 60))
                 reason = lead > 0 ? .rain : (manualRing ? .manual : .normal)
                 verified = summary?.calendarPlan != nil
+                // A weekly lead decided for an earlier morning (the pair roll carried it
+                // here) is not this day's rain. One decided for this very morning keeps
+                // its reason even once that forecast has gone stale.
+                if lead > 0, let summary, summary.calendarPlan == nil,
+                   let decided = summary.decisionNormalAlarmDate, decided != request.normalAlarmDate {
+                    carriedOver = true
+                }
             }
         }
 
         return Self(day: day, normalAlarmDate: request.normalAlarmDate, expectedRingDate: expected,
                     reason: reason, holidayName: holidayName, leadTimeMinutes: lead, weather: weather,
                     weatherIsStale: stale, weatherRefreshFailed: weatherRefreshFailed,
-                    registeredRingDate: registered, isScheduleVerified: verified, disasterNoticeIDs: noticeIDs)
+                    registeredRingDate: registered, isScheduleVerified: verified, disasterNoticeIDs: noticeIDs,
+                    rainLeadIsCarriedOver: carriedOver)
     }
 }
 

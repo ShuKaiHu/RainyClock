@@ -10,6 +10,7 @@
 "ux_not_set" = "尚未設定鬧鐘";
 "ux_rain_applied_forecast" = "路線降雨機率 %d%%，提前 %d 分鐘";
 "ux_rain_applied" = "因雨提早 %d 分鐘";
+"ux_tomorrow_awaiting_forecast" = "等待明天預報";
 "ux_tomorrow_holiday_named" = "明天放假：%@";
 "ux_tomorrow_holiday" = "明天是國定假日";
 "ux_tomorrow_manual_skip" = "明天已手動設為略過";
@@ -43,6 +44,8 @@
 "widget_open_to_start" = "開啟 App 以顯示明天的鬧鐘";
 "widget_route_rain_chance" = "路線降雨機率 %d%%";
 "widget_rain_short" = "因雨提早";
+/* A carried-over early ring: no forecast for its own morning yet. */
+"widget_awaiting_forecast_short" = "等待預報";
 "widget_manual_skip_short" = "已設為略過";
 "widget_manual_ring_short" = "已設為照常響鈴";
 "widget_holiday_named_short" = "放假：%@";

@@ -673,7 +673,8 @@ private struct InlineTomorrowView: View {
         case .time(let ring, _):
             let time = style.time(ring)
             var earlierMinutes: Int?
-            if case .status(let status) = entry.state, status.reason == .rain, status.leadTimeMinutes > 0 {
+            // Never for a carried-over lead: that ring has not been decided by rain.
+            if case .status(let status) = entry.state, status.appliesRainLead {
                 earlierMinutes = status.leadTimeMinutes
             }
             if case .on(let ringDay)? = presentation.ringDay {

@@ -26,7 +26,7 @@ final class TomorrowWidgetStringsTests: XCTestCase {
         lines += TomorrowWidgetSnapshot.WeatherNotice.allCases.map { .notice($0) }
         lines += [.routeRain(percent: 40)]
         let reasons: [TomorrowWidgetSnapshot.ReasonLine] = [
-            .rainForecast(percent: 80, minutes: 30), .rainEarlier(minutes: 30), .holidayNamed("國慶日"), .holiday,
+            .rainForecast(percent: 80, minutes: 30), .rainEarlier(minutes: 30), .awaitingForecast, .holidayNamed("國慶日"), .holiday,
             .manualSkip, .manualRing, .weekend, .unselectedWeekday, .closure, .routeNeeded]
         lines += reasons.map { .reason($0) }
         return lines
@@ -40,7 +40,7 @@ final class TomorrowWidgetStringsTests: XCTestCase {
     }
 
     func testSharedKeysMatchAppTablesExactly() throws {
-        XCTAssertEqual(TomorrowWidgetStrings.sharedAppKeys.count, 32)
+        XCTAssertEqual(TomorrowWidgetStrings.sharedAppKeys.count, 33)
         XCTAssertEqual(Set(TomorrowWidgetStrings.sharedAppKeys).count, TomorrowWidgetStrings.sharedAppKeys.count)
         for language in languages {
             let widget = try widgetTable(language)
@@ -58,7 +58,7 @@ final class TomorrowWidgetStringsTests: XCTestCase {
             keys.insert(line.full.key)
             keys.insert(line.short.key)
         }
-        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 30)
+        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 31)
         XCTAssertEqual(Set(TomorrowWidgetStrings.widgetOnlyKeys).count, TomorrowWidgetStrings.widgetOnlyKeys.count)
         for language in languages {
             let widget = try widgetTable(language)

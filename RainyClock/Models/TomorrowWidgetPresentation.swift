@@ -44,6 +44,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 case .rainForecast(let percent, let minutes):
                     LocalizedLine(key: "ux_rain_applied_forecast", arguments: [.int(percent), .int(minutes)])
                 case .rainEarlier(let minutes): LocalizedLine(key: "ux_rain_applied", arguments: [.int(minutes)])
+                case .awaitingForecast: LocalizedLine(key: "ux_tomorrow_awaiting_forecast")
                 case .holidayNamed(let name): LocalizedLine(key: "ux_tomorrow_holiday_named", arguments: [.string(name)])
                 case .holiday: LocalizedLine(key: "ux_tomorrow_holiday")
                 case .manualSkip: LocalizedLine(key: "ux_tomorrow_manual_skip")
@@ -80,6 +81,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 switch reason {
                 case .rainForecast(_, let minutes): LocalizedLine(key: "ux_rain_applied", arguments: [.int(minutes)])
                 case .rainEarlier: LocalizedLine(key: "widget_rain_short")
+                case .awaitingForecast: LocalizedLine(key: "widget_awaiting_forecast_short")
                 case .manualSkip: LocalizedLine(key: "widget_manual_skip_short")
                 case .manualRing: LocalizedLine(key: "widget_manual_ring_short")
                 case .unselectedWeekday: LocalizedLine(key: "widget_unselected_short")
@@ -157,7 +159,8 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             if entry.reason == .routeIncomplete { glyph = .route }
             else if entry.reason == .disaster { glyph = .closure }
             else if entry.expectedRingDate == nil { glyph = .silent }
-            else if entry.reason == .rain { glyph = .rain }
+            // A carried-over lead is not this day's rain: the plain alarm glyph.
+            else if entry.appliesRainLead { glyph = .rain }
             else if entry.reason == .manual { glyph = .manualRing }
             else { glyph = .alarm }
 
@@ -207,7 +210,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             case .rain: "cloud.rain.fill"
             case nil: nil
             }
-            if entry.reason == .rain || entry.scheduleIssue != nil { relevanceScore = 50 }
+            if entry.appliesRainLead || entry.scheduleIssue != nil { relevanceScore = 50 }
             else if entry.expectedRingDate != nil { relevanceScore = 10 }
             else { relevanceScore = 5 }
         }
@@ -299,7 +302,7 @@ enum TomorrowWidgetStrings {
     static let sharedAppKeys: [String] = [
         "app_title",
         "ux_tomorrow", "ux_expected_ring", "ux_tomorrow_skipped", "ux_not_set",
-        "ux_rain_applied_forecast", "ux_rain_applied",
+        "ux_rain_applied_forecast", "ux_rain_applied", "ux_tomorrow_awaiting_forecast",
         "ux_tomorrow_holiday_named", "ux_tomorrow_holiday",
         "ux_tomorrow_manual_skip", "ux_tomorrow_manual_ring",
         "ux_tomorrow_weekend", "ux_tomorrow_unselected", "ux_tomorrow_closure",
@@ -324,6 +327,7 @@ enum TomorrowWidgetStrings {
         "widget_inline_refresh_short", "widget_inline_start", "widget_inline_start_short",
         "widget_inline_ring_on", "widget_inline_rain_on",
         "widget_skip_holiday", "widget_skip_closure", "widget_skip_other",
+        "widget_awaiting_forecast_short",
     ]
 }
 
@@ -334,7 +338,7 @@ enum TomorrowWidgetSamples {
         case normalClear, cloudyNormal, rainForecast, rainMixed, rainStale, holidayNamed, holidayUnnamed, weekend,
              unselectedWeekday, manualSkip, manualRing, closure, routeIncomplete, weatherFailed, forecastUnavailable,
              scheduleUpdateNeeded, schedulingFailed, alarmKitReschedule, closureUncertain, closureUpdateFailed,
-             ringPreviousDay, expired, missing
+             ringPreviousDay, carriedOver, expired, missing
     }
 
     /// nil for `.missing`. One entry (validFrom = publishedAt = now); expiresAt = now + 24h.
@@ -430,6 +434,10 @@ enum TomorrowWidgetSamples {
             return make(ring: lateNormal.addingTimeInterval(-30 * 60), reason: .rain,
                         line: .rainForecast(percent: 70, minutes: 30), lead: 30, normalDate: lateNormal,
                         forecast: forecast(.rain, 70, .rain, 60))
+        case .carriedOver:
+            // Tuesday's 07:00 rain ring has fired; the weekly repeat rings Wednesday at 07:00
+            // too, but no forecast for Wednesday has decided that yet.
+            return make(ring: early, reason: .rain, line: .awaitingForecast, lead: 30, forecast: nil, notice: .noForecast)
         case .missing:
             return nil
         }

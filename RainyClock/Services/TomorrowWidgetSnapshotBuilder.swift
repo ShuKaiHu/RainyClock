@@ -73,7 +73,9 @@ enum TomorrowWidgetSnapshotBuilder {
         switch status.reason {
         case .normal: nil
         case .rain:
-            if let weather = status.weather, !status.weatherIsStale {
+            if status.rainLeadIsCarriedOver {
+                .awaitingForecast
+            } else if let weather = status.weather, !status.weatherIsStale {
                 .rainForecast(percent: Int((weather.maximumPrecipitationProbability * 100).rounded()),
                               minutes: status.leadTimeMinutes)
             } else {

@@ -10,6 +10,7 @@
 "ux_not_set" = "No alarm set";
 "ux_rain_applied_forecast" = "Route rain %d%%, %d\U00A0min earlier";
 "ux_rain_applied" = "%d minutes earlier for rain";
+"ux_tomorrow_awaiting_forecast" = "Waiting for tomorrow's forecast";
 "ux_tomorrow_holiday_named" = "Tomorrow is a holiday: %@";
 "ux_tomorrow_holiday" = "Tomorrow is a public holiday";
 "ux_tomorrow_manual_skip" = "Tomorrow was manually set to silent";
@@ -43,6 +44,8 @@
 "widget_open_to_start" = "Open the app to show tomorrow's alarm";
 "widget_route_rain_chance" = "Route rain %d%%";
 "widget_rain_short" = "Earlier for rain";
+/* A carried-over early ring: no forecast for its own morning yet. */
+"widget_awaiting_forecast_short" = "Awaiting forecast";
 "widget_manual_skip_short" = "Set to silent";
 "widget_manual_ring_short" = "Set to ring";
 "widget_holiday_named_short" = "Holiday: %@";

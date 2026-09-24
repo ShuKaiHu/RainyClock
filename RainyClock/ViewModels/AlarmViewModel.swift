@@ -500,10 +500,22 @@ final class AlarmViewModel: ObservableObject {
         return TomorrowAlarmStatus.resolve(settings: settings, holidays: holidayCalendar,
             weatherRecord: tomorrowWeatherRecord, weatherRefreshFailed: tomorrowWeatherFailureRequest == request,
             routeIsReady: routeIsReady,
-            summary: scheduledAlarmSummary?.rollingForwardAsPair(selectedWeekdays: settings.selectedWeekdays, now: now,
-                                                                 calendar: AlarmCalendarSettings.calendar),
+            summary: displaySummary?.rollingForwardAsPair(selectedWeekdays: settings.selectedWeekdays, now: now,
+                                                          calendar: AlarmCalendarSettings.calendar),
             registeredFingerprint: scheduledFingerprint,
             disasterFeed: disasterFeed, disasterSourceFailed: disasterRefreshFailed, now: now)
+    }
+
+    /// The registered summary as the status reads it. A weekly summary stored before 1.8.0
+    /// does not name the morning it was decided for; the unrolled date this model holds is
+    /// that morning, unless a relaunch after its ring already rolled it (then the lead reads
+    /// as decided, as it did before 1.8.0, until the next registration records the date).
+    private var displaySummary: ScheduledAlarmSummary? {
+        guard var summary = scheduledAlarmSummary else { return nil }
+        if summary.calendarPlan == nil, summary.decisionNormalAlarmDate == nil {
+            summary.decisionNormalAlarmDate = summary.normalAlarmDate
+        }
+        return summary
     }
 
     /// Tomorrow is fetched even on a skipped day. This path never authorizes,
@@ -920,6 +932,8 @@ final class AlarmViewModel: ObservableObject {
             summary.wettestSegmentName = snapshot.segments
                 .max { $0.precipitationProbability < $1.precipitationProbability }?
                 .name
+            // The morning this forecast decided: the weekly repeat carries the ring past it.
+            summary.decisionNormalAlarmDate = summary.normalAlarmDate
 
             let body = exceedsThreshold
                 ? String(localized: "notification_body_adjusted")
@@ -1511,6 +1525,11 @@ final class AlarmViewModel: ObservableObject {
             summary.exceedsRainThreshold = rain
             summary.leadTimeMinutes = rain ? snapshot.rainLeadTimeMinutes : 0
             summary.maximumPrecipitationProbability = hasSameForecast ? probability : 0
+            // A rain lead only survives `hasSameForecast`, i.e. for this very morning.
+            summary.decisionNormalAlarmDate = next.normalDate
+        } else {
+            // No selected day ahead: whatever lead remains is the previous decision's.
+            summary.decisionNormalAlarmDate = previous?.decisionNormalAlarmDate ?? previous?.normalAlarmDate
         }
         let selectedSound = snapshot.soundSelection(ringDate: summary.scheduledAlarmDate, normalDate: summary.normalAlarmDate)
         try await notificationScheduler.scheduleAlarm(at: summary.scheduledAlarmDate, normalAlarmDate: summary.normalAlarmDate,

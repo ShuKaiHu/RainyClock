@@ -466,6 +466,14 @@ struct ScheduledAlarmSummary: Codable, Equatable {
     var calendarForecastDate: Date?
     /// Published only after the corresponding system schedule was committed.
     var disasterSkips: [AppliedDisasterSkip]? = nil
+    /// A weekly registration's `normalAlarmDate` as registered: the morning whose forecast
+    /// decided `scheduledAlarmDate`. Rolling forward never moves it, so once the weekly
+    /// repeat carries an early ring past that morning, `TomorrowAlarmStatus` can tell the
+    /// carried-over lead from one decided for the day it serves. Display only; nil in
+    /// summaries stored before 1.8.0 (`AlarmViewModel` then falls back to the unrolled
+    /// summary it holds) and in calendar plans, whose rain only ever sits on the
+    /// occurrence its own forecast decided.
+    var decisionNormalAlarmDate: Date? = nil
 }
 
 extension ScheduledAlarmSummary {

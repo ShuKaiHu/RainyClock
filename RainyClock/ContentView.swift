@@ -305,7 +305,9 @@ private struct AlarmHomeView: View {
                                  tomorrow.reason == .rain ? "rain" : nil)
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: tomorrow.reason == .rain ? "cloud.rain" : (tomorrow.expectedRingDate == nil ? "bell.slash" : "calendar"))
+                        // A carried-over lead waits for its own forecast: not a rain icon.
+                        Image(systemName: tomorrow.rainLeadIsCarriedOver ? "hourglass"
+                              : tomorrow.reason == .rain ? "cloud.rain" : (tomorrow.expectedRingDate == nil ? "bell.slash" : "calendar"))
                             .foregroundStyle(Color.accentColor)
                         Text(reason).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                     }.font(.subheadline).frame(maxWidth: .infinity)
@@ -353,6 +355,7 @@ private struct AlarmHomeView: View {
         case .rainForecast(let percent, let minutes):
             String.localizedStringWithFormat(String(localized: "ux_rain_applied_forecast"), percent, minutes)
         case .rainEarlier(let minutes): String.localizedStringWithFormat(String(localized: "ux_rain_applied"), minutes)
+        case .awaitingForecast: String(localized: "ux_tomorrow_awaiting_forecast")
         case .holidayNamed(let name): String.localizedStringWithFormat(String(localized: "ux_tomorrow_holiday_named"), name)
         case .holiday: String(localized: "ux_tomorrow_holiday")
         case .manualSkip: String(localized: "ux_tomorrow_manual_skip")
