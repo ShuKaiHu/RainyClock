@@ -279,11 +279,12 @@ Last updated: 2026-09-24.
   widget 自帶 `PrivacyInfo.xcprivacy`（UserDefaults 1C8F.1）。DEBUG 的 `-widget-demo` 範例不進 Release。
 - **分支：** `ios/widget`，worktree `/Users/shukaihu/Code_Project_Local/RainyClock-widget`。**尚未合回
   `ios/main`**，因為 1.7.0／1.7.1 可能還要從 `ios/main` 出 build；只做 `ios/main` → `ios/widget`，
-  不可反向。今天合過兩次：`8a29847`（1.7.0（36）＋作法 B）、`1ce7bf5`（1.7.1（37）地址修正＋
-  dayoff-service absence 告警；只有版本號衝突，ContentView／AlarmViewModel／字串改的是不同段落）。
+  不可反向。今天合過三次：`8a29847`（1.7.0（36）＋作法 B）、`1ce7bf5`（1.7.1（37）地址修正＋
+  dayoff-service absence 告警；只有版本號衝突，ContentView／AlarmViewModel／字串改的是不同段落）、
+  `1d3d91f`（1.7.1（37）上傳紀錄，僅文件）。
   之後 `ios/main` 每多一個 commit 都要再合進來，否則 1.8.0 archive 會少掉它（例如 1.7.1 的地址建議）。
 - **版本：** 本分支 **1.8.0（38）**。`43bedcf` 原設 1.8.0（37），但 `ios/main` 的 1.7.1 也是 37，兩邊
-  相同時合併不會衝突、沒人會發現，故 `da9105e` 改 38：不論 1.7.1 或 1.8.0 先送都高於已上傳的 build。
+  相同時合併不會衝突、沒人會發現，故 `da9105e` 改 38（1.7.1（37）已於 15:00 上傳 TestFlight）。
   `Info.plist` 與 11 個 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`（App ×3、AlarmWidget ×3、
   DayOffNotification ×3、tests ×2）一致；建置後三個 bundle 都是 1.8.0（38）。`-ObjC`、`LevelPlayAppKey` 未動。
 - **合併審查修正（`b54483d`）：**
