@@ -168,6 +168,13 @@ Last updated: 2026-09-24.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-09-24：主畫面／鎖定畫面「明天」widget 也納入 1.8.0。** 在 `ios/widget` 分支（worktree
+  `RainyClock-widget`）合併 `ios/main`（1.7.0（36）＋作法 B），並升到 **1.8.0（37）**：
+  `Info.plist` 與專案檔全部 11 個 build configuration 的 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION` 一致。App、
+  `RainyClockAlarmWidget`、`RainyClockDayOffNotification` 都帶 App Group
+  `group.com.shukaihu.RainyClock`（widget 存 `tomorrowWidgetSnapshot.v1`，天災擴充功能存
+  `dayOffSharedState.v1`，同 group 不同 key）。尚未合回 `ios/main`；`supportsTemporaryClosures`
+  仍為 `false`，下方開閘條件不變。
 - **工作樹已全部提交到 `ios/main`**（四個 commit：App 與測試、weather-proxy 會員後端、
   dayoff-service 與天災文件、其餘文件與素材）。1.7.0（34）送審的原始碼從此有 git 紀錄；
   之前自 9/10 起 110 個檔案都只在本機。變體 PNG 的重複 `.zip` 已 gitignore，其餘 `docs/`
