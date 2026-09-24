@@ -1,0 +1,24 @@
+# Absence of the Job's summary line for 15 minutes. A dead Scheduler, a Job
+# that cannot start, or a task killed before its summary produces no failed
+# execution, so this is the one alert that notices "nothing ran". The metric
+# only exists once one summary has been logged: create it, run the Job
+# once, then create this policy. <CHANNEL_ID> comes from
+# `gcloud beta monitoring channels list`.
+displayName: rainyclock-dayoff poll absent
+combiner: OR
+conditions:
+  - displayName: no dayoff_job summary in 15 minutes
+    conditionAbsent:
+      filter: resource.type = "cloud_run_job" AND metric.type = "logging.googleapis.com/user/dayoff_job_runs"
+      duration: 900s
+      aggregations:
+        - alignmentPeriod: 300s
+          perSeriesAligner: ALIGN_DELTA
+          crossSeriesReducer: REDUCE_SUM
+notificationChannels:
+  - projects/rainyclock/notificationChannels/10219649454523194367
+alertStrategy:
+  autoClose: 1800s
+documentation:
+  mimeType: text/markdown
+  content: The poll Job has not logged a summary for 15 minutes. Runbook in dayoff-service/DEPLOYMENT.md (運行手冊).

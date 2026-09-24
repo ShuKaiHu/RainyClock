@@ -1,10 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { DeviceRegistry, syncStatus } from '../src/devices.js';
 import { createHTTPServer } from '../src/http.js';
-import { NOW, temporaryDirectory } from './helpers.js';
+import { NOW, memoryStore } from './helpers.js';
 
 const identity = { installationId: '310251b2-9c20-4dcb-b695-89b78bb1f148', credential: 'c'.repeat(64) };
 const registration = { ...identity, deviceToken: 'a'.repeat(64) };
@@ -13,14 +11,14 @@ const appliedAt = new Date(NOW).toISOString();
 const acknowledgement = { revision: 'b'.repeat(64), checkedAt, appliedAt, result: 'applied' };
 const receiptRequest = (overrides = {}) => ({ ...identity, ...acknowledgement, ...overrides });
 
-async function registeredRegistry(t, options = {}) {
-  const registry = new DeviceRegistry({ dataDir: await temporaryDirectory(t), now: () => NOW, ...options });
+async function registeredRegistry(options = {}) {
+  const registry = new DeviceRegistry({ store: memoryStore(), now: () => NOW, ...options });
   await registry.register(registration);
   return registry;
 }
 
-test('receipts require a registered installation and its credential', async (t) => {
-  const registry = new DeviceRegistry({ dataDir: await temporaryDirectory(t), now: () => NOW });
+test('receipts require a registered installation and its credential', async () => {
+  const registry = new DeviceRegistry({ store: memoryStore(), now: () => NOW });
   await assert.rejects(registry.recordReceipt(receiptRequest()), /device_not_registered/);
   await assert.rejects(registry.receipt(identity), /device_not_registered/);
   await registry.register(registration);
@@ -31,24 +29,24 @@ test('receipts require a registered installation and its credential', async (t) 
   assert.deepEqual(await registry.receipt(identity), acknowledgement);
 });
 
-test('receipts persist without raw credentials and survive registration refresh and token rotation', async (t) => {
-  const registry = await registeredRegistry(t);
+test('receipts persist without raw credentials and survive registration refresh and token rotation', async () => {
+  const registry = await registeredRegistry();
   await registry.recordReceipt(receiptRequest());
   await registry.register({ ...registration, deviceToken: 'f'.repeat(64) });
-  const text = await readFile(registry.path, 'utf8');
-  assert.equal(text.includes(identity.credential), false);
-  assert.deepEqual(JSON.parse(text).devices[0].receipt, acknowledgement);
-  const restored = new DeviceRegistry({ dataDir: join(registry.path, '..'), now: () => NOW });
+  const doc = await registry.store.get(`devices/${identity.installationId}`);
+  assert.equal(JSON.stringify(doc).includes(identity.credential), false);
+  assert.deepEqual(doc.receipt, acknowledgement);
+  const restored = new DeviceRegistry({ store: registry.store, now: () => NOW });
   await restored.initialize();
   assert.deepEqual(await restored.receipt(identity), acknowledgement);
   const externalCopy = await restored.receipt(identity);
   externalCopy.result = 'no_alarm';
   assert.equal((await restored.receipt(identity)).result, 'applied');
-  assert.deepEqual(restored.tokens(), ['f'.repeat(64)]);
+  assert.deepEqual(await restored.tokens(), ['f'.repeat(64)]);
 });
 
-test('receipt ordering uses checkedAt first, then appliedAt; duplicates and late replies cannot regress it', async (t) => {
-  const registry = await registeredRegistry(t);
+test('receipt ordering uses checkedAt first, then appliedAt; duplicates and late replies cannot regress it', async () => {
+  const registry = await registeredRegistry();
   assert.deepEqual(await registry.recordReceipt(receiptRequest()), { recorded: true });
   assert.deepEqual(await registry.recordReceipt(receiptRequest()), { recorded: false });
   assert.deepEqual(await registry.recordReceipt(receiptRequest({ result: 'no_alarm' })), { recorded: false });
@@ -64,16 +62,16 @@ test('receipt ordering uses checkedAt first, then appliedAt; duplicates and late
   assert.deepEqual(await registry.receipt(identity), latest);
 });
 
-test('equivalent timezone forms normalize before receipt ordering', async (t) => {
-  const registry = await registeredRegistry(t);
+test('equivalent timezone forms normalize before receipt ordering', async () => {
+  const registry = await registeredRegistry();
   await registry.recordReceipt(receiptRequest());
   assert.deepEqual(await registry.recordReceipt(receiptRequest({ checkedAt: '2026-09-15T20:29:00+08:00', appliedAt: '2026-09-15T20:30:00+08:00' })), { recorded: false });
   assert.deepEqual(await registry.receipt(identity), acknowledgement);
 });
 
-test('deleting or expiring a registration removes access to its receipt; re-registration starts empty', async (t) => {
+test('deleting or expiring a registration removes access to its receipt; re-registration starts empty', async () => {
   let now = NOW;
-  const registry = await registeredRegistry(t, { now: () => now });
+  const registry = await registeredRegistry({ now: () => now });
   await registry.recordReceipt(receiptRequest());
   const deletion = registry.remove(identity);
   const delayedReceipt = registry.recordReceipt(receiptRequest());
@@ -87,15 +85,15 @@ test('deleting or expiring a registration removes access to its receipt; re-regi
   await assert.rejects(registry.recordReceipt(receiptRequest()), /device_not_registered/);
 });
 
-test('APNs unregistration removes the receipt with the registration', async (t) => {
-  const registry = await registeredRegistry(t);
+test('APNs unregistration removes the receipt with the registration', async () => {
+  const registry = await registeredRegistry();
   await registry.recordReceipt(receiptRequest());
   await registry.removeUnregistered(registration.deviceToken, NOW);
   await assert.rejects(registry.receipt(identity), /device_not_registered/);
 });
 
-test('receipt validation rejects malformed, impossible, future and out-of-order timestamps', async (t) => {
-  const registry = await registeredRegistry(t);
+test('receipt validation rejects malformed, impossible, future and out-of-order timestamps', async () => {
+  const registry = await registeredRegistry();
   const invalid = [
     { revision: 'untrusted' }, { revision: 123 }, { result: 'cancelled' },
     { checkedAt: '2026-09-15' }, { appliedAt: '2026-02-30T00:00:00Z' },
@@ -112,21 +110,23 @@ test('receipt validation rejects malformed, impossible, future and out-of-order 
   assert.equal(await registry.receipt(identity), null);
 });
 
-test('a five-minute device clock skew is allowed without weakening future bounds', async (t) => {
-  const registry = await registeredRegistry(t);
+test('a five-minute device clock skew is allowed without weakening future bounds', async () => {
+  const registry = await registeredRegistry();
   const input = receiptRequest({ checkedAt: appliedAt, appliedAt: new Date(NOW - 300_000).toISOString() });
   assert.deepEqual(await registry.recordReceipt(input), { recorded: true });
   assert.equal((await registry.receipt(identity)).appliedAt, input.appliedAt);
 });
 
-test('invalid persisted receipt data is rejected at startup', async (t) => {
-  const registry = await registeredRegistry(t);
+test('invalid persisted receipt data is rejected when it is read', async () => {
+  const registry = await registeredRegistry();
   await registry.recordReceipt(receiptRequest());
-  const saved = JSON.parse(await readFile(registry.path, 'utf8'));
-  saved.devices[0].receipt.result = 'delivered';
-  await writeFile(registry.path, JSON.stringify(saved));
-  const restored = new DeviceRegistry({ dataDir: join(registry.path, '..'), now: () => NOW });
-  await assert.rejects(restored.initialize(), /invalid_device_storage/);
+  const path = `devices/${identity.installationId}`;
+  const doc = await registry.store.get(path);
+  await registry.store.set(path, { ...doc, receipt: { ...doc.receipt, result: 'delivered' } });
+  const restored = new DeviceRegistry({ store: registry.store, now: () => NOW });
+  await restored.initialize();
+  await assert.rejects(restored.receipt(identity), /invalid_device_storage/);
+  await assert.rejects(restored.recordReceipt(receiptRequest()), /invalid_device_storage/);
 });
 
 test('status tracks source revision, not every poll timestamp; unavailable source never looks confirmed', () => {
@@ -153,7 +153,7 @@ async function listen(t, server) {
 }
 
 test('receipt HTTP routes authenticate first and distinguish receipt state from source availability', async (t) => {
-  const registry = await registeredRegistry(t);
+  const registry = await registeredRegistry();
   let available = true, sourceReads = 0;
   const service = { getSnapshot() { sourceReads += 1; if (!available) throw new Error('source failed'); return { revision: acknowledgement.revision }; } };
   // Existing installations can report and inspect even if push is temporarily disabled.
@@ -185,7 +185,7 @@ test('receipt HTTP routes authenticate first and distinguish receipt state from 
 });
 
 test('receipt HTTP content is bounded and uses the same per-peer rate limit', async (t) => {
-  const registry = await registeredRegistry(t);
+  const registry = await registeredRegistry();
   const base = await listen(t, createHTTPServer({ service: {}, registry, now: () => NOW }));
   const send = (body, headers = { 'Content-Type': 'application/json' }) => fetch(base + '/v1/devices/sync-receipt', { method: 'POST', headers, body: typeof body === 'string' ? body : JSON.stringify(body) });
   assert.equal((await send(receiptRequest({ extra: 'x'.repeat(2000) }))).status, 413);

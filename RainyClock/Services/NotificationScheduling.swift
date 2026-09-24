@@ -562,25 +562,41 @@ final class NotificationPresentationDelegate: NSObject, UNUserNotificationCenter
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
         logger.info("Received notification response action=\(response.actionIdentifier, privacy: .public) request=\(response.notification.request.identifier, privacy: .public)")
 
-        guard response.notification.request.content.categoryIdentifier == LocalNotificationScheduler.categoryIdentifier else {
-            return
-        }
+        Self.handleResponse(
+            actionIdentifier: response.actionIdentifier,
+            categoryIdentifier: response.notification.request.content.categoryIdentifier,
+            deliveredAt: response.notification.date,
+            completion: completionHandler
+        )
+    }
 
-        switch response.actionIdentifier {
-        case UNNotificationDefaultActionIdentifier, LocalNotificationScheduler.stopActionIdentifier:
-            // Tapping the notification (opens the app) and the Stop action both
-            // acknowledge the alarm: the rest of this ring session goes silent while
-            // the weekly schedule stays armed.
-            await LocalNotificationScheduler().acknowledgeAlarm(
-                notificationDeliveredAt: response.notification.date
-            )
-
-        default:
-            return
+    /// UIKit restores the scene when this completion runs. The synthesized
+    /// Objective-C completion for an async delegate method can run on a worker
+    /// thread (build 34's TestFlight crash), so finish explicitly on MainActor.
+    /// Copy only value types from UNNotificationResponse across the task boundary.
+    static func handleResponse(
+        actionIdentifier: String,
+        categoryIdentifier: String,
+        deliveredAt: Date,
+        acknowledge: @escaping @MainActor (Date) async -> Void = {
+            await LocalNotificationScheduler().acknowledgeAlarm(notificationDeliveredAt: $0)
+        },
+        completion: @escaping @MainActor () -> Void
+    ) {
+        Task { @MainActor in
+            if categoryIdentifier == LocalNotificationScheduler.categoryIdentifier,
+               actionIdentifier == UNNotificationDefaultActionIdentifier ||
+               actionIdentifier == LocalNotificationScheduler.stopActionIdentifier {
+                // Silence this ring session while keeping the weekly schedule.
+                await acknowledge(deliveredAt)
+            }
+            // Unknown actions and non-alarm notifications must also finish once.
+            completion()
         }
     }
 }

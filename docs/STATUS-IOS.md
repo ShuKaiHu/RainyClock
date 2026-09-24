@@ -11,9 +11,162 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-09-22.
+Last updated: 2026-09-24.
 
-## 1.7.1 準備中：颱風／天災臨時放假 — 2026-09-22
+> **颱風／臨時放假改定 1.8.0（2026-09-24）**，1.7.1 另作他用。下方較早紀錄裡指這項功能的「1.7.1」
+> 保留原文，一律讀成 1.8.0；現況見「1.8.0 準備中」一節。
+
+> **1.7.0（36）已上傳 TestFlight（2026-09-24 12:49:53），尚未送審：** 修正重裝後會員永久卡住（App Attest），
+> 以及 iOS 27 TestFlight 價格被整批擋下。見下節。9/23 的「App 不改」結論已被本節取代。
+
+## 1.7.0（36）準備：重裝後會員卡死、iOS 27 價格被擋 — 2026-09-24
+
+- 使用者把 iPhone 16 Pro 升到 **iOS 27.0**，**刪除後重裝** TestFlight 1.7.0（35）錄 ATT 影片時，
+  會員頁出現 `attest-assertion · com.apple.devicecheck.error/2 · store=TWN · currency=unknown`，
+  以及「Could not update App Store prices」，方案沒有價格、無法選擇。ATT 在會員啟動前執行，
+  影片本身可用，但會員頁不要入鏡。
+- **App Attest：App 缺陷，已修。** Keychain 項目（ThisDeviceOnly）在刪除 App 後仍會保留
+  `attestKeyID`／`attestedKeyID`／session，但 Secure Enclave 的 key 不會。重裝後
+  `generateAssertion` 回傳 `invalidInput`（code 2），舊程式只在 `invalidKey`（3）時換 key，
+  結果啟動、同步、恢復購買、購買（購買前會先同步）、AI 與刪除會員全部永久卡住，再刪除重裝也
+  無效。正式版任何重裝的會員都會遇到，審查員刪掉 34 改裝 35 也會。Cloud Run 同時段只有
+  `/challenge 200`、沒有 `/session`，符合裝置端就失敗的判斷。
+  - 依據：Apple〈Establishing your app's integrity〉：key 不跨重裝、移機或備份還原。
+    firebase-ios-sdk #12629、#11264 與 google/app-check PR #54：前一個安裝留下的 key 會回 `invalidInput`。
+  - 修正：`MembershipDeviceProof.isUnusableLocalKey` 把 `invalidInput`／`invalidKey` 視為本機 key
+    不可用；bootstrap 的單次重試會換新 key 並重新 attest（另含已存 key 的 assertion 回
+    `unknownSystemFailure`，同 Google AppCheckCore 做法）。沿用 session 時若 key 不可用，
+    `MembershipIdentitySynchronization.run` 與 `start()` 會清掉 session 再 bootstrap 一次。
+    啟動時遇到伺服器 `invalid_session` 仍不自動 bootstrap，避免重建在另一台手機刪除的會員。
+    新 key 仍需新鮮的 Apple proof 加 Apple attestation；後端未改。
+- **價格：iOS 27 只修一半。** 價格檢查頁顯示 `iOS 27.0`、`1.7.0 (35)`、StoreKit 2 商店前後都是
+  TWN，StoreKit 1 商品卻是 `$1.00`／`$10.00 [USD]`，方案卡 unavailable。這是 9/23 預測的第三種
+  結果：Apple 修好了 Storefront，TestFlight 商品仍回美國目錄，舊的幣別一致性檢查把整批商品拒絕，
+  等於隱藏價格又擋住購買。
+  - 使用者決定寫死價格文字，實作採混合版：
+    - Apple 商品幣別與商店一致時，照 `Product.displayPrice` 顯示。這是正式版的常態，ASC 改價不必改 App。
+    - 最後一次查詢時商店穩定、商品為單一幣別但與商店不同時，仍採用 Apple 的商品，卡片改顯示該商店
+      寫死的價格 `MembershipListedPrice`：TWN 是 NT$10／NT$100，USA 是 $1.00／$10.00；其他商店照 Apple 值。
+    - 混合幣別或查詢途中換商店，仍然拒絕。
+    - 購買仍使用 Apple 的 `Product`，實收以付款頁為準。**ASC 改價時必須同步修改 `MembershipListedPrice`。**
+- 後端：9/23 06:37–06:40 UTC 有一台 Darwin/27.0.0 裝置用 build 34 取得 `/session 200`，之後多次
+  `/status 200`，表示 iOS 27 的 assertion 能通過現有的 37-byte 檢查，後端不需要改。
+- Build 號 35 → 36（Info.plist 與 11 處 `CURRENT_PROJECT_VERSION`），marketing version 仍是 1.7.0。
+- 測試：簽章的 `RainyClock Membership Local` scheme、iOS 26.2 模擬器，完整 **387 項通過、0 失敗、
+  0 跳過**（新增 12 項，改名或取代 2 項）。xcresult：
+  `DerivedData/Logs/Test/Test-RainyClock Membership Local-2026.09.24_12-17-03-+0800.xcresult`。
+- 已提交 `91f331a`（只含本次檔案，疊在另一個 session 的 dayoff-service commit 之上）。Release archive
+  `build/RainyClock-1.7.0-36.xcarchive`：App 與兩個 extension 皆為 1.7.0（36），App Attest `production`，
+  正式會員 URL，沒有打包 `.storekit`。**2026-09-24 12:49:53 上傳成功**，Apple 處理中；IronSource dSYM
+  警告照舊，不影響上傳。日誌：`/tmp/rainyclock-170-36/archive.log`、`upload.log`。**尚未送審。**
+- **真機驗收 1 已通過（13:00，iOS 27.0，35 原地更新到 36、未刪除 App）：** 會員頁直接正常，會員編號不變，
+  沒有「Showing last verified status」與錯誤診斷；卡片顯示 NT$10／月、NT$100，Choose plan 可按。
+  Cloud Run（UTC）：05:00:31 `/challenge`（舊 key 在手機端失敗）→ 05:00:35 `/challenge` → 05:00:38
+  `/session 200`（新 key attest 成功）→ 05:00:46、05:00:56 `/status 200`（iOS 27 一般請求的 assertion 通過）。
+- **真機驗收 2 已通過：** Apple 原生付款頁月訂閱為 **NT$10.00 per month**、買斷為 **NT$100.00 One-time
+  charge**，與方案卡一致，並標示測試不收費；兩者都只開啟付款頁、未確認購買。9/21 起的「卡片 USD／付款 TWD」
+  問題在 iOS 27＋36 上已不再出現。尚待：刪除後重裝 36、ATT 影片。重送前，build 34 審查備註的
+  「KNOWN PRICE DISPLAY LIMITATION」段落應刪除。
+- 36 上傳後的真機驗收，只用 TestFlight，不要用 Xcode Debug 覆蓋：
+  1. 在卡住的手機把 35 原地更新到 36。啟動後不應再出現 attest-assertion。若 AppTransaction 太舊，
+     可能先看到「Tap Refresh membership」或 `session · MembershipHTTP/401`；點同步後應恢復，會員編號不變。
+  2. 方案卡應顯示 NT$10／NT$100，Choose plan 能打開 Apple 付款頁（可以取消，不必購買）。
+  3. 刪除後重裝 36，第一次開啟就應正常。
+
+## 商品卡美元／付款頁台幣：結案 — 2026-09-23（已被上節取代）
+
+- **9/24 更新：** 下方的剩餘檢查 1 在 iOS 27 上出現了第三種結果，「App 不改」已由 1.7.0（36）取代，見上節。
+- **結論：Apple TestFlight 的 StoreKit 缺陷，不是 App 缺陷；依使用者指示不修。** 信心高。
+- Apple 官方：[iOS & iPadOS 27 Release Notes](https://developer.apple.com/documentation/ios-ipados-release-notes/ios-ipados-27-release-notes)
+  StoreKit → **Resolved Issues**：「Fixed: `Storefront` API might return incorrect metadata when
+  running in the TestFlight environment. (181766819) (FB23646993)」。本日由三個獨立查核讀回
+  Apple 文件 JSON 確認。Wayback 存檔顯示 beta 4 沒有、beta 6 起出現，從未列為 Known Issue；
+  iOS 26.0–26.6 release notes 都沒有這一條。macOS 27 notes 有同一條、Xcode 27 沒有，推論是
+  系統層修正：要把手機升到 iOS 27，重新 build App 無效。測試機 iOS 26.6.2 沒有這個修正。
+- 同症狀的外部回報：Apple Developer Forums
+  [844269](https://developer.apple.com/forums/thread/844269)（2026-09，storefront id 是日本、
+  countryCode 卻是 USA）、[845478](https://developer.apple.com/forums/thread/845478)（2026-09，
+  FRA/EUR 商店卻回 USD 商品）、[794932](https://developer.apple.com/forums/thread/794932)（iOS 26
+  beta）。共同特徵：只在 TestFlight 發生，同機 dev build 正常，付款頁幣別正確。
+  RevenueCat [sandbox 文件](https://www.revenuecat.com/docs/test-and-launch/sandbox/apple-app-store)
+  也把「App 內 USD、付款頁當地幣別」列為已知的 TestFlight 狀況。
+- App 程式：價格路徑沒有會造成此症狀的缺陷。`MembershipView.swift:196` 直接顯示
+  `Text(product.displayPrice)`；購買用的是剛抓到、正顯示在卡片上的同一個 `Product`
+  （`MembershipManager.swift:185`、`:201`、`:207`），只附 `appAccountToken`。StoreKit 的
+  `PurchaseOption` 沒有能指定幣別或商店的選項，價格也沒有存到磁碟。卡片的 1／10 是美國價格點，
+  不是台灣的 10／100 套錯符號，可見 metadata 整份來自美國目錄。同一段程式碼在 Debug Sandbox
+  ＋台灣 Sandbox 帳號時顯示 NT$10／NT$100（9/21 19:22）。付款前沒有任何 StoreKit API
+  能取得付款頁幣別。
+- 正式版風險：低，但這是判斷，不是實測。正式安裝只有 Media & Purchases 一個帳號，
+  商品 metadata 與付款頁同源。付款頁顯示的才是實際收費，購買前一定看得到。
+  1.6.5 沒有 IAP，所以上架前無法用正式版驗證。
+- **不採用**：`onStorefrontChange`（只在交易途中商店改變時觸發，對此症狀無效）、
+  另出會記錄 Storefront.id 的診斷 build、後端存 storefront／currency，以及已否決的替代方案
+  （寫死台幣、依語言／GPS、自選國家、舊交易價、隱藏價格）。
+- 剩餘檢查都不需要改程式：
+  1. 手機升到 iOS 27 後（ATT 錄影本來就要升），開 TestFlight 35 → 會員與方案，只看卡片、不購買。
+     NT$10／NT$100 表示 Apple 的修正涵蓋價格；$1／$10 表示仍是 TestFlight 問題，一樣結案。
+     若出現「暫時無法更新 App Store 價格」，表示 Apple 只修了 Storefront、商品仍回 USD，被
+     `MembershipModels.swift:26-43` 的幣別一致性檢查擋下（`MembershipTests.swift:45` 鎖定此行為），
+     只有這種情況需要使用者決定是否在 sandbox 放寬檢查。
+  2. 1.7.0 上架後，用台灣帳號從 App Store 安裝，確認卡片為 NT$10／NT$100。若顯示 US$，重開此項。
+- 重送 35 前：[build 34 審查備註](appstore-review-notes-1.7.0-34.txt) 的「KNOWN PRICE DISPLAY
+  LIMITATION」段落主動寫了「not proof ... that production will be unaffected」，可能招來付費說明的
+  提問，而審查裝置本來就在 iOS 27。建議刪掉，或改成一句事實陳述，措辭由使用者決定。
+- 本次只查證與更新文件：未改程式、未建置、未上傳、未送審、未回報 Apple Feedback。
+
+## 1.7.0（35）TestFlight 修正版 — 2026-09-23
+
+- 使用者授權上傳修正版至 TestFlight。版本保持 1.7.0，App／widget／notification extension
+  同步 build 35；本輪不重新提交 App Review、不公開發布。
+- 包含下方地點搜尋與 ATT 修正，並額外處理 Organizer 取得的 build 34 真機閃退：
+  9/22、iPhone 16 Pro／iOS 26.6.2，通知 didReceive 的 async Objective-C completion
+  在 worker thread 觸發 UIKit assertion。改為明確 completion handler，於 MainActor
+  完成 acknowledgement 後才回呼；新增五項背景入口／主執行緒／完成順序測試。
+- 全套測試發現日曆及天災整合測試依賴共享會員快取，已在測試注入明確權益；正式會員
+  gate 與 1.7.0 的 `supportsTemporaryClosures = false` 未改。
+- iOS 26.5 的本機 StoreKit service 再次出現 configuration / Code 3，已改用既有
+  iOS 26.2 乾淨專用 Simulator 與簽章 Local scheme，完整 **377 項通過、0 失敗、0 跳過**。
+  包含實際 Local StoreKit 購買、恢復、續訂、到期、退款與待批准。舊測試裝置啟動停滯，
+  改用隔離的 `RainyClock Release 35 Tests` 後正常；測試結束已關閉。
+- Release archive 成功，App 與兩個 extension 均為 1.7.0（35），production App Attest、
+  正式會員 URL、兩語系 ATT 文案、無 `.storekit` fixture 及簽章均已核對。
+  **22:31:20 上傳成功**，Apple 已完成處理；內部 `SKHU tester`（1 人）可更新。
+  build ID `c3ad05c5-0e2c-42b5-b7e9-01d605ffd677`。中英文測試說明已保存，
+  ASC「已儲存」與群組 1 人均已讀回確認，沒有覆蓋使用者手機的 App。
+  IronSource 第三方 dSYM 缺漏警告仍存在，未阻擋 upload/export。
+  日誌：`/tmp/rainyclock-170-35/tests-final-passed.log`、`archive-release.log`、`upload.log`。
+- 真機 iOS 27／iPad 流程與 ATT 錄影仍待完成。6.5 吋繁中已讀回使用 6.9 吋新版圖，
+  英文（美國）尚未核對清理結果。先前 TestFlight 價格卡
+  USD／付款 TWD 問題未確認解決；本輪沒有修改定價、後端或 1.7.1 開關。
+- 詳細原因與限制見 [退審報告](APP-REVIEW-2026-09-23.md)，
+  [build 35 測試說明](testflight-1.7.0-35.txt)。
+
+## 1.7.0（34）退審 — 2026-09-23
+
+- 使用者提供 Apple 訊息，submission `5a8a1d24-97da-4eb9-89a7-350274dccc85`：
+  **2.3.3**（6.5 吋截圖多數未展示實際 App）、**2.1(a)**（找不到地點，核心功能無法使用）、
+  **2.1 Information Needed**（找不到 ATT 提示，要求新安裝／重置權限的真機錄影）。
+  裝置為 iPad Air 11-inch M3／iPhone 17 Pro Max，iPadOS／iOS 27.0，網路正常。
+- 本機診斷確認：ATT 與 production-only 廣告開關及會員廣告身分綁定，Sandbox／TestFlight
+  會一起跳過；ATT 因非 active 延後時，SDK 初始化亦未等待授權狀態確定。
+  **使用者補充地址為 Taipei Main station／Taipei 101**；macOS 實際 Apple 查詢兩者皆成功，
+  **尚未重現 iOS 27 案例**。但 MapKit 中文名稱會被現有英文比對拒絕，依賴額外英文反查救回；
+  反查失敗與後續候選未被檢查是後續重現重點。固定台灣偏向不是本案例主要假設。
+- 退審時的舊素材紀錄與 6.5 吋尺寸相符；9/23 使用者清理後，繁中已重新讀回繼承
+  6.9 吋新版圖，英文（美國）尚未核對。詳見[截圖紀錄](appstore-1.7.0-screenshots/README.md)。
+- 後續使用者提供審查截圖：明確失敗的是 **Home / Taipei Main Station**，Work 尚未解析。
+  已修正 `MapItemResolver` 首筆不符就放棄整批候選的缺陷，並保留翻譯失敗前已匹配的名稱／座標。
+  iOS 26.5 模擬器 50 項相關測試全過（含新增 8 項候選回歸）；macOS 實際 Apple 查詢两筆皆成功。
+- ATT 程式已修正：同意流程獨立於會員身分與 production 廣告開關，TestFlight 也可顯示系統提示；
+  GDPR sheet 實際關閉後才要求 ATT，`notDetermined` 時 SDK 保持關閉。拒絕／受限制不阻擋核心功能；
+  模擬器／TestFlight 仍禁止正式廣告流量。新增 19 項同意流程測試，連同會員及鬧鐘排程共 54 項全過。
+  隔離的 iPhone 17 Pro Max／iOS 26.5 模擬器亦實際驗到首開 ATT、拒絕後進入設定且重啟不重問、
+  GDPR sheet 關閉後出現 ATT，再選允許回到首頁；仍不是 Apple 要求的真機影片。
+- 詳見 [退審診斷與重送條件](APP-REVIEW-2026-09-23.md)。尚未重現／驗收 iOS 27 真機完整流程，
+  ATT 真機錄影與英文 6.5 吋素材核對尚未完成；build 35 交付進度見上方最新紀錄。
+
+## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
 - **工作樹已全部提交到 `ios/main`**（四個 commit：App 與測試、weather-proxy 會員後端、
   dayoff-service 與天災文件、其餘文件與素材）。1.7.0（34）送審的原始碼從此有 git 紀錄；
@@ -24,21 +177,48 @@ Last updated: 2026-09-22.
   `DisasterSuspensionEvaluator` 與設定頁說明文字同步改為 OR。Android 尚未實作，
   升版只是給它的交接訊號。
 - `AppEnvironment.supportsTemporaryClosures` 仍為 `false`；1.7.0 在審，版本號不動。
-  1.7.1 開閘前仍缺：NCDR 會員 API key、dayoff-service 的常駐部署（需持久磁碟，不是現有
-  request-only Cloud Run 型態）並填入 `DayOffServiceURL`、APNs 金鑰與正式 push capability、
-  真機驗證（晚間公告、重啟、低耗電、關背景更新、強制結束、撤銷、關閉後恢復）、
-  恢復設定入口與方案文案、發布 [1.7.1 備忘](1.7.1-DEFERRED-DISASTER.md) 的隱私條款、
+  **dayoff-service 已於 2026-09-24 重構為做法一（`d0e80ab`）**：Cloud Scheduler → Cloud Run Job
+  `rainyclock-dayoff-poll`（抓 NCDR、寫 Firestore、推播）＋ request-only Cloud Run 服務
+  `rainyclock-dayoff`；狀態全在 Firestore `dayoff-production`，無磁碟、無常駐程序。設計由
+  三位設計者／三位評審／合成產生，實作經三位對抗式審查（8 項確認並修正）。測試 107 項：
+  純本機 100 過 7 略過，Firestore Emulator（Java 21）107 全過。雲端已建：資料庫、四個 TTL、
+  兩個索引豁免、兩個空 secret（`dayoff-ncdr-api-key`、`dayoff-apns-key`）。
+- **2026-09-24 上午已上線（fetch-only）**：使用者跑 `deploy/iam.sh` 建好服務帳號與 IAM 後，服務
+  `rainyclock-dayoff`（`https://rainyclock-dayoff-510427696731.asia-east1.run.app`）、Job
+  `rainyclock-dayoff-poll`、Scheduler `*/5` 都已部署；第一次執行後 `/health` 200 `ready`，
+  `/v1/suspensions` 回 8 月下旬颱風的 14 則真實公告。**資料來源用 `NCDR_SOURCE=open-data`**（`3c227c4`）：
+  NCDR 會員只發給公務／公司／學校信箱，個人申請不到；改用 data.gov.tw 資料集 20457 登錄的免金鑰
+  網址（政府資料開放授權；NCDR 公告 3/31 下架但 9/24 仍正常）。這是明確設定，不是備援。
+  之後同日：`run.invoker` 補上、Scheduler 自動觸發驗證通過；APNs `.p8` 掛上、`pushConfigured:true`，
+  第一次廣播對零台裝置走完 `done`；三個記錄指標、email 通知通道與三個告警 policy 建好（通道待驗證信）。
+  **尚未**：absence 告警實測、真機推播驗證（等 1.8.0 開閘）。指令與逐條執行紀錄見
+  [dayoff-service/DEPLOYMENT.md](../dayoff-service/DEPLOYMENT.md)。
+  1.8.0 開閘前仍缺：把服務網址填入 `DayOffServiceURL`、確認正式 build 的 push capability、
+  真機驗證（晚間公告、重啟、低耗電、關背景更新、強制結束、撤銷、關閉後恢復、
+  **可見推播在 App 關閉時被擴充功能改寫**）、
+  恢復設定入口與方案文案、發布 [1.8.0 備忘](1.8.0-DEFERRED-DISASTER.md) 的隱私條款、
   決定買斷是否包含此功能。
 - 本輪驗證：Debug 建置 0 警告；dayoff-service 52 過；weather-proxy 186 過 3 略過（無
   Emulator）；iOS 全套約 339 項，用 `RainyClock Membership Local` scheme 且**簽章**跑才
   全過 —— `CODE_SIGNING_ALLOWED=NO` 會讓 3 項 Keychain 路由測試失敗，一般 `RainyClock`
   scheme 會讓 StoreKit 測試碰真商店並在模擬器彈出 Apple ID 登入框。
+- **2026-09-23 下午：使用者看過模擬器推播截圖，確認作法 B 的結果「很好」，正式納入 1.7.1 範圍（現為 1.8.0）。**
+  模擬器以 `simctl push` 送 alert 模式 payload，App 顯示本地化橫幅「停班停課公告已更新」。
+  這只證明 payload 與權限流程；擴充功能是否被喚醒、改寫是否生效，仍要真機用真 APNs 驗證。
+  橫幅只見標題、未見正文，真機驗證時一併確認 `body-loc-key`。
+- **2026-09-23：推播改為作法 B。** dayoff-service 新增 `APNS_PUSH_MODE=alert`（預設）：對所有裝置
+  廣播同一則可見推播、無位置資料、collapse 成一則、10 小時過期；`/health` 回 `pushMode`。iOS 新增
+  `RainyClockDayOffNotification` Notification Service Extension、App Group
+  `group.com.shukaihu.RainyClock`、Time Sensitive entitlement；`DayOffSharedState` 由 AlarmViewModel
+  在儲存設定與排程摘要時鏡射（有效設定，gate 仍生效），`DayOffPushContent` 用同一個評估器把
+  通知改寫成符合／相關／無關／不改。設計見 [DISASTER-PREVIEW.md](DISASTER-PREVIEW.md)。
+  **尚未在真機驗證**：擴充功能需要真的 APNs 推播才會執行；模擬器無法收 APNs。
 - ASC 審查結果本輪未讀到（隔離瀏覽器為登入頁，Gmail 無 Apple 信件）。
   `RainyClock-dayoff-preview/` 工作樹每個檔案都比主工作樹舊，可移除。
 
-> **下一個 AI 請先讀 [2026-09-22 iOS 交接檔](HANDOFF-IOS-2026-09-22.md)。**
-> 已集中整理實際送審結果、最新方案、雲端環境、價格問題與驗收缺項；以下仍保留歷史時序。
-> 9/22 本輪僅整理交接文件，未重新查詢 ASC／雲端、修改程式、建置、部署或發布。
+> **下一個 AI 請先讀 [2026-09-23 iOS 交接檔](HANDOFF-IOS-2026-09-23.md)。**
+> [9/22 交接](HANDOFF-IOS-2026-09-22.md) 與以下時序保留為歷史背景；目前已退審並交付 build 35，
+> 不可沿用舊「34 等待審查／未有 35」狀態。此次交接整理僅改文件，未再建置、部署或發布。
 
 ## ASC 1.7.0（34）已由使用者提交審查 — 2026-09-21
 
@@ -547,7 +727,7 @@ TestFlight 新接線仍須真機確認。以下 19:22「只有 Sandbox／URL 空
 
 - 使用者決定將颱風／天災臨時放假保留至 **1.7.1**。中央 release gate 關閉；
   日曆設定、會員方案、狀態提示及公開隱私草稿不再公開此功能。
-  原程式、偏好、地圖、快取與服務保留，詳見 [1.7.1 備忘](1.7.1-DEFERRED-DISASTER.md)。
+  原程式、偏好、地圖、快取與服務保留，詳見 [1.8.0 備忘](1.8.0-DEFERRED-DISASTER.md)（原 1.7.1）。
 - 有效排程副本忽略臨時放假；舊 skip 在安全時機替換，失敗保留舊排程並允許重試。
   背景與推播不下載／套用公告，僅保留撤销舊推播註冊所需清理。
 - 美國來源已可選，依 OPM 常態聯邦假日與標準補假規則離線計算，含跨年補假及

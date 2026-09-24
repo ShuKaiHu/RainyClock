@@ -4,7 +4,8 @@ Rain-aware commute alarm. The iPhone app (repo root) is SwiftUI with Apple Maps
 for routes, Apple Weather / WeatherKit for forecasts, AlarmKit for alarms on iOS 26+, and one
 Unity LevelPlay banner. Two Node backends live beside it: `weather-proxy/` (Cloud Run — Android
 weather relay, AI voice, and the RainyClock Plus membership service) and `dayoff-service/` (the
-typhoon 停班停課 poller for 1.7.1, not yet deployed). The Android port lives in `android/` (Kotlin + Jetpack Compose) —
+typhoon 停班停課 feed for 1.8.0: a Cloud Run Job polls NCDR into Firestore and a request-only
+Cloud Run service serves it; deployment state is in `dayoff-service/DEPLOYMENT.md`). The Android port lives in `android/` (Kotlin + Jetpack Compose) —
 platform substitutions and its own gotchas are in `docs/ANDROID.md`, and the Play Store
 runbook is `docs/play-store-submission-checklist.md`.
 

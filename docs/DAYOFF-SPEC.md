@@ -1,6 +1,6 @@
 # Day-off suppression — shared specification
 
-**Spec version: 3** · Researched and written 2026-09-10 on `ios/main`; v3 on 2026-09-22. iOS has implemented (A) and (B) against this contract, gated off for 1.7.0 and being prepared for 1.7.1 — see `docs/DISASTER-PREVIEW.md` for the shipped architecture where it differs from the proposals below. Android has not started.
+**Spec version: 3** · Researched and written 2026-09-10 on `ios/main`; v3 on 2026-09-22. iOS has implemented (A) and (B) against this contract, gated off for 1.7.0 and being prepared for 1.8.0 — see `docs/DISASTER-PREVIEW.md` for the shipped architecture where it differs from the proposals below. Android has not started.
 
 Two features that answer the same question — *is there anything to get up for tomorrow?* — and
 therefore share one data path, one decision function, and one set of test fixtures:
@@ -485,6 +485,19 @@ night before what tomorrow's alarm will do. Day-off is another input to that sam
 new one. The holiday filter belongs in the date predicate inside
 `AlarmTimeCalculator.nextAlarmDateForWeatherCheck`.
 
+**Path C — the notification says it, even if the app never wakes (decided 2026-09-23, iOS).**
+The owner's real fear was a phone left untouched all night. So the server broadcasts one *visible*
+push to every registered device, carrying no location, and the app's Notification Service
+Extension — which iOS runs on delivery even when the app is closed — reads the confirmed
+districts from the App Group, fetches the feed, runs the same decision function, and rewrites
+the notification: time-sensitive with the area named on a match, informative with the reason
+when the district is mentioned but nothing is silenced, silent and passive when unrelated. The
+server never learns where anyone lives. Path C is a *notification*, not a decision: the alarm is
+still only silenced by the app, on its own evidence, under Path A/B rules. (The "no App Group"
+constraint in §5 is now historical: the group exists for this one read-only mirror, not for the
+ring screen.) Android can do the same with FCM data messages handled in a foreground-exempt
+receiver; the decision function stays shared.
+
 **Android is genuinely better here.** An alarm-clock app may hold `USE_EXACT_ALARM` and use
 `setExactAndAllowWhileIdle()` to wake at 04:35 and re-decide before the real alarm. Keep Path B
 anyway — OEM battery managers kill background work regardless — and keep the decision logic
@@ -686,6 +699,11 @@ writing a branch that suppresses an alarm on incomplete information, that branch
   (evaluator, settings copy, tests). Also notes that iOS has implemented the feature behind a
   release gate, and corrects the v2 changelog line below: **324** alerts lack the `_i_` segment,
   not 107.
+- **v3, amended** (2026-09-23) — Path C added to §6: a broadcast visible push personalised on the
+  phone by a Notification Service Extension, so an untouched phone still shows the announcement.
+  No fixture or decision-function change, so `specVersion` stays 3.
+- **v3, amended** (2026-09-24) — target release renamed from 1.7.1 to 1.8.0 (the owner reserved
+  1.7.1 for other work). No behaviour change.
 - **v1** (2026-09-10) — initial spec. Sources verified first-hand; 365-record corpus harvested from
   the NCDR history API across eight typhoon events (2024-07 … 2026-08); fixtures generated from it.
   Nothing implemented on either platform.

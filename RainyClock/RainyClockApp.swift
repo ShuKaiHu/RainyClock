@@ -78,12 +78,6 @@ struct RainyClockApp: App {
         Task {
             await LocalNotificationScheduler().rearmAlarmsIfNeeded()
         }
-
-        // The tracking prompt is skipped when the consent flow finishes while
-        // the app is not yet active; this is where that launch catches up.
-        Task {
-            await ConsentManager.shared.requestTrackingAuthorizationIfDeferred()
-        }
     }
 
     private var mainContent: some View {

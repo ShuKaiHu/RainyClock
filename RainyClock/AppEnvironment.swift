@@ -23,7 +23,7 @@ enum MembershipAdvertisingGate {
 }
 
 enum AppEnvironment {
-    /// Deferred from 1.7.0 to 1.7.1. Keep saved preferences and implementation,
+    /// Deferred from 1.7.0 to 1.8.0 (1.7.1 is reserved for other work). Keep saved preferences and implementation,
     /// but exclude the feature from this release's UI, scheduling and networking.
     static let supportsTemporaryClosures = false
 
@@ -58,8 +58,14 @@ enum AppEnvironment {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
-    /// Simulator UI testing and Apple Sandbox membership builds/launches
-    /// must not initialize the production ad SDK or request advertising consent.
+    /// The privacy flow is the same before membership verification and in
+    /// TestFlight. XCTest uses injected permission clients instead of system UI.
+    static var allowsAdvertisingConsent: Bool {
+        !isRunningTests
+    }
+
+    /// Simulator and Apple Sandbox builds must not initialize production ads.
+    /// This gate deliberately does not control whether ATT can be requested.
     static var allowsAdvertising: Bool {
         #if targetEnvironment(simulator)
         false

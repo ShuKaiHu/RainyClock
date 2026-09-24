@@ -817,7 +817,7 @@ still require one rewarded ad each. The latest September 21 decision gives both 
 lifetime banner removal, calendar and one shared daily AI generation. Lifetime permanently grants
 these current benefits and is the displayed plan when both are owned; it prevents redundant monthly
 purchase. Existing Apple subscriptions remain visible and manageable, never silently cancelled.
-Free users still have one initial generation. Temporary closures are deferred to 1.7.1 and must not
+Free users still have one initial generation. Temporary closures are deferred to 1.8.0 and must not
 appear in 1.7.0 paid copy; future lifetime eligibility for them is not decided.
 
 Current lifetime descriptions — saved and read back in ASC on 2026-09-21 (not submitted):

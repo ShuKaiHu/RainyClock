@@ -305,13 +305,21 @@ final class AlarmCalendarTests: XCTestCase {
 
 @MainActor
 final class CalendarSchedulingTests: XCTestCase {
+    // Calendar scheduling tests must not depend on the host app's cached
+    // StoreKit purchases or membership startup timing. Rights enforcement is
+    // covered separately by MembershipSchedulingTests.
+    private static let calendarEntitlements = MembershipEntitlements(
+        removeBanner: true, calendar: true, temporaryClosures: false,
+        dailyAI: true, subscriptionActive: false, lifetimeActive: true)
+
     func testRainOnlyUsesEarlySoundOnTheForecastedCalendarOccurrence() async throws {
         let suite = "CalendarSoundTests-\(UUID())"
         let storage = UserDefaults(suiteName: suite)!
         defer { storage.removePersistentDomain(forName: suite) }
         let scheduler = CalendarSchedulerSpy()
         let vm = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: scheduler,
-            settingsStorage: storage, holidayCalendar: .init())
+            settingsStorage: storage, holidayCalendar: .init(),
+            membershipEntitlements: { Self.calendarEntitlements })
         vm.settings.homeAddress = "Rain Street"; vm.settings.workAddress = "Office"
         vm.settings.alarmTime = Date().addingTimeInterval(3 * 3_600)
         vm.settings.calendarSettings.isEnabled = true
@@ -323,7 +331,8 @@ final class CalendarSchedulingTests: XCTestCase {
         XCTAssertGreaterThan(plan.occurrences.count, 1)
         XCTAssertEqual(plan.occurrences.first?.soundSelection?.sound, .digitalBeep)
         XCTAssertTrue(plan.occurrences.dropFirst().allSatisfy { $0.soundSelection?.sound == .softPiano })
-        let restored = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage)
+        let restored = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage,
+            membershipEntitlements: { Self.calendarEntitlements })
         XCTAssertEqual(restored.scheduledAlarmSummary?.calendarPlan, plan)
     }
 
@@ -331,7 +340,8 @@ final class CalendarSchedulingTests: XCTestCase {
         let suite = "CalendarToggleTests-\(UUID())"
         let storage = UserDefaults(suiteName: suite)!
         defer { storage.removePersistentDomain(forName: suite) }
-        let vm = AlarmViewModel(notificationScheduler: CalendarSchedulerSpy(), settingsStorage: storage, holidayCalendar: .init())
+        let vm = AlarmViewModel(notificationScheduler: CalendarSchedulerSpy(), settingsStorage: storage, holidayCalendar: .init(),
+            membershipEntitlements: { Self.calendarEntitlements })
         vm.settings.calendarSettings = .init(isEnabled: true, source: .taiwan)
         vm.settings.selectedWeekdays = Set(1...7)
         let day = AlarmCalendarSettings.calendar.date(from: DateComponents(year: 2030, month: 1, day: 2, hour: 12))!
@@ -343,7 +353,8 @@ final class CalendarSchedulingTests: XCTestCase {
         XCTAssertFalse(vm.calendarDayIsEdited(day))
         XCTAssertTrue(vm.dayDecision(on: day).rings)
         XCTAssertEqual(vm.settings.scheduleFingerprint(), original)
-        let restored = AlarmViewModel(notificationScheduler: CalendarSchedulerSpy(), settingsStorage: storage, holidayCalendar: .init())
+        let restored = AlarmViewModel(notificationScheduler: CalendarSchedulerSpy(), settingsStorage: storage, holidayCalendar: .init(),
+            membershipEntitlements: { Self.calendarEntitlements })
         XCTAssertTrue(restored.settings.calendarSettings.overrides.isEmpty)
         XCTAssertFalse(restored.calendarDayIsEdited(day))
     }
@@ -354,7 +365,8 @@ final class CalendarSchedulingTests: XCTestCase {
         defer { storage.removePersistentDomain(forName: suite) }
         let scheduler = CalendarSchedulerSpy()
         let vm = AlarmViewModel(routeWeatherService: SlowCalendarWeather(), notificationScheduler: scheduler,
-            settingsStorage: storage, calendarWeatherTimeout: .milliseconds(20))
+            settingsStorage: storage, calendarWeatherTimeout: .milliseconds(20),
+            membershipEntitlements: { Self.calendarEntitlements })
         vm.settings.homeAddress = "Home"; vm.settings.workAddress = "Office"
         vm.settings.calendarSettings.isEnabled = true
         vm.settings.calendarSettings.source = .taiwan
@@ -371,7 +383,8 @@ final class CalendarSchedulingTests: XCTestCase {
         defer { storage.removePersistentDomain(forName: suite) }
         let scheduler = CalendarSchedulerSpy()
         let vm = AlarmViewModel(routeWeatherService: OfflineCalendarWeather(), notificationScheduler: scheduler,
-            settingsStorage: storage, autoRefreshDebounce: .milliseconds(20))
+            settingsStorage: storage, autoRefreshDebounce: .milliseconds(20),
+            membershipEntitlements: { Self.calendarEntitlements })
         vm.settings.homeAddress = "Home"; vm.settings.workAddress = "Office"
         vm.settings.calendarSettings.isEnabled = true
         vm.settings.calendarSettings.source = .taiwan
@@ -383,7 +396,8 @@ final class CalendarSchedulingTests: XCTestCase {
         XCTAssertEqual(scheduler.plans.count, 2)
         XCTAssertFalse(scheduler.plans.last!.occurrences.contains { $0.normalDate == next })
         XCTAssertFalse(vm.isScheduleStale)
-        let restored = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage)
+        let restored = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage,
+            membershipEntitlements: { Self.calendarEntitlements })
         XCTAssertEqual(restored.settings.calendarSettings, vm.settings.calendarSettings)
     }
     func testReturningToWeeklyScheduleWorksOffline() async throws {
@@ -392,7 +406,8 @@ final class CalendarSchedulingTests: XCTestCase {
         defer { storage.removePersistentDomain(forName: suite) }
         let scheduler = CalendarSchedulerSpy()
         let vm = AlarmViewModel(routeWeatherService: OfflineCalendarWeather(), notificationScheduler: scheduler,
-            settingsStorage: storage, autoRefreshDebounce: .milliseconds(20))
+            settingsStorage: storage, autoRefreshDebounce: .milliseconds(20),
+            membershipEntitlements: { Self.calendarEntitlements })
         vm.settings.homeAddress = "Home"; vm.settings.workAddress = "Office"
         vm.settings.calendarSettings.isEnabled = true
         vm.settings.calendarSettings.source = .taiwan
@@ -408,7 +423,8 @@ final class CalendarSchedulingTests: XCTestCase {
         let suite = "CalendarSchedulingTests-\(UUID())"
         let storage = UserDefaults(suiteName: suite)!
         defer { storage.removePersistentDomain(forName: suite) }
-        let vm = AlarmViewModel(routeWeatherService: OfflineCalendarWeather(), notificationScheduler: CalendarSchedulerSpy(), settingsStorage: storage)
+        let vm = AlarmViewModel(routeWeatherService: OfflineCalendarWeather(), notificationScheduler: CalendarSchedulerSpy(), settingsStorage: storage,
+            membershipEntitlements: { Self.calendarEntitlements })
         vm.settings.homeAddress = "Home"; vm.settings.workAddress = "Office"
         vm.settings.calendarSettings.isEnabled = true
         vm.settings.calendarSettings.source = .taiwan
@@ -424,7 +440,8 @@ final class CalendarSchedulingTests: XCTestCase {
         defer { storage.removePersistentDomain(forName: suite) }
         let scheduler = CalendarSchedulerSpy()
         let vm = AlarmViewModel(routeWeatherService: OfflineCalendarWeather(), notificationScheduler: scheduler,
-            settingsStorage: storage, autoRefreshDebounce: .milliseconds(20))
+            settingsStorage: storage, autoRefreshDebounce: .milliseconds(20),
+            membershipEntitlements: { Self.calendarEntitlements })
         vm.settings.homeAddress = "Home"; vm.settings.workAddress = "Office"
         vm.settings.calendarSettings.isEnabled = true
         vm.settings.calendarSettings.source = .taiwan
@@ -537,6 +554,11 @@ final class SettingsPreferenceTests: XCTestCase {
 
 @MainActor
 final class SettingsPreferenceSchedulingTests: XCTestCase {
+    // These preference transitions require calendar access regardless of what
+    // an earlier StoreKit test purchased, refunded, or left in the host cache.
+    private static let calendarEntitlements = MembershipEntitlements(
+        removeBanner: true, calendar: true, temporaryClosures: false,
+        dailyAI: true, subscriptionActive: false, lifetimeActive: true)
     private var storage: UserDefaults!
     private var suiteName: String!
 
@@ -553,7 +575,8 @@ final class SettingsPreferenceSchedulingTests: XCTestCase {
     func testCalendarSwitchOffRestoresWeeklyAndRetainsOverrides() async throws {
         let spy = CalendarSchedulerSpy()
         let vm = AlarmViewModel(routeWeatherService: OfflineCalendarWeather(), notificationScheduler: spy,
-            settingsStorage: storage, autoRefreshDebounce: .milliseconds(20))
+            settingsStorage: storage, autoRefreshDebounce: .milliseconds(20),
+            membershipEntitlements: { Self.calendarEntitlements })
         vm.settings.homeAddress = "Home"; vm.settings.workAddress = "Office"
         vm.settings.calendarSettings = .init(isEnabled: true, overrides: ["2027-01-01": .ring])
         await vm.evaluateRouteAndScheduleAlarm()
@@ -571,7 +594,8 @@ final class SettingsPreferenceSchedulingTests: XCTestCase {
     func testDisablingManualOnlyCalendarDoesNotEnableAllWeekdays() async throws {
         let spy = CalendarSchedulerSpy()
         let vm = AlarmViewModel(routeWeatherService: OfflineCalendarWeather(), notificationScheduler: spy,
-            settingsStorage: storage, autoRefreshDebounce: .milliseconds(20))
+            settingsStorage: storage, autoRefreshDebounce: .milliseconds(20),
+            membershipEntitlements: { Self.calendarEntitlements })
         vm.settings.homeAddress = "Home"; vm.settings.workAddress = "Office"
         vm.settings.selectedWeekdays = []
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
@@ -587,7 +611,8 @@ final class SettingsPreferenceSchedulingTests: XCTestCase {
         let spy = CalendarSchedulerSpy()
         let previews = TimeFormatPreviewSpy()
         let vm = AlarmViewModel(routeWeatherService: OfflineCalendarWeather(), notificationScheduler: spy,
-            previewScheduler: previews, settingsStorage: storage)
+            previewScheduler: previews, settingsStorage: storage,
+            membershipEntitlements: { Self.calendarEntitlements })
         vm.settings.homeAddress = "Home"; vm.settings.workAddress = "Office"
         vm.settings.calendarSettings = .init(isEnabled: true)
         await vm.evaluateRouteAndScheduleAlarm()

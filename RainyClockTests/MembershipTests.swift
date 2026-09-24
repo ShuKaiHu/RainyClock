@@ -17,6 +17,7 @@ final class MembershipProductCatalogTests: XCTestCase {
         }, currency: { $0.currency })
         XCTAssertEqual(catalog.storefront, tw)
         XCTAssertEqual(catalog.products.first?.displayPrice, "NT$10.00")
+        XCTAssertFalse(catalog.currencyMismatch)
         XCTAssertEqual(fetches, 1)
     }
 
@@ -39,10 +40,11 @@ final class MembershipProductCatalogTests: XCTestCase {
             return [fetches == 1 ? "USD" : "TWD"]
         }, currency: { $0 })
         XCTAssertEqual(catalog.products, ["TWD"])
+        XCTAssertFalse(catalog.currencyMismatch)
         XCTAssertEqual(fetches, 2)
     }
 
-    func testPersistentCurrencyMismatchNeverPublishesWrongCurrency() async {
+    func testMixedProductCurrenciesAreNeverPublished() async {
         var fetches = 0
         do {
             _ = try await MembershipProductCatalog.load(storefront: { self.tw }, products: {
@@ -52,6 +54,50 @@ final class MembershipProductCatalogTests: XCTestCase {
             XCTFail("Conflicting product currencies must not be published")
         } catch { XCTAssertEqual(error as? MembershipError, .productUnavailable) }
         XCTAssertEqual(fetches, 2)
+    }
+
+    /// TestFlight on iOS 27.0: Storefront reports Taiwan, products still come back
+    /// in USD, and Apple's payment sheet charges NT$. Hiding them blocked purchases.
+    func testPersistentSingleCurrencyMismatchPublishesAppleProductsAfterOneRetry() async throws {
+        var fetches = 0
+        let catalog = try await MembershipProductCatalog.load(storefront: { self.tw }, products: {
+            fetches += 1
+            return ["USD", "USD"]
+        }, currency: { $0 })
+        XCTAssertEqual(catalog.storefront, tw)
+        XCTAssertEqual(catalog.products, ["USD", "USD"])
+        XCTAssertTrue(catalog.currencyMismatch)
+        XCTAssertEqual(fetches, 2)
+    }
+
+    func testStaleCatalogAfterStorefrontSwitchIsMarkedForTheNewStorefront() async throws {
+        var reads = [us, tw, tw, tw]
+        let catalog = try await MembershipProductCatalog.load(storefront: { reads.removeFirst() },
+            products: { ["USD"] }, currency: { $0 })
+        XCTAssertEqual(catalog.storefront, tw)
+        XCTAssertTrue(catalog.currencyMismatch)
+    }
+
+    func testMismatchFromEarlierAttemptIsNotPublishedAfterStorefrontChanges() async {
+        var reads = [tw, tw, tw, us]
+        var fetches = 0
+        do {
+            _ = try await MembershipProductCatalog.load(storefront: { reads.removeFirst() }, products: {
+                fetches += 1
+                return ["USD"]
+            }, currency: { $0 })
+            XCTFail("Only the last attempt's stable storefront may be published")
+        } catch { XCTAssertEqual(error as? MembershipError, .productUnavailable) }
+        XCTAssertEqual(fetches, 2)
+    }
+
+    func testListedPricesCoverOnlyTheStorefrontsWherePlansAreSold() {
+        XCTAssertEqual(MembershipListedPrice.text(for: .monthly, storefrontCountryCode: "TWN"), "NT$10")
+        XCTAssertEqual(MembershipListedPrice.text(for: .lifetime, storefrontCountryCode: "TWN"), "NT$100")
+        XCTAssertEqual(MembershipListedPrice.text(for: .monthly, storefrontCountryCode: "USA"), "$1.00")
+        XCTAssertEqual(MembershipListedPrice.text(for: .lifetime, storefrontCountryCode: "USA"), "$10.00")
+        XCTAssertNil(MembershipListedPrice.text(for: .yearly, storefrontCountryCode: "TWN"))
+        XCTAssertNil(MembershipListedPrice.text(for: .monthly, storefrontCountryCode: "JPN"))
     }
 
     func testRepeatedStorefrontChangesStopAfterOneRetry() async {
@@ -91,6 +137,7 @@ final class MembershipProductCatalogTests: XCTestCase {
         let catalog = try await MembershipProductCatalog.load(storefront: { store }, products: { ["USD"] }, currency: { $0 })
         XCTAssertEqual(catalog.products, ["USD"])
         XCTAssertNil(catalog.storefront.currencyCode)
+        XCTAssertFalse(catalog.currencyMismatch)
     }
 
     func testFetchErrorIsPropagatedWithoutRepeatedNetworkRequests() async {
@@ -182,6 +229,41 @@ final class MembershipDiagnosticTests: XCTestCase {
         }
         XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(MembershipDiagnosticFailure.wrapping(
             MembershipError.server("key_not_registered", 401), at: .session)))
+    }
+
+    /// Keychain items survive deleting the app; the Secure Enclave key does not, and
+    /// Apple then reports the stored key ID as invalidInput (seen on 1.7.0 (35), iOS 27).
+    func testKeyFromAnEarlierInstallIsRotated() {
+        for code in [DCError.Code.invalidInput, .invalidKey] {
+            for stage in [MembershipDiagnosticStage.appAttestAssertion, .appAttestRegistration] {
+                let wrapped = MembershipDiagnosticFailure.wrapping(
+                    NSError(domain: DCErrorDomain, code: code.rawValue), at: stage)
+                XCTAssertTrue(MembershipDeviceProof.isUnusableLocalKey(wrapped))
+                XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(wrapped))
+            }
+        }
+    }
+
+    func testUnknownSystemFailureRotatesOnlyAStoredKeysAssertion() {
+        let failure = NSError(domain: DCErrorDomain, code: DCError.Code.unknownSystemFailure.rawValue)
+        let assertion = MembershipDiagnosticFailure.wrapping(failure, at: .appAttestAssertion)
+        XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(assertion))
+        XCTAssertFalse(MembershipDeviceProof.isUnusableLocalKey(assertion))
+        XCTAssertFalse(MembershipDeviceProof.requiresKeyRotation(
+            MembershipDiagnosticFailure.wrapping(failure, at: .appAttestRegistration)))
+        XCTAssertFalse(MembershipDeviceProof.requiresKeyRotation(failure))
+    }
+
+    func testAppAttestServiceFailuresKeepTheKey() {
+        for code in [DCError.Code.serverUnavailable, .featureUnsupported] {
+            for stage in [MembershipDiagnosticStage.appAttestAssertion, .appAttestRegistration, .appAttestKey] {
+                let wrapped = MembershipDiagnosticFailure.wrapping(
+                    NSError(domain: DCErrorDomain, code: code.rawValue), at: stage)
+                XCTAssertFalse(MembershipDeviceProof.isUnusableLocalKey(wrapped))
+                XCTAssertFalse(MembershipDeviceProof.requiresKeyRotation(wrapped))
+            }
+        }
+        XCTAssertFalse(MembershipDeviceProof.isUnusableLocalKey(MembershipError.server("key_not_registered", 401)))
     }
 }
 
@@ -305,11 +387,46 @@ final class MembershipIdentitySynchronizationTests: XCTestCase {
         XCTAssertEqual(flow.calls, ["shared", "server-sync", "clear-session", "bootstrap:verified-shared"])
     }
 
+    func testSessionBoundToAKeyFromAnEarlierInstallBootstrapsOnce() async throws {
+        for code in [DCError.Code.invalidInput, .invalidKey] {
+            let flow = Flow()
+            flow.reuseError = MembershipDiagnosticFailure.wrapping(
+                NSError(domain: DCErrorDomain, code: code.rawValue), at: .appAttestAssertion)
+            try await flow.run()
+            XCTAssertEqual(flow.calls, ["shared", "server-sync", "clear-session", "bootstrap:verified-shared"])
+        }
+    }
+
+    func testNonInteractiveUnusableKeyRecoveryNeverOpensAppleSignIn() async {
+        let flow = Flow()
+        flow.reuseError = MembershipDiagnosticFailure.wrapping(
+            NSError(domain: DCErrorDomain, code: DCError.Code.invalidInput.rawValue), at: .appAttestAssertion)
+        flow.bootstrapErrors = [MembershipError.server("app_transaction_refresh_required", 401)]
+        do { try await flow.run(interactive: false); XCTFail("A stale proof needs an explicit refresh") } catch { }
+        XCTAssertFalse(flow.calls.contains("refresh"))
+        XCTAssertEqual(flow.calls.filter { $0.hasPrefix("bootstrap:") }.count, 1)
+    }
+
+    func testUnusableKeyAgainAfterRebootstrapCannotLoop() async {
+        let flow = Flow()
+        let unusable = MembershipDiagnosticFailure.wrapping(
+            NSError(domain: DCErrorDomain, code: DCError.Code.invalidInput.rawValue), at: .appAttestAssertion)
+        flow.reuseError = unusable
+        flow.bootstrapErrors = [unusable]
+        do { try await flow.run(); XCTFail("Must stop after one rebootstrap") } catch { }
+        XCTAssertEqual(flow.calls.filter { $0.hasPrefix("bootstrap:") }.count, 1)
+        XCTAssertFalse(flow.calls.contains("refresh"))
+    }
+
     func testOtherServerAndNetworkFailuresNeverFallbackToBootstrap() async {
+        let appAttest = { (code: DCError.Code) -> any Error in
+            MembershipDiagnosticFailure.wrapping(NSError(domain: DCErrorDomain, code: code.rawValue), at: .appAttestAssertion)
+        }
         let errors: [any Error] = [MembershipError.server("invalid_session", 403),
             MembershipError.server("member_deleted", 401), MembershipError.server("assertion_replayed", 401),
             MembershipError.server("key_not_registered", 401), MembershipError.server("unavailable", 503),
-            URLError(.timedOut), MembershipError.sessionExpired]
+            URLError(.timedOut), MembershipError.sessionExpired,
+            appAttest(.serverUnavailable), appAttest(.unknownSystemFailure), appAttest(.featureUnsupported)]
         for error in errors {
             let flow = Flow(); flow.reuseError = error
             do { try await flow.run(); XCTFail("Must fail closed") } catch { }
@@ -923,8 +1040,9 @@ final class MembershipTests: XCTestCase {
         XCTAssertEqual(try journal.pending(memberId: second.memberId, input: input), second)
     }
 
-    func testOnlyExplicitInvalidAppAttestKeyAllowsOneRotation() {
+    func testOnlyAnUnusableAppAttestKeyAllowsOneRotation() {
         XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(NSError(domain: DCErrorDomain, code: DCError.Code.invalidKey.rawValue)))
+        XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(NSError(domain: DCErrorDomain, code: DCError.Code.invalidInput.rawValue)))
         XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(MembershipError.server("key_not_registered", 401)))
         XCTAssertFalse(MembershipDeviceProof.requiresKeyRotation(URLError(.timedOut)))
         XCTAssertFalse(MembershipDeviceProof.requiresKeyRotation(NSError(domain: DCErrorDomain, code: DCError.Code.serverUnavailable.rawValue)))

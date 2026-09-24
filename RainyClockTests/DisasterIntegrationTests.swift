@@ -3,6 +3,11 @@ import XCTest
 
 @MainActor
 final class DisasterIntegrationTests: XCTestCase {
+    // Exercise closure behavior independently of the host app's StoreKit state.
+    private static let closureEntitlements = MembershipEntitlements(
+        removeBanner: true, calendar: true, temporaryClosures: true,
+        dailyAI: true, subscriptionActive: true, lifetimeActive: false)
+
     private let region = DisasterRegion(county: "臺北市", district: "信義區")
     private var calendar: Calendar { DisasterNoticeParser.taipeiCalendar }
     private func date(_ day: Int, _ hour: Int = 7, _ minute: Int = 30) -> Date {
@@ -102,7 +107,8 @@ final class DisasterIntegrationTests: XCTestCase {
         let scheduler = DisasterSchedulerSpy()
         let reporter = DisasterReceiptSpy()
         let model = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage,
-            autoRefreshDebounce: .seconds(60), disasterFeedProvider: provider, disasterSyncReporter: reporter, supportsTemporaryClosures: true)
+            autoRefreshDebounce: .seconds(60), disasterFeedProvider: provider, disasterSyncReporter: reporter,
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
         await model.evaluateRouteAndScheduleAlarm()
         XCTAssertTrue(reporter.receipts.isEmpty, "Scheduling without a fetched revision must not acknowledge an announcement")
         let before = try XCTUnwrap(model.scheduledAlarmSummary)
@@ -146,7 +152,8 @@ final class DisasterIntegrationTests: XCTestCase {
         let provider = FeedStub(value: .success(feed(now: Date())))
         let reporter = DisasterReceiptSpy()
         let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
-            disasterFeedProvider: provider, disasterSyncReporter: reporter, supportsTemporaryClosures: true)
+            disasterFeedProvider: provider, disasterSyncReporter: reporter,
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
         _ = await model.refreshDisasterSuspensions(force: true)
         XCTAssertEqual(reporter.receipts.map(\.result), [.noAlarm])
         XCTAssertNil(model.scheduledAlarmSummary)
@@ -167,7 +174,8 @@ final class DisasterIntegrationTests: XCTestCase {
         let provider = FeedStub(value: .success(feed(now: Date().addingTimeInterval(-16 * 60))))
         let reporter = DisasterReceiptSpy()
         let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
-            disasterFeedProvider: provider, disasterSyncReporter: reporter, supportsTemporaryClosures: true)
+            disasterFeedProvider: provider, disasterSyncReporter: reporter,
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
         _ = await model.refreshDisasterSuspensions(force: true)
         XCTAssertTrue(reporter.receipts.isEmpty)
         var legacy = feed(now: Date())
@@ -190,7 +198,8 @@ final class DisasterIntegrationTests: XCTestCase {
         let provider = GatedFeedStub(first: firstFeed, second: secondFeed, gate: gate)
         let reporter = DisasterReceiptSpy()
         let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
-            disasterFeedProvider: provider, disasterSyncReporter: reporter, supportsTemporaryClosures: true)
+            disasterFeedProvider: provider, disasterSyncReporter: reporter,
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
         let first = Task { await model.refreshDisasterSuspensions(force: true) }
         await gate.waitUntilEntered()
         let started = expectation(description: "Second push entered the shared refresh")
@@ -217,7 +226,8 @@ final class DisasterIntegrationTests: XCTestCase {
         let provider = FeedStub(value: .success(feed(now: Date())))
         let reporter = DisasterReceiptSpy()
         let model = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage,
-            autoRefreshDebounce: .seconds(60), disasterFeedProvider: provider, disasterSyncReporter: reporter, supportsTemporaryClosures: true)
+            autoRefreshDebounce: .seconds(60), disasterFeedProvider: provider, disasterSyncReporter: reporter,
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
         await model.evaluateRouteAndScheduleAlarm()
         let gate = DisasterTestGate()
         scheduler.beforeCalendarCompletion = { await gate.hold() }
@@ -255,12 +265,14 @@ final class DisasterIntegrationTests: XCTestCase {
         let provider = FeedStub(value: .failure(URLError(.notConnectedToInternet)))
         let scheduler = DisasterSchedulerSpy()
         scheduler.fail = true
-        let first = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage, disasterFeedProvider: provider, supportsTemporaryClosures: true)
+        let first = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage, disasterFeedProvider: provider,
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
         _ = await first.refreshDisasterSuspensions()
         XCTAssertTrue(first.disasterScheduleNeedsAttention)
         XCTAssertNotNil(first.nextAppliedDisasterSkip)
         scheduler.fail = false
-        let relaunched = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage, disasterFeedProvider: provider, supportsTemporaryClosures: true)
+        let relaunched = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage, disasterFeedProvider: provider,
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
         XCTAssertTrue(relaunched.disasterScheduleNeedsAttention)
         await relaunched.refreshScheduledAlarmIfWeatherIsStale()
         XCTAssertNil(relaunched.nextAppliedDisasterSkip)

@@ -1,18 +1,20 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
-import { join } from 'node:path';
-import { readJSON, writeJSON } from './storage.js';
-import { ServiceError } from './errors.js';
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { ServiceError, safeErrorCode } from './errors.js';
 import { isoTimestamp } from './parser.js';
+import { broadcastRevision } from './broadcast.js';
 
 const MAX_DEVICES = 10_000;
-// 10,000 bounded registrations plus one small acknowledgement each.
-const MAX_STATE_BYTES = 8 * 1024 * 1024;
+// Firestore transactions queue behind each other on contention; past this
+// many in flight a burst is refused rather than allowed to pile up.
+const MAX_IN_FLIGHT = 128;
 const DEVICE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const CLOCK_SKEW_MS = 300_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HEX = /^[a-f0-9]{64}$/i;
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 const taipeiDay = (value) => new Date(value + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const sameHash = (a, b) => timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
+const devicePath = (installationId) => `devices/${installationId}`;
 
 function exactObject(input, keys) {
   return input && !Array.isArray(input) && typeof input === 'object' && Object.keys(input).every((key) => keys.includes(key));
@@ -34,10 +36,9 @@ function validateReceipt(input, now) {
   return { revision: input.revision.toLowerCase(), checkedAt, appliedAt, result: input.result };
 }
 
-function authenticate(devices, identity) {
-  const device = devices.get(identity.installationId);
+function authenticate(device, identity) {
   if (!device) throw new ServiceError('device_not_registered');
-  if (!timingSafeEqual(Buffer.from(device.credentialHash, 'hex'), Buffer.from(identity.credentialHash, 'hex'))) throw new ServiceError('device_credential_mismatch');
+  if (!sameHash(device.credentialHash, identity.credentialHash)) throw new ServiceError('device_credential_mismatch');
   return device;
 }
 
@@ -60,62 +61,83 @@ export function validateDeviceInput(input, remove = false) {
 }
 
 export class DeviceRegistry {
-  constructor({ dataDir, now = Date.now, maxDevices = MAX_DEVICES }) {
-    this.path = join(dataDir, 'devices.json');
+  constructor({ store, now = Date.now, maxDevices = MAX_DEVICES }) {
+    this.store = store;
     this.now = now;
     this.maxDevices = maxDevices;
-    this.devices = new Map();
-    this.queue = Promise.resolve();
     this.pendingWrites = 0;
   }
 
-  async initialize() {
-    const saved = await readJSON(this.path, MAX_STATE_BYTES);
-    if (!saved) return;
-    if (saved.schemaVersion !== 1 || !Array.isArray(saved.devices) || saved.devices.length > this.maxDevices) throw new ServiceError('invalid_device_storage');
-    for (const device of saved.devices) {
-      if (!UUID.test(device.installationId) || !HEX.test(device.deviceToken) || !HEX.test(device.credentialHash) || !Number.isFinite(device.updatedAt) || device.updatedAt > this.now() + 300_000 || this.devices.has(device.installationId)) throw new ServiceError('invalid_device_storage');
-      let receipt;
-      if (device.receipt !== undefined) {
-        try { receipt = validateReceipt(device.receipt, this.now()); }
-        catch { throw new ServiceError('invalid_device_storage'); }
-      }
-      if (this.now() - device.updatedAt < DEVICE_TTL_MS) this.devices.set(device.installationId, { installationId: device.installationId, deviceToken: device.deviceToken, credentialHash: device.credentialHash, updatedAt: device.updatedAt, ...(receipt ? { receipt } : {}) });
-    }
+  // Nothing is loaded up front any more; kept so call sites need no change.
+  async initialize() {}
+
+  // Everything a write does against the store counts as in flight, a
+  // pre-read included: the bound is on the burst, not on the transaction.
+  inFlight(work) {
+    if (this.pendingWrites >= MAX_IN_FLIGHT) return Promise.reject(new ServiceError('device_registry_busy'));
+    this.pendingWrites += 1;
+    return work().finally(() => { this.pendingWrites -= 1; });
   }
 
   transact(operation) {
-    if (this.pendingWrites >= 128) return Promise.reject(new ServiceError('device_registry_busy'));
-    this.pendingWrites += 1;
-    const task = this.queue.then(async () => {
-      const next = new Map([...this.devices].filter(([, device]) => this.now() - device.updatedAt < DEVICE_TTL_MS));
-      const result = operation(next);
-      await writeJSON(this.path, { schemaVersion: 1, devices: [...next.values()] }, MAX_STATE_BYTES);
-      this.devices = next;
-      return result;
-    });
-    const completed = task.finally(() => { this.pendingWrites -= 1; });
-    this.queue = completed.catch(() => {});
-    return completed;
+    return this.inFlight(() => this.store.runTransaction(operation));
+  }
+
+  // Validation moved from startup to every read: a document the store hands
+  // back is checked before its credential hash or receipt is trusted, and an
+  // expired registration is absent whatever the TTL janitor has got to.
+  storedDevice(doc) {
+    if (doc === null) return null;
+    const now = this.now();
+    if (!doc || !UUID.test(doc.installationId) || !HEX.test(doc.deviceToken) || !HEX.test(doc.credentialHash) || !Number.isFinite(doc.updatedAt) || doc.updatedAt > now + CLOCK_SKEW_MS) throw new ServiceError('invalid_device_storage');
+    let receipt;
+    if (doc.receipt !== undefined) {
+      try { receipt = validateReceipt(doc.receipt, now); }
+      catch { throw new ServiceError('invalid_device_storage'); }
+    }
+    if (now - doc.updatedAt >= DEVICE_TTL_MS) return null;
+    return { installationId: doc.installationId, deviceToken: doc.deviceToken, credentialHash: doc.credentialHash, updatedAt: doc.updatedAt, ...(receipt ? { receipt } : {}) };
+  }
+
+  stamp(device) {
+    const now = this.now();
+    return { ...device, updatedAt: now, expiresAt: new Date(now + DEVICE_TTL_MS) };
   }
 
   register(input) {
     const device = validateDeviceInput(input);
-    return this.transact((next) => {
-      const old = next.get(device.installationId);
-      if (old && !timingSafeEqual(Buffer.from(old.credentialHash, 'hex'), Buffer.from(device.credentialHash, 'hex'))) throw new ServiceError('device_credential_mismatch');
-      if (!old && next.size >= this.maxDevices) throw new ServiceError('device_registry_full');
-      next.set(device.installationId, { ...device, updatedAt: this.now(), ...(old?.receipt ? { receipt: old.receipt } : {}) });
-      return { created: !old };
+    const path = devicePath(device.installationId);
+    return this.inFlight(async () => {
+      await this.admit(path);
+      return this.store.runTransaction(async (tx) => {
+        const old = this.storedDevice(await tx.get(path));
+        if (old && !sameHash(old.credentialHash, device.credentialHash)) throw new ServiceError('device_credential_mismatch');
+        tx.set(path, this.stamp({ ...device, ...(old?.receipt ? { receipt: old.receipt } : {}) }));
+        return { created: !old };
+      });
     });
+  }
+
+  // The cap is counted before the transaction, never inside it: Firestore
+  // serialises a transaction over the result of its aggregation, so every
+  // concurrent create would invalidate every other and a burst of new phones
+  // would rerun each other into 503s. Counted outside, two creates that both
+  // see one free slot both succeed; a few over the cap is the accepted cost.
+  // Registrations past their 90 days may still be on disk until the TTL
+  // policy sweeps them; they must not hold a slot against new phones.
+  async admit(path) {
+    if (this.storedDevice(await this.store.get(path))) return;
+    const live = await this.store.count('devices', { where: [{ field: 'updatedAt', op: '>', value: this.now() - DEVICE_TTL_MS }] });
+    if (live >= this.maxDevices) throw new ServiceError('device_registry_full');
   }
 
   remove(input) {
     const device = validateDeviceInput(input, true);
-    return this.transact((next) => {
-      const old = next.get(device.installationId);
-      if (old && !timingSafeEqual(Buffer.from(old.credentialHash, 'hex'), Buffer.from(device.credentialHash, 'hex'))) throw new ServiceError('device_credential_mismatch');
-      next.delete(device.installationId);
+    return this.transact(async (tx) => {
+      const old = this.storedDevice(await tx.get(devicePath(device.installationId)));
+      if (!old) return;
+      if (!sameHash(old.credentialHash, device.credentialHash)) throw new ServiceError('device_credential_mismatch');
+      tx.delete(devicePath(device.installationId));
     });
   }
 
@@ -123,34 +145,40 @@ export class DeviceRegistry {
     if (!exactObject(input, ['installationId', 'credential', 'revision', 'checkedAt', 'appliedAt', 'result'])) throw new ServiceError('invalid_device_request');
     const identity = validateIdentity({ installationId: input.installationId, credential: input.credential });
     const receipt = validateReceipt({ revision: input.revision, checkedAt: input.checkedAt, appliedAt: input.appliedAt, result: input.result }, this.now());
-    return this.transact((next) => {
-      const old = authenticate(next, identity);
+    return this.transact(async (tx) => {
+      const old = authenticate(this.storedDevice(await tx.get(devicePath(identity.installationId))), identity);
       if (old.receipt && (receipt.checkedAt < old.receipt.checkedAt || (receipt.checkedAt === old.receipt.checkedAt && receipt.appliedAt <= old.receipt.appliedAt))) return { recorded: false };
-      next.set(identity.installationId, { ...old, receipt, updatedAt: this.now() });
+      tx.set(devicePath(identity.installationId), this.stamp({ ...old, receipt }));
       return { recorded: true };
     });
   }
 
   async receipt(input) {
     const identity = validateIdentity(input);
-    await this.queue;
-    const device = authenticate(this.devices, identity);
-    if (this.now() - device.updatedAt >= DEVICE_TTL_MS) throw new ServiceError('device_not_registered');
+    const device = authenticate(this.storedDevice(await this.store.get(devicePath(identity.installationId))), identity);
     // Return a value copy so callers cannot mutate persisted state in memory.
     return device.receipt ? { ...device.receipt } : null;
   }
 
-  removeUnregistered(token, timestamp) {
-    return this.transact((next) => {
-      for (const [id, device] of next) {
+  async removeUnregistered(token, timestamp) {
+    const rows = await this.store.list('devices', { where: [{ field: 'deviceToken', op: '==', value: token }] });
+    for (const { path } of rows) {
+      await this.transact(async (tx) => {
+        const device = await tx.get(path);
         // A newer re-registration may have occurred while APNs was responding.
-        if (device.deviceToken === token && (!Number.isFinite(timestamp) || device.updatedAt <= timestamp)) next.delete(id);
-      }
-    });
+        if (device && device.deviceToken === token && (!Number.isFinite(timestamp) || device.updatedAt <= timestamp)) tx.delete(path);
+      });
+    }
   }
 
-  tokens() {
-    return [...new Set([...this.devices.values()].filter((device) => this.now() - device.updatedAt < DEVICE_TTL_MS).map((device) => device.deviceToken))];
+  // Tests and local mode only; the Job pages through devices instead. No limit:
+  // expired documents can outnumber the cap until the TTL policy sweeps them,
+  // and a limit would hide live registrations behind them.
+  async tokens() {
+    const now = this.now();
+    const rows = await this.store.list('devices');
+    const live = rows.map(({ data }) => data).filter((device) => typeof device.deviceToken === 'string' && Number.isFinite(device.updatedAt) && now - device.updatedAt < DEVICE_TTL_MS);
+    return [...new Set(live.map((device) => device.deviceToken))];
   }
 }
 
@@ -162,6 +190,7 @@ export class RevisionBroadcaster {
     this.dispatcher = dispatcher;
     this.concurrency = concurrency;
     this.log = log;
+    this.owner = randomUUID();
     this.pending = null;
     this.running = null;
     this.stopped = false;
@@ -177,23 +206,18 @@ export class RevisionBroadcaster {
     });
     return this.running;
   }
+  // The same paged, claimed pass the Job runs, so what the tests drive is what
+  // ships. A newer pending revision stops the current pass at its next
+  // checkpoint, as the old per-token loop did.
   async drain() {
     while (this.pending && !this.stopped) {
       const revision = this.pending;
       this.pending = null;
-      const tokens = this.registry.tokens();
-      let cursor = 0, accepted = 0, failed = 0;
-      await Promise.all(Array.from({ length: Math.min(this.concurrency, tokens.length) }, async () => {
-        while (cursor < tokens.length && !this.pending && !this.stopped) {
-          const token = tokens[cursor++];
-          try {
-            const result = await this.dispatcher.send(token, { revision });
-            if (result.ok) accepted += 1; else failed += 1;
-            if (result.unregistered) await this.registry.removeUnregistered(token, result.timestamp);
-          } catch { failed += 1; }
-        }
-      }));
-      this.log({ event: 'push_batch', accepted, failed });
+      try {
+        await broadcastRevision({ store: this.registry.store, registry: this.registry, dispatcher: this.dispatcher, revision, owner: this.owner, concurrency: this.concurrency, pageSize: 200, leaseMs: 120_000, deadlineAt: Infinity, isCancelled: () => this.stopped || this.pending !== null, now: this.registry.now, log: this.log });
+      } catch (error) {
+        this.log({ event: 'push_batch_failed', code: safeErrorCode(error) });
+      }
     }
   }
   async stop() {

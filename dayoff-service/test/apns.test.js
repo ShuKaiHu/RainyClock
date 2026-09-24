@@ -17,8 +17,34 @@ function setup(options = {}) {
   return { ...dispatcher, calls };
 }
 
-test('sends a background refresh hint using correct APNs headers and ES256 JWT', async t => {
+test('alert mode sends one collapsible, mutable, localised notification per device and no location', async t => {
   const dispatcher = setup();
+  t.after(dispatcher.close);
+  assert.equal(dispatcher.pushMode, 'alert');
+  const result = await dispatcher.send(deviceToken, { revision: 'revision-1' });
+  assert.deepEqual(result, { ok: true, status: 200, unregistered: false, retryable: false });
+  const { headers, body } = dispatcher.calls[0];
+  assert.equal(headers['apns-push-type'], 'alert');
+  assert.equal(headers['apns-priority'], '10');
+  assert.equal(headers['apns-collapse-id'], 'dayoff-sync');
+  assert.equal(headers['apns-expiration'], String(fixedTime / 1000 + 10 * 3600));
+  assert.deepEqual(JSON.parse(body), {
+    aps: {
+      alert: { 'title-loc-key': 'dayoff_push_title', 'body-loc-key': 'dayoff_push_body' },
+      sound: 'default', 'mutable-content': 1, 'thread-id': 'dayoff',
+    },
+    type: 'dayoff-sync', revision: 'revision-1',
+  });
+  // The phone decides relevance; nothing in the payload names a county or district.
+  assert.doesNotMatch(body, /[縣市區鄉鎮]/u);
+});
+
+test('rejects an unknown push mode before touching the key', () => {
+  assert.throws(() => createApnsDispatcher({ ...base, pushMode: 'silent' }), /Invalid APNs push mode/);
+});
+
+test('sends a background refresh hint using correct APNs headers and ES256 JWT', async t => {
+  const dispatcher = setup({ pushMode: 'background' });
   t.after(dispatcher.close);
   assert.equal(dispatcher.calls.length, 0);
   const result = await dispatcher.send(deviceToken.toUpperCase(), { revision: 'revision-1' });
@@ -87,7 +113,7 @@ test('rejects unsafe device tokens before contacting the transport', async t => 
 });
 
 test('enforces the notification payload limit in bytes, including JSON overhead', async t => {
-  const dispatcher = setup();
+  const dispatcher = setup({ pushMode: 'background' });
   t.after(dispatcher.close);
   for (const revision of ['', null, {}, 1]) {
     await assert.rejects(dispatcher.send(deviceToken, { revision }), /Invalid day-off revision/);
@@ -98,6 +124,11 @@ test('enforces the notification payload limit in bytes, including JSON overhead'
   assert.equal(dispatcher.calls.length, 0);
   await dispatcher.send(deviceToken, { revision: 'a'.repeat(4000) });
   assert.ok(Buffer.byteLength(dispatcher.calls[0].body) <= 4096);
+  // A real revision is a 64-hex digest; the alert envelope leaves it far under the limit.
+  const alert = setup();
+  t.after(alert.close);
+  await alert.send(deviceToken, { revision: 'f'.repeat(64) });
+  assert.ok(Buffer.byteLength(alert.calls[0].body) <= 4096);
 });
 
 test('410 identifies an unregistered token for the registry to remove', async t => {

@@ -9,6 +9,9 @@ final class MembershipManager: ObservableObject {
 
     @Published private(set) var snapshot: MembershipSnapshot?
     @Published private(set) var products: [MembershipPlan: Product] = [:]
+    /// Card text replacing `displayPrice` only while Apple's product metadata
+    /// disagrees with its own storefront. Purchases still use `products`.
+    @Published private(set) var listedPrices: [MembershipPlan: String] = [:]
     @Published private(set) var isLoadingProducts = false
     @Published private(set) var productMessage: String?
     @Published private(set) var isBusy = false
@@ -110,7 +113,16 @@ final class MembershipManager: ObservableObject {
                 retryPendingJournalDeletion()
                 if !dataDeleted {
                     if canReuseCurrentSession {
-                        try await synchronizeExistingSession()
+                        do { try await synchronizeExistingSession() }
+                        catch {
+                            // The session is bound to a device key this install no
+                            // longer holds (the keychain outlived a reinstall). Only
+                            // that local failure bootstraps here; server rejections
+                            // still wait for an explicit action.
+                            guard MembershipDeviceProof.isUnusableLocalKey(error) else { throw error }
+                            keychain.remove("session")
+                            try await establishSession(current, restoresDeletedMembership: false)
+                        }
                     } else {
                         // A fresh shared proof can establish a new free member
                         // without a login sheet. An old proof is rejected by the
@@ -334,7 +346,7 @@ final class MembershipManager: ObservableObject {
         guard ConsentManager.shared.configureRewardIdentity(identity.userId) else {
             throw MembershipError.server("reward_account_changed_restart_required", 409)
         }
-        ConsentManager.shared.requestConsentThenStartAds()
+        await ConsentManager.shared.requestConsentThenStartAds()
     }
 
     func deleteMembership() async {
@@ -385,6 +397,7 @@ final class MembershipManager: ObservableObject {
             productLoadVersion += 1
             let version = productLoadVersion
             products = [:]
+            listedPrices = [:]
             productCurrencyCodes = []
             productMessage = nil
             isLoadingProducts = true
@@ -422,12 +435,18 @@ final class MembershipManager: ObservableObject {
                       product.type == (plan.isSubscription ? .autoRenewable : .nonConsumable) else { return nil }
                 return (plan, product)
             })
+            // TestFlight can serve another storefront's products. Show this storefront's
+            // listed price; Apple's payment sheet still states the actual charge.
+            listedPrices = catalog.currencyMismatch ? products.keys.reduce(into: [:]) { prices, plan in
+                prices[plan] = MembershipListedPrice.text(for: plan, storefrontCountryCode: catalog.storefront.countryCode)
+            } : [:]
             if MembershipPlan.offeredPlans.contains(where: { products[$0] == nil }) {
                 productMessage = MembershipText.value("部分方案價格暫時無法載入，請重試。", "Some plan prices could not be loaded. Please retry.")
             }
         } catch {
             guard version == productLoadVersion, !Task.isCancelled else { return }
             products = [:]
+            listedPrices = [:]
             productMessage = MembershipText.value("暫時無法更新 App Store 價格，請重試。", "Could not update App Store prices. Please retry.")
             // Price availability is independent of membership verification. Never
             // replace a completed purchase result or mark verified rights stale.

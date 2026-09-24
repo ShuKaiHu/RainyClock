@@ -1624,9 +1624,11 @@ final class AlarmViewModel: ObservableObject {
         }
 
         settingsStorage.set(data, forKey: Self.settingsStorageKey)
+        mirrorDayOffSharedState()
     }
 
     private func saveScheduledAlarmSummary() {
+        defer { mirrorDayOffSharedState() }
         guard let summary = scheduledAlarmSummary else {
             settingsStorage.removeObject(forKey: Self.scheduledSummaryStorageKey)
             return
@@ -1637,6 +1639,22 @@ final class AlarmViewModel: ObservableObject {
         }
 
         settingsStorage.set(data, forKey: Self.scheduledSummaryStorageKey)
+    }
+
+    /// What the notification service extension may read while the app is closed:
+    /// the *effective* disaster rules (so the 1.7.0 release gate and membership
+    /// gates apply there too) and the next alarm's normal date. Never addresses.
+    private func mirrorDayOffSharedState() {
+        guard !AppEnvironment.isRunningTests else { return }
+        let effective = effectiveSchedulingSettings
+        DayOffSharedState(enabled: effective.isDisasterSuspensionEnabled,
+                          observesWork: effective.observesWorkSuspensions,
+                          observesSchool: effective.observesSchoolSuspensions,
+                          home: effective.homeSuspensionRegion,
+                          destination: effective.workSuspensionRegion,
+                          normalAlarmDate: scheduledAlarmSummary?.normalAlarmDate,
+                          serviceURL: AppEnvironment.dayOffServiceURL,
+                          updatedAt: Date()).save()
     }
 
     private static func loadScheduledAlarmSummary(from storage: UserDefaults) -> ScheduledAlarmSummary? {
