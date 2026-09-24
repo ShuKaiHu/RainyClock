@@ -42,7 +42,8 @@
 "widget_description" = "預計響鈴時間，以及是否因下雨提早。";
 "widget_open_to_refresh" = "開啟 App 更新";
 "widget_open_to_start" = "開啟 App 以顯示明天的鬧鐘";
-"widget_route_rain_chance" = "路線降雨機率 %d%%";
+/* A normal ringing day, on every family but the medium: the decision, not the weather. */
+"widget_rings_as_usual" = "照常響鈴";
 "widget_rain_short" = "因雨提早";
 /* A carried-over early ring: no forecast for its own morning yet. */
 "widget_awaiting_forecast_short" = "等待預報";

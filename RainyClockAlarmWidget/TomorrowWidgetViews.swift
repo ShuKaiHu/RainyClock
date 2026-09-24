@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WidgetKit
 
 /// Renders `TomorrowWidgetPresentation`; every display rule lives there.
@@ -33,16 +34,18 @@ struct TomorrowWidgetView: View {
                 InlineTomorrowView(entry: entry, presentation: presentation, style: style)
                     .containerBackground(for: .widget) { Color.clear }
             default:
+                // The decision's sky, never the forecast's: only the medium shows weather (D-A).
                 SmallTomorrowView(entry: entry, presentation: presentation, style: style)
                     .containerBackground(for: .widget) {
-                        TomorrowSkyBackground(home: presentation.home, work: presentation.work, layout: .ambient)
+                        TomorrowSkyBackground(home: presentation.decisionSky, work: presentation.decisionSky, layout: .ambient)
                     }
             }
         }
         // White ink over the sky in full colour; the system's own scheme otherwise.
         .environment(\.colorScheme, style.fullColor ? .dark : systemColorScheme)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: style.accessibilityLabel(presentation)))
+        .accessibilityLabel(Text(verbatim: style.accessibilityLabel(presentation,
+                                                                    attributesWeather: family == .systemMedium)))
     }
 
     @Environment(\.colorScheme) private var systemColorScheme
@@ -132,8 +135,9 @@ struct WidgetStyle {
         }
     }
 
-    /// One label for the whole widget: header, expected ring (or the hero), footer.
-    func accessibilityLabel(_ presentation: TomorrowWidgetPresentation) -> String {
+    /// One label for the whole widget: header, expected ring (or the hero), footer, and
+    /// the Apple Weather attribution where weather is shown.
+    func accessibilityLabel(_ presentation: TomorrowWidgetPresentation, attributesWeather: Bool = false) -> String {
         var pieces = [mediumHeader(presentation, separator: ", ")]
         switch presentation.hero {
         case .time(let ring, _):
@@ -146,6 +150,7 @@ struct WidgetStyle {
         case .openApp(let reason): pieces.append(openAppText(reason))
         }
         if let line = presentation.line { pieces.append(text(line.full)) }
+        if attributesWeather, presentation.day != nil { pieces.append("Apple Weather") }
         return pieces.joined(separator: isChinese ? "，" : ", ")
     }
 }
@@ -274,24 +279,18 @@ private struct GlyphBadge: View {
     }
 }
 
-/// StandBy drops the sky; the header then carries the home condition, and gives up
-/// the weekday rather than truncate beside it.
+/// The small header; gives up the weekday rather than truncate. StandBy drops the sky
+/// and shows no weather symbol in its place (D-A): the glyph beside it is the reason's.
 private struct HeaderText: View {
     let text: String
     let short: String
     let presentation: TomorrowWidgetPresentation
     let style: WidgetStyle
-    @Environment(\.showsWidgetContainerBackground) private var showsBackground
 
     var body: some View {
-        HStack(spacing: 4) {
-            if !showsBackground, let symbol = presentation.standByConditionSymbol {
-                Image(systemName: symbol).widgetAccentedRenderingMode(.accentedDesaturated)
-            }
-            ViewThatFits(in: .horizontal) {
-                Text(verbatim: text).lineLimit(1)
-                Text(verbatim: short).lineLimit(1)
-            }
+        ViewThatFits(in: .horizontal) {
+            Text(verbatim: text).lineLimit(1)
+            Text(verbatim: short).lineLimit(1)
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(style.secondary)
@@ -381,7 +380,12 @@ private struct MediumTomorrowView: View {
         HStack(alignment: .top, spacing: 12) {
             left.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             if let status {
-                weatherColumn(status).frame(width: 148)
+                // The only family with WeatherKit data, so it carries the  Weather mark, and
+                // the column links (through the app) to Apple's legal attribution page.
+                Link(destination: WeatherAttributionMarkStore.legalLinkURL) {
+                    weatherColumn(status)
+                }
+                .frame(width: 148)
             }
         }
     }
@@ -460,6 +464,8 @@ private struct MediumTomorrowView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .padding(.top, 4)
+            WeatherAttributionMark(style: style)
+                .padding(.top, 3)
         }
     }
 
@@ -499,6 +505,31 @@ private struct MediumTomorrowView: View {
         } else if let forecast = status.forecast {
             Text(verbatim: style.text(LocalizedLine(key: "ux_weather_updated", arguments: [.string(style.time(forecast.checkedAt))])))
                 .foregroundStyle(style.tertiary)
+        }
+    }
+}
+
+/// Apple's combined " Weather" mark as the app last downloaded it into the App Group,
+/// in the variant for the ink it sits on; the text mark until the first download.
+private struct WeatherAttributionMark: View {
+    let style: WidgetStyle
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let store = WeatherAttributionMarkStore.appGroup
+        if let data = store.data(for: colorScheme == .dark ? .dark : .light), let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .widgetAccentedRenderingMode(.accentedDesaturated)
+                .scaledToFit()
+                .frame(height: 11, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Text(verbatim: WeatherAttributionMarkStore.fallbackText)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(style.secondary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

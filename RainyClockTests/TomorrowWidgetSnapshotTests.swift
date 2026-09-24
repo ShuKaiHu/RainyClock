@@ -1011,3 +1011,63 @@ private final class SilentScheduler: NotificationScheduling, @unchecked Sendable
                        soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws {}
     func cancelScheduledAlarms() async {}
 }
+
+/// D-A: the medium widget's  Weather mark and its link to Apple's legal page.
+final class WeatherAttributionMarkTests: XCTestCase {
+    private var directory: URL!
+
+    override func setUp() {
+        super.setUp()
+        directory = FileManager.default.temporaryDirectory.appendingPathComponent("WeatherAttributionMarkTests-\(UUID().uuidString)")
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: directory)
+        super.tearDown()
+    }
+
+    private let png = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] + Array(repeating: 0x42, count: 64))
+
+    func testStoreKeepsOnlyBoundedPNGsPerVariant() {
+        let store = WeatherAttributionMarkStore(directory: directory)
+        let now = Date()
+        XCTAssertNil(store.data(for: .dark))
+        XCTAssertTrue(store.needsRefresh(now: now, maximumAge: 60), "Nothing downloaded yet")
+        XCTAssertTrue(store.save(png, for: .dark, now: now))
+        XCTAssertEqual(store.data(for: .dark), png)
+        XCTAssertNil(store.data(for: .light))
+        XCTAssertTrue(store.needsRefresh(now: now, maximumAge: 60), "Both variants are needed")
+        XCTAssertTrue(store.save(png, for: .light, now: now))
+        XCTAssertEqual(store.savedAt(.light)?.timeIntervalSince1970 ?? 0, now.timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertFalse(store.needsRefresh(now: now, maximumAge: 60))
+        XCTAssertTrue(store.needsRefresh(now: now.addingTimeInterval(120), maximumAge: 60), "Refreshed when old")
+
+        XCTAssertFalse(store.save(Data("<html>Not found</html>".utf8), for: .dark), "An error page is not a mark")
+        XCTAssertFalse(store.save(png + Data(count: WeatherAttributionMarkStore.maximumBytes), for: .dark), "Oversized")
+        XCTAssertEqual(store.data(for: .dark), png, "A refused download keeps the mark already there")
+
+        // A file that is not a PNG is never drawn (the widget falls back to the text mark).
+        try? Data("junk".utf8).write(to: store.fileURL(for: .light)!)
+        XCTAssertNil(store.data(for: .light))
+        XCTAssertNil(store.savedAt(.light))
+        XCTAssertTrue(store.needsRefresh(now: now, maximumAge: 60))
+
+        let unavailable = WeatherAttributionMarkStore(directory: nil)
+        XCTAssertFalse(unavailable.save(png, for: .dark))
+        XCTAssertNil(unavailable.data(for: .dark))
+        XCTAssertTrue(unavailable.needsRefresh(now: now, maximumAge: 60))
+    }
+
+    func testTextMarkAndLegalLinkAreWiredToTheApp() throws {
+        XCTAssertEqual(WeatherAttributionMarkStore.fallbackText, "\u{F8FF} Weather")
+        let link = WeatherAttributionMarkStore.legalLinkURL
+        XCTAssertTrue(WeatherAttributionLink.isAttributionLink(link))
+        XCTAssertFalse(WeatherAttributionLink.isAttributionLink(URL(string: "rainyclock://settings")!))
+        XCTAssertFalse(WeatherAttributionLink.isAttributionLink(URL(string: "https://weather-attribution/")!))
+        // The app claims the scheme, so the widget's link lands in its onOpenURL.
+        let types = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]])
+        let schemes = types.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+        XCTAssertTrue(schemes.contains(try XCTUnwrap(link.scheme)))
+        XCTAssertEqual(WeatherAttributionLink.fallbackLegalURL.absoluteString, "https://weatherkit.apple.com/legal-attribution.html")
+    }
+}

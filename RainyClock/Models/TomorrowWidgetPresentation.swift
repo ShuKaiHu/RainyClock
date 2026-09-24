@@ -3,6 +3,12 @@ import Foundation
 /// The widget's display rules as plain data: which glyph, which hero, which one
 /// footer line. The views only render what this says, so every rule here is
 /// unit-testable from the app's test target.
+///
+/// WeatherKit (D-A): only the medium family shows weather data (its weather column,
+/// `home`/`work` and the sky drawn from them), and it carries Apple's  Weather mark and
+/// the legal link. Every other family (small, StandBy, rectangular, circular, inline)
+/// shows the alarm decision only: `line` never carries a rain percentage or a condition,
+/// and the small widget's `decisionSky` follows the decision, never the forecast.
 struct TomorrowWidgetPresentation: Equatable, Sendable {
     enum Glyph: String, Sendable {
         case alarm = "alarm.fill", rain = "cloud.rain.fill", silent = "bell.slash.fill", manualRing = "calendar"
@@ -23,7 +29,8 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
         /// The same reason about today (D-C): every line that names 明天 names 今天 instead.
         case todayReason(TomorrowWidgetSnapshot.ReasonLine)
         case notice(TomorrowWidgetSnapshot.WeatherNotice)
-        case routeRain(percent: Int)
+        /// A normal ringing day: 照常響鈴 / Rings as usual.
+        case ringsAsUsual
 
         var isWarning: Bool {
             switch self {
@@ -33,9 +40,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
         }
 
         var leadingSymbol: String? {
-            if isWarning { return Glyph.warning.rawValue }
-            if case .routeRain = self { return "drop.fill" }
-            return nil
+            isWarning ? Glyph.warning.rawValue : nil
         }
 
         /// Small, medium, and the rectangular widget's first choice.
@@ -84,8 +89,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 case .routeNeeded: LocalizedLine(key: "ux_route_needed")
                 case .noForecast: LocalizedLine(key: "ux_tomorrow_weather_unavailable")
                 }
-            case .routeRain(let percent):
-                LocalizedLine(key: "widget_route_rain_chance", arguments: [.int(percent)])
+            case .ringsAsUsual: LocalizedLine(key: "widget_rings_as_usual")
             }
         }
 
@@ -118,7 +122,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 case .stale: LocalizedLine(key: "widget_weather_stale_short")
                 case .routeNeeded: full
                 }
-            case .routeRain(let percent): LocalizedLine(key: "ux_rain_chance", arguments: [.int(percent)])
+            case .ringsAsUsual: full
             }
         }
     }
@@ -144,9 +148,13 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     /// A warning exists that the footer line is not already showing.
     var showsWarningBadge: Bool
     var hasIssue: Bool
-    /// The sky; nil when needsApp.
+    /// The medium widget's sky, from the forecast (weather data: medium only); nil when
+    /// needsApp or without a forecast.
     var home: TomorrowWidgetSnapshot.Condition?
     var work: TomorrowWidgetSnapshot.Condition?
+    /// The small widget's sky (D-A): rain only when rain moved the alarm, otherwise clear;
+    /// nil (the plain navy) when needsApp or no route. Never the forecast's condition.
+    var decisionSky: TomorrowWidgetSnapshot.Condition?
     var day: Date?
     /// The entry is today's (D-C): headers and lines say 今天 / Today.
     var isToday: Bool
@@ -156,8 +164,6 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     /// The circular face's one word under a skipped day's glyph, so a holiday and a
     /// 停班停課 read apart without telling a bell from a storm cloud. nil unless skipped.
     var skipLabelKey: String?
-    /// StandBy drops the sky, so the header carries the home condition instead.
-    var standByConditionSymbol: String?
     var relevanceScore: Float
 
     /// `language` is the one the strings resolve in (`LocalizedLine.resolve`'s bundle); it
@@ -173,12 +179,12 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             hasIssue = false
             home = nil
             work = nil
+            decisionSky = nil
             day = nil
             isToday = false
             ringIsOnAnotherDay = false
             ringDay = nil
             skipLabelKey = nil
-            standByConditionSymbol = nil
             relevanceScore = 1
 
         case .status(let entry):
@@ -197,25 +203,32 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 hero = entry.reason == .routeIncomplete ? .notSet : .skipped
             }
 
-            // First match wins; route rain only beside a fresh forecast (no notice).
-            var lines: [Line] = []
-            if let issue = entry.scheduleIssue { lines.append(.issue(issue)) }
-            if let reason = entry.reasonLine?.displayed(in: language) {
-                lines.append(entry.isToday ? .todayReason(reason) : .reason(reason))
+            // First match wins: an issue, the reason, the freshness notice (data age, not
+            // weather), then 照常響鈴 for a day that simply rings.
+            func lines(withWeather: Bool) -> [Line] {
+                var lines: [Line] = []
+                if let issue = entry.scheduleIssue { lines.append(.issue(issue)) }
+                if var reason = entry.reasonLine?.displayed(in: language) {
+                    // Outside the medium the rain line is the decision alone, no percentage.
+                    if !withWeather, case .rainForecast(_, let minutes) = reason { reason = .rainEarlier(minutes: minutes) }
+                    lines.append(entry.isToday ? .todayReason(reason) : .reason(reason))
+                }
+                if let notice = entry.weatherNotice { lines.append(.notice(notice)) }
+                if entry.reasonLine == nil, entry.expectedRingDate != nil { lines.append(.ringsAsUsual) }
+                return lines
             }
-            if let notice = entry.weatherNotice { lines.append(.notice(notice)) }
-            else if let forecast = entry.forecast { lines.append(.routeRain(percent: forecast.maximumPercent)) }
-            line = lines.first
+            line = lines(withWeather: false).first
             // The weather column prints the notice's own text (stale, failed, no forecast,
             // or route needed, which is also the route-incomplete reason's text).
             let columnText = entry.weatherNotice.map { Line.notice($0).full }
-            mediumLine = lines.first { $0.full != columnText }
+            mediumLine = lines(withWeather: true).first { $0.full != columnText }
 
             let weatherWarning = entry.weatherNotice == .failed || entry.weatherNotice == .stale
             showsWarningBadge = (weatherWarning || entry.scheduleIssue != nil) && line?.isWarning != true
             hasIssue = entry.scheduleIssue != nil
             home = entry.forecast?.home.condition
             work = entry.forecast?.work?.condition
+            decisionSky = entry.reason == .routeIncomplete ? nil : entry.appliesRainLead ? .rain : .clear
             day = entry.day
             isToday = entry.isToday
             ringIsOnAnotherDay = entry.ringIsOnAnotherDay
@@ -232,12 +245,6 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 }
             } else {
                 skipLabelKey = nil
-            }
-            standByConditionSymbol = switch home {
-            case .clear: "sun.max.fill"
-            case .cloudy: "cloud.fill"
-            case .rain: "cloud.rain.fill"
-            case nil: nil
             }
             if entry.appliesRainLead || entry.scheduleIssue != nil { relevanceScore = 50 }
             else if entry.expectedRingDate != nil { relevanceScore = 10 }
@@ -353,7 +360,7 @@ enum TomorrowWidgetStrings {
     static let widgetOnlyKeys: [String] = [
         "widget_display_name", "widget_description",
         "widget_open_to_refresh", "widget_open_to_start",
-        "widget_route_rain_chance", "widget_rain_short",
+        "widget_rings_as_usual", "widget_rain_short",
         "widget_manual_skip_short", "widget_manual_ring_short", "widget_holiday_named_short", "widget_unselected_short",
         "widget_closure_short",
         "widget_issue_schedule_failed", "widget_issue_alarmkit", "widget_issue_closure_uncertain", "widget_issue_short",

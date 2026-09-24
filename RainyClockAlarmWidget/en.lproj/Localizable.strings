@@ -42,7 +42,8 @@
 "widget_description" = "Your expected alarm, and whether rain moves it earlier.";
 "widget_open_to_refresh" = "Open the app to refresh";
 "widget_open_to_start" = "Open the app to show tomorrow's alarm";
-"widget_route_rain_chance" = "Route rain %d%%";
+/* A normal ringing day, on every family but the medium: the decision, not the weather. */
+"widget_rings_as_usual" = "Rings as usual";
 "widget_rain_short" = "Earlier for rain";
 /* A carried-over early ring: no forecast for its own morning yet. */
 "widget_awaiting_forecast_short" = "Awaiting forecast";

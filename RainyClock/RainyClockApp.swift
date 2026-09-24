@@ -22,13 +22,17 @@ struct RainyClockApp: App {
 
     var body: some Scene {
         WindowGroup {
-            #if DEBUG && targetEnvironment(simulator)
-            if ProcessInfo.processInfo.arguments.contains("-weather-scene-preview") {
-                CommuteWeatherPreviewHost()
-            } else { standardContent }
-            #else
-            standardContent
-            #endif
+            Group {
+                #if DEBUG && targetEnvironment(simulator)
+                if ProcessInfo.processInfo.arguments.contains("-weather-scene-preview") {
+                    CommuteWeatherPreviewHost()
+                } else { standardContent }
+                #else
+                standardContent
+                #endif
+            }
+            // The medium widget's  Weather column: open Apple's legal attribution page.
+            .onOpenURL { url in WeatherAttributionLink.open(url) }
         }
         .onChange(of: scenePhase) { _, newPhase in
             #if DEBUG && targetEnvironment(simulator)

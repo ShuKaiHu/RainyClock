@@ -197,3 +197,92 @@ enum TomorrowWidgetTimeline {
         return Plan(items: items, reloadAfter: min(snapshot.expiresAt, soon))
     }
 }
+
+/// Apple's combined " Weather" mark for the medium widget, the only family that shows
+/// WeatherKit data (D-A). The widget cannot reach the network, so the app downloads the
+/// mark from `WeatherService.shared.attribution` where it already talks to WeatherKit
+/// (`WeatherAttributionMarkCache`) and leaves the PNGs in the App Group container; the
+/// widget draws them, or `fallbackText` until the first download lands.
+///
+/// Apple's requirement (developer.apple.com/weatherkit/get-started, "Apple Weather and
+/// third-party attribution"): an app that displays weather data from Apple must clearly
+/// display the Apple Weather trademark ( Weather) and the legal link to the other data
+/// sources. The medium widget's weather column links (`legalLinkURL`) to the app, which
+/// opens `WeatherAttribution.legalPageURL`.
+struct WeatherAttributionMarkStore: Sendable {
+    enum Variant: String, CaseIterable, Sendable {
+        /// For light backgrounds (`combinedMarkLightURL`).
+        case light
+        /// For dark backgrounds (`combinedMarkDarkURL`): the full-colour widget's sky.
+        case dark
+    }
+
+    static let maximumBytes = 512_000
+    /// The widget's link into the app, which then opens Apple's legal attribution page.
+    static let legalLinkURL = URL(string: "rainyclock://weather-attribution")!
+    /// U+F8FF is drawn as the Apple logo by Apple's system fonts.
+    static let fallbackText = "\u{F8FF} Weather"
+    private static let pngSignature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+
+    /// nil when the App Group container is unavailable (then every read is nil, every save false).
+    var directory: URL?
+
+    static var appGroup: WeatherAttributionMarkStore {
+        WeatherAttributionMarkStore(directory: FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: TomorrowWidgetSnapshot.appGroupIdentifier)?
+            .appendingPathComponent("WeatherAttribution", isDirectory: true))
+    }
+
+    static func isPNG(_ data: Data) -> Bool {
+        data.count > pngSignature.count && data.starts(with: pngSignature)
+    }
+
+    func fileURL(for variant: Variant) -> URL? {
+        directory?.appendingPathComponent("combined-mark-\(variant.rawValue).png")
+    }
+
+    /// The stored PNG, or nil when missing, oversized or not a PNG.
+    func data(for variant: Variant) -> Data? {
+        guard let url = fileURL(for: variant), let data = try? Data(contentsOf: url),
+              data.count <= Self.maximumBytes, Self.isPNG(data) else { return nil }
+        return data
+    }
+
+    /// When the mark was saved, kept in a sidecar rather than read from the file's
+    /// modification date, which would be a required-reason API (file timestamps).
+    private func stampURL(for variant: Variant) -> URL? {
+        directory?.appendingPathComponent("combined-mark-\(variant.rawValue).saved")
+    }
+
+    /// Refuses anything that is not a PNG within `maximumBytes`; writes atomically.
+    @discardableResult
+    func save(_ data: Data, for variant: Variant, now: Date = Date()) -> Bool {
+        guard data.count <= Self.maximumBytes, Self.isPNG(data), let directory, let url = fileURL(for: variant),
+              let stamp = stampURL(for: variant) else {
+            return false
+        }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+            try Data(String(now.timeIntervalSince1970).utf8).write(to: stamp, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    func savedAt(_ variant: Variant) -> Date? {
+        guard data(for: variant) != nil, let stamp = stampURL(for: variant),
+              let text = try? String(contentsOf: stamp, encoding: .utf8),
+              let seconds = TimeInterval(text) else { return nil }
+        return Date(timeIntervalSince1970: seconds)
+    }
+
+    /// Either variant missing, or older than `maximumAge`.
+    func needsRefresh(now: Date, maximumAge: TimeInterval) -> Bool {
+        Variant.allCases.contains { variant in
+            guard let savedAt = savedAt(variant) else { return true }
+            return now.timeIntervalSince(savedAt) > maximumAge
+        }
+    }
+}

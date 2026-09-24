@@ -29,10 +29,11 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
 
     func testGlyphHeroAndLinePerScenario() {
         let table: [Scenario: (Presentation.Glyph, String, Presentation.Line?)] = [
-            .normalClear: (.alarm, "time", .routeRain(percent: 10)),
-            .cloudyNormal: (.alarm, "time", .routeRain(percent: 30)),
-            .rainForecast: (.rain, "time+original", .reason(.rainForecast(percent: 80, minutes: 30))),
-            .rainMixed: (.rain, "time+original", .reason(.rainForecast(percent: 80, minutes: 30))),
+            // D-A: outside the medium, the decision only: no route rain %, no percentage in the rain line.
+            .normalClear: (.alarm, "time", .ringsAsUsual),
+            .cloudyNormal: (.alarm, "time", .ringsAsUsual),
+            .rainForecast: (.rain, "time+original", .reason(.rainEarlier(minutes: 30))),
+            .rainMixed: (.rain, "time+original", .reason(.rainEarlier(minutes: 30))),
             .rainStale: (.rain, "time+original", .reason(.rainEarlier(minutes: 30))),
             .holidayNamed: (.silent, "skipped", .reason(.holidayNamed("國慶日"))),
             .holidayUnnamed: (.silent, "skipped", .reason(.holiday)),
@@ -49,12 +50,12 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             .alarmKitReschedule: (.rain, "time+original", .issue(.alarmKitReschedule)),
             .closureUncertain: (.alarm, "time", .issue(.closureUncertain)),
             .closureUpdateFailed: (.alarm, "time", .issue(.closureUpdateFailed)),
-            .ringPreviousDay: (.rain, "time+original", .reason(.rainForecast(percent: 70, minutes: 30))),
+            .ringPreviousDay: (.rain, "time+original", .reason(.rainEarlier(minutes: 30))),
             // D-D: the registered early time, but neither the rain glyph nor 因雨提早.
             .carriedOver: (.alarm, "time+original", .reason(.awaitingForecast)),
             // D-C: today's alarm between midnight and its ring.
             .todayRain: (.rain, "time+original", .todayReason(.rainEarlier(minutes: 30))),
-            .todayNormal: (.alarm, "time", .routeRain(percent: 20)),
+            .todayNormal: (.alarm, "time", .ringsAsUsual),
             .todaySkipped: (.silent, "skipped", .todayReason(.weekend)),
             .todayCarriedOver: (.alarm, "time+original", .todayReason(.awaitingForecast)),
             .expired: (.refresh, "openApp.expired", nil),
@@ -73,11 +74,16 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertFalse(presentation(.rainForecast).ringIsOnAnotherDay)
         XCTAssertNil(presentation(.expired).home)
         XCTAssertNil(presentation(.expired).day)
+        // The medium's sky is the forecast's (weather, attributed there)...
         XCTAssertEqual(presentation(.rainMixed).home, .clear)
         XCTAssertEqual(presentation(.rainMixed).work, .rain)
-        XCTAssertEqual(presentation(.rainForecast).standByConditionSymbol, "cloud.rain.fill")
-        XCTAssertEqual(presentation(.normalClear).standByConditionSymbol, "sun.max.fill")
-        XCTAssertNil(presentation(.routeIncomplete).standByConditionSymbol)
+        // ...the small's is the decision's.
+        XCTAssertEqual(presentation(.rainMixed).decisionSky, .rain)
+        XCTAssertEqual(presentation(.cloudyNormal).decisionSky, .clear)
+        XCTAssertEqual(presentation(.manualSkip).decisionSky, .clear, "A rain forecast on a skipped day draws no rain")
+        XCTAssertEqual(presentation(.carriedOver).decisionSky, .clear, "Not this day's rain")
+        XCTAssertNil(presentation(.routeIncomplete).decisionSky)
+        XCTAssertNil(presentation(.expired).decisionSky)
 
         XCTAssertEqual(presentation(.rainForecast).relevanceScore, 50)
         XCTAssertEqual(presentation(.scheduleUpdateNeeded).relevanceScore, 50)
@@ -112,7 +118,7 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertTrue(Presentation.Line.notice(.stale).isWarning)
         XCTAssertFalse(Presentation.Line.notice(.routeNeeded).isWarning)
         XCTAssertEqual(Presentation.Line.notice(.failed).leadingSymbol, "exclamationmark.triangle.fill")
-        XCTAssertEqual(Presentation.Line.routeRain(percent: 10).leadingSymbol, "drop.fill")
+        XCTAssertNil(Presentation.Line.ringsAsUsual.leadingSymbol)
         XCTAssertNil(Presentation.Line.reason(.weekend).leadingSymbol)
     }
 
@@ -127,22 +133,27 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             }
             if let notice = entry.weatherNotice {
                 XCTAssertNotEqual(value.mediumLine?.full, Presentation.Line.notice(notice).full, "\(scenario) says it twice")
+            } else if case .reason(.rainForecast(_, let minutes))? = value.mediumLine {
+                // The medium may name the route's rain chance; the others say the decision.
+                XCTAssertEqual(value.line, .reason(.rainEarlier(minutes: minutes)), "\(scenario)")
             } else {
                 XCTAssertEqual(value.mediumLine, value.line, "\(scenario)")
             }
         }
+        XCTAssertEqual(presentation(.rainForecast).mediumLine, .reason(.rainForecast(percent: 80, minutes: 30)))
         XCTAssertEqual(presentation(.rainStale).line, .reason(.rainEarlier(minutes: 30)))
         XCTAssertEqual(presentation(.rainStale).mediumLine, .reason(.rainEarlier(minutes: 30)))
         XCTAssertEqual(presentation(.weatherFailed).line, .notice(.failed))
-        XCTAssertNil(presentation(.weatherFailed).mediumLine)
-        XCTAssertNil(presentation(.forecastUnavailable).mediumLine)
+        XCTAssertEqual(presentation(.weatherFailed).mediumLine, .ringsAsUsual, "The column says it failed; the footer, the decision")
+        XCTAssertEqual(presentation(.forecastUnavailable).mediumLine, .ringsAsUsual)
         XCTAssertEqual(presentation(.routeIncomplete).line, .reason(.routeNeeded))
         XCTAssertNil(presentation(.routeIncomplete).mediumLine, "請完成路線 is already the column's notice")
-        XCTAssertEqual(presentation(.normalClear).mediumLine, .routeRain(percent: 10))
+        XCTAssertEqual(presentation(.normalClear).mediumLine, .ringsAsUsual)
 
         guard case .status(var entry) = state(.normalClear) else { return XCTFail("normalClear must be a status") }
         entry.weatherNotice = .stale
-        XCTAssertNil(Presentation(.status(entry)).mediumLine, "Stale weather alone: only the column says so")
+        XCTAssertEqual(Presentation(.status(entry)).line, .notice(.stale), "Data age is not weather data: it may stay")
+        XCTAssertEqual(Presentation(.status(entry)).mediumLine, .ringsAsUsual, "Only the column says it is stale")
         entry.scheduleIssue = .updateNeeded
         XCTAssertEqual(Presentation(.status(entry)).mediumLine, .issue(.updateNeeded))
     }
@@ -167,6 +178,47 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
                 XCTAssertNil(value.ringDay, "\(scenario)")
             }
         }
+    }
+
+    /// D-A: every family but the medium shows the alarm decision and nothing WeatherKit
+    /// produced: no rain percentage, no condition name, no condition-drawn sky or symbol.
+    func testNoWeatherDataOutsideTheMedium() {
+        let weatherKeys: Set<String> = ["ux_rain_applied_forecast", "ux_rain_chance", "ux_weather_clear",
+                                        "ux_weather_cloudy", "ux_weather_rain", "ux_weather_updated"]
+        let conditions: [TomorrowWidgetSnapshot.Condition] = [.clear, .cloudy, .rain]
+        for scenario in Scenario.allCases {
+            guard case .status(let base) = state(scenario) else { continue }
+            var faces: [Presentation] = []
+            // The same decision under every forecast the snapshot could carry.
+            for home in conditions {
+                for percent in [0, 55, 100] {
+                    var entry = base
+                    entry.forecast = .init(checkedAt: now, home: .init(condition: home, percent: percent),
+                                           work: .init(condition: home, percent: percent), maximumPercent: percent)
+                    faces.append(Presentation(.status(entry), language: "zh-Hant"))
+                }
+            }
+            var bare = base
+            bare.forecast = nil
+            faces.append(Presentation(.status(bare), language: "zh-Hant"))
+            for face in faces {
+                XCTAssertEqual(face.line, faces[0].line, "\(scenario): the line must not follow the forecast")
+                XCTAssertEqual(face.decisionSky, faces[0].decisionSky, "\(scenario): the small sky must not follow the forecast")
+                XCTAssertEqual(face.glyph, faces[0].glyph, "\(scenario)")
+                XCTAssertNotEqual(face.decisionSky, .cloudy, "\(scenario)")
+                if let line = face.line {
+                    XCTAssertFalse(weatherKeys.contains(line.full.key), "\(scenario): \(line.full.key)")
+                    XCTAssertFalse(weatherKeys.contains(line.short.key), "\(scenario): \(line.short.key)")
+                }
+            }
+            let face = faces[0]
+            XCTAssertEqual(face.decisionSky == .rain, base.appliesRainLead, "\(scenario): rain sky only for a rain-moved alarm")
+            // A normal ringing day says so, unless an issue or a freshness notice comes first.
+            if base.reasonLine == nil, base.expectedRingDate != nil, base.scheduleIssue == nil, base.weatherNotice == nil {
+                XCTAssertEqual(face.line, .ringsAsUsual, "\(scenario)")
+            }
+        }
+        XCTAssertEqual(Presentation.Line.ringsAsUsual.full.key, "widget_rings_as_usual")
     }
 
     /// D-C: today's entry names today everywhere a day is named.

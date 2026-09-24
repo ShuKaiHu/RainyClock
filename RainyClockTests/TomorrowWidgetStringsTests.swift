@@ -24,7 +24,7 @@ final class TomorrowWidgetStringsTests: XCTestCase {
     private var everyLine: [Line] {
         var lines: [Line] = TomorrowWidgetSnapshot.ScheduleIssue.allCases.map { .issue($0) }
         lines += TomorrowWidgetSnapshot.WeatherNotice.allCases.map { .notice($0) }
-        lines += [.routeRain(percent: 40)]
+        lines += [.ringsAsUsual]
         let reasons: [TomorrowWidgetSnapshot.ReasonLine] = [
             .rainForecast(percent: 80, minutes: 30), .rainEarlier(minutes: 30), .awaitingForecast, .holidayNamed("國慶日"), .holiday,
             .manualSkip, .manualRing, .weekend, .unselectedWeekday, .closure, .routeNeeded]
@@ -103,6 +103,10 @@ final class TomorrowWidgetStringsTests: XCTestCase {
             XCTAssertFalse(chinese[key]?.contains("明天") ?? true, key)
         }
         XCTAssertEqual(specifiers(english["widget_inline_today_rain"] ?? ""), ["%1$@", "%2$d"])
+        // D-A: the neutral line for a normal day names no weather.
+        XCTAssertEqual(english["widget_rings_as_usual"], "Rings as usual")
+        XCTAssertEqual(chinese["widget_rings_as_usual"], "照常響鈴")
+        XCTAssertNil(english["widget_route_rain_chance"], "Route rain % left every family but the medium")
         // Before the app has published anything there is nothing to refresh.
         for key in ["widget_inline_start", "widget_inline_start_short"] {
             XCTAssertFalse(english[key]?.localizedCaseInsensitiveContains("refresh") ?? true, key)
