@@ -13,7 +13,7 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 
 Last updated: 2026-09-23.
 
-> **1.7.0（36）已在本機完成，尚未 commit／上傳：** 修正重裝後會員永久卡住（App Attest），
+> **1.7.0（36）已上傳 TestFlight（2026-09-24 12:49:53），尚未送審：** 修正重裝後會員永久卡住（App Attest），
 > 以及 iOS 27 TestFlight 價格被整批擋下。見下節。9/23 的「App 不改」結論已被本節取代。
 
 ## 1.7.0（36）準備：重裝後會員卡死、iOS 27 價格被擋 — 2026-09-24
@@ -52,7 +52,10 @@ Last updated: 2026-09-23.
 - 測試：簽章的 `RainyClock Membership Local` scheme、iOS 26.2 模擬器，完整 **387 項通過、0 失敗、
   0 跳過**（新增 12 項，改名或取代 2 項）。xcresult：
   `DerivedData/Logs/Test/Test-RainyClock Membership Local-2026.09.24_12-17-03-+0800.xcresult`。
-- **尚未**：commit、archive、上傳、送審。
+- 已提交 `91f331a`（只含本次檔案，疊在另一個 session 的 dayoff-service commit 之上）。Release archive
+  `build/RainyClock-1.7.0-36.xcarchive`：App 與兩個 extension 皆為 1.7.0（36），App Attest `production`，
+  正式會員 URL，沒有打包 `.storekit`。**2026-09-24 12:49:53 上傳成功**，Apple 處理中；IronSource dSYM
+  警告照舊，不影響上傳。日誌：`/tmp/rainyclock-170-36/archive.log`、`upload.log`。**尚未送審。**
 - 36 上傳後的真機驗收，只用 TestFlight，不要用 Xcode Debug 覆蓋：
   1. 在卡住的手機把 35 原地更新到 36。啟動後不應再出現 attest-assertion。若 AppTransaction 太舊，
      可能先看到「Tap Refresh membership」或 `session · MembershipHTTP/401`；點同步後應恢復，會員編號不變。

@@ -12,7 +12,7 @@ Ongoing state and the backlog live in `docs/STATUS-IOS.md`; this file is the sub
 | Item | Status |
 | --- | --- |
 | App version | `1.7.0` — membership, calendar and redesigned alarm/settings |
-| Build number | `35` — location candidate search, ATT timing, notification response crash fixes; 377 tests passed; uploaded 2026-09-23 22:31:20; Apple processing complete, internal TestFlight available. TestFlight USD/native TWD display mismatch remains unconfirmed. |
+| Build number | `36` — App Attest recovery after a reinstall and iOS 27 TestFlight price fallback, on top of 35's location, ATT timing and notification crash fixes; 387 tests passed; uploaded 2026-09-24 12:49:53, Apple processing. |
 | Review status | 1.7.0 (34) rejected 2026-09-23: 6.5-inch screenshots, location lookup, and missing ATT prompt/recording. Build 35 uploaded to TestFlight, not resubmitted. zh-Hant 6.5-inch media verified inheriting the new 6.9-inch screenshots; en-US cleanup still unverified. iOS 27 physical-device validation and recording remain pending. |
 | Last released | `1.6.9` — public listing confirmed 2026-09-10 |
 | Bundle identifier | `com.shukaihu.RainyClock` |
@@ -24,6 +24,7 @@ Latest investigation handoff: [2026-09-23 — TestFlight USD cards / native TWD 
 
 ## Submission History
 
+- `1.7.0 (36)` — Uploaded to TestFlight 2026-09-24 12:49:53; 387 tests passed, 0 failed/skipped. Fixes membership stuck forever after a delete and reinstall (App Attest `invalidInput` never rotated the key), and iOS 27 TestFlight plans hidden because the storefront reports TWN while products still come back in USD. Not submitted to App Review.
 - `1.7.0 (35)` — Uploaded to TestFlight 2026-09-23 22:31:20; 377 tests passed, 0 failed/skipped. Includes location, ATT and notification-response crash fixes. Apple processing complete; internal `SKHU tester` (1 tester) has access; bilingual test notes saved and verified. Not submitted to App Review.
 
 - `1.7.0 (34)` — **Rejected** 2026-09-23, submission `5a8a1d24-97da-4eb9-89a7-350274dccc85`: 2.3.3 (6.5-inch screenshots do not sufficiently show the app in use), 2.1(a) (location could not be found), and 2.1 Information Needed (ATT prompt not found; physical-device recording requested). Reviewed on iPad Air 11-inch M3 and iPhone 17 Pro Max running iPadOS/iOS 27.0. Source is the user's review message; no ASC changes or new build in this diagnostic pass. See [findings and resubmission requirements](APP-REVIEW-2026-09-23.md).
