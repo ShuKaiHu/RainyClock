@@ -13,7 +13,7 @@ Ongoing state and the backlog live in `docs/STATUS-IOS.md`; this file is the sub
 | --- | --- |
 | App version | `1.7.0` — membership, calendar and redesigned alarm/settings |
 | Build number | `1.7.1 (37)` — address suggestions restored and typed-address confirmation surfaced, on top of 36; uploaded 2026-09-24 15:00:13. Previously `36` — App Attest recovery after a reinstall and iOS 27 TestFlight price fallback, on top of 35's location, ATT timing and notification crash fixes; 387 tests passed; uploaded 2026-09-24 12:49:53, Apple processing. |
-| Review status | 1.7.0 (34) rejected 2026-09-23: 6.5-inch screenshots, location lookup, and missing ATT prompt/recording. Build 35 uploaded to TestFlight, not resubmitted. zh-Hant 6.5-inch media verified inheriting the new 6.9-inch screenshots; en-US cleanup still unverified. iOS 27 physical-device validation and recording remain pending. |
+| Review status | 1.7.1 (37) Waiting for Review since 2026-09-25 00:10 (resubmission of the 1.7.0 (34) rejection). Earlier: 1.7.0 (34) rejected 2026-09-23: 6.5-inch screenshots, location lookup, and missing ATT prompt/recording. Build 35 uploaded to TestFlight, not resubmitted. zh-Hant 6.5-inch media verified inheriting the new 6.9-inch screenshots; en-US cleanup still unverified. iOS 27 physical-device validation and recording remain pending. |
 | Last released | `1.6.9` — public listing confirmed 2026-09-10 |
 | Bundle identifier | `com.shukaihu.RainyClock` |
 | Extension bundle identifiers | `com.shukaihu.RainyClock.AlarmWidget`; `com.shukaihu.RainyClock.DayOffNotification` (temporary-closure rollout stays disabled in 1.7.0) |
@@ -24,7 +24,7 @@ Latest investigation handoff: [2026-09-23 — TestFlight USD cards / native TWD 
 
 ## Submission History
 
-- `1.7.1 (37)` — Uploaded to TestFlight 2026-09-24 15:00:13; 395 tests passed, 0 failed/skipped. Restores the Home/Work suggestion list (the 1.7.0 sheet left its FocusState in the presenting view), confirms exact same-name typed addresses silently, and shows pending/not-found state on the Route rows. The App Store version record is still 1.7.0 and must become 1.7.1 before submission. Not submitted to App Review.
+- `1.7.1 (37)` — Uploaded to TestFlight 2026-09-24 15:00:13; 395 tests passed, 0 failed/skipped. Restores the Home/Work suggestion list (the 1.7.0 sheet left its FocusState in the presenting view), confirms exact same-name typed addresses silently, and shows pending/not-found state on the Route rows. The App Store version record is still 1.7.0 and must become 1.7.1 before submission. Resubmitted to App Review 2026-09-25 00:10 with the reply to the 1.7.0 (34) rejection, the ATT recording (reply + App Review Information attachment) and new notes (`docs/appstore-review-notes-1.7.1-37.txt`); Waiting for Review, manual release.
 - `1.7.0 (36)` — Uploaded to TestFlight 2026-09-24 12:49:53; 387 tests passed, 0 failed/skipped. Fixes membership stuck forever after a delete and reinstall (App Attest `invalidInput` never rotated the key), and iOS 27 TestFlight plans hidden because the storefront reports TWN while products still come back in USD. Not submitted to App Review.
 - `1.7.0 (35)` — Uploaded to TestFlight 2026-09-23 22:31:20; 377 tests passed, 0 failed/skipped. Includes location, ATT and notification-response crash fixes. Apple processing complete; internal `SKHU tester` (1 tester) has access; bilingual test notes saved and verified. Not submitted to App Review.
 
