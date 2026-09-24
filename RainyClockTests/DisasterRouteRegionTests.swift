@@ -103,7 +103,10 @@ final class DisasterRouteRegionTests: XCTestCase {
     }
 
     func testAcceptedPreviewSuppliesRegionsAndAddressEditInvalidatesThem() async {
-        let preview = DistrictRoutePreview(home: location(home.name), work: location(work.name, address: "Work"))
+        // Resolved names differ from the typed text, so neither address is confirmed
+        // silently and clearing the preview must drop the unconfirmed regions.
+        let preview = DistrictRoutePreview(home: location(home.name, address: "Home Road 1"),
+                                           work: location(work.name, address: "Work Road 2"))
         let model = AlarmViewModel(routePreviewService: preview, settingsStorage: storage)
         model.settings.homeAddress = "Home"
         model.settings.workAddress = "Work"

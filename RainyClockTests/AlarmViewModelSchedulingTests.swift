@@ -30,9 +30,10 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         return viewModel
     }
 
-    private func makeAutomaticViewModel(spy: SchedulerSpy, confirmed: Bool = true) -> AlarmViewModel {
+    private func makeAutomaticViewModel(spy: SchedulerSpy, confirmed: Bool = true,
+                                        preview: AutomaticRoutePreview = AutomaticRoutePreview()) -> AlarmViewModel {
         let model = AlarmViewModel(routeWeatherService: MockRouteWeatherService(),
-            routePreviewService: AutomaticRoutePreview(), notificationScheduler: spy,
+            routePreviewService: preview, notificationScheduler: spy,
             previewScheduler: AutomaticPreviewScheduler(), settingsStorage: storage,
             autoRefreshDebounce: .milliseconds(80))
         if confirmed {
@@ -91,7 +92,8 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
 
     func testDraftAndUnconfirmedPreviewNeverAutomaticallyArm() async throws {
         let spy = SchedulerSpy()
-        let model = makeAutomaticViewModel(spy: spy, confirmed: false)
+        let model = makeAutomaticViewModel(spy: spy, confirmed: false, preview: AutomaticRoutePreview(resolvedNames: [
+            "Home Street 1": "Home Street 1, Test District", "Work Street 2": "Work Street 2, Test District"]))
         model.activateAutomaticScheduling()
         model.settings.rainLeadTimeMinutes = 20
         try await Task.sleep(for: .milliseconds(200))
@@ -110,7 +112,8 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
 
     func testAddressEditRemovesOldAlarmThenConfirmationAutomaticallyRearms() async throws {
         let spy = SchedulerSpy()
-        let model = makeAutomaticViewModel(spy: spy)
+        let model = makeAutomaticViewModel(spy: spy, preview: AutomaticRoutePreview(resolvedNames: [
+            "A new draft": "A New Draft Road, Test District"]))
         model.activateAutomaticScheduling()
         try await waitUntil("initial alarm") { model.hasScheduledAlarm && !model.isScheduling }
 
@@ -123,9 +126,85 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         await model.previewRoute()
         model.confirmSuggestedAddress(.home)
         try await waitUntil("replacement route armed") { spy.scheduleCalls.count == 2 && !model.isScheduling }
-        XCTAssertEqual(model.settings.homeAddress, "A new draft")
+        XCTAssertEqual(model.settings.homeAddress, "A New Draft Road, Test District")
         XCTAssertTrue(model.hasScheduledAlarm)
         XCTAssertFalse(model.isScheduleStale)
+    }
+
+    /// 1.7.0 hid this banner inside the address sheet while it blocked scheduling, so
+    /// "Taipei main station" typed by hand left the home screen at "No alarm set".
+    func testTypedAddressDifferingOnlyInCaseIsConfirmedWithoutBanner() async throws {
+        let spy = SchedulerSpy()
+        let model = makeAutomaticViewModel(spy: spy, confirmed: false, preview: AutomaticRoutePreview(resolvedNames: [
+            "taipei main station": "Taipei Main Station", "ＴＡＩＰＥＩ　１０１": "Taipei 101"]))
+        model.settings.homeAddress = "taipei main station"
+        model.settings.workAddress = "ＴＡＩＰＥＩ　１０１"
+        await model.previewRoute()
+        XCTAssertTrue(model.suggestedAddressMatches.isEmpty)
+        XCTAssertFalse(model.requiresSuggestedAddressConfirmation)
+        XCTAssertEqual(model.settings.homeAddress, "taipei main station")
+        XCTAssertEqual(model.settings.confirmedHomeAddressInput, "taipei main station")
+        XCTAssertNotNil(model.settings.homeResolvedLocation)
+        XCTAssertNotNil(model.settings.workResolvedLocation)
+        XCTAssertTrue(model.canSchedule)
+
+        model.activateAutomaticScheduling()
+        try await waitUntil("typed route armed") { model.hasScheduledAlarm && !model.isScheduling }
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
+    }
+
+    func testTypedAddressResolvingToDifferentPlaceStillNeedsConfirmation() async throws {
+        let spy = SchedulerSpy()
+        let model = makeAutomaticViewModel(spy: spy, confirmed: false, preview: AutomaticRoutePreview(resolvedNames: [
+            "Home Street 1": "Taipei Zoo"]))
+        model.activateAutomaticScheduling()
+        await model.previewRoute()
+        XCTAssertEqual(model.suggestedAddressMatches[.home]?.suggestedAddress, "Taipei Zoo")
+        XCTAssertFalse(model.canSchedule)
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(spy.scheduleCalls.isEmpty)
+    }
+
+    func testSameNameStillNeedsConfirmationWhenOnlySuggestedOrNumbered() async {
+        let suggested = makeAutomaticViewModel(spy: SchedulerSpy(), confirmed: false,
+            preview: AutomaticRoutePreview(resolution: .suggested))
+        await suggested.previewRoute()
+        XCTAssertNotNil(suggested.suggestedAddressMatches[.home])
+
+        // The same street and number exist in many towns.
+        let numbered = makeAutomaticViewModel(spy: SchedulerSpy(), confirmed: false)
+        numbered.settings.homeAddress = "中正路100號"
+        await numbered.previewRoute()
+        XCTAssertEqual(numbered.suggestedAddressMatches[.home]?.suggestedAddress, "中正路100號")
+        XCTAssertTrue(numbered.requiresSuggestedAddressConfirmation)
+    }
+
+    func testAutoConfirmedAddressSurvivesRelaunchAndEditingDropsIt() async throws {
+        let model = makeAutomaticViewModel(spy: SchedulerSpy(), confirmed: false, preview: AutomaticRoutePreview(resolvedNames: [
+            "taipei main station": "Taipei Main Station"]))
+        model.settings.homeAddress = "taipei main station"
+        await model.previewRoute()
+        XCTAssertNil(model.suggestedAddressMatches[.home])
+
+        // The restored confirmation must still arm the alarm, and a new preview that
+        // names another place must not bring the banner back.
+        let relaunchSpy = SchedulerSpy()
+        let relaunched = AlarmViewModel(routeWeatherService: MockRouteWeatherService(),
+            routePreviewService: AutomaticRoutePreview(resolvedNames: ["taipei main station": "Taipei Zoo"]),
+            notificationScheduler: relaunchSpy, previewScheduler: AutomaticPreviewScheduler(),
+            settingsStorage: storage, autoRefreshDebounce: .milliseconds(80))
+        XCTAssertEqual(relaunched.settings.homeAddress, "taipei main station")
+        XCTAssertEqual(relaunched.settings.confirmedHomeAddressInput, "taipei main station")
+        XCTAssertNotNil(relaunched.settings.homeResolvedLocation)
+        await relaunched.previewRoute()
+        XCTAssertNil(relaunched.suggestedAddressMatches[.home])
+        relaunched.activateAutomaticScheduling()
+        try await waitUntil("restored route armed") { relaunched.hasScheduledAlarm && !relaunched.isScheduling }
+        XCTAssertEqual(relaunchSpy.scheduleCalls.count, 1)
+
+        relaunched.settings.homeAddress = "taipei main statio"
+        XCTAssertNil(relaunched.settings.confirmedHomeAddressInput)
+        XCTAssertNil(relaunched.settings.homeResolvedLocation)
     }
 
     func testFailedAutomaticRegistrationDoesNotLoopAndARelevantEditRetries() async throws {
@@ -445,14 +524,19 @@ private struct AutomaticRoutePreview: RoutePreviewService {
         displayAddress: "Home Street 1", resolution: .exact)
     static let work = ResolvedMapLocation(latitude: 25.05, longitude: 121.52,
         displayAddress: "Work Street 2", resolution: .exact)
+    /// Typed text → the name Apple reports; unlisted text comes back unchanged.
+    var resolvedNames: [String: String] = [:]
+    var resolution: AddressResolution = .exact
 
     func previewRoute(from homeAddress: String, homeLocation: ResolvedMapLocation?,
         to workAddress: String, workLocation: ResolvedMapLocation?,
         mode: CommuteAlarmSettings.CommuteMode) async throws -> RoutePreview {
         var home = homeLocation ?? Self.home
         var work = workLocation ?? Self.work
-        home.displayAddress = homeAddress
-        work.displayAddress = workAddress
+        home.displayAddress = resolvedNames[homeAddress] ?? homeAddress
+        work.displayAddress = resolvedNames[workAddress] ?? workAddress
+        if homeLocation == nil { home.resolution = resolution }
+        if workLocation == nil { work.resolution = resolution }
         return RoutePreview(homeCoordinate: home.coordinate, workCoordinate: work.coordinate,
             homeLocation: home, workLocation: work, route: nil)
     }

@@ -129,6 +129,7 @@
 "route_preview_transit_route" = "Transit route";
 "address_suggestions_loading" = "Searching suggestions...";
 "address_suggestions_empty" = "No other suggestions yet";
+"address_suggestions_no_match" = "No matching places. Press Search to use what you typed.";
 "confirmed_suggested_address" = "Confirmed for this suggested location.";
 "status_confirm_suggested_address" = "Confirm the suggested address before scheduling.";
 "error_address_not_found" = "Could not find this address: %@";
