@@ -56,6 +56,11 @@ Last updated: 2026-09-23.
   `build/RainyClock-1.7.0-36.xcarchive`：App 與兩個 extension 皆為 1.7.0（36），App Attest `production`，
   正式會員 URL，沒有打包 `.storekit`。**2026-09-24 12:49:53 上傳成功**，Apple 處理中；IronSource dSYM
   警告照舊，不影響上傳。日誌：`/tmp/rainyclock-170-36/archive.log`、`upload.log`。**尚未送審。**
+- **真機驗收 1 已通過（13:00，iOS 27.0，35 原地更新到 36、未刪除 App）：** 會員頁直接正常，會員編號不變，
+  沒有「Showing last verified status」與錯誤診斷；卡片顯示 NT$10／月、NT$100，Choose plan 可按。
+  Cloud Run（UTC）：05:00:31 `/challenge`（舊 key 在手機端失敗）→ 05:00:35 `/challenge` → 05:00:38
+  `/session 200`（新 key attest 成功）→ 05:00:46、05:00:56 `/status 200`（iOS 27 一般請求的 assertion 通過）。
+  尚待：Apple 付款頁金額、刪除重裝 36、ATT 影片。
 - 36 上傳後的真機驗收，只用 TestFlight，不要用 Xcode Debug 覆蓋：
   1. 在卡住的手機把 35 原地更新到 36。啟動後不應再出現 attest-assertion。若 AppTransaction 太舊，
      可能先看到「Tap Refresh membership」或 `session · MembershipHTTP/401`；點同步後應恢復，會員編號不變。
