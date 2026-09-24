@@ -17,6 +17,9 @@ final class DisasterPushDelegate: NSObject, UIApplicationDelegate {
             let model = CommuteAlarmRefresher.currentModel()
             guard model.effectiveSchedulingSettings.isDisasterSuspensionEnabled else { completionHandler(.noData); return }
             let changed = await model.refreshDisasterSuspensions(force: true)
+            // Synchronously, as the BGTask path does: the publisher's debounce would
+            // never fire before the app is suspended again.
+            TomorrowWidgetPublisher.shared.publish()
             completionHandler(model.disasterRefreshFailed ? .failed : (changed ? .newData : .noData))
         }
     }

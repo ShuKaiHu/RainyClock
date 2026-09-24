@@ -69,6 +69,7 @@
 
 /* Circular Lock Screen face: one word under a skipped day's glyph. */
 "widget_skip_holiday" = "放假";
-"widget_skip_closure" = "停班";
+/* Work or school: a school-only notice also skips the alarm (DAYOFF-SPEC v3 OR), so not just 停班. */
+"widget_skip_closure" = "停班課";
 /* Any other skipped day: a weekend, an unselected weekday or a manual skip. */
 "widget_skip_other" = "不響";

@@ -17,6 +17,7 @@
 		D0FF0001A1B2C3D4E5F60006 /* DayOffPushContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FF0002A1B2C3D4E5F60005 /* DayOffPushContent.swift */; };
 		D0FF0001A1B2C3D4E5F60007 /* DayOffPushContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FF0002A1B2C3D4E5F60006 /* DayOffPushContentTests.swift */; };
 		D0FF0001A1B2C3D4E5F60008 /* RainyClockDayOffNotification.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D0FF0002A1B2C3D4E5F60007 /* RainyClockDayOffNotification.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D0FF0001A1B2C3D4E5F60009 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D0FF0002A1B2C3D4E5F60009 /* PrivacyInfo.xcprivacy */; };
 		2E69EE8E535B5134A640C71B /* MapKitRouteWeatherConcurrencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6D08A04FFD3CFBE372F71C /* MapKitRouteWeatherConcurrencyTests.swift */; };
 		4B06DA9FA2EFC88785EB9038 /* CommuteWeatherCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B1778DF5CA6C6C8A77EFFB /* CommuteWeatherCard.swift */; };
 		01D38ACAF517A7C2D707E95E /* RewardedAdController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AD002638D80D3B245F91C05 /* RewardedAdController.swift */; };
@@ -197,6 +198,7 @@
 		D0FF0002A1B2C3D4E5F60005 /* DayOffPushContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClock/Services/DayOffPushContent.swift"; sourceTree = SOURCE_ROOT; };
 		D0FF0002A1B2C3D4E5F60006 /* DayOffPushContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RainyClockTests/DayOffPushContentTests.swift"; sourceTree = SOURCE_ROOT; };
 		D0FF0002A1B2C3D4E5F60007 /* RainyClockDayOffNotification.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RainyClockDayOffNotification.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D0FF0002A1B2C3D4E5F60009 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AC6D08A04FFD3CFBE372F71C /* MapKitRouteWeatherConcurrencyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapKitRouteWeatherConcurrencyTests.swift; sourceTree = "<group>"; };
 		A3B1778DF5CA6C6C8A77EFFB /* CommuteWeatherCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommuteWeatherCard.swift; sourceTree = "<group>"; };
 		07A5A9EAEA066F80FAC943D3 /* GeneratedVoiceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GeneratedVoiceStore.swift; sourceTree = "<group>"; };
@@ -370,6 +372,7 @@
 				D0FF0002A1B2C3D4E5F60001 /* NotificationService.swift */,
 				D0FF0002A1B2C3D4E5F60002 /* Info.plist */,
 				D0FF0002A1B2C3D4E5F60003 /* RainyClockDayOffNotification.entitlements */,
+				D0FF0002A1B2C3D4E5F60009 /* PrivacyInfo.xcprivacy */,
 			);
 			path = RainyClockDayOffNotification;
 			sourceTree = "<group>";
@@ -716,6 +719,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0FF0001A1B2C3D4E5F60009 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
