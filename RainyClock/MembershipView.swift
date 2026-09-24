@@ -193,7 +193,7 @@ struct MembershipView: View {
                 Text(plan.title).font(.title3.weight(.semibold))
                 if let product = manager.products[plan] {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(product.displayPrice).font(.title3.weight(.semibold))
+                        Text(manager.listedPrices[plan] ?? product.displayPrice).font(.title3.weight(.semibold))
                         Text(plan == .monthly ? text("／月", "/ month") : plan == .yearly ? text("／年", "/ year") : text("一次付款", "once"))
                             .font(.caption).foregroundStyle(.secondary)
                     }
@@ -448,7 +448,8 @@ private struct MembershipPriceInspectionView: View {
         lines.append("Plan card products:")
         for plan in MembershipPlan.offeredPlans {
             if let product = manager.products[plan] {
-                lines.append("\(plan == .monthly ? "Monthly" : "One-time"): \(product.displayPrice) [\(product.priceFormatStyle.currencyCode)]")
+                let card = manager.listedPrices[plan].map { " → card \($0)" } ?? ""
+                lines.append("\(plan == .monthly ? "Monthly" : "One-time"): \(product.displayPrice) [\(product.priceFormatStyle.currencyCode)]\(card)")
             } else {
                 lines.append("\(plan == .monthly ? "Monthly" : "One-time"): unavailable")
             }

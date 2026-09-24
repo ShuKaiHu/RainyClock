@@ -1,5 +1,9 @@
 # Rainy Clock iOS 交接 — 2026-09-23：商品卡美元／付款頁台幣
 
+> **9/24 更新：** iOS 27 上 Apple 只修好了 Storefront，TestFlight 商品仍是 USD，App 的幣別檢查因此擋下整批方案；另發現重裝後 App Attest 永久卡住。兩者已在 1.7.0（36）修正，見 [STATUS-IOS](STATUS-IOS.md)。下面這段 9/23 結論已被取代。
+>
+> **已結案（2026-09-23 稍晚）：判定為 Apple TestFlight 的 StoreKit 缺陷，App 不改。** Apple 在 iOS & iPadOS 27 Release Notes 的 StoreKit → Resolved Issues 列出 `Storefront` API 在 TestFlight 可能回傳錯誤 metadata（181766819／FB23646993），iOS 26.x 沒有這項修正。證據、剩餘兩項免改程式的檢查，以及重送前要處理的審查備註，見 [STATUS-IOS 結案紀錄](STATUS-IOS.md)。下文是調查前的交接快照；其中「35 修正未提交」已過時，使用者已提交於 `351f9e7`。
+
 使用者本次要求把目前狀況交接給另一個 AI，優先重新調查：**「先前『商品卡美元、付款頁台幣』差異尚未確認解決。」**
 
 本次只整理交接與文件入口，沒有修改 App、重新建置、上傳、部署或提交審查。下列真機結果來自先前使用者實測，TestFlight／截圖狀態來自本日先前已讀回的 ASC；不是本次重新執行那些測試。新接手者先讀本檔，再查實際工作樹；[9/22 交接](HANDOFF-IOS-2026-09-22.md) 是歷史背景，版本與審查狀態已過時。

@@ -30,8 +30,9 @@ actor MembershipClient {
         guard proof.environment == routing.appleEnvironment else { throw MembershipError.unverified }
         await acquire()
         defer { release() }
-        // Retry only an explicitly invalid/missing App Attest key. Network failures cannot
-        // create a new key or make an unverified session usable.
+        // Retry only an invalid/missing App Attest key, including one left in the
+        // keychain by an earlier install. Network failures cannot create a new key or
+        // make an unverified session usable.
         do { return try await establish(proof) }
         catch {
             guard MembershipDeviceProof.requiresKeyRotation(error) else { throw error }

@@ -133,10 +133,26 @@ actor MembershipDeviceProof {
         keychain.remove("attestedKeyID")
     }
 
+    /// Keychain items outlive the app; its Secure Enclave key does not. After a
+    /// reinstall, restore or migration the stored ID names a key this install lacks,
+    /// which Apple reports as invalidInput (not only invalidKey). serverUnavailable
+    /// means retry with the same key and never counts.
+    nonisolated static func isUnusableLocalKey(_ error: Error) -> Bool {
+        guard let deviceError = MembershipDiagnosticFailure.original(error) as? DCError else { return false }
+        return deviceError.code == .invalidKey || deviceError.code == .invalidInput
+    }
+
+    /// Bootstrap only: it carries a fresh Apple proof and retries once, so a new key
+    /// is still attested. A stored key can also fail its assertion with
+    /// unknownSystemFailure; a failed attestation of a new key never rotates on it.
     nonisolated static func requiresKeyRotation(_ error: Error) -> Bool {
-        let error = MembershipDiagnosticFailure.original(error)
-        if let deviceError = error as? DCError { return deviceError.code == .invalidKey }
-        if case MembershipError.server(let code, _) = error {
+        if isUnusableLocalKey(error) { return true }
+        let original = MembershipDiagnosticFailure.original(error)
+        if let deviceError = original as? DCError {
+            return deviceError.code == .unknownSystemFailure
+                && (error as? MembershipDiagnosticFailure)?.diagnostic.stage == .appAttestAssertion
+        }
+        if case MembershipError.server(let code, _) = original {
             return ["key_not_registered", "invalid_key"].contains(code)
         }
         return false

@@ -21,25 +21,54 @@ struct MembershipCatalogStorefront: Equatable, Sendable {
 }
 
 enum MembershipProductCatalog {
-    /// Discard a catalog fetched across a storefront change or with conflicting
-    /// currency metadata. Retry once; never substitute a locally calculated price.
+    /// Discard a catalog fetched across a storefront change or with mixed currencies.
+    /// Retry once; never substitute a locally calculated price.
+    ///
+    /// A stable storefront whose products all carry one other currency is still
+    /// Apple's own catalog: TestFlight on iOS 27 reports the Taiwan storefront while
+    /// serving US products, and Apple's payment sheet charges the Taiwan price. It is
+    /// published with `currencyMismatch` so the card can show the listed price, rather
+    /// than hiding every plan and blocking the purchase.
     @MainActor static func load<Item>(
         storefront: () async -> MembershipCatalogStorefront?,
         products: () async throws -> [Item],
         currency: (Item) -> String
-    ) async throws -> (storefront: MembershipCatalogStorefront, products: [Item]) {
+    ) async throws -> (storefront: MembershipCatalogStorefront, products: [Item], currencyMismatch: Bool) {
+        var mismatched: (storefront: MembershipCatalogStorefront, products: [Item])?
         for _ in 0..<2 {
             try Task.checkCancellation()
+            mismatched = nil
             let before = await storefront()
             let loaded = try await products()
             let after = await storefront()
             try Task.checkCancellation()
             guard let before, before == after else { continue }
-            if let expected = before.currencyCode,
-               loaded.contains(where: { currency($0) != expected }) { continue }
-            return (before, loaded)
+            let currencies = Set(loaded.map(currency))
+            guard let expected = before.currencyCode, currencies.contains(where: { $0 != expected }) else {
+                return (before, loaded, false)
+            }
+            // A catalog cached from the previous storefront looks the same, so retry
+            // first. Only the last attempt's stable, single-currency result may stand.
+            if currencies.count == 1 { mismatched = (before, loaded) }
         }
+        if let mismatched { return (mismatched.storefront, mismatched.products, true) }
         throw MembershipError.productUnavailable
+    }
+}
+
+/// App Store Connect prices of the storefronts where plans are sold. Shown only when
+/// Apple's product metadata disagrees with its own storefront (see
+/// `MembershipProductCatalog.load`); otherwise the card shows `Product.displayPrice`.
+/// Keep in step with App Store Connect. Any other storefront keeps Apple's price.
+enum MembershipListedPrice {
+    static func text(for plan: MembershipPlan, storefrontCountryCode: String) -> String? {
+        switch (storefrontCountryCode, plan) {
+        case ("TWN", .monthly): "NT$10"
+        case ("TWN", .lifetime): "NT$100"
+        case ("USA", .monthly): "$1.00"
+        case ("USA", .lifetime): "$10.00"
+        default: nil
+        }
     }
 }
 
@@ -211,9 +240,13 @@ enum MembershipIdentitySynchronization {
         } else if canReuseSession() {
             do { try await reuseSession(); return }
             catch {
-                // A server-expired/revoked session can bootstrap once. Other 401s,
-                // App Attest failures and network errors remain fail-closed.
-                guard isServerError(error, code: "invalid_session", status: 401) else { throw error }
+                // A server-expired/revoked session can bootstrap once, and so can a
+                // session bound to a device key this install no longer holds (a
+                // keychain that outlived a reinstall); bootstrap rotates that key.
+                // Other 401s, App Attest service failures and network errors remain
+                // fail-closed.
+                guard isServerError(error, code: "invalid_session", status: 401)
+                        || MembershipDeviceProof.isUnusableLocalKey(error) else { throw error }
                 clearSession()
             }
         }
