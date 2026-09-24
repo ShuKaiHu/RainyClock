@@ -60,7 +60,10 @@ Last updated: 2026-09-23.
   沒有「Showing last verified status」與錯誤診斷；卡片顯示 NT$10／月、NT$100，Choose plan 可按。
   Cloud Run（UTC）：05:00:31 `/challenge`（舊 key 在手機端失敗）→ 05:00:35 `/challenge` → 05:00:38
   `/session 200`（新 key attest 成功）→ 05:00:46、05:00:56 `/status 200`（iOS 27 一般請求的 assertion 通過）。
-  尚待：Apple 付款頁金額、刪除重裝 36、ATT 影片。
+- **真機驗收 2 已通過：** Apple 原生付款頁月訂閱為 **NT$10.00 per month**、買斷為 **NT$100.00 One-time
+  charge**，與方案卡一致，並標示測試不收費；兩者都只開啟付款頁、未確認購買。9/21 起的「卡片 USD／付款 TWD」
+  問題在 iOS 27＋36 上已不再出現。尚待：刪除後重裝 36、ATT 影片。重送前，build 34 審查備註的
+  「KNOWN PRICE DISPLAY LIMITATION」段落應刪除。
 - 36 上傳後的真機驗收，只用 TestFlight，不要用 Xcode Debug 覆蓋：
   1. 在卡住的手機把 35 原地更新到 36。啟動後不應再出現 attest-assertion。若 AppTransaction 太舊，
      可能先看到「Tap Refresh membership」或 `session · MembershipHTTP/401`；點同步後應恢復，會員編號不變。
