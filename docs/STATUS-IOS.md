@@ -190,8 +190,8 @@ Last updated: 2026-09-24.
   NCDR 會員只發給公務／公司／學校信箱，個人申請不到；改用 data.gov.tw 資料集 20457 登錄的免金鑰
   網址（政府資料開放授權；NCDR 公告 3/31 下架但 9/24 仍正常）。這是明確設定，不是備援。
   之後同日：`run.invoker` 補上、Scheduler 自動觸發驗證通過；APNs `.p8` 掛上、`pushConfigured:true`，
-  第一次廣播對零台裝置走完 `done`；三個記錄指標、email 通知通道與三個告警 policy 建好（通道待驗證信）。
-  **尚未**：absence 告警實測、真機推播驗證（等 1.8.0 開閘）。指令與逐條執行紀錄見
+  第一次廣播對零台裝置走完 `done`；三個記錄指標、email 通知通道與三個告警 policy 建好；暫停 Scheduler 實測，absence 告警約
+  20 分鐘後寄達 `shukaihu@icloud.com`，已恢復。**尚未**：真機推播驗證（等 1.8.0 開閘）。指令與逐條執行紀錄見
   [dayoff-service/DEPLOYMENT.md](../dayoff-service/DEPLOYMENT.md)。
   1.8.0 開閘前仍缺：把服務網址填入 `DayOffServiceURL`、確認正式 build 的 push capability、
   真機驗證（晚間公告、重啟、低耗電、關背景更新、強制結束、撤銷、關閉後恢復、

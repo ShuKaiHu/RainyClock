@@ -1,7 +1,7 @@
 # 停班停課服務部署（Cloud Run Job + service + Firestore）
 
 2026-09-24：程式與測試完成（`npm test` 100 通過、7 個 Emulator 測試略過；Firestore Emulator 全套 107 通過）。
-資料庫、TTL、索引豁免、secret、映像、service、Job、Scheduler 與 APNs 推播都已就緒並以 `open-data` 來源運行中；告警通道與三個 policy 已建（待 email 驗證與 absence 實測）；只剩真機驗證，見最下方「執行紀錄」。
+資料庫、TTL、索引豁免、secret、映像、service、Job、Scheduler 與 APNs 推播都已就緒並以 `open-data` 來源運行中；告警通道與三個 policy 已建，absence 告警實測寄達；只剩真機推播驗證，見最下方「執行紀錄」。
 每一步實際執行後，把讀回的結果寫進最下方的「執行紀錄」，沒做過的不要寫成做過。
 設計依據見 `docs/DISASTER-PREVIEW.md` 與 `README.md`；本頁只講怎麼部署、怎麼看、怎麼救。
 
@@ -444,7 +444,21 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
   「至少 3 次」改寫成「多於 2 次」。三個都 enabled。
 - absence 告警的實測（暫停 Scheduler 20 分鐘看是否寄信）**尚未做**，要等通道驗證後執行。
 
-**未執行**：absence 告警實測（通道驗證後 `gcloud scheduler jobs pause` 20 分鐘再 `resume`）；真機推播驗證（§10）。之後若要輪替 APNs 金鑰，帶新 Key ID 重跑
+### 2026-09-24 13:20–13:48（absence 告警實測，讀回值與擁有者回報）
+
+- email 通道**不需要驗證**：API 回的 `verificationStatus` 未設定，官方文件定義為「該類型不需驗證」。
+  先前「待驗證信」的說法有誤。
+- 13:20:24 `gcloud scheduler jobs pause`。暫停前 13:20 那次排程剛好跑完，`dayoff_job_runs` 最後一個資料點
+  05:22:23Z，之後沒有任何點。
+- 13:43 另以 `notificationChannels/…:sendVerificationCode` 請 Google 寄一封測試碼信，單獨驗證送達。
+- **擁有者回報兩封都收到**（`shukaihu@icloud.com`）：測試碼信，以及 `rainyclock-dayoff poll absent` 告警信。
+  也就是「Scheduler 停了沒人知道」的保險端到端有效，iCloud 不擋 Google Monitoring 的信。
+- 經驗值：absence 告警在最後資料點後約 20 分鐘寄達（15 分鐘條件＋5 分鐘對齊＋評估延遲）。
+  暫停期間服務超過 15 分鐘沒更新，`/health` 轉為 `unavailable`（`stale_cache`），手機會拿到 503 並照響——符合設計。
+- 13:48:32 恢復（ENABLED），補跑 `rainyclock-dayoff-poll-n784k` 成功，`/health` 回到 `ready`。
+  注意：`sh` 在 `sleep` 期間收到 SIGTERM 不會立刻跑 trap，要連 `sleep` 一起結束。
+
+**未執行**：真機推播驗證（§10，等 1.8.0 開閘）。之後若要輪替 APNs 金鑰，帶新 Key ID 重跑
 `deploy/deploy.sh`（§秘密處理與輪替）。Firestore deny-all rules 未用 firebase-tools 部署（本機未登入）；
 服務帳號走 IAM，rules 只影響手機 SDK。
 
