@@ -409,7 +409,13 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
 - Scheduler `rainyclock-dayoff-poll` 建立，`*/5 * * * *` Asia/Taipei，ENABLED；**在擁有者重跑 `deploy/iam.sh`
   補 `run.invoker` 之前，整點觸發會被拒**。
 
-**未執行**：`run.invoker`（擁有者重跑 `deploy/iam.sh`）；APNs `.p8` 版本（§4，擁有者）→ 之後帶
+### 2026-09-24 11:44（擁有者重跑 `deploy/iam.sh`，補 `run.invoker`；讀回值）
+
+- `gcloud scheduler jobs run` 手動觸發 → execution `rainyclock-dayoff-poll-b5vmw` 成功；03:45Z 整點自動觸發 →
+  `rainyclock-dayoff-poll-88db6` 成功；Scheduler `lastAttemptTime` 03:45:04Z、`status: {}`。兩次摘要
+  `refreshed=true changed=false`。**從這一刻起每 5 分鐘自動輪詢。**
+
+**未執行**：APNs `.p8` 版本（§4，擁有者）→ 之後帶
 `APNS_KEY_ID`、`APNS_PRODUCTION` 重跑 `deploy/deploy.sh` 開啟推播；告警通道與三個 policy（§9）；
 真機推播驗證（§10）。Firestore deny-all rules 未用 firebase-tools 部署（本機未登入）；服務帳號走 IAM，
 rules 只影響手機 SDK。
