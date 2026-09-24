@@ -166,7 +166,12 @@ test('Firestore: two senders racing one claim: one sends every device, the other
   const dispatcher = { async send(token) { await race.wait(); sent.push(token); return accepted; }, close() {} };
   const attempt = (owner) => broadcastRevision({ store, registry, dispatcher, revision: 'r1', owner, concurrency: 2, pageSize: 50, now: () => NOW }).finally(race.settle);
   const outcomes = await Promise.all([attempt('a'), attempt('b')]);
-  assert.deepEqual(outcomes.map(({ skipped }) => skipped).sort(), ['broadcast_in_progress', undefined]);
+  // The loser normally finds the lease held. When the emulator retries the
+  // contended claim for longer than the gate's 5 s fallback, the winner has
+  // already finished and the loser finds the claim done instead. Both are the
+  // correct answer to the race: one pass, every device exactly once.
+  const skipped = outcomes.map(({ skipped }) => skipped).sort();
+  assert.ok(['broadcast_in_progress', 'done'].includes(skipped[0]) && skipped[1] === undefined, JSON.stringify(skipped));
   const winner = outcomes.find(({ skipped }) => !skipped);
   assert.deepEqual({ state: winner.state, attempts: winner.attempts, accepted: winner.accepted, complete: winner.complete }, { state: 'done', attempts: 1, accepted: 3, complete: true });
   assert.deepEqual(sent.sort(), [tokenOf(1), tokenOf(2), tokenOf(3)]);

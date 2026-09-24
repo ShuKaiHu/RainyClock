@@ -21,6 +21,7 @@ export function localConfig(env = process.env) {
   return {
     // Without a key the poller never runs and every read is not_configured,
     // which is still a useful way to check the HTTP surface.
+    source: (env.NCDR_SOURCE ?? 'member').trim(),
     apiKey: env.NCDR_API_KEY?.trim() || null,
     pollIntervalMs,
     maxCacheAgeMs: integerSetting(env, 'MAX_CACHE_AGE_MS', 900_000, pollIntervalMs, 86_400_000),
@@ -44,7 +45,7 @@ async function main() {
   const { store, close } = localStore(process.env);
   const registry = new DeviceRegistry({ store });
   const broadcaster = new RevisionBroadcaster({ registry, dispatcher, concurrency: config.concurrency, log });
-  const service = new SuspensionService({ apiKey: config.apiKey, store, pollIntervalMs: config.pollIntervalMs, maxCacheAgeMs: config.maxCacheAgeMs, requestTimeoutMs: config.requestTimeoutMs, push, onRevision: (revision) => broadcaster.enqueue(revision), log });
+  const service = new SuspensionService({ source: config.source, apiKey: config.apiKey, store, pollIntervalMs: config.pollIntervalMs, maxCacheAgeMs: config.maxCacheAgeMs, requestTimeoutMs: config.requestTimeoutMs, push, onRevision: (revision) => broadcaster.enqueue(revision), log });
   await service.initialize();
   // Phones are served through the same reader the deployed service uses, so
   // what this process shows on /health/details is what production shows.
@@ -54,7 +55,7 @@ async function main() {
     server.once('error', reject);
     server.listen(config.port, '127.0.0.1', () => { server.removeListener('error', reject); resolve(); });
   });
-  log({ event: 'listening', port: config.port, sourceConfigured: Boolean(config.apiKey), pushConfigured: push.configured, pushMode: push.mode, storage: store.kind });
+  log({ event: 'listening', port: config.port, source: config.source, sourceConfigured: service.configured, pushConfigured: push.configured, pushMode: push.mode, storage: store.kind });
   service.start();
   let stopping = false;
   const stop = async () => {

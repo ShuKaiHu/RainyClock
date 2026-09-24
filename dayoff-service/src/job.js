@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { createApnsDispatcher } from '../apns.js';
 import { ServiceError } from './errors.js';
 import { firestoreConfiguration, createStoreFromEnv, integerSetting } from './runtime.js';
-import { SuspensionService } from './service.js';
+import { SuspensionService, SOURCES } from './service.js';
 import { DeviceRegistry } from './devices.js';
 import { broadcastRevision } from './broadcast.js';
 
@@ -44,12 +44,16 @@ export function apnsConfiguration(env) {
 // Pure: nothing here touches the disk, the network or the store, so a bad
 // deployment fails before it can hold a lease.
 export function jobConfig(env = process.env) {
-  const apiKey = env.NCDR_API_KEY?.trim();
-  if (!apiKey) throw new ServiceError('invalid_configuration');
+  const source = (env.NCDR_SOURCE ?? 'member').trim();
+  const apiKey = env.NCDR_API_KEY?.trim() || null;
+  if (!Object.hasOwn(SOURCES, source)) throw new ServiceError('invalid_configuration');
+  if (source === 'member' && !apiKey) throw new ServiceError('invalid_configuration');
+  if (source === 'open-data' && apiKey) throw new ServiceError('invalid_configuration');
   const leaseMs = integerSetting(env, 'LEASE_MS', 120_000, 10_000, 600_000);
   const leaseRenewMs = integerSetting(env, 'LEASE_RENEW_MS', 30_000, 1000, 600_000);
   if (leaseRenewMs >= leaseMs) throw new ServiceError('invalid_configuration');
   return {
+    source,
     apiKey,
     ...apnsConfiguration(env),
     pollIntervalMs: integerSetting(env, 'POLL_INTERVAL_MS', 300_000, 60_000, 3_600_000),
@@ -137,7 +141,7 @@ export async function runJob({ env = process.env, store: injectedStore, closeSto
   const { store, close } = injectedStore ? { store: injectedStore, close: closeStore } : createStoreFromEnv(env, { log });
   const { owner, leaseMs } = config;
   const startedAt = now();
-  const summary = { event: 'dayoff_job', severity: 'INFO', ok: true, owner, skipped: null, refreshed: false, changed: false, revision: null, noticeCount: null, errorCode: null, warmup: null, broadcast: null, durationMs: 0 };
+  const summary = { event: 'dayoff_job', severity: 'INFO', ok: true, owner, source: config.source, skipped: null, refreshed: false, changed: false, revision: null, noticeCount: null, errorCode: null, warmup: null, broadcast: null, durationMs: 0 };
   let failure = null;
   let leased = false;
   let lostLease = false;
@@ -162,7 +166,7 @@ export async function runJob({ env = process.env, store: injectedStore, closeSto
           .finally(() => { renewal = null; });
       }, config.leaseRenewMs);
       heartbeat.unref();
-      const service = new SuspensionService({ apiKey: config.apiKey, store, owner, fetchImpl, now, pollIntervalMs: config.pollIntervalMs, requestTimeoutMs: config.requestTimeoutMs, push: { configured: Boolean(dispatcher), mode: dispatcher ? config.pushMode : null }, log });
+      const service = new SuspensionService({ source: config.source, apiKey: config.apiKey, store, owner, fetchImpl, now, pollIntervalMs: config.pollIntervalMs, requestTimeoutMs: config.requestTimeoutMs, push: { configured: Boolean(dispatcher), mode: dispatcher ? config.pushMode : null }, log });
       await service.initialize();
       if (now() < service.nextAttemptAt) summary.skipped = 'backoff';
       summary.refreshed = await service.refresh();

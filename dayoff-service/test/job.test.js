@@ -33,6 +33,11 @@ function harness({ store = memoryStore(), time = NOW, feed = () => atom(), serve
 test('jobConfig validates every setting before any I/O and applies the documented defaults', async (t) => {
   assert.throws(() => jobConfig({}), /invalid_configuration/);
   assert.throws(() => jobConfig({ ...baseEnv, NCDR_API_KEY: ' ' }), /invalid_configuration/);
+  assert.equal(jobConfig(baseEnv).source, 'member');
+  assert.equal(jobConfig({ ...baseEnv, NCDR_API_KEY: undefined, NCDR_SOURCE: 'open-data' }).source, 'open-data');
+  assert.equal(jobConfig({ ...baseEnv, NCDR_API_KEY: undefined, NCDR_SOURCE: 'open-data' }).apiKey, null);
+  assert.throws(() => jobConfig({ ...baseEnv, NCDR_SOURCE: 'open-data' }), /invalid_configuration/, 'a key with the open-data source is a mistake');
+  assert.throws(() => jobConfig({ ...baseEnv, NCDR_SOURCE: 'html' }), /invalid_configuration/);
   assert.throws(() => jobConfig({ ...baseEnv, APNS_TEAM_ID: 'TEAM123456' }), /invalid_apns_configuration/);
   assert.throws(() => jobConfig({ ...baseEnv, APNS_PUSH_MODE: 'silent' }), /invalid_apns_configuration/);
   assert.throws(() => jobConfig({ ...baseEnv, POLL_INTERVAL_MS: '1000' }), /invalid_configuration/);
@@ -88,8 +93,8 @@ test('a changed feed is committed, warmed up, broadcast to every device, and nev
   // pointer the previous run left behind.
   const { exitCode, summary } = await job.run(env);
   assert.equal(exitCode, 0);
-  assert.deepEqual(Object.keys(summary), ['event', 'severity', 'ok', 'owner', 'skipped', 'refreshed', 'changed', 'revision', 'noticeCount', 'errorCode', 'warmup', 'broadcast', 'durationMs']);
-  assert.deepEqual({ ...summary, durationMs: 0 }, { event: 'dayoff_job', severity: 'INFO', ok: true, owner: 'exec-1', skipped: null, refreshed: true, changed: false, revision: job.revision, noticeCount: 1, errorCode: null, warmup: null, broadcast: { revision: job.revision, state: 'done', attempts: 1, accepted: 2, failed: 0, unregistered: 0, retryPending: 0, complete: true }, durationMs: 0 });
+  assert.deepEqual(Object.keys(summary), ['event', 'severity', 'ok', 'owner', 'source', 'skipped', 'refreshed', 'changed', 'revision', 'noticeCount', 'errorCode', 'warmup', 'broadcast', 'durationMs']);
+  assert.deepEqual({ ...summary, durationMs: 0 }, { event: 'dayoff_job', severity: 'INFO', ok: true, owner: 'exec-1', source: 'member', skipped: null, refreshed: true, changed: false, revision: job.revision, noticeCount: 1, errorCode: null, warmup: null, broadcast: { revision: job.revision, state: 'done', attempts: 1, accepted: 2, failed: 0, unregistered: 0, retryPending: 0, complete: true }, durationMs: 0 });
   assert.deepEqual(job.sends.sort(), [registration(1).deviceToken, registration(2).deviceToken]);
   assert.equal((await job.store.get('state/current')).pendingBroadcastRevision, null);
   assert.equal(job.closes, 1);

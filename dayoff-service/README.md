@@ -7,7 +7,8 @@ Node.js 22 的共用後端，以 NCDR 正式會員 Atom/CAP 介面取得行政�
 ## 資料來源
 
 - 正式介面：`https://alerts.ncdr.nat.gov.tw/webapi/RssAtomFeed.ashx?AlertType=33&apikey=<API_KEY>`。
-- [NCDR 2026/1/30 介接方式公告](https://alerts.ncdr.nat.gov.tw/web/home/news/1000027)與[API 會員申請說明](https://alerts.ncdr.nat.gov.tw/web/developer/alerts-api)。停班停課資料應以正式會員介面取得，服務沒有 keyless fallback。
+- [NCDR 2026/1/30 介接方式公告](https://alerts.ncdr.nat.gov.tw/web/home/news/1000027)與[API 會員申請說明](https://alerts.ncdr.nat.gov.tw/web/developer/alerts-api)。會員註冊「僅受理公務、公司或學校信箱」，個人信箱不予通過（2026-09-24 讀回註冊頁）。
+- 因此 `NCDR_SOURCE` 二選一：`member` 用會員介面；`open-data` 用 data.gov.tw [資料集 20457](https://data.gov.tw/dataset/20457) 登錄的免金鑰網址（政府資料開放授權）。NCDR 公告舊版介接「預計 3 月 31 日下架」，但 2026-09-24 實測仍回 200。兩者不互為備援：抓不到就 503，鬧鐘照響，告警會響。
 - [NCDR FAQ](https://alerts.ncdr.nat.gov.tw/web/platform/faq)說明 Feed 是「最新一則 CAP 起回溯七天」，並非「現在起回溯七天」。因此 9 月抓到 8 月公告屬可能情況，抓取成功不能代表今天停班。未配置 Key 時不會抓取任何來源。
 - [DGPA 官方查閱頁](https://www.dgpa.gov.tw/typh/daily/nds.html)供使用者核對，服務不抓其 HTML。公告可能前晚、清晨或隨時更新，每天僅查一次不足。
 - [政府開放資料集 20457](https://data.gov.tw/dataset/20457)提供 DGPA 停班停課 CAP 來源與政府資料開放授權；該目錄仍列舊來源，正式連線應以前述 NCDR 新介接公告為準。
@@ -66,7 +67,8 @@ Firestore（Job 與 service 共用）：
 
 | 環境變數 | 預設／用途 |
 |---|---|
-| `NCDR_API_KEY` | 必填的 NCDR 會員金鑰，由 Secret Manager 注入，只在 Job |
+| `NCDR_SOURCE` | `member`（預設，需 `NCDR_API_KEY`）或 `open-data`（免金鑰，用 data.gov.tw 資料集 20457 登錄的 `RssAtomFeed.ashx?AlertType=33`）。明確設定，不是備援；摘要、`state/current.source` 與 `/health/details` 都會標示 |
+| `NCDR_API_KEY` | `member` 來源的 NCDR 會員金鑰，由 Secret Manager 注入，只在 Job；`open-data` 時必須留白 |
 | `POLL_INTERVAL_MS` | `300000`；成功後下一次允許抓取的時間，也是 Scheduler 的節奏；最低 1 分鐘 |
 | `REQUEST_TIMEOUT_MS` | `10000`，包括回應串流的每次請求期限；整輪最長 60 秒 |
 | `BROADCAST_CONCURRENCY` | `16`（1–64）個並行 APNs 請求 |

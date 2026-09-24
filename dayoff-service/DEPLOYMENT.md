@@ -246,7 +246,8 @@ Job（`rainyclock-dayoff-poll`）：
 | `APNS_PRODUCTION` | `true`（TestFlight／App Store）或 `false`（Xcode Debug） | 必填，沒有預設 |
 | `APNS_PUSH_MODE` | `alert` | |
 | `APNS_PRIVATE_KEY_PATH` | `/secrets/apns/AuthKey.p8` | Secret 掛載路徑 |
-| `NCDR_API_KEY` | secret `dayoff-ncdr-api-key:latest` | `--set-secrets` 注入的環境變數 |
+| `NCDR_SOURCE` | `member` 或 `open-data` | `open-data` 免金鑰（data.gov.tw 資料集 20457 的網址）；個人信箱申請不到 NCDR 會員時用它 |
+| `NCDR_API_KEY` | secret `dayoff-ncdr-api-key:latest` | `--set-secrets` 注入的環境變數；只在 `member` 來源，`open-data` 時不要掛 |
 | `CLOUD_RUN_EXECUTION` | Cloud Run 注入 | 租約的 owner；同一 execution 的 task 重試可接管 |
 
 四個 `APNS_*` 設定全留白就是只抓不推；填一半會啟動失敗（`invalid_apns_configuration`）。

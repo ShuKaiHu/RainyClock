@@ -84,9 +84,9 @@ test('GET /health/details exists only for a store-backed reader; /health keeps i
   response = await fetch(base + '/health/details');
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(await response.json(), { configured: false, available: false, state: 'not_configured', errorCode: 'not_configured', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, revision: null, checkedAt: null, noticeCount: null, ageMs: null, sourceUpdatedAt: null, job: null, lease: null, broadcast: null, storage: 'memory-test-only', serverTime: new Date(NOW).toISOString() });
+  assert.deepEqual(await response.json(), { configured: false, available: false, state: 'not_configured', errorCode: 'not_configured', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, revision: null, checkedAt: null, noticeCount: null, ageMs: null, sourceUpdatedAt: null, job: null, source: null, lease: null, broadcast: null, storage: 'memory-test-only', serverTime: new Date(NOW).toISOString() });
   const checkedAt = new Date(NOW - 60_000).toISOString();
-  await store.set('state/current', { schemaVersion: 1, revision: 'a'.repeat(64), checkedAt, sourceUpdatedAt: null, noticesJSON: '[]', noticeCount: 0, errorCode: null, failures: 0, lastAttemptAt: checkedAt, lastSuccessAt: checkedAt, nextAttemptAt: NOW + 240_000, pendingBroadcastRevision: null, push: { configured: true, mode: 'alert' }, job: null, updatedAt: checkedAt });
+  await store.set('state/current', { schemaVersion: 1, revision: 'a'.repeat(64), checkedAt, sourceUpdatedAt: null, noticesJSON: '[]', noticeCount: 0, errorCode: null, failures: 0, lastAttemptAt: checkedAt, lastSuccessAt: checkedAt, nextAttemptAt: NOW + 240_000, pendingBroadcastRevision: null, push: { configured: true, mode: 'alert' }, job: null, source: null, updatedAt: checkedAt });
   response = await fetch(base + '/v1/suspensions');
   assert.equal(response.status, 200);
   assert.equal(JSON.stringify(await response.json()), JSON.stringify({ schemaVersion: 1, checkedAt, sourceUpdatedAt: null, notices: [], revision: 'a'.repeat(64) }));
@@ -118,7 +118,7 @@ test('server.js started with a bad environment prints one startup_failed line wi
 
 test('local mode uses the memory store unless the emulator is named, and never a real project', async () => {
   const config = localConfig({});
-  assert.deepEqual(config, { apiKey: null, pollIntervalMs: 300_000, maxCacheAgeMs: 900_000, requestTimeoutMs: 10_000, cacheMs: 5000, port: 8080, concurrency: 4, apns: null, pushMode: 'alert' });
+  assert.deepEqual(config, { source: 'member', apiKey: null, pollIntervalMs: 300_000, maxCacheAgeMs: 900_000, requestTimeoutMs: 10_000, cacheMs: 5000, port: 8080, concurrency: 4, apns: null, pushMode: 'alert' });
   assert.throws(() => localConfig({ APNS_TEAM_ID: 'TEAM123456' }), /invalid_apns_configuration/);
   assert.throws(() => localConfig({ MAX_CACHE_AGE_MS: '60000' }), /invalid_configuration/);
   const memory = localStore({});

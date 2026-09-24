@@ -2,7 +2,17 @@ import { createHash } from 'node:crypto';
 import { LIMITS, parseAtom, parseCAP, officialCapURL, isoTimestamp } from './parser.js';
 import { ServiceError, safeErrorCode } from './errors.js';
 
-const FEED = 'https://alerts.ncdr.nat.gov.tw/webapi/RssAtomFeed.ashx';
+// Two official publications of the same DGPA feed. 'member' is NCDR's
+// post-2026-01-30 interface and needs a member API key, which NCDR only
+// issues to institutional e-mail addresses. 'open-data' is the keyless URL
+// that data.gov.tw dataset 20457 registers under the Open Government Data
+// License; NCDR announced its retirement for 2026-03-31 but it was still
+// serving on 2026-09-24. The choice is explicit configuration, never a
+// silent fallback, so a health check always says which one is in use.
+export const SOURCES = {
+  member: 'https://alerts.ncdr.nat.gov.tw/webapi/RssAtomFeed.ashx',
+  'open-data': 'https://alerts.ncdr.nat.gov.tw/RssAtomFeed.ashx'
+};
 // Firestore documents stop at 1 MiB; the rest of state/current is small, so
 // this leaves room without ever truncating a notice list silently.
 const STORED_NOTICES_BYTES = 900_000;
@@ -103,8 +113,13 @@ function carriedState(stored) {
 }
 
 export class SuspensionService {
-  constructor({ apiKey, store, owner = null, fetchImpl = fetch, now = Date.now, pollIntervalMs = 300_000, maxCacheAgeMs = 900_000, requestTimeoutMs = 10_000, push = { configured: false, mode: null }, onRevision = async () => {}, log = () => {} }) {
+  constructor({ source = 'member', apiKey, store, owner = null, fetchImpl = fetch, now = Date.now, pollIntervalMs = 300_000, maxCacheAgeMs = 900_000, requestTimeoutMs = 10_000, push = { configured: false, mode: null }, onRevision = async () => {}, log = () => {} }) {
+    if (!Object.hasOwn(SOURCES, source)) throw new ServiceError('invalid_configuration');
+    this.source = source;
     this.apiKey = apiKey?.trim() ?? '';
+    // A key with the open-data source is a deployment mistake, not a choice.
+    if (source === 'open-data' && this.apiKey) throw new ServiceError('invalid_configuration');
+    this.configured = source === 'open-data' || Boolean(this.apiKey);
     this.store = store;
     this.owner = owner;
     this.fetchImpl = fetchImpl;
@@ -118,7 +133,7 @@ export class SuspensionService {
     this.capCache = new Map();
     this.snapshot = null;
     this.previousRevision = null;
-    this.errorCode = this.apiKey ? 'not_yet_checked' : 'not_configured';
+    this.errorCode = this.configured ? 'not_yet_checked' : 'not_configured';
     this.lastAttemptAt = null;
     this.lastSuccessAt = null;
     this.nextAttemptAt = 0;
@@ -153,7 +168,7 @@ export class SuspensionService {
   }
 
   health() {
-    return healthFrom({ configured: Boolean(this.apiKey), checkedAt: this.snapshot?.checkedAt ?? null, errorCode: this.errorCode, lastAttemptAt: this.lastAttemptAt, lastSuccessAt: this.lastSuccessAt, nextAttemptAt: this.nextAttemptAt }, this.now(), this.maxCacheAgeMs);
+    return healthFrom({ configured: this.configured, checkedAt: this.snapshot?.checkedAt ?? null, errorCode: this.errorCode, lastAttemptAt: this.lastAttemptAt, lastSuccessAt: this.lastSuccessAt, nextAttemptAt: this.nextAttemptAt }, this.now(), this.maxCacheAgeMs);
   }
 
   getSnapshot() {
@@ -163,7 +178,7 @@ export class SuspensionService {
 
   refresh() {
     if (this.inFlight) return this.inFlight;
-    if (this.stopped || !this.apiKey) return Promise.resolve(false);
+    if (this.stopped || !this.configured) return Promise.resolve(false);
     if (this.now() < this.nextAttemptAt) {
       this.log({ event: 'source_check_skipped', nextAttemptAt: new Date(this.nextAttemptAt).toISOString() });
       return Promise.resolve(false);
@@ -180,9 +195,9 @@ export class SuspensionService {
     const cycleTimer = setTimeout(() => cycleAbort.abort(), 60_000);
     const signalFor = () => AbortSignal.any([cycleAbort.signal, AbortSignal.timeout(this.requestTimeoutMs)]);
     try {
-      const url = new URL(FEED);
+      const url = new URL(SOURCES[this.source]);
       url.searchParams.set('AlertType', '33');
-      url.searchParams.set('apikey', this.apiKey);
+      if (this.source === 'member') url.searchParams.set('apikey', this.apiKey);
       const feed = parseAtom(await boundedXML(this.fetchImpl, url.href, LIMITS.feedBytes, signalFor(), this.now()));
       if (feed.sourceUpdatedAt && Date.parse(feed.sourceUpdatedAt) > this.now() + 300_000) throw new ServiceError('source_time_in_future');
       const stored = await this.storedCaps(feed.entries.filter((entry) => !this.capCache.has(entry.id)));
@@ -285,6 +300,7 @@ export class SuspensionService {
         lastSuccessAt: snapshot.checkedAt,
         nextAttemptAt: now + this.pollIntervalMs,
         pendingBroadcastRevision: changed ? snapshot.revision : carried.pendingBroadcastRevision,
+        source: this.source,
         push: this.push,
         job: { owner: this.owner, finishedAt: new Date(now).toISOString(), durationMs: now - startedAt, code: null, changed },
         updatedAt: new Date(now).toISOString()
@@ -313,6 +329,7 @@ export class SuspensionService {
         failures: this.failures,
         lastAttemptAt: this.lastAttemptAt,
         nextAttemptAt: this.nextAttemptAt,
+        source: this.source,
         push: this.push,
         job: { owner: this.owner, finishedAt: new Date(now).toISOString(), durationMs: now - startedAt, code: this.errorCode, changed: false },
         updatedAt: new Date(now).toISOString()
@@ -326,7 +343,7 @@ export class SuspensionService {
     const tick = async () => {
       try { await this.refresh(); }
       catch (error) { this.log({ event: 'source_check_aborted', code: safeErrorCode(error) }); }
-      if (!this.stopped && this.apiKey) this.timer = setTimeout(tick, Math.max(1000, this.nextAttemptAt - this.now()));
+      if (!this.stopped && this.configured) this.timer = setTimeout(tick, Math.max(1000, this.nextAttemptAt - this.now()));
     };
     void tick();
   }

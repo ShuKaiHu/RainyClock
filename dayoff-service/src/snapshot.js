@@ -77,6 +77,7 @@ export function createSnapshotReader({ store, now = Date.now, maxCacheAgeMs = 90
       sourceUpdatedAt: doc?.sourceUpdatedAt ?? null,
       nextAttemptAt: status.nextAttemptAt,
       job: doc?.job ?? null,
+      source: doc?.source ?? null,
       lease: lease ? { owner: lease.owner ?? null, leaseUntil: lease.leaseUntil ?? 0 } : null,
       broadcast: broadcastSummary(claim),
       storage: store.kind,

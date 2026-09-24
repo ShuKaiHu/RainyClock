@@ -114,6 +114,7 @@ test('details reads live state, the lease and the pending claim, and never carri
     configured: true, available: true, state: 'ready', errorCode: null, lastAttemptAt: checkedAt, lastSuccessAt: checkedAt, nextAttemptAt: new Date(NOW + 240_000).toISOString(),
     revision, checkedAt, noticeCount: 0, ageMs: 60_000, sourceUpdatedAt: '2026-08-24T10:29:00.000Z',
     job: { owner: 'execution-1', finishedAt: checkedAt, durationMs: 1200, code: null, changed: false },
+    source: null,
     lease: { owner: 'execution-2', leaseUntil: NOW + 100_000 },
     broadcast: { revision, state: 'sending', attempts: 1, accepted: 5, failed: 1, unregistered: 2, retryPending: 3, finishedAt: null },
     storage: 'memory-test-only', serverTime: new Date(NOW).toISOString()
@@ -122,5 +123,5 @@ test('details reads live state, the lease and the pending claim, and never carri
   assert.equal(text.includes(token), false);
   assert.equal(text.includes(installationId), false);
   const empty = createSnapshotReader({ store: memoryStore(), now: () => NOW });
-  assert.deepEqual(await empty.details(), { configured: false, available: false, state: 'not_configured', errorCode: 'not_configured', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, revision: null, checkedAt: null, noticeCount: null, ageMs: null, sourceUpdatedAt: null, job: null, lease: null, broadcast: null, storage: 'memory-test-only', serverTime: new Date(NOW).toISOString() });
+  assert.deepEqual(await empty.details(), { configured: false, available: false, state: 'not_configured', errorCode: 'not_configured', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, revision: null, checkedAt: null, noticeCount: null, ageMs: null, sourceUpdatedAt: null, job: null, source: null, lease: null, broadcast: null, storage: 'memory-test-only', serverTime: new Date(NOW).toISOString() });
 });

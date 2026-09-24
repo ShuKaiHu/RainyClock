@@ -151,3 +151,29 @@ test('response streaming is bounded even without Content-Length', async () => {
   await service.refresh();
   assert.equal(service.health().errorCode, 'source_too_large');
 });
+
+test('the source is explicit: open-data fetches the data.gov.tw URL without a key, member without a key is not configured', async () => {
+  const urls = [];
+  const store = memoryStore();
+  const open = new SuspensionService({ source: 'open-data', store, now: () => NOW, fetchImpl: async (url) => { urls.push(url); return xmlResponse(url === CAP_URL ? cap : atom()); } });
+  assert.equal(open.health().configured, true);
+  assert.equal(open.health().errorCode, 'not_yet_checked');
+  assert.equal(await open.refresh(), true);
+  assert.ok(urls[0].startsWith('https://alerts.ncdr.nat.gov.tw/RssAtomFeed.ashx?AlertType=33'), urls[0]);
+  assert.equal(urls.some((url) => url.includes('apikey')), false);
+  assert.equal(open.getSnapshot().revision.length, 64);
+  assert.equal((await store.get('state/current')).source, 'open-data');
+
+  const memberUrls = [];
+  const member = new SuspensionService({ source: 'member', apiKey: 'k', store: memoryStore(), now: () => NOW, fetchImpl: async (url) => { memberUrls.push(url); return xmlResponse(url === CAP_URL ? cap : atom()); } });
+  await member.refresh();
+  assert.ok(memberUrls[0].startsWith('https://alerts.ncdr.nat.gov.tw/webapi/RssAtomFeed.ashx?AlertType=33&apikey=k'), memberUrls[0]);
+
+  const unconfigured = new SuspensionService({ store: memoryStore(), now: () => NOW, fetchImpl: async () => { throw new Error('must not fetch'); } });
+  assert.equal(unconfigured.health().configured, false);
+  assert.equal(unconfigured.health().errorCode, 'not_configured');
+  assert.equal(await unconfigured.refresh(), false);
+
+  assert.throws(() => new SuspensionService({ source: 'open-data', apiKey: 'k', store: memoryStore() }), /invalid_configuration/);
+  assert.throws(() => new SuspensionService({ source: 'html', store: memoryStore() }), /invalid_configuration/);
+});
