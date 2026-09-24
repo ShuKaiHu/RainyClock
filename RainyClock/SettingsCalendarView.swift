@@ -67,15 +67,29 @@ struct SettingsNavigationRequest: Identifiable {
 }
 
 struct SettingsEntryRow: View {
+    /// Something behind this row blocks scheduling; the text is read by VoiceOver.
+    enum Attention: Equatable {
+        case warning(String), error(String)
+    }
+
     let title: LocalizedStringKey
     let icon: String
     var value: String = ""
+    var attention: Attention? = nil
     var body: some View {
         HStack(spacing: 11) {
             Image(systemName: icon).foregroundStyle(Color.accentColor).frame(width: 20)
             Text(title).foregroundStyle(.primary)
             Spacer(minLength: 8)
             if !value.isEmpty { Text(value).font(.body).foregroundStyle(.secondary).lineLimit(1) }
+            switch attention {
+            case .warning(let label):
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow).accessibilityLabel(label)
+            case .error(let label):
+                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.red).accessibilityLabel(label)
+            case nil:
+                EmptyView()
+            }
             Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
         }
         .font(.body).frame(minHeight: 28).padding(.horizontal, 16).padding(.vertical, 12)

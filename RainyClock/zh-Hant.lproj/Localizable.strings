@@ -129,6 +129,7 @@
 "route_preview_transit_route" = "大眾交通路線";
 "address_suggestions_loading" = "搜尋建議中...";
 "address_suggestions_empty" = "目前沒有其他建議";
+"address_suggestions_no_match" = "找不到符合的地點，按「搜尋」可直接使用輸入內容。";
 "confirmed_suggested_address" = "已確認使用此建議地點。";
 "status_confirm_suggested_address" = "請先確認系統建議的地址後再排程。";
 "error_address_not_found" = "找不到這個地址：%@";

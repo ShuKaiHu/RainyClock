@@ -230,6 +230,49 @@ final class WeatherSampleMapperTests: XCTestCase {
         XCTAssertEqual(WeatherSampleMapper.condition(for: 0.19), .clear)
     }
 
+    func testMapItemResolverTreatsCaseWidthAndPunctuationVariantsAsSameAddress() {
+        for (typed, resolved) in [("Taipei main station", "Taipei Main Station"),
+                                  ("  Taipei  Main Station ", "Taipei Main Station"),
+                                  ("ＴＡＩＰＥＩ　１０１", "Taipei 101"),
+                                  ("臺北車站", "台北車站"),
+                                  ("Taipei-101", "Taipei 101"),
+                                  ("Dà’ān Park", "Daan Park")] {
+            XCTAssertTrue(MapItemResolver.isSameAddressText(typed, resolved), "\(typed) vs \(resolved)")
+        }
+    }
+
+    func testMapItemResolverKeepsMaterialNameDifferencesApart() {
+        for (typed, resolved) in [("Taipei Main Station", "Taipei Station"),
+                                  ("Taipei Main Station", "台北車站"),
+                                  ("Taipei Main Station", "Taipei Main Station, Zhongzheng District"),
+                                  ("Taipei 101", "Taipei 101 Mall"),
+                                  ("中正路100號", "中正路100號, 永康區, 台南市"),
+                                  ("", "")] {
+            XCTAssertFalse(MapItemResolver.isSameAddressText(typed, resolved), "\(typed) vs \(resolved)")
+        }
+    }
+
+    func testMapItemResolverFlagsSameNamedPlacesInOtherTownsOnly() {
+        let chosen = ResolvedMapLocation(latitude: 25.0478, longitude: 121.5170,
+                                         displayAddress: "Taipei Main Station", resolution: .exact)
+        // TRA, MRT and HSR halls of one station sit within a few hundred metres.
+        let station = [(name: "Taipei Main Station", coordinate: CLLocationCoordinate2D(latitude: 25.0461, longitude: 121.5174)),
+                       (name: "Taipei Main Station Lobby", coordinate: CLLocationCoordinate2D(latitude: 22.6, longitude: 120.3))]
+        XCTAssertFalse(MapItemResolver.hasDistantNamesake(of: chosen, among: station, query: "taipei main station"))
+        let chain = [(name: "McDonald's", coordinate: CLLocationCoordinate2D(latitude: 25.0478, longitude: 121.5170)),
+                     (name: "McDonalds", coordinate: CLLocationCoordinate2D(latitude: 22.6273, longitude: 120.3014))]
+        XCTAssertTrue(MapItemResolver.hasDistantNamesake(of: chosen, among: chain, query: "McDonald's"))
+    }
+
+    func testMapItemResolverRecognisesHouseNumbers() {
+        for text in ["中正路100號", "中正路 100 號", "No. 7, Section 5, Xinyi Rd", "#12 Main St", "1 Infinite Loop"] {
+            XCTAssertTrue(MapItemResolver.containsHouseNumber(text), text)
+        }
+        for text in ["Taipei 101", "Taipei Main Station", "台北101", "7-ELEVEN"] {
+            XCTAssertFalse(MapItemResolver.containsHouseNumber(text), text)
+        }
+    }
+
     func testMapItemResolverBuildsFallbackQueriesForPastedTSMCAddress() {
         let queries = MapItemResolver.candidateQueries(
             for: "台灣積體電路製造股份有限公司, 74144台灣台南市科學園區南科北路1號"

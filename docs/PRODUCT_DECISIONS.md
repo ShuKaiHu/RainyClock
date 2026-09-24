@@ -319,6 +319,13 @@ Address entry should make resolution quality visible:
 
 - If a user selects a dropdown suggestion, treat that result as confirmed.
 - If the app resolves typed text without an explicit suggestion selection, show the actual address in use.
+  Exception (1.7.1): when Apple matches the typed text *exactly* under the same name — differing only
+  in case, width, diacritics, 臺/台, spaces or punctuation — and the text has no house number and no
+  same-named place more than 2 km away, it is confirmed silently with its coordinate. "Taipei main
+  station" → "Taipei Main Station" asked a question with nothing to decide; a chain name, a bare
+  street number or any other name still asks.
+- An unconfirmed or not-found address blocks scheduling, so the Home/Work row on the Route page must
+  show it (yellow triangle / red mark), not only the address sheet.
 - If an address cannot be resolved, mark only that address field as invalid.
 - The “Use this location” action should replace the typed address with the resolved address.
 

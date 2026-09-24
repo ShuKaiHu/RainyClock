@@ -70,8 +70,9 @@ actor MapItemResolver {
             }
 
             // Store the address in the language of the suggestion the user picked,
-            // even when the device language differs.
-            let locale = preferredSearchLocale(for: "\(completion.title) \(completion.subtitle)")
+            // even when the device language differs. Apple's Taiwan subtitles are
+            // Chinese even for an English title, so only the title decides.
+            let locale = preferredSearchLocale(for: completion.title)
             var displayAddress = displayAddress(for: mapItem)
             if displayAddress == nil || !scriptMatches(displayAddress!, locale: locale) {
                 let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
@@ -210,9 +211,19 @@ actor MapItemResolver {
                         .compactMap { $0 }.joined(separator: ", ")
                 )
             }
-            return try await Self.resolveSearchCandidates(candidates, query: query) { [self] coordinate, locale in
+            guard var location = try await Self.resolveSearchCandidates(candidates, query: query, localize: { [self] coordinate, locale in
                 await localizedDisplayAddress(at: coordinate, locale: locale)
+            }) else { return nil }
+            let namesakes = response.mapItems.compactMap { item -> (name: String, coordinate: CLLocationCoordinate2D)? in
+                guard let coordinate = item.placemark.location?.coordinate else { return nil }
+                return (item.name ?? "", coordinate)
             }
+            // A chain or a common name ("McDonald's", "中山國小") is not one place; the
+            // user has to see which branch is used instead of it being confirmed silently.
+            if Self.hasDistantNamesake(of: location, among: namesakes, query: query) {
+                location.resolution = .suggested
+            }
+            return location
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -752,6 +763,42 @@ actor MapItemResolver {
                 tokens.append(token)
             }
         }
+    }
+
+    /// True when two place names differ only in case, width, diacritics, 臺/台,
+    /// whitespace, apostrophes or the punctuation normalizeForMatching removes.
+    static func isSameAddressText(_ lhs: String, _ rhs: String) -> Bool {
+        let left = sameAddressKey(lhs)
+        return !left.isEmpty && left == sameAddressKey(rhs)
+    }
+
+    /// True when another result carries the typed name but lies farther away than the
+    /// entrances of one station or tower do (Taipei Main Station's TRA/MRT/HSR halls).
+    static func hasDistantNamesake(
+        of chosen: ResolvedMapLocation,
+        among results: [(name: String, coordinate: CLLocationCoordinate2D)],
+        query: String,
+        thresholdMeters: CLLocationDistance = 2_000
+    ) -> Bool {
+        let origin = CLLocation(latitude: chosen.latitude, longitude: chosen.longitude)
+        return results.contains { result in
+            isSameAddressText(result.name, query)
+                && origin.distance(from: CLLocation(latitude: result.coordinate.latitude,
+                                                    longitude: result.coordinate.longitude)) > thresholdMeters
+        }
+    }
+
+    /// A house number pins one building on a street that exists in many towns, so
+    /// the same text can still name the wrong city.
+    static func containsHouseNumber(_ text: String) -> Bool {
+        text.range(of: #"\d+\s*號|(?:\bNo\.?|#)\s*\d+|^\s*\d+\s+\p{L}"#,
+                   options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private static func sameAddressKey(_ value: String) -> String {
+        normalizeForMatching(value.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                                           locale: Locale(identifier: "en_US_POSIX")))
+            .replacingOccurrences(of: "['’]", with: "", options: .regularExpression)
     }
 
     private static func normalizeForMatching(_ value: String) -> String {

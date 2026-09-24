@@ -371,10 +371,6 @@ struct RouteTabView: View {
         .car, .scooter, .publicTransit, .walking
     ]
 
-    private enum AddressField: Hashable {
-        case home, work
-    }
-
     private enum Setting: String, Identifiable {
         case home, work, mode
         var id: String { rawValue }
@@ -393,20 +389,18 @@ struct RouteTabView: View {
     var isActive = true
     @AppStorage("routePreviewExpanded") private var isRoutePreviewExpanded = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @StateObject private var addressCompleter = AddressSearchCompleter()
-    @FocusState private var focusedAddressField: AddressField?
     @State private var presentedSetting: Setting?
-    @State private var expandedAddressSuggestionField: AddressField?
-    @State private var addressSelectionGeneration = 0
     @State private var previewTask: Task<Void, Never>?
 
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
                 VStack(spacing: 0) {
-                    routeSettingRow("home_label", icon: "house", value: viewModel.settings.homeAddress, setting: .home)
+                    routeSettingRow("home_label", icon: "house", value: viewModel.settings.homeAddress, setting: .home,
+                                    attention: addressAttention(.home))
                     Divider().padding(.leading, 48)
-                    routeSettingRow("work_label", icon: "building.2", value: viewModel.settings.workAddress, setting: .work)
+                    routeSettingRow("work_label", icon: "building.2", value: viewModel.settings.workAddress, setting: .work,
+                                    attention: addressAttention(.work))
                     Divider().padding(.leading, 48)
                     routeSettingRow("mode", icon: modeIcon(viewModel.settings.commuteMode),
                                     value: viewModel.settings.commuteMode.displayName, setting: .mode)
@@ -421,7 +415,7 @@ struct RouteTabView: View {
         .navigationTitle(String(localized: "tab_route"))
         .toolbar(.hidden, for: .navigationBar)
         .background(Color.appBackground)
-        .sheet(item: $presentedSetting, onDismiss: submitAddressSearch) { setting in
+        .sheet(item: $presentedSetting, onDismiss: { scheduleRoutePreview(delay: .zero) }) { setting in
             settingSheet(setting)
         }
         .task(id: navigationRequest?.id) {
@@ -443,15 +437,6 @@ struct RouteTabView: View {
             }
         }
         .onDisappear { stopRouteTasks() }
-        .onChange(of: focusedAddressField) { _, _ in updateAddressCompletions() }
-        .onChange(of: viewModel.settings.homeAddress) { _, _ in
-            addressSelectionGeneration += 1
-            updateAddressCompletions()
-        }
-        .onChange(of: viewModel.settings.workAddress) { _, _ in
-            addressSelectionGeneration += 1
-            updateAddressCompletions()
-        }
         .onChange(of: viewModel.settings.commuteMode) { _, _ in
             guard isActive else { return }
             normalizeRouteMode()
@@ -459,11 +444,24 @@ struct RouteTabView: View {
         }
     }
 
-    private func routeSettingRow(_ title: LocalizedStringKey, icon: String, value: String, setting: Setting) -> some View {
+    private func routeSettingRow(_ title: LocalizedStringKey, icon: String, value: String, setting: Setting,
+                                 attention: SettingsEntryRow.Attention? = nil) -> some View {
         Button { presentedSetting = setting } label: {
-            SettingsEntryRow(title: title, icon: icon, value: value)
+            SettingsEntryRow(title: title, icon: icon, value: value, attention: attention)
         }
         .buttonStyle(.plain)
+    }
+
+    /// The not-found and confirm states block scheduling but live inside the sheet;
+    /// the row has to say so, or the alarm silently stays unset.
+    private func addressAttention(_ field: CommuteAddressField) -> SettingsEntryRow.Attention? {
+        if viewModel.invalidAddressFields.contains(field) {
+            return .error(String(localized: "address_not_found_inline"))
+        }
+        if viewModel.suggestedAddressMatches[field]?.isConfirmed == false {
+            return .warning(String(localized: "status_confirm_suggested_address"))
+        }
+        return nil
     }
 
     private var routePreviewCard: some View {
@@ -558,16 +556,13 @@ struct RouteTabView: View {
                     .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                     .padding(20)
                 } else {
-                    VStack(spacing: 14) {
-                        addressEditor(setting == .home ? .home : .work)
-                        if shouldShowAddressCompletionPanel {
-                            AddressCompletionList(completions: addressCompleter.completions,
-                                                  isSearching: addressCompleter.isSearching) { completion in
-                                Task { @MainActor in await selectAddressCompletion(completion) }
-                            }
-                        }
-                    }
-                    .padding(20)
+                    let field: CommuteAddressField = setting == .home ? .home : .work
+                    AddressEditor(viewModel: viewModel, field: field,
+                                  onSearch: { scheduleRoutePreview(delay: .zero) },
+                                  onClear: { clearAddress(field) },
+                                  onFinish: { if presentedSetting == setting { presentedSetting = nil } })
+                        .id(field)
+                        .padding(20)
                 }
             }
             .scrollDismissesKeyboard(.interactively)
@@ -580,31 +575,9 @@ struct RouteTabView: View {
                         .accessibilityLabel(Text("clock_close"))
                 }
             }
-            .task {
-                if setting != .mode {
-                    focusedAddressField = setting == .home ? .home : .work
-                }
-            }
         }
         .presentationDetents(setting == .mode ? [.height(390)] : [.large])
         .presentationDragIndicator(.visible)
-    }
-
-    private func addressEditor(_ field: AddressField) -> some View {
-        let modelField: CommuteAddressField = field == .home ? .home : .work
-        return AddressFieldRow(
-            label: String(localized: field == .home ? "home_label" : "work_label"),
-            placeholder: String(localized: field == .home ? "home_address" : "work_address"),
-            text: field == .home ? $viewModel.settings.homeAddress : $viewModel.settings.workAddress,
-            isInvalid: viewModel.invalidAddressFields.contains(modelField),
-            suggestedMatch: viewModel.suggestedAddressMatches[modelField],
-            focusedField: $focusedAddressField,
-            field: field,
-            onSubmit: submitAddressSearch,
-            onClear: { clearAddress(field) },
-            onConfirmSuggestion: { viewModel.confirmSuggestedAddress(modelField) },
-            onChooseAnotherSuggestion: { focusAddressForSuggestion(field) }
-        )
     }
 
     private func modeIcon(_ mode: CommuteAlarmSettings.CommuteMode) -> String {
@@ -625,100 +598,18 @@ struct RouteTabView: View {
     }
 
     private func stopRouteTasks() {
-        focusedAddressField = nil
-        addressCompleter.clear()
         previewTask?.cancel()
     }
 
-    private func submitAddressSearch() {
-        focusedAddressField = nil
-        expandedAddressSuggestionField = nil
-        addressCompleter.clear()
-        scheduleRoutePreview(delay: .zero)
-    }
-
-    private func clearAddress(_ field: AddressField) {
-        // Clearing must invalidate a lookup immediately, before SwiftUI delivers
-        // the text-change callback on its next update.
-        addressSelectionGeneration += 1
+    private func clearAddress(_ field: CommuteAddressField) {
         switch field {
-        case .home:
-            viewModel.settings.homeAddress = ""
-            viewModel.clearAddressState(.home)
-        case .work:
-            viewModel.settings.workAddress = ""
-            viewModel.clearAddressState(.work)
+        case .home: viewModel.settings.homeAddress = ""
+        case .work: viewModel.settings.workAddress = ""
         }
-
-        focusedAddressField = field
-        expandedAddressSuggestionField = nil
-        addressCompleter.clear()
+        viewModel.clearAddressState(field)
         previewTask?.cancel()
         viewModel.clearRoutePreview()
         viewModel.clearRouteWeather()
-    }
-
-    private func focusAddressForSuggestion(_ field: AddressField) {
-        focusedAddressField = field
-        expandedAddressSuggestionField = field
-        updateAddressCompletions(forceRefresh: true)
-    }
-
-    @MainActor
-    private func selectAddressCompletion(_ completion: MKLocalSearchCompletion) async {
-        // Capture the target field before any await: focus can move (or clear) while
-        // the completion resolves over the network, and the result must not follow it.
-        // The generation makes the LATEST tap win when taps overlap in flight.
-        guard let targetField = focusedAddressField else {
-            return
-        }
-
-        addressSelectionGeneration += 1
-        let generation = addressSelectionGeneration
-        let requestedInput = targetField == .home ? viewModel.settings.homeAddress : viewModel.settings.workAddress
-
-        let fallbackAddress = [completion.title, completion.subtitle]
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .joined(separator: ", ")
-        let resolvedLocation = await MapItemResolver.resolvedLocation(for: completion)
-        let currentInput = targetField == .home ? viewModel.settings.homeAddress : viewModel.settings.workAddress
-        guard generation == addressSelectionGeneration, currentInput == requestedInput else {
-            return
-        }
-
-        let resolvedAddress = resolvedLocation?.displayAddress?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let address = resolvedAddress?.isEmpty == false ? resolvedAddress! : fallbackAddress
-
-        switch targetField {
-        case .home:
-            viewModel.setAddressFromSuggestion(address, location: resolvedLocation, field: .home)
-        case .work:
-            viewModel.setAddressFromSuggestion(address, location: resolvedLocation, field: .work)
-        }
-
-        submitAddressSearch()
-    }
-
-    private var shouldShowAddressCompletionPanel: Bool {
-        guard let focusedAddressField else {
-            return false
-        }
-
-        return !addressCompleter.completions.isEmpty || expandedAddressSuggestionField == focusedAddressField
-    }
-
-    private func updateAddressCompletions(forceRefresh: Bool = false) {
-        guard isActive else { addressCompleter.clear(); return }
-        switch focusedAddressField {
-        case .home:
-            addressCompleter.update(query: viewModel.settings.homeAddress, forceRefresh: forceRefresh)
-        case .work:
-            addressCompleter.update(query: viewModel.settings.workAddress, forceRefresh: forceRefresh)
-        case nil:
-            expandedAddressSuggestionField = nil
-            addressCompleter.clear()
-        }
     }
 
     private func scheduleRoutePreview(delay: Duration = .milliseconds(700)) {
@@ -1200,9 +1091,175 @@ private enum RowLabelFont {
     }
 }
 
+/// Everything the Home/Work sheet types into. Focus and the completer must live
+/// inside the sheet: a FocusState owned by the presenting view never sees a field in
+/// its sheet, which left the 1.7.0 suggestion list permanently hidden.
+private struct AddressEditor: View {
+    @ObservedObject var viewModel: AlarmViewModel
+    let field: CommuteAddressField
+    /// Runs the route preview without closing the sheet.
+    let onSearch: () -> Void
+    let onClear: () -> Void
+    /// Closes the sheet; its onDismiss runs the route preview.
+    let onFinish: () -> Void
+
+    /// Per field and shared by every editor instance: a lookup started in a sheet that
+    /// was closed and reopened must lose to the newer pick, typing or Clear.
+    private static var selectionGenerations: [CommuteAddressField: Int] = [:]
+
+    @StateObject private var completer = AddressSearchCompleter()
+    @FocusState private var focusedField: CommuteAddressField?
+    @State private var showsSuggestions = false
+    @State private var isChoosingAnother = false
+    @State private var resolving: MKLocalSearchCompletion?
+
+    private var savedText: Binding<String> {
+        field == .home ? $viewModel.settings.homeAddress : $viewModel.settings.workAddress
+    }
+
+    /// Only typing goes through this setter, so the list follows the user and never a
+    /// rewrite by "Use this location", a picked row or Clear.
+    private var typedText: Binding<String> {
+        Binding(get: { savedText.wrappedValue }, set: { newValue in
+            guard newValue != savedText.wrappedValue else { return }
+            savedText.wrappedValue = newValue
+            Self.selectionGenerations[field, default: 0] += 1
+            resolving = nil
+            isChoosingAnother = false
+            showsSuggestions = true
+            completer.update(query: newValue)
+        })
+    }
+
+    private var showsPanel: Bool {
+        guard showsSuggestions else { return false }
+        if isChoosingAnother { return true }
+        let query = savedText.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.count >= 2 else { return false }
+        // Zhuyin still being composed: wait for the committed characters.
+        return !(completer.completions.isEmpty && !completer.isSearching
+                 && AddressSearchCompleter.isComposingZhuyin(query))
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            AddressFieldRow(
+                label: String(localized: field == .home ? "home_label" : "work_label"),
+                placeholder: String(localized: field == .home ? "home_address" : "work_address"),
+                text: typedText,
+                isInvalid: viewModel.invalidAddressFields.contains(field),
+                suggestedMatch: viewModel.suggestedAddressMatches[field],
+                focusedField: $focusedField,
+                field: field,
+                onSubmit: submit,
+                onClear: clear,
+                onConfirmSuggestion: {
+                    viewModel.confirmSuggestedAddress(field)
+                    hideSuggestions()
+                },
+                onChooseAnotherSuggestion: chooseAnother
+            )
+            if showsPanel {
+                AddressCompletionList(
+                    completions: completer.completions,
+                    isSearching: completer.isSearching,
+                    emptyText: String(localized: isChoosingAnother ? "address_suggestions_empty" : "address_suggestions_no_match"),
+                    resolving: resolving
+                ) { completion in
+                    Task { @MainActor in await select(completion) }
+                }
+            }
+        }
+        .task { focusedField = field }
+        .onAppear {
+            completer.isPresented = true
+            // Reopening a not-found address should offer places straight away.
+            if viewModel.invalidAddressFields.contains(field) { chooseAnother() }
+        }
+        .onDisappear {
+            completer.isPresented = false
+            completer.clear()
+        }
+    }
+
+    /// Search picks the one row named exactly as typed, as Maps does; otherwise the
+    /// list stays for the user to choose. Without suggestions the typed text is used,
+    /// the path App Review took.
+    private func submit() {
+        let typed = savedText.wrappedValue
+        let matches = completer.completions.filter { MapItemResolver.isSameAddressText($0.title, typed) }
+        if showsSuggestions, matches.count == 1, !MapItemResolver.containsHouseNumber(typed) {
+            Task { @MainActor in await select(matches[0]) }
+            return
+        }
+        focusedField = nil
+        if showsPanel, !completer.completions.isEmpty { return }
+        hideSuggestions()
+        onFinish()
+    }
+
+    @MainActor
+    private func select(_ completion: MKLocalSearchCompletion) async {
+        // The completer outlives this view's State if the sheet closes mid-lookup.
+        let session = completer
+        Self.selectionGenerations[field, default: 0] += 1
+        let generation = Self.selectionGenerations[field, default: 0]
+        let requestedInput = savedText.wrappedValue
+        resolving = completion
+        let location = await MapItemResolver.resolvedLocation(for: completion)
+        // The latest tap wins, and typing or Clear during the lookup cancels it.
+        guard generation == Self.selectionGenerations[field, default: 0],
+              savedText.wrappedValue == requestedInput else {
+            if session.isPresented, resolving === completion { resolving = nil }
+            return
+        }
+        let fallback = [completion.title, completion.subtitle]
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .joined(separator: ", ")
+        if let location {
+            let resolved = location.displayAddress?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            viewModel.setAddressFromSuggestion(resolved.isEmpty ? fallback : resolved, location: location, field: field)
+        } else {
+            // No coordinate: keep it as typed text, so the preview still confirms it.
+            savedText.wrappedValue = fallback
+        }
+        guard session.isPresented else {
+            // Closed while resolving; the dismissal preview used the old text.
+            onSearch()
+            return
+        }
+        resolving = nil
+        hideSuggestions()
+        onFinish()
+    }
+
+    private func clear() {
+        Self.selectionGenerations[field, default: 0] += 1
+        resolving = nil
+        hideSuggestions()
+        onClear()
+        focusedField = field
+    }
+
+    private func chooseAnother() {
+        isChoosingAnother = true
+        showsSuggestions = true
+        focusedField = field
+        completer.update(query: savedText.wrappedValue, forceRefresh: true)
+    }
+
+    private func hideSuggestions() {
+        showsSuggestions = false
+        isChoosingAnother = false
+        completer.clear()
+    }
+}
+
 private struct AddressCompletionList: View {
     let completions: [MKLocalSearchCompletion]
     let isSearching: Bool
+    let emptyText: String
+    var resolving: MKLocalSearchCompletion?
     let onSelect: (MKLocalSearchCompletion) -> Void
 
     var body: some View {
@@ -1218,7 +1275,7 @@ private struct AddressCompletionList: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text(String(localized: isSearching ? "address_suggestions_loading" : "address_suggestions_empty"))
+                    Text(isSearching ? String(localized: "address_suggestions_loading") : emptyText)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.secondary)
 
@@ -1233,10 +1290,16 @@ private struct AddressCompletionList: View {
                         onSelect(completion)
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 22)
+                            Group {
+                                if resolving === completion {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(width: 22)
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(completion.title)
@@ -1258,6 +1321,7 @@ private struct AddressCompletionList: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .disabled(resolving != nil)
 
                     if index < completions.indices.last ?? 0 {
                         Divider()
@@ -1274,8 +1338,16 @@ private struct AddressCompletionList: View {
 private final class AddressSearchCompleter: NSObject, ObservableObject, MKLocalSearchCompleterDelegate, @unchecked Sendable {
     @Published private(set) var completions: [MKLocalSearchCompletion] = []
     @Published private(set) var isSearching = false
+    /// A reference, so a lookup that outlives the sheet can tell the sheet is gone.
+    var isPresented = false
 
     private let completer = MKLocalSearchCompleter()
+    private var retriedThrottledQuery: String?
+
+    /// Bopomofo still being composed is not a place name yet.
+    static func isComposingZhuyin(_ text: String) -> Bool {
+        text.unicodeScalars.contains { (0x3100...0x312F).contains($0.value) || (0x31A0...0x31BF).contains($0.value) }
+    }
 
     override init() {
         super.init()
@@ -1289,6 +1361,8 @@ private final class AddressSearchCompleter: NSObject, ObservableObject, MKLocalS
             clear()
             return
         }
+        // Keep the current rows until the syllable is committed.
+        guard !Self.isComposingZhuyin(trimmedQuery) else { return }
 
         let candidates = MapItemResolver.candidateQueries(for: trimmedQuery)
         let autocompleteQuery = candidates.first { candidate in
@@ -1325,8 +1399,22 @@ private final class AddressSearchCompleter: NSObject, ObservableObject, MKLocalS
     }
 
     func completer(_ completer: MKLocalSearchCompleter, didFailWithError error: Error) {
-        completions = []
         isSearching = false
+        guard (error as? MKError)?.code == .loadingThrottled else {
+            completions = []
+            return
+        }
+        // Typing fast can throttle the final query. Keep the rows, and ask once more
+        // unless the text moved on; an unchanged fragment never re-queries by itself.
+        let throttled = completer.queryFragment
+        guard retriedThrottledQuery != throttled else { return }
+        retriedThrottledQuery = throttled
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self, !throttled.isEmpty, self.completer.queryFragment == throttled else { return }
+            self.isSearching = true
+            self.completer.queryFragment = ""
+            DispatchQueue.main.async { self.completer.queryFragment = throttled }
+        }
     }
 }
 

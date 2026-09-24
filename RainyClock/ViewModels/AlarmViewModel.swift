@@ -1055,7 +1055,24 @@ final class AlarmViewModel: ObservableObject {
             return
         }
 
+        // Typed text that Apple matched exactly under the same name ("Taipei main
+        // station" → "Taipei Main Station") has nothing to confirm. Keep the user's
+        // spelling and save the coordinate so a later lookup cannot move it. A house
+        // number still asks: the same street and number exist in many towns.
         let suggestedAddress = location.displayAddress?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if location.resolution == .exact, let suggestedAddress,
+           MapItemResolver.isSameAddressText(trimmedInput, suggestedAddress),
+           !MapItemResolver.containsHouseNumber(trimmedInput) {
+            suggestedAddressMatches.removeValue(forKey: field)
+            setSuggestionSelectedInput(trimmedInput, for: field)
+            switch field {
+            case .home: settings.homeResolvedLocation = location
+            case .work: settings.workResolvedLocation = location
+            }
+            return
+        }
+
+
         suggestedAddressMatches[field] = SuggestedAddressMatch(
             originalInput: trimmedInput,
             suggestedAddress: suggestedAddress?.isEmpty == false ? suggestedAddress! : trimmedInput,
