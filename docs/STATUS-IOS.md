@@ -288,7 +288,8 @@ Last updated: 2026-09-24.
   `Info.plist` 與 11 個 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`（App ×3、AlarmWidget ×3、
   DayOffNotification ×3、tests ×2）一致；建置後三個 bundle 都是 1.8.0（38）。`-ObjC`、`LevelPlayAppKey` 未動。
 - **合併審查修正（`b54483d`）：**
-  - 圓形鎖定畫面的略過字「停班」→「停班課」：spec v3 是 OR，只停課也會略過鬧鐘。英文 `Closed` 本來就中性。
+  - 圓形鎖定畫面的略過字曾被改成「停班課」，已改回**「停班」**：這是使用者 9/23 看過截圖後的決定，
+    只停課時也寫「停班」，旁邊的長方形 widget 會寫「停班／停課」。英文 `Closed` 本來就中性。
   - `RainyClockDayOffNotification` 補 `PrivacyInfo.xcprivacy`（無追蹤、無收集、UserDefaults 1C8F.1），
     與 widget 一致。**`ios/main` 同樣缺**，1.7.x 若再出 build 要一起補。
   - `DisasterPushDelegate` 在 `completionHandler` 前同步 publish widget，與 BGTask 路徑相同（debounce 在
