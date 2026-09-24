@@ -52,9 +52,12 @@ curl -sS -o /dev/null -w "GET /health -> %{http_code}\n" "$URL/health"
 
 echo "== job rainyclock-dayoff-poll"
 JOB_ENV="GOOGLE_CLOUD_PROJECT=$P,DAYOFF_FIRESTORE_DATABASE=$DB,DAYOFF_NAMESPACE=$NS,NCDR_SOURCE=$NCDR_SOURCE,POLL_INTERVAL_MS=300000,REQUEST_TIMEOUT_MS=10000,BROADCAST_CONCURRENCY=16,BROADCAST_PAGE_SIZE=200,LEASE_MS=120000,LEASE_RENEW_MS=30000,RUN_BUDGET_MS=420000,DAYOFF_SERVICE_URL=$URL$APNS_ENV"
+# --set-env-vars and --set-secrets each replace the whole set, so a redeploy
+# never keeps a stale key; an empty secret set has to be cleared explicitly.
 if gcloud run jobs describe rainyclock-dayoff-poll --region="$R" >/dev/null 2>&1; then
-  gcloud run jobs update rainyclock-dayoff-poll --region="$R" --image="$IMAGE" --clear-secrets --clear-env-vars \
-    --set-env-vars="$JOB_ENV" ${JOB_SECRETS:+--set-secrets="$JOB_SECRETS"}
+  if [ -n "$JOB_SECRETS" ]; then SECRET_FLAG="--set-secrets=$JOB_SECRETS"; else SECRET_FLAG="--clear-secrets"; fi
+  gcloud run jobs update rainyclock-dayoff-poll --region="$R" --image="$IMAGE" \
+    --set-env-vars="$JOB_ENV" "$SECRET_FLAG"
 else
   gcloud run jobs create rainyclock-dayoff-poll --region="$R" --image="$IMAGE" --command=node --args=src/job.js \
     --service-account="rainyclock-dayoff-job@$P.iam.gserviceaccount.com" \
@@ -77,5 +80,5 @@ if ! gcloud scheduler jobs describe rainyclock-dayoff-poll --location="$R" >/dev
     --oauth-token-scope=https://www.googleapis.com/auth/cloud-platform \
     --attempt-deadline=60s --max-retry-attempts=3 --min-backoff=10s
 fi
-echo "done. The scheduler can only start the job after deploy/iam.sh has bound run.invoker (re-run it now)."
+echo "done. If deploy/iam.sh has not yet bound run.invoker for the scheduler, re-run it now."
 echo "Put $URL into RainyClock/Info.plist DayOffServiceURL when 1.7.1 flips the gate."

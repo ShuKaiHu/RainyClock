@@ -1,7 +1,7 @@
 # 停班停課服務部署（Cloud Run Job + service + Firestore）
 
 2026-09-24：程式與測試完成（`npm test` 100 通過、7 個 Emulator 測試略過；Firestore Emulator 全套 107 通過）。
-資料庫、TTL、索引豁免、secret 容器、映像、service、Job 與 Scheduler 都已建立並以 `open-data` 來源跑過；推播（APNs）與 Scheduler 的 `run.invoker` 尚缺，見最下方「執行紀錄」。
+資料庫、TTL、索引豁免、secret、映像、service、Job、Scheduler 與 APNs 推播都已就緒並以 `open-data` 來源運行中；只剩告警與真機驗證，見最下方「執行紀錄」。
 每一步實際執行後，把讀回的結果寫進最下方的「執行紀錄」，沒做過的不要寫成做過。
 設計依據見 `docs/DISASTER-PREVIEW.md` 與 `README.md`；本頁只講怎麼部署、怎麼看、怎麼救。
 
@@ -415,10 +415,21 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
   `rainyclock-dayoff-poll-88db6` 成功；Scheduler `lastAttemptTime` 03:45:04Z、`status: {}`。兩次摘要
   `refreshed=true changed=false`。**從這一刻起每 5 分鐘自動輪詢。**
 
-**未執行**：APNs `.p8` 版本（§4，擁有者）→ 之後帶
-`APNS_KEY_ID`、`APNS_PRODUCTION` 重跑 `deploy/deploy.sh` 開啟推播；告警通道與三個 policy（§9）；
-真機推播驗證（§10）。Firestore deny-all rules 未用 firebase-tools 部署（本機未登入）；服務帳號走 IAM，
-rules 只影響手機 SDK。
+### 2026-09-24 11:58（擁有者加入 `dayoff-apns-key` 版本 1；Claude 重跑 `deploy/deploy.sh` 開推播，讀回值）
+
+- 第一次重跑因腳本同時給 `--clear-env-vars` 與 `--set-env-vars` 而在 Job 更新失敗（service 已先升到
+  `00004-2c2`）；修正腳本後重跑成功：service `rainyclock-dayoff-00005-xgg`（`PUSH_CONFIGURED=1`），
+  Job 更新為掛載 `/secrets/apns/AuthKey.p8` 與 APNs 環境變數（Team、Key ID、topic、`APNS_PRODUCTION=true`、
+  `APNS_PUSH_MODE=alert`），仍 `NCDR_SOURCE=open-data`、無 NCDR key。
+- Job 啟動時讀取並解析 `.p8` 成功（金鑰格式無誤）。execution `rainyclock-dayoff-poll-5vz68`：
+  `refreshed=true changed=false`，**broadcast 從 `pending` 走到 `done`**：`attempts=1 accepted=0 failed=0
+  unregistered=0 retryPending=0`，因為目前沒有任何裝置登記（1.7.0 閘門關著）。`pendingBroadcastRevision`
+  已清空。`/health` `pushConfigured:true pushMode:"alert"`。
+- 尚未對真實裝置送過任何推播；第一次真機驗證要等 1.7.1 開閘、手機登記後，再看 `push_batch` 記錄。
+
+**未執行**：告警通道與三個 policy（§9）；真機推播驗證（§10）。之後若要輪替 APNs 金鑰，帶新 Key ID 重跑
+`deploy/deploy.sh`（§秘密處理與輪替）。Firestore deny-all rules 未用 firebase-tools 部署（本機未登入）；
+服務帳號走 IAM，rules 只影響手機 SDK。
 
 ### 更早
 第一次執行時，在這裡逐條記錄：日期、指令、讀回的結果（資料庫設定、SA 與 IAM 條件、secret 版本號、
