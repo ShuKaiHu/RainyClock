@@ -1,7 +1,7 @@
 # 停班停課服務部署（Cloud Run Job + service + Firestore）
 
 2026-09-24：程式與測試完成（`npm test` 100 通過、7 個 Emulator 測試略過；Firestore Emulator 全套 107 通過）。
-資料庫、TTL、索引豁免、secret、映像、service、Job、Scheduler 與 APNs 推播都已就緒並以 `open-data` 來源運行中；只剩告警與真機驗證，見最下方「執行紀錄」。
+資料庫、TTL、索引豁免、secret、映像、service、Job、Scheduler 與 APNs 推播都已就緒並以 `open-data` 來源運行中；告警通道與三個 policy 已建（待 email 驗證與 absence 實測）；只剩真機驗證，見最下方「執行紀錄」。
 每一步實際執行後，把讀回的結果寫進最下方的「執行紀錄」，沒做過的不要寫成做過。
 設計依據見 `docs/DISASTER-PREVIEW.md` 與 `README.md`；本頁只講怎麼部署、怎麼看、怎麼救。
 
@@ -180,6 +180,10 @@ gcloud run jobs executions list --job=rainyclock-dayoff-poll --region=asia-east1
 ```sh
 gcloud beta monitoring channels create --display-name=owner-email --type=email --channel-labels=email_address=<OWNER_EMAIL>
 gcloud beta monitoring channels list --format='value(name)'   # 取 <CHANNEL_ID>，填進 alerts/*.yaml
+# 沒裝 beta/alpha 元件時，用 REST API 送 alerts/*.json（2026-09-24 實際採用）：
+#   TOKEN=$(gcloud auth print-access-token); curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+#     https://monitoring.googleapis.com/v3/projects/rainyclock/notificationChannels --data '{"type":"email","displayName":"owner-email","labels":{"email_address":"<OWNER_EMAIL>"},"enabled":true}'
+#   curl -X POST ... https://monitoring.googleapis.com/v3/projects/rainyclock/alertPolicies --data @dayoff-service/alerts/<name>.json
 gcloud logging metrics create dayoff_job_runs --description='day-off poll executions' \
   --log-filter='resource.type="cloud_run_job" AND resource.labels.job_name="rainyclock-dayoff-poll" AND jsonPayload.event="dayoff_job"'
 gcloud logging metrics create dayoff_job_failures --description='day-off poll runs with ok=false' \
@@ -427,7 +431,20 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
   已清空。`/health` `pushConfigured:true pushMode:"alert"`。
 - 尚未對真實裝置送過任何推播；第一次真機驗證要等 1.7.1 開閘、手機登記後，再看 `push_batch` 記錄。
 
-**未執行**：告警通道與三個 policy（§9）；真機推播驗證（§10）。之後若要輪替 APNs 金鑰，帶新 Key ID 重跑
+### 2026-09-24 12:10–12:25（擁有者提供 email；Claude 建告警，讀回值）
+
+- 記錄指標：`dayoff_job_runs`、`dayoff_job_failures`、`dayoff_broadcast_incomplete` 已建立（`gcloud logging metrics create`）。
+- 本機 gcloud 沒裝 `beta`／`alpha` 元件，`gcloud beta monitoring channels` 與 `gcloud alpha monitoring policies` 都不可用；
+  改走 Monitoring REST API（`curl` ＋ `gcloud auth print-access-token`）。`alerts/*.json` 是實際送出的內容，
+  與 `alerts/*.yaml` 同義；YAML 已填入真實通道 ID。
+- 通知通道 `projects/rainyclock/notificationChannels/10219649454523194367`（email，`shukaihu@icloud.com`，enabled）。
+  **需要擁有者點 Google 寄來的驗證信**，未驗證前告警不會寄出。
+- Policy：`…/alertPolicies/6544845589806021377` poll absent（15 分鐘無摘要）、`…/14647107143383542161`
+  execution failed、`…/12166636093063786863` poll degraded。API 只接受 `COMPARISON_GT`／`LT`，
+  「至少 3 次」改寫成「多於 2 次」。三個都 enabled。
+- absence 告警的實測（暫停 Scheduler 20 分鐘看是否寄信）**尚未做**，要等通道驗證後執行。
+
+**未執行**：absence 告警實測（通道驗證後 `gcloud scheduler jobs pause` 20 分鐘再 `resume`）；真機推播驗證（§10）。之後若要輪替 APNs 金鑰，帶新 Key ID 重跑
 `deploy/deploy.sh`（§秘密處理與輪替）。Firestore deny-all rules 未用 firebase-tools 部署（本機未登入）；
 服務帳號走 IAM，rules 只影響手機 SDK。
 

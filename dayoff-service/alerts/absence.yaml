@@ -16,7 +16,7 @@ conditions:
           perSeriesAligner: ALIGN_DELTA
           crossSeriesReducer: REDUCE_SUM
 notificationChannels:
-  - projects/rainyclock/notificationChannels/<CHANNEL_ID>
+  - projects/rainyclock/notificationChannels/10219649454523194367
 alertStrategy:
   autoClose: 1800s
 documentation:
