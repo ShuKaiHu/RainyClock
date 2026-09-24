@@ -16,7 +16,7 @@ Last updated: 2026-09-24.
 > **颱風／臨時放假改定 1.8.0（2026-09-24）**，1.7.1 另作他用。下方較早紀錄裡指這項功能的「1.7.1」
 > 保留原文，一律讀成 1.8.0；現況見「1.8.0 準備中」一節。
 
-> **1.7.1（37）已在本機完成，尚未上傳：** 修正 1.7.0 起 Home／Work 輸入時完全沒有地址建議，
+> **1.7.1（37）已上傳 TestFlight（2026-09-24 15:00:13），尚未送審：** 修正 1.7.0 起 Home／Work 輸入時完全沒有地址建議，
 > 以及手動輸入的地址被藏在 sheet 裡的黃色確認擋住、首頁一直「No alarm set」。見下節。
 >
 > **1.7.0（36）已上傳 TestFlight（2026-09-24 12:49:53），尚未送審：** 修正重裝後會員永久卡住（App Attest），
@@ -56,7 +56,10 @@ Last updated: 2026-09-24.
   送審前要改成 1.7.1 或新增 1.7.1 版本。
 - **隱私：** 使用者 9/24 13:11 的地址錄影在 5–6 秒，鍵盤 QuickType 列露出通訊錄裡的真實住址
   （`.textContentType(.fullStreetAddress)` 的自動填入）。這支影片不要原樣交給 Apple，影格也不要放進公開 repo。
-- **尚未：** commit 以外的 archive、上傳、送審；ATT／地址影片建議在 1.7.1 上重錄。
+- 已提交 `380eedf`。Release archive `build/RainyClock-1.7.1-37.xcarchive`：App 與兩個 extension 皆為
+  1.7.1（37），App Attest `production`、正式會員 URL、正式 LevelPlay key、沒有 `.storekit`，新字串在
+  en／zh-Hant 皆有。**15:00:13 上傳成功**，Apple 處理中；IronSource dSYM 警告照舊。日誌
+  `/tmp/rainyclock-171-37/archive.log`、`upload.log`。**尚未送審**；使用者將在 1.7.1 上重錄 ATT／地址影片。
 
 ## 1.7.0（36）準備：重裝後會員卡死、iOS 27 價格被擋 — 2026-09-24
 
