@@ -81,4 +81,4 @@ if ! gcloud scheduler jobs describe rainyclock-dayoff-poll --location="$R" >/dev
     --attempt-deadline=60s --max-retry-attempts=3 --min-backoff=10s
 fi
 echo "done. If deploy/iam.sh has not yet bound run.invoker for the scheduler, re-run it now."
-echo "Put $URL into RainyClock/Info.plist DayOffServiceURL when 1.7.1 flips the gate."
+echo "Put $URL into RainyClock/Info.plist DayOffServiceURL when 1.8.0 flips the gate."

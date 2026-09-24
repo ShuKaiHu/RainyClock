@@ -11,7 +11,10 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-09-23.
+Last updated: 2026-09-24.
+
+> **颱風／臨時放假改定 1.8.0（2026-09-24）**，1.7.1 另作他用。下方較早紀錄裡指這項功能的「1.7.1」
+> 保留原文，一律讀成 1.8.0；現況見「1.8.0 準備中」一節。
 
 > **1.7.0（36）已上傳 TestFlight（2026-09-24 12:49:53），尚未送審：** 修正重裝後會員永久卡住（App Attest），
 > 以及 iOS 27 TestFlight 價格被整批擋下。見下節。9/23 的「App 不改」結論已被本節取代。
@@ -163,7 +166,7 @@ Last updated: 2026-09-23.
 - 詳見 [退審診斷與重送條件](APP-REVIEW-2026-09-23.md)。尚未重現／驗收 iOS 27 真機完整流程，
   ATT 真機錄影與英文 6.5 吋素材核對尚未完成；build 35 交付進度見上方最新紀錄。
 
-## 1.7.1 準備中：颱風／天災臨時放假 — 2026-09-22
+## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
 - **工作樹已全部提交到 `ios/main`**（四個 commit：App 與測試、weather-proxy 會員後端、
   dayoff-service 與天災文件、其餘文件與素材）。1.7.0（34）送審的原始碼從此有 git 紀錄；
@@ -188,18 +191,18 @@ Last updated: 2026-09-23.
   網址（政府資料開放授權；NCDR 公告 3/31 下架但 9/24 仍正常）。這是明確設定，不是備援。
   之後同日：`run.invoker` 補上、Scheduler 自動觸發驗證通過；APNs `.p8` 掛上、`pushConfigured:true`，
   第一次廣播對零台裝置走完 `done`；三個記錄指標、email 通知通道與三個告警 policy 建好（通道待驗證信）。
-  **尚未**：absence 告警實測、真機推播驗證（等 1.7.1 開閘）。指令與逐條執行紀錄見
+  **尚未**：absence 告警實測、真機推播驗證（等 1.8.0 開閘）。指令與逐條執行紀錄見
   [dayoff-service/DEPLOYMENT.md](../dayoff-service/DEPLOYMENT.md)。
-  1.7.1 開閘前仍缺：NCDR 會員 API key、dayoff-service 的部署並填入 `DayOffServiceURL`、APNs 金鑰與正式 push capability、
+  1.8.0 開閘前仍缺：把服務網址填入 `DayOffServiceURL`、確認正式 build 的 push capability、
   真機驗證（晚間公告、重啟、低耗電、關背景更新、強制結束、撤銷、關閉後恢復、
   **可見推播在 App 關閉時被擴充功能改寫**）、
-  恢復設定入口與方案文案、發布 [1.7.1 備忘](1.7.1-DEFERRED-DISASTER.md) 的隱私條款、
+  恢復設定入口與方案文案、發布 [1.8.0 備忘](1.8.0-DEFERRED-DISASTER.md) 的隱私條款、
   決定買斷是否包含此功能。
 - 本輪驗證：Debug 建置 0 警告；dayoff-service 52 過；weather-proxy 186 過 3 略過（無
   Emulator）；iOS 全套約 339 項，用 `RainyClock Membership Local` scheme 且**簽章**跑才
   全過 —— `CODE_SIGNING_ALLOWED=NO` 會讓 3 項 Keychain 路由測試失敗，一般 `RainyClock`
   scheme 會讓 StoreKit 測試碰真商店並在模擬器彈出 Apple ID 登入框。
-- **2026-09-23 下午：使用者看過模擬器推播截圖，確認作法 B 的結果「很好」，正式納入 1.7.1 範圍。**
+- **2026-09-23 下午：使用者看過模擬器推播截圖，確認作法 B 的結果「很好」，正式納入 1.7.1 範圍（現為 1.8.0）。**
   模擬器以 `simctl push` 送 alert 模式 payload，App 顯示本地化橫幅「停班停課公告已更新」。
   這只證明 payload 與權限流程；擴充功能是否被喚醒、改寫是否生效，仍要真機用真 APNs 驗證。
   橫幅只見標題、未見正文，真機驗證時一併確認 `body-loc-key`。
@@ -724,7 +727,7 @@ TestFlight 新接線仍須真機確認。以下 19:22「只有 Sandbox／URL 空
 
 - 使用者決定將颱風／天災臨時放假保留至 **1.7.1**。中央 release gate 關閉；
   日曆設定、會員方案、狀態提示及公開隱私草稿不再公開此功能。
-  原程式、偏好、地圖、快取與服務保留，詳見 [1.7.1 備忘](1.7.1-DEFERRED-DISASTER.md)。
+  原程式、偏好、地圖、快取與服務保留，詳見 [1.8.0 備忘](1.8.0-DEFERRED-DISASTER.md)（原 1.7.1）。
 - 有效排程副本忽略臨時放假；舊 skip 在安全時機替換，失敗保留舊排程並允許重試。
   背景與推播不下載／套用公告，僅保留撤销舊推播註冊所需清理。
 - 美國來源已可選，依 OPM 常態聯邦假日與標準補假規則離線計算，含跨年補假及

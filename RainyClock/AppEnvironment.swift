@@ -23,7 +23,7 @@ enum MembershipAdvertisingGate {
 }
 
 enum AppEnvironment {
-    /// Deferred from 1.7.0 to 1.7.1. Keep saved preferences and implementation,
+    /// Deferred from 1.7.0 to 1.8.0 (1.7.1 is reserved for other work). Keep saved preferences and implementation,
     /// but exclude the feature from this release's UI, scheduling and networking.
     static let supportsTemporaryClosures = false
 

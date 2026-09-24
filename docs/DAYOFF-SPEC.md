@@ -1,6 +1,6 @@
 # Day-off suppression — shared specification
 
-**Spec version: 3** · Researched and written 2026-09-10 on `ios/main`; v3 on 2026-09-22. iOS has implemented (A) and (B) against this contract, gated off for 1.7.0 and being prepared for 1.7.1 — see `docs/DISASTER-PREVIEW.md` for the shipped architecture where it differs from the proposals below. Android has not started.
+**Spec version: 3** · Researched and written 2026-09-10 on `ios/main`; v3 on 2026-09-22. iOS has implemented (A) and (B) against this contract, gated off for 1.7.0 and being prepared for 1.8.0 — see `docs/DISASTER-PREVIEW.md` for the shipped architecture where it differs from the proposals below. Android has not started.
 
 Two features that answer the same question — *is there anything to get up for tomorrow?* — and
 therefore share one data path, one decision function, and one set of test fixtures:
@@ -702,6 +702,8 @@ writing a branch that suppresses an alarm on incomplete information, that branch
 - **v3, amended** (2026-09-23) — Path C added to §6: a broadcast visible push personalised on the
   phone by a Notification Service Extension, so an untouched phone still shows the announcement.
   No fixture or decision-function change, so `specVersion` stays 3.
+- **v3, amended** (2026-09-24) — target release renamed from 1.7.1 to 1.8.0 (the owner reserved
+  1.7.1 for other work). No behaviour change.
 - **v1** (2026-09-10) — initial spec. Sources verified first-hand; 365-record corpus harvested from
   the NCDR history API across eight typhoon events (2024-07 … 2026-08); fixtures generated from it.
   Nothing implemented on either platform.

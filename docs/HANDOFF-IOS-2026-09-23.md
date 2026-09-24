@@ -107,7 +107,7 @@ ASC：[TestFlight build 35](https://appstoreconnect.apple.com/teams/e7ff01f6-7d3
 - iOS 26.5 Local StoreKit 曾 configuration／Code 3 失敗，改用乾淨 26.2 才跑完；不要為了全綠略過交易測試。一般 `RainyClock` scheme 可能連真正 StoreKit 並彈登入；`CODE_SIGNING_ALLOWED=NO` 會讓 Keychain 測試失敗。
 - Release 的 production App Attest、正式會員 URL、簽章、兩語系 ATT 文案、未包含 `.storekit` 已核對。既有第三方 IronSource dSYM 警告未阻擋上傳；未把所有既有編譯警告都宣稱已修完。
 - 先讀 [CLAUDE.md](../CLAUDE.md)。僅處理 iOS 與必要相關後端，不改 Android；Unity LevelPlay 保留 `-ObjC`、GDPR 文案，以及 ATT 未決或 GDPR 未答覆／已撤回時不啟動 SDK 的規則。拒絕 ATT 不等於永久禁止所有非個人化廣告，仍依正式環境與同意 gate 判斷；TestFlight／Simulator 不送正式廣告。
-- `AppEnvironment.supportsTemporaryClosures = false`；颱風／臨時放假維持延後至 1.7.1。35 未改後端或方案權益。
+- `AppEnvironment.supportsTemporaryClosures = false`；颱風／臨時放假維持延後至 1.8.0（原定 1.7.1，2026-09-24 改）。35 未改後端或方案權益。
 - TestFlight 與 Production 使用同一正式會員服務、不同 Apple transaction environment 及資料隔離；Local StoreKit 是本機 fixture。App Attest 的 production 不等於 TestFlight IAP 是正式交易。完整接線／其他端到端驗收缺項見 [1.7.0-RELEASE-READINESS.md](1.7.0-RELEASE-READINESS.md) 與 9/22 交接；本次未重新部署或探測雲端。
 - Repo／docs 是公開內容。不要加入私鑰、帳密、session／JWS、會員／裝置識別碼或原始私人 crash。
 

@@ -44,7 +44,7 @@ account，只在具名資料庫 `dayoff-production` 上有權限。沿用 `weath
    Notifications capability。`APNS_PRODUCTION` 必須跟裝置的環境一致，否則 APNs 回 `BadDeviceToken`。
 4. Monitoring 通知管道（目前專案沒有任何一個）與下面第 9 步的告警。
 5. 第一次 Job 成功後，把 Cloud Run 給的 URL（不含路徑、不經轉址、不用自訂網域）填進
-   `RainyClock/Info.plist` 的 `DayOffServiceURL`；1.7.1 才翻 `supportsTemporaryClosures`。
+   `RainyClock/Info.plist` 的 `DayOffServiceURL`；1.8.0 才翻 `supportsTemporaryClosures`。
 6. 部署後把每個資源、digest、驗證結果記進本頁「執行紀錄」、`docs/STATUS-IOS.md`、
    `docs/DISASTER-PREVIEW.md`、`README.md`「快取、期限與部署方式」與 `CLAUDE.md`。
 
@@ -175,7 +175,7 @@ gcloud run jobs executions list --job=rainyclock-dayoff-poll --region=asia-east1
 用的是 Scheduler SA 的 **OAuth access token**（scope `cloud-platform`）打管理 API，不是打 Cloud Run
 公開網址的 OIDC token。Scheduler 回 200 只代表 execution 啟動了，抓取成功與否看 Job 的摘要。
 
-### 9. 告警（1.7.1 翻開開關之前必須存在）
+### 9. 告警（1.8.0 翻開開關之前必須存在）
 
 ```sh
 gcloud beta monitoring channels create --display-name=owner-email --type=email --channel-labels=email_address=<OWNER_EMAIL>
@@ -429,7 +429,7 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
   `refreshed=true changed=false`，**broadcast 從 `pending` 走到 `done`**：`attempts=1 accepted=0 failed=0
   unregistered=0 retryPending=0`，因為目前沒有任何裝置登記（1.7.0 閘門關著）。`pendingBroadcastRevision`
   已清空。`/health` `pushConfigured:true pushMode:"alert"`。
-- 尚未對真實裝置送過任何推播；第一次真機驗證要等 1.7.1 開閘、手機登記後，再看 `push_batch` 記錄。
+- 尚未對真實裝置送過任何推播；第一次真機驗證要等 1.8.0 開閘、手機登記後，再看 `push_batch` 記錄。
 
 ### 2026-09-24 12:10–12:25（擁有者提供 email；Claude 建告警，讀回值）
 
