@@ -1,6 +1,8 @@
 import Foundation
 
 /// A forecast of tomorrow's configured behavior, separate from system registration.
+/// `dayOffset: 0` resolves the day that has already begun instead (the widget's "today",
+/// shown between midnight and that day's ring); everything else is the same rule.
 struct TomorrowAlarmStatus: Equatable {
     enum Reason: Equatable {
         case normal, rain, holiday, manual, weekend, unselectedWeekday, disaster, routeIncomplete
@@ -23,6 +25,9 @@ struct TomorrowAlarmStatus: Equatable {
     /// The time is still what AlarmKit will ring, so it stays; what it must not claim is
     /// that rain moved it (`TomorrowWidgetSnapshot.ReasonLine.awaitingForecast`).
     var rainLeadIsCarriedOver = false
+    /// A registration exists and was made with these settings (the fingerprint matches).
+    /// With it, a ring day that has no registered ring left has already rung.
+    var isRegistrationCurrent = false
 
     /// The card's (and the decision's) freshness rule. The widget only *warns* after
     /// `TomorrowWidgetSnapshotBuilder.widgetWeatherLifetime`; this is unchanged by that.
@@ -33,8 +38,8 @@ struct TomorrowAlarmStatus: Equatable {
                         routeIsReady: Bool = true,
                         summary: ScheduledAlarmSummary?, registeredFingerprint: AlarmScheduleFingerprint?,
                         disasterFeed: DisasterFeed?, disasterSourceFailed: Bool,
-                        now: Date, calendar: Calendar = AlarmCalendarSettings.calendar) -> Self {
-        let request = TomorrowWeatherRequest(settings: settings, now: now, calendar: calendar)
+                        now: Date, calendar: Calendar = AlarmCalendarSettings.calendar, dayOffset: Int = 1) -> Self {
+        let request = TomorrowWeatherRequest(settings: settings, now: now, calendar: calendar, dayOffset: dayOffset)
         let day = calendar.startOfDay(for: request.normalAlarmDate)
         let decision = settings.calendarSettings.decision(on: day, weekdays: settings.selectedWeekdays,
                                                         holidays: holidays, calendar: calendar)
@@ -92,7 +97,8 @@ struct TomorrowAlarmStatus: Equatable {
 
         var registered: Date?
         var verified = false
-        if registeredFingerprint == settings.scheduleFingerprint(calendar: calendar), let summary {
+        let registrationIsCurrent = summary != nil && registeredFingerprint == settings.scheduleFingerprint(calendar: calendar)
+        if registrationIsCurrent, let summary {
             if let plan = summary.calendarPlan {
                 if plan.timeZoneID == calendar.timeZone.identifier, plan.coveredUntil > request.normalAlarmDate {
                     registered = plan.occurrences.first { $0.normalDate == request.normalAlarmDate }?.ringDate
@@ -135,7 +141,7 @@ struct TomorrowAlarmStatus: Equatable {
                     reason: reason, holidayName: holidayName, leadTimeMinutes: lead, weather: weather,
                     weatherIsStale: stale, weatherRefreshFailed: weatherRefreshFailed,
                     registeredRingDate: registered, isScheduleVerified: verified, disasterNoticeIDs: noticeIDs,
-                    rainLeadIsCarriedOver: carriedOver)
+                    rainLeadIsCarriedOver: carriedOver, isRegistrationCurrent: registrationIsCurrent)
     }
 }
 
@@ -151,8 +157,10 @@ struct TomorrowWeatherRequest: Codable, Equatable {
     var workLocation: ResolvedMapLocation?
     var mode: CommuteAlarmSettings.CommuteMode
 
-    init(settings: CommuteAlarmSettings, now: Date, calendar: Calendar = AlarmCalendarSettings.calendar) {
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))!
+    /// `dayOffset` 1 is tomorrow, the card's day; 0 is today, which only the widget asks
+    /// about (a forecast is never fetched for it).
+    init(settings: CommuteAlarmSettings, now: Date, calendar: Calendar = AlarmCalendarSettings.calendar, dayOffset: Int = 1) {
+        let tomorrow = calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: now))!
         let time = calendar.dateComponents([.hour, .minute], from: settings.alarmTime)
         normalAlarmDate = calendar.date(bySettingHour: time.hour ?? 7, minute: time.minute ?? 30,
                                        second: 0, of: tomorrow)!

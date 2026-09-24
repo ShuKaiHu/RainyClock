@@ -492,8 +492,20 @@ final class AlarmViewModel: ObservableObject {
     }
 
     func tomorrowStatus(now: Date = Date()) -> TomorrowAlarmStatus {
+        alarmStatus(now: now, dayOffset: 1)
+    }
+
+    /// Today's alarm, for the widget between local midnight and today's ring (D-C): the same
+    /// inputs and rules as `tomorrowStatus`, resolved for the day that has already begun, so
+    /// it is what AlarmKit's registration will ring (or the evening's forecast decision,
+    /// flagged "update needed" when the registration differs). The card never shows it.
+    func todayStatus(now: Date = Date()) -> TomorrowAlarmStatus {
+        alarmStatus(now: now, dayOffset: 0)
+    }
+
+    private func alarmStatus(now: Date, dayOffset: Int) -> TomorrowAlarmStatus {
         let settings = effectiveSchedulingSettings
-        let request = TomorrowWeatherRequest(settings: settings, now: now)
+        let request = TomorrowWeatherRequest(settings: settings, now: now, dayOffset: dayOffset)
         let currentRegistration = scheduledAlarmSummary != nil && scheduledFingerprint == effectiveSchedulingSettings.scheduleFingerprint()
         let routeIsReady = invalidAddressFields.isEmpty && !hasUnconfirmedSuggestedAddresses
             && (hasConfirmedAutomaticRoute || currentRegistration)
@@ -503,7 +515,7 @@ final class AlarmViewModel: ObservableObject {
             summary: displaySummary?.rollingForwardAsPair(selectedWeekdays: settings.selectedWeekdays, now: now,
                                                           calendar: AlarmCalendarSettings.calendar),
             registeredFingerprint: scheduledFingerprint,
-            disasterFeed: disasterFeed, disasterSourceFailed: disasterRefreshFailed, now: now)
+            disasterFeed: disasterFeed, disasterSourceFailed: disasterRefreshFailed, now: now, dayOffset: dayOffset)
     }
 
     /// The registered summary as the status reads it. A weekly summary stored before 1.8.0

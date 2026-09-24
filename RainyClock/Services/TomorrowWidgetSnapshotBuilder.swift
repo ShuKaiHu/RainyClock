@@ -13,6 +13,12 @@ import Foundation
 ///   sight. The decision (ring time, reason) is the card's either way. The model
 ///   rolls a weekly summary forward inside `tomorrowStatus(now:)`, ring and normal time
 ///   as one pair, so a process that stays alive and a relaunch agree.
+/// - The second deliberate difference (D-C): between local midnight and today's ring (or,
+///   for a day that does not ring, its normal time) the widget shows TODAY's alarm, from
+///   `todayStatus(now:)`, labelled 今天 / Today. The card keeps saying 明天 / Tomorrow
+///   about the next day all along: in the app the user is looking at what to change,
+///   and today's decision is already registered. At the ring (inclusive) plus one second
+///   the widget goes back to tomorrow, as the card is.
 /// - Card flags (the scheduling error, the AlarmKit reschedule notice and the stale
 ///   schedule) carry forward unchanged, so the widget never drops a warning the app
 ///   has not cleared.
@@ -143,7 +149,32 @@ enum TomorrowWidgetSnapshotBuilder {
                      maximumPercent: percent(weather.maximumPrecipitationProbability))
     }
 
-    static func entry(for status: TomorrowAlarmStatus, context: Context, validFrom: Date) -> TomorrowWidgetSnapshot.Entry {
+    /// Today's entries carry no weather notice except "complete your route". The app only
+    /// ever fetches tomorrow's forecast, so nothing could refresh one for a morning that
+    /// has begun (a warning nobody can clear), and the card's other notices name 明天.
+    /// Today's decision is the registration's, which the reason line already states.
+    static func todayWeatherNotice(for status: TomorrowAlarmStatus, addressesMissing: Bool) -> TomorrowWidgetSnapshot.WeatherNotice? {
+        status.weather == nil && addressesMissing ? .routeNeeded : nil
+    }
+
+    /// The last moment a today entry is shown, for `status` = today's status at that moment.
+    /// Inclusive: at that exact second the alarm is ringing, and the registration only rolls
+    /// on to the next ring once this one is strictly past.
+    /// - Today's registered ring: what AlarmKit fires, even where the forecast or a closure
+    ///   now says otherwise (the entry then carries "update needed").
+    /// - A day that does not ring: its normal time.
+    /// - A ring day whose current registration has no ring left for today: that ring has
+    ///   fired (the weekly pair rolled on, the dated occurrence was consumed, or a lead
+    ///   crossed midnight), so today is over; `.distantPast`.
+    /// - Nothing registered: the configured time, which is all there is to show.
+    static func todayShownUntil(_ status: TomorrowAlarmStatus) -> Date {
+        if let registered = status.registeredRingDate { return registered }
+        guard let expected = status.expectedRingDate else { return status.normalAlarmDate }
+        return status.isRegistrationCurrent ? .distantPast : expected
+    }
+
+    static func entry(for status: TomorrowAlarmStatus, context: Context, validFrom: Date,
+                      isToday: Bool = false) -> TomorrowWidgetSnapshot.Entry {
         let reason: TomorrowWidgetSnapshot.Reason = switch status.reason {
         case .normal: .normal
         case .rain: .rain
@@ -154,12 +185,13 @@ enum TomorrowWidgetSnapshotBuilder {
         case .disaster: .disaster
         case .routeIncomplete: .routeIncomplete
         }
-        return .init(validFrom: validFrom, day: status.day, normalAlarmDate: status.normalAlarmDate,
+        return .init(validFrom: validFrom, isToday: isToday, day: status.day, normalAlarmDate: status.normalAlarmDate,
                      expectedRingDate: status.expectedRingDate,
                      ringIsOnAnotherDay: status.expectedRingDate.map { !context.calendar.isDate($0, inSameDayAs: status.day) } ?? false,
                      reason: reason, reasonLine: snapshotReasonLine(for: status), leadTimeMinutes: status.leadTimeMinutes,
                      forecast: forecast(from: status.weather),
-                     weatherNotice: widgetWeatherNotice(for: status, addressesMissing: context.addressesMissing, at: validFrom),
+                     weatherNotice: isToday ? todayWeatherNotice(for: status, addressesMissing: context.addressesMissing)
+                        : widgetWeatherNotice(for: status, addressesMissing: context.addressesMissing, at: validFrom),
                      scheduleIssue: scheduleIssue(for: status, flags: context.flags))
     }
 
@@ -171,10 +203,11 @@ enum TomorrowWidgetSnapshotBuilder {
         calendar.date(byAdding: .day, value: 2, to: calendar.startOfDay(for: now)) ?? now.addingTimeInterval(2 * 86_400)
     }
 
-    /// Sorted, unique moments in (now, expiresAt) where the card's content can change.
-    /// Over-generating is fine: identical neighbours are merged by `snapshot`.
+    /// Sorted, unique moments in (now, expiresAt) where the widget's content can change.
+    /// Over-generating is fine: identical neighbours are merged by `snapshot`. `todays` are
+    /// today's statuses at `now` and at the first midnight (none without a today provider).
     static func boundaries(now: Date, first: TomorrowAlarmStatus, atFirstMidnight: TomorrowAlarmStatus,
-                           context: Context, expiresAt: Date) -> [Date] {
+                           todays: [TomorrowAlarmStatus] = [], context: Context, expiresAt: Date) -> [Date] {
         let calendar = context.calendar
         let day0 = calendar.startOfDay(for: now)
         let days = (0...2).compactMap { calendar.date(byAdding: .day, value: $0, to: day0) }
@@ -183,13 +216,19 @@ enum TomorrowWidgetSnapshotBuilder {
         if days.count > 1 { candidates.append(days[1]) }
         // Staleness is a strict `>`: at weatherLifetime the decision stops reading the forecast
         // (the card's rule); at widgetWeatherLifetime the widget starts to warn.
-        if let checkedAt = first.weather?.checkedAt {
+        for checkedAt in ([first] + todays).compactMap(\.weather?.checkedAt) {
             candidates.append(checkedAt.addingTimeInterval(TomorrowAlarmStatus.weatherLifetime + epsilon))
             candidates.append(checkedAt.addingTimeInterval(widgetWeatherLifetime + epsilon))
         }
         // The `earlier > now` guard: matters only for leads that cross midnight.
-        for normal in [first.normalAlarmDate, atFirstMidnight.normalAlarmDate] {
+        for normal in ([first, atFirstMidnight] + todays).map(\.normalAlarmDate) {
             candidates.append(normal.addingTimeInterval(-Double(context.rainLeadTimeMinutes) * 60 + epsilon))
+        }
+        // Today's entry ends after its ring (or normal time) second; the exact second too,
+        // so the switch is never late by ε.
+        for today in todays {
+            candidates.append(todayShownUntil(today).addingTimeInterval(epsilon))
+            candidates.append(today.normalAlarmDate.addingTimeInterval(epsilon))
         }
         // Where `rollingForwardAsPair` changes the rolled summary (a ring passing).
         for anchor in context.ringAnchors {
@@ -210,16 +249,30 @@ enum TomorrowWidgetSnapshotBuilder {
         return Set(points.filter { $0 > now && $0 < expiresAt }).sorted()
     }
 
-    static func snapshot(now: Date, context: Context, status: (Date) -> TomorrowAlarmStatus) -> TomorrowWidgetSnapshot {
+    /// `today` resolves the day that has begun (`AlarmViewModel.todayStatus`); without it
+    /// every entry describes tomorrow, as the card does.
+    static func snapshot(now: Date, context: Context, status: (Date) -> TomorrowAlarmStatus,
+                         today: ((Date) -> TomorrowAlarmStatus)? = nil) -> TomorrowWidgetSnapshot {
         let expires = expiresAt(now: now, calendar: context.calendar)
         let first = status(now)
         let midnight = context.calendar.date(byAdding: .day, value: 1, to: context.calendar.startOfDay(for: now))
             ?? now.addingTimeInterval(86_400)
         let atMidnight = status(midnight)
-        var entries = [entry(for: first, context: context, validFrom: now)]
+        let todays = today.map { provider in [now, midnight].map(provider) } ?? []
+        func shown(at moment: Date) -> TomorrowWidgetSnapshot.Entry {
+            if let today {
+                let value = today(moment)
+                if moment <= todayShownUntil(value) {
+                    return entry(for: value, context: context, validFrom: moment, isToday: true)
+                }
+            }
+            return entry(for: moment == now ? first : status(moment), context: context, validFrom: moment)
+        }
+        var entries = [shown(at: now)]
         var cutoff = expires
-        for moment in boundaries(now: now, first: first, atFirstMidnight: atMidnight, context: context, expiresAt: expires) {
-            let next = entry(for: status(moment), context: context, validFrom: moment)
+        for moment in boundaries(now: now, first: first, atFirstMidnight: atMidnight, todays: todays,
+                                 context: context, expiresAt: expires) {
+            let next = shown(at: moment)
             if let last = entries.last, next.hasSameContent(as: last) { continue }
             // Never let the last entry outlive its truth: stop the snapshot where it would change.
             if entries.count == maximumEntries { cutoff = moment; break }
@@ -259,7 +312,8 @@ enum TomorrowWidgetSnapshotBuilder {
     }
 
     static func snapshot(for model: AlarmViewModel, now: Date = Date()) -> TomorrowWidgetSnapshot {
-        snapshot(now: now, context: context(for: model)) { model.tomorrowStatus(now: $0) }
+        snapshot(now: now, context: context(for: model), status: { model.tomorrowStatus(now: $0) },
+                 today: { model.todayStatus(now: $0) })
     }
 
     private static func percent(_ probability: Double) -> Int {

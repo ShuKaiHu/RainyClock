@@ -20,6 +20,8 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     enum Line: Equatable, Sendable {
         case issue(TomorrowWidgetSnapshot.ScheduleIssue)
         case reason(TomorrowWidgetSnapshot.ReasonLine)
+        /// The same reason about today (D-C): every line that names 明天 names 今天 instead.
+        case todayReason(TomorrowWidgetSnapshot.ReasonLine)
         case notice(TomorrowWidgetSnapshot.WeatherNotice)
         case routeRain(percent: Int)
 
@@ -53,6 +55,19 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 case .unselectedWeekday: LocalizedLine(key: "ux_tomorrow_unselected")
                 case .closure: LocalizedLine(key: "ux_tomorrow_closure")
                 case .routeNeeded: LocalizedLine(key: "ux_route_needed")
+                }
+            case .todayReason(let reason):
+                switch reason {
+                case .awaitingForecast: LocalizedLine(key: "widget_today_awaiting_forecast")
+                case .holidayNamed(let name): LocalizedLine(key: "widget_today_holiday_named", arguments: [.string(name)])
+                case .holiday: LocalizedLine(key: "widget_today_holiday")
+                case .manualSkip: LocalizedLine(key: "widget_today_manual_skip")
+                case .manualRing: LocalizedLine(key: "widget_today_manual_ring")
+                case .weekend: LocalizedLine(key: "widget_today_weekend")
+                case .unselectedWeekday: LocalizedLine(key: "widget_today_unselected")
+                case .closure: LocalizedLine(key: "widget_today_closure")
+                // These name no day.
+                case .rainForecast, .rainEarlier, .routeNeeded: Line.reason(reason).full
                 }
             case .issue(let issue):
                 switch issue {
@@ -89,6 +104,12 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 case .holidayNamed(let name): LocalizedLine(key: "widget_holiday_named_short", arguments: [.string(name)])
                 case .holiday, .weekend, .routeNeeded: full
                 }
+            case .todayReason(let reason):
+                switch reason {
+                // The long form is already the shortest thing that says "today".
+                case .holiday, .weekend: full
+                default: Line.reason(reason).short
+                }
             case .issue: LocalizedLine(key: "widget_issue_short")
             case .notice(let notice):
                 switch notice {
@@ -106,6 +127,8 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     enum RingDay: Equatable, Sendable {
         /// The ring is on `day`: 明天 and its weekday.
         case tomorrow(Date)
+        /// Today's ring, before it has fired (D-C): 今天 and its weekday.
+        case today(Date)
         /// Rain moved the ring across midnight onto the day before `day` (the
         /// `ringPreviousDay` sample): that day by its own weekday or date, never 明天.
         case on(Date)
@@ -125,6 +148,8 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     var home: TomorrowWidgetSnapshot.Condition?
     var work: TomorrowWidgetSnapshot.Condition?
     var day: Date?
+    /// The entry is today's (D-C): headers and lines say 今天 / Today.
+    var isToday: Bool
     var ringIsOnAnotherDay: Bool
     /// nil unless the hero is a time. Inline, rectangular and the VoiceOver label name it.
     var ringDay: RingDay?
@@ -149,6 +174,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             home = nil
             work = nil
             day = nil
+            isToday = false
             ringIsOnAnotherDay = false
             ringDay = nil
             skipLabelKey = nil
@@ -174,7 +200,9 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             // First match wins; route rain only beside a fresh forecast (no notice).
             var lines: [Line] = []
             if let issue = entry.scheduleIssue { lines.append(.issue(issue)) }
-            if let reason = entry.reasonLine { lines.append(.reason(reason.displayed(in: language))) }
+            if let reason = entry.reasonLine?.displayed(in: language) {
+                lines.append(entry.isToday ? .todayReason(reason) : .reason(reason))
+            }
             if let notice = entry.weatherNotice { lines.append(.notice(notice)) }
             else if let forecast = entry.forecast { lines.append(.routeRain(percent: forecast.maximumPercent)) }
             line = lines.first
@@ -189,9 +217,10 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             home = entry.forecast?.home.condition
             work = entry.forecast?.work?.condition
             day = entry.day
+            isToday = entry.isToday
             ringIsOnAnotherDay = entry.ringIsOnAnotherDay
             if let ring = entry.expectedRingDate {
-                ringDay = entry.ringIsOnAnotherDay ? .on(ring) : .tomorrow(entry.day)
+                ringDay = entry.ringIsOnAnotherDay ? .on(ring) : entry.isToday ? .today(entry.day) : .tomorrow(entry.day)
             } else {
                 ringDay = nil
             }
@@ -214,6 +243,12 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             else if entry.expectedRingDate != nil { relevanceScore = 10 }
             else { relevanceScore = 5 }
         }
+    }
+
+    /// 今天 / Today for today's entry, else 明天 / Tomorrow; nil when no day is shown.
+    var dayWordKey: String? {
+        guard day != nil else { return nil }
+        return isToday ? "widget_today" : "ux_tomorrow"
     }
 }
 
@@ -328,6 +363,11 @@ enum TomorrowWidgetStrings {
         "widget_inline_ring_on", "widget_inline_rain_on",
         "widget_skip_holiday", "widget_skip_closure", "widget_skip_other",
         "widget_awaiting_forecast_short",
+        // Today, between midnight and today's ring (D-C).
+        "widget_today", "widget_today_awaiting_forecast",
+        "widget_today_holiday_named", "widget_today_holiday", "widget_today_manual_skip", "widget_today_manual_ring",
+        "widget_today_weekend", "widget_today_unselected", "widget_today_closure",
+        "widget_inline_today_ring", "widget_inline_today_rain", "widget_inline_today_skipped",
     ]
 }
 
@@ -338,7 +378,7 @@ enum TomorrowWidgetSamples {
         case normalClear, cloudyNormal, rainForecast, rainMixed, rainStale, holidayNamed, holidayUnnamed, weekend,
              unselectedWeekday, manualSkip, manualRing, closure, routeIncomplete, weatherFailed, forecastUnavailable,
              scheduleUpdateNeeded, schedulingFailed, alarmKitReschedule, closureUncertain, closureUpdateFailed,
-             ringPreviousDay, carriedOver, expired, missing
+             ringPreviousDay, carriedOver, todayRain, todayNormal, todaySkipped, todayCarriedOver, expired, missing
     }
 
     /// nil for `.missing`. One entry (validFrom = publishedAt = now); expiresAt = now + 24h.
@@ -373,15 +413,20 @@ enum TomorrowWidgetSamples {
                             maximumPercent: max(homePercent, work == nil ? 0 : workPercent))
         }
         func make(ring: Date?, reason: S.Reason, line: S.ReasonLine? = nil, lead: Int = 0, normalDate: Date = normal,
-                  forecast: S.RouteForecast?, notice: S.WeatherNotice? = nil, issue: S.ScheduleIssue? = nil) -> S.Entry {
+                  forecast: S.RouteForecast?, notice: S.WeatherNotice? = nil, issue: S.ScheduleIssue? = nil,
+                  isToday: Bool = false) -> S.Entry {
             let alarmDay = calendar.startOfDay(for: normalDate)
-            return S.Entry(validFrom: now, day: alarmDay, normalAlarmDate: normalDate, expectedRingDate: ring,
+            return S.Entry(validFrom: now, isToday: isToday, day: alarmDay, normalAlarmDate: normalDate, expectedRingDate: ring,
                            ringIsOnAnotherDay: ring.map { !calendar.isDate($0, inSameDayAs: alarmDay) } ?? false,
                            reason: reason, reasonLine: line, leadTimeMinutes: lead, forecast: forecast,
                            weatherNotice: notice, scheduleIssue: issue)
         }
         // DGPA's own name, as a real snapshot stores it; the presentation names it per language.
         let name = holidayName ?? "國慶日"
+        // Today's alarm, shown between midnight and its ring (D-C). The samples are static:
+        // the widget draws them whatever the time, as it does every sample.
+        let todayNormal = calendar.date(bySettingHour: 7, minute: 30, second: 0, of: today) ?? today
+        let todayEarly = todayNormal.addingTimeInterval(-30 * 60)
 
         switch scenario {
         case .normalClear, .expired:
@@ -435,6 +480,19 @@ enum TomorrowWidgetSamples {
             return make(ring: lateNormal.addingTimeInterval(-30 * 60), reason: .rain,
                         line: .rainForecast(percent: 70, minutes: 30), lead: 30, normalDate: lateNormal,
                         forecast: forecast(.rain, 70, .rain, 60))
+        case .todayRain:
+            // 今天 上午7:00 因雨提早 30 分鐘: decided last evening, registered, still ahead.
+            return make(ring: todayEarly, reason: .rain, line: .rainEarlier(minutes: 30), lead: 30, normalDate: todayNormal,
+                        forecast: forecast(.rain, 80, .rain, 70, checkedAt: old), isToday: true)
+        case .todayNormal:
+            return make(ring: todayNormal, reason: .normal, normalDate: todayNormal,
+                        forecast: forecast(.clear, 10, .cloudy, 20, checkedAt: old), isToday: true)
+        case .todaySkipped:
+            return make(ring: nil, reason: .weekend, line: .weekend, normalDate: todayNormal, forecast: nil, isToday: true)
+        case .todayCarriedOver:
+            // Yesterday's rain lead, repeated this morning; no forecast has decided today.
+            return make(ring: todayEarly, reason: .rain, line: .awaitingForecast, lead: 30, normalDate: todayNormal,
+                        forecast: nil, isToday: true)
         case .carriedOver:
             // Tuesday's 07:00 rain ring has fired; the weekly repeat rings Wednesday at 07:00
             // too, but no forecast for Wednesday has decided that yet.

@@ -84,22 +84,22 @@ struct WidgetStyle {
         date.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated).locale(locale))
     }
 
-    /// 明天 · 週三 / Tomorrow · Wed
+    /// 明天 · 週三 / Tomorrow · Wed; 今天 / Today before today's ring (D-C).
     func smallHeader(_ presentation: TomorrowWidgetPresentation) -> String {
-        guard let day = presentation.day else { return text("app_title") }
-        return text("ux_tomorrow") + " · " + weekday(day)
+        guard let day = presentation.day, let word = presentation.dayWordKey else { return text("app_title") }
+        return text(word) + " · " + weekday(day)
     }
 
     /// The small header's fallback where a leading symbol leaves no room: 明天 / Tomorrow.
     func smallHeaderShort(_ presentation: TomorrowWidgetPresentation) -> String {
-        text(presentation.day == nil ? "app_title" : "ux_tomorrow")
+        text(presentation.dayWordKey ?? "app_title")
     }
 
     /// 明天 9月24日 週三 / Tomorrow · Wed, Sep 24: English sets the word apart from a date
     /// that carries its own comma. VoiceOver passes ", " so it never reads the dot.
     func mediumHeader(_ presentation: TomorrowWidgetPresentation, separator: String = " · ") -> String {
-        guard let day = presentation.day else { return text("app_title") }
-        return text("ux_tomorrow") + (isChinese ? " " : separator) + longDate(day)
+        guard let day = presentation.day, let word = presentation.dayWordKey else { return text("app_title") }
+        return text(word) + (isChinese ? " " : separator) + longDate(day)
     }
 
     func openAppText(_ reason: TomorrowWidgetTimeline.NeedsApp) -> String {
@@ -545,12 +545,12 @@ private struct RectangularTomorrowView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 明天 週三 / Tomorrow · Wed, or the ring's own date when rain moved it across
-    /// midnight: the time below is then not on tomorrow.
+    /// 明天 週三 / Tomorrow · Wed (今天 / Today before today's ring), or the ring's own date
+    /// when rain moved it across midnight: the time below is then not on tomorrow.
     private var header: String {
         if case .on(let ringDay)? = presentation.ringDay { return style.longDate(ringDay) }
-        guard let day = presentation.day else { return style.text("app_title") }
-        return style.text("ux_tomorrow") + (style.isChinese ? " " : " · ") + style.weekday(day)
+        guard let day = presentation.day, let word = presentation.dayWordKey else { return style.text("app_title") }
+        return style.text(word) + (style.isChinese ? " " : " · ") + style.weekday(day)
     }
 
     @ViewBuilder
@@ -687,16 +687,18 @@ private struct InlineTomorrowView: View {
                                                     arguments: [.string(weekday), .string(time), .int(earlierMinutes)]))
                 return (rain, dated, symbol)
             }
-            let ringLine = style.text(LocalizedLine(key: "widget_inline_ring", arguments: [.string(time)]))
+            let today = presentation.isToday
+            let ringLine = style.text(LocalizedLine(key: today ? "widget_inline_today_ring" : "widget_inline_ring",
+                                                    arguments: [.string(time)]))
             if let earlierMinutes {
-                let rain = style.text(LocalizedLine(key: "widget_inline_rain",
+                let rain = style.text(LocalizedLine(key: today ? "widget_inline_today_rain" : "widget_inline_rain",
                                                     arguments: [.string(time), .int(earlierMinutes)]))
                 return (rain, ringLine, symbol)
             }
             return (ringLine, time, symbol)
         case .skipped:
-            return (presentation.line.map { style.text($0.full) } ?? style.text("widget_inline_skipped"),
-                    style.text("widget_inline_skipped"), symbol)
+            let skipped = style.text(presentation.isToday ? "widget_inline_today_skipped" : "widget_inline_skipped")
+            return (presentation.line.map { style.text($0.full) } ?? skipped, skipped, symbol)
         case .notSet:
             return (style.text("ux_route_needed"), style.text("ux_not_set"), symbol)
         case .openApp(let reason):

@@ -1,7 +1,9 @@
 import Foundation
 
-/// What the widget may know: the tomorrow card, precomputed at upcoming boundaries.
-/// Never addresses, route text, segment names/ids, membership ids or raw error text.
+/// What the widget may know: the tomorrow card, precomputed at upcoming boundaries, and
+/// between local midnight and today's ring, today's alarm (`Entry.isToday`), which the
+/// card never shows. Never addresses, route text, segment names/ids, membership ids or
+/// raw error text.
 ///
 /// Shared by the app (which writes it into the App Group) and the widget extension
 /// (which only reads it), so this file stays Foundation-only: no `String(localized:)`,
@@ -10,7 +12,8 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
     static let appGroupIdentifier = "group.com.shukaihu.RainyClock"   // same group as DayOffSharedState
     static let storageKey = "tomorrowWidgetSnapshot.v1"              // != DayOffSharedState.storageKey
     static let kind = "RainyClockTomorrow"                           // never rename after shipping
-    static let currentVersion = 1
+    /// 2: `Entry.isToday` and `ReasonLine.awaitingForecast` (1.8.0 (38) widget decisions).
+    static let currentVersion = 2
     static let maximumBytes = 64_000
 
     /// Raw values equal `CommuteAlarmSettings.CommuteMode`'s.
@@ -50,6 +53,9 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
     }
     struct Entry: Codable, Equatable, Sendable {
         var validFrom: Date
+        /// The alarm day has begun and its ring (or, when skipped, its normal time) is
+        /// still ahead: the widget says 今天 / Today instead of 明天 / Tomorrow.
+        var isToday: Bool
         var day: Date                                   // TomorrowAlarmStatus.day
         var normalAlarmDate: Date
         var expectedRingDate: Date?

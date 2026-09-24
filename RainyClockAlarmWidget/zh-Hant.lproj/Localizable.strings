@@ -76,3 +76,17 @@
 "widget_skip_closure" = "停班";
 /* Any other skipped day: a weekend, an unselected weekday or a manual skip. */
 "widget_skip_other" = "不響";
+
+/* Today, between midnight and today's ring (the card keeps saying 明天). */
+"widget_today" = "今天";
+"widget_today_awaiting_forecast" = "等待今天預報";
+"widget_today_holiday_named" = "今天放假：%@";
+"widget_today_holiday" = "今天是國定假日";
+"widget_today_manual_skip" = "今天已手動設為略過";
+"widget_today_manual_ring" = "今天已手動設為照常響鈴";
+"widget_today_weekend" = "今天是週末";
+"widget_today_unselected" = "今天未列入重複星期";
+"widget_today_closure" = "今天因臨時停班／停課略過";
+"widget_inline_today_ring" = "今天 %@";
+"widget_inline_today_rain" = "今天 %1$@，提早 %2$d 分鐘";
+"widget_inline_today_skipped" = "今天略過鬧鐘";

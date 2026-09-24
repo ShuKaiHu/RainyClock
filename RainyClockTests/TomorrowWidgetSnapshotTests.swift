@@ -58,17 +58,20 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
     /// Mirrors `AlarmViewModel.tomorrowStatus(now:)` after D1: the summary is rolled at `t`
     /// (ring and normal time as one pair), and the failure flag applies only while the
     /// failed request is still tomorrow's.
+    /// `dayOffset: 0` mirrors `AlarmViewModel.todayStatus(now:)` the same way.
     private func statusProvider(_ settings: CommuteAlarmSettings, weather: TomorrowWeatherRecord?,
-                                summary: ScheduledAlarmSummary?, failedRequest: TomorrowWeatherRequest? = nil)
+                                summary: ScheduledAlarmSummary?, failedRequest: TomorrowWeatherRequest? = nil,
+                                dayOffset: Int = 1, calendar: Calendar? = nil)
         -> (Date) -> TomorrowAlarmStatus {
-        let calendar = self.calendar
+        let calendar = calendar ?? self.calendar
         return { t in
             TomorrowAlarmStatus.resolve(
                 settings: settings, holidays: .init(), weatherRecord: weather,
-                weatherRefreshFailed: failedRequest == TomorrowWeatherRequest(settings: settings, now: t, calendar: calendar),
+                weatherRefreshFailed: failedRequest == TomorrowWeatherRequest(settings: settings, now: t, calendar: calendar,
+                                                                              dayOffset: dayOffset),
                 summary: summary?.rollingForwardAsPair(selectedWeekdays: settings.selectedWeekdays, now: t, calendar: calendar),
                 registeredFingerprint: summary == nil ? nil : settings.scheduleFingerprint(calendar: calendar),
-                disasterFeed: nil, disasterSourceFailed: false, now: t, calendar: calendar)
+                disasterFeed: nil, disasterSourceFailed: false, now: t, calendar: calendar, dayOffset: dayOffset)
         }
     }
 
@@ -546,6 +549,235 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(expiry.timeIntervalSince(publish), 37 * 3_600, "Nov 1 is 25 hours long in New York")
     }
 
+    // MARK: Today before the ring (D-C)
+
+    /// Monday 21:00 as in `mondayEvening`, with the today provider the app passes.
+    private func mondayEveningWithToday() -> (Snapshot, (Date) -> TomorrowAlarmStatus, (Date) -> TomorrowAlarmStatus) {
+        let now = date(14, 21)
+        let value = settings()
+        let weather = record(value, requestedAt: now, checkedAt: now)
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7))
+        let tomorrow = statusProvider(value, weather: weather, summary: registered)
+        let today = statusProvider(value, weather: weather, summary: registered, dayOffset: 0)
+        return (Builder.snapshot(now: now, context: context(value, summary: registered), status: tomorrow, today: today),
+                tomorrow, today)
+    }
+
+    func testTodayRainEntryRunsFromMidnightThroughItsRing() throws {
+        let (snapshot, tomorrow, _) = mondayEveningWithToday()
+        XCTAssertTrue(snapshot.isValid)
+        XCTAssertEqual(snapshot.entries.map(\.validFrom), [date(14, 21), date(14, 21, 30, 1), date(15, 0), date(15, 7, 0, 1)])
+        XCTAssertEqual(snapshot.entries.map(\.isToday), [false, false, true, false])
+        XCTAssertEqual(snapshot.expiresAt, date(16, 0))
+
+        // Midnight: still Tuesday's 07:00, now called today, with the evening's decision.
+        let today = try XCTUnwrap(entry(snapshot, at: date(15, 0)))
+        XCTAssertEqual(today.day, date(15, 0))
+        XCTAssertEqual(today.normalAlarmDate, date(15, 7, 30))
+        XCTAssertEqual(today.expectedRingDate, date(15, 7), "What AlarmKit's registration rings")
+        XCTAssertEqual(today.reason, .rain)
+        XCTAssertEqual(today.reasonLine, .rainEarlier(minutes: 30), "Decided by Tuesday's forecast: 因雨提早")
+        XCTAssertNil(today.weatherNotice, "Nothing can refresh a forecast for a morning that has begun")
+        XCTAssertNil(today.scheduleIssue)
+        XCTAssertNotNil(today.forecast, "The medium still shows the forecast it was decided on")
+        // The card, meanwhile, already describes Wednesday.
+        XCTAssertEqual(tomorrow(date(15, 0)).day, date(16, 0))
+
+        // Through the ring second itself; then tomorrow, whose 07:00 is the carried-over repeat.
+        let plan = TomorrowWidgetTimeline.plan(snapshot: snapshot, now: date(15, 7), currentTimeZoneID: calendar.timeZone.identifier)
+        guard case .status(let atRing) = plan.items[0].state else { return XCTFail("status expected") }
+        XCTAssertTrue(atRing.isToday)
+        let after = try XCTUnwrap(entry(snapshot, at: date(15, 7, 0, 1)))
+        XCTAssertFalse(after.isToday)
+        XCTAssertEqual(after.day, date(16, 0))
+        XCTAssertEqual(after.expectedRingDate, date(16, 7))
+        XCTAssertEqual(after.reasonLine, .awaitingForecast)
+    }
+
+    func testTodayAfterMidnightPublishCarriesTwoMornings() throws {
+        // Tuesday 03:00, the app ran and its tomorrow forecast is now Wednesday's (none for Tuesday).
+        let now = date(15, 3)
+        let value = settings()
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7))
+        let snapshot = Builder.snapshot(now: now, context: context(value, summary: registered),
+                                        status: statusProvider(value, weather: nil, summary: registered),
+                                        today: statusProvider(value, weather: nil, summary: registered, dayOffset: 0))
+        XCTAssertTrue(snapshot.isValid)
+        XCTAssertEqual(snapshot.expiresAt, date(17, 0))
+        // A registered date still ahead rolls only once strictly past (07:00:01); a projected
+        // weekly repeat already rolls at its own second (`rollingForward`), so Wednesday's
+        // today entry hands over at 07:00:00.
+        XCTAssertEqual(snapshot.entries.map(\.validFrom), [now, date(15, 7, 0, 1), date(16, 0), date(16, 7)])
+        XCTAssertEqual(snapshot.entries.map(\.isToday), [true, false, true, false])
+
+        let first = snapshot.entries[0]
+        XCTAssertEqual(first.expectedRingDate, date(15, 7))
+        XCTAssertEqual(first.reasonLine, .rainEarlier(minutes: 30))
+        XCTAssertNil(first.forecast)
+        XCTAssertNil(first.weatherNotice, "Not 尚未取得明天天氣: that names tomorrow")
+
+        // Wednesday before its ring: the same 07:00, but only the weekly repeat of Tuesday's rain.
+        let wednesday = try XCTUnwrap(entry(snapshot, at: date(16, 0)))
+        XCTAssertEqual(wednesday.day, date(16, 0))
+        XCTAssertEqual(wednesday.expectedRingDate, date(16, 7))
+        XCTAssertEqual(wednesday.reasonLine, .awaitingForecast)
+        XCTAssertFalse(wednesday.appliesRainLead)
+        XCTAssertNil(wednesday.scheduleIssue)
+    }
+
+    func testSkippedTodayRunsUntilItsNormalTime() throws {
+        // Weekdays only; Saturday 2026-09-19 is skipped. Friday 21:00, nothing registered.
+        var value = settings()
+        value.selectedWeekdays = [2, 3, 4, 5, 6]
+        let now = date(18, 21)
+        let snapshot = Builder.snapshot(now: now, context: context(value, summary: nil),
+                                        status: statusProvider(value, weather: nil, summary: nil),
+                                        today: statusProvider(value, weather: nil, summary: nil, dayOffset: 0))
+        XCTAssertEqual(snapshot.entries.map(\.validFrom), [now, date(19, 0), date(19, 7, 30, 1)])
+        XCTAssertEqual(snapshot.entries.map(\.isToday), [false, true, false])
+        let saturday = snapshot.entries[1]
+        XCTAssertEqual(saturday.day, date(19, 0))
+        XCTAssertNil(saturday.expectedRingDate)
+        XCTAssertEqual(saturday.reason, .weekend)
+        XCTAssertEqual(saturday.reasonLine, .weekend)
+        XCTAssertNil(saturday.weatherNotice)
+        XCTAssertEqual(snapshot.entries[2].day, date(20, 0), "After its normal time: Sunday, as tomorrow")
+    }
+
+    func testNoTodayEntryOnceTodaysRingHasPassed() {
+        let now = date(15, 8)
+        let value = settings()
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7))
+        let snapshot = Builder.snapshot(now: now, context: context(value, summary: registered),
+                                        status: statusProvider(value, weather: nil, summary: registered),
+                                        today: statusProvider(value, weather: nil, summary: registered, dayOffset: 0))
+        XCTAssertFalse(snapshot.entries[0].isToday)
+        XCTAssertEqual(snapshot.entries[0].day, date(16, 0))
+        XCTAssertFalse(snapshot.entries.contains { $0.day == date(15, 0) }, "Tuesday's ring is gone")
+        XCTAssertEqual(snapshot.entries.first { $0.isToday }?.validFrom, date(16, 0), "Wednesday becomes today at midnight")
+    }
+
+    func testTodayEndsAtTheRegisteredRingOrNormalTime() {
+        let normal = date(15, 7, 30)
+        func today(expected: Date?, registered: Date?, current: Bool) -> TomorrowAlarmStatus {
+            var value = status(reason: expected == nil ? .weekend : .normal, expected: expected, registered: registered)
+            value.day = date(15, 0)
+            value.normalAlarmDate = normal
+            value.isRegistrationCurrent = current
+            return value
+        }
+        XCTAssertEqual(Builder.todayShownUntil(today(expected: date(15, 7), registered: date(15, 7), current: true)), date(15, 7))
+        XCTAssertEqual(Builder.todayShownUntil(today(expected: date(15, 7), registered: normal, current: true)), normal,
+                       "The forecast moved it but the registration did not: AlarmKit rings at the registered time")
+        XCTAssertEqual(Builder.todayShownUntil(today(expected: nil, registered: normal, current: true)), normal,
+                       "A closure not yet registered still rings")
+        XCTAssertEqual(Builder.todayShownUntil(today(expected: nil, registered: nil, current: true)), normal, "Skipped: its normal time")
+        XCTAssertEqual(Builder.todayShownUntil(today(expected: normal, registered: nil, current: true)), .distantPast,
+                       "A ring day with no registered ring left has rung")
+        XCTAssertEqual(Builder.todayShownUntil(today(expected: normal, registered: nil, current: false)), normal,
+                       "Nothing registered: the configured time")
+    }
+
+    func testConsumedDatedOccurrenceAndCrossMidnightLeadEndToday() {
+        let value = settings()
+        // A dated plan re-registered at 07:10, after Tuesday's 07:00 ring: Tuesday is gone from it.
+        var plan = summary(normal: date(16, 7, 30), ring: date(16, 7, 30))
+        plan.calendarPlan = .init(occurrences: [.init(normalDate: date(16, 7, 30), ringDate: date(16, 7, 30))],
+                                  coveredUntil: date(20, 0), timeZoneID: calendar.timeZone.identifier)
+        let afterRing = Builder.snapshot(now: date(15, 7, 10), context: context(value, summary: plan),
+                                         status: statusProvider(value, weather: nil, summary: plan),
+                                         today: statusProvider(value, weather: nil, summary: plan, dayOffset: 0))
+        XCTAssertFalse(afterRing.entries[0].isToday, "Not 今天 07:30: AlarmKit will not ring again today")
+        XCTAssertEqual(afterRing.entries[0].day, date(16, 0))
+
+        // 00:10 whose rain lead rang Monday 23:40: Tuesday has no ring left after midnight.
+        var early = settings()
+        early.alarmTime = date(15, 0, 10)
+        let crossing = summary(normal: date(15, 0, 10), ring: date(14, 23, 40))
+        let snapshot = Builder.snapshot(now: date(14, 22), context: context(early, summary: crossing),
+                                        status: statusProvider(early, weather: nil, summary: crossing),
+                                        today: statusProvider(early, weather: nil, summary: crossing, dayOffset: 0))
+        XCTAssertTrue(snapshot.isValid)
+        XCTAssertFalse(snapshot.entries.contains { $0.isToday && $0.day == date(15, 0) }, "Tuesday's ring fired on Monday")
+        XCTAssertEqual(snapshot.entries.first?.expectedRingDate, date(14, 23, 40))
+    }
+
+    /// Whatever the widget shows, today or tomorrow, is the ring AlarmKit's weekly repeat
+    /// will fire for that morning, or it says the schedule needs an update.
+    func testTodayEntriesNeverContradictTheRegistration() {
+        let start = date(14, 21)
+        for rainDecided in [true, false] {
+            var value = settings()
+            value.alarmTime = date(15, 7, 30)
+            let registered = summary(normal: date(15, 7, 30), ring: rainDecided ? date(15, 7) : date(15, 7, 30))
+            let weather = record(value, requestedAt: start, checkedAt: start)
+            let tomorrow = statusProvider(value, weather: weather, summary: registered)
+            let today = statusProvider(value, weather: weather, summary: registered, dayOffset: 0)
+            let context = context(value, summary: registered)
+            let publishes = [start, date(15, 3), start.addingTimeInterval(86_400)].map {
+                Builder.snapshot(now: $0, context: context, status: tomorrow, today: today)
+            }
+            for step in 0..<(48 * 12) {
+                let now = start.addingTimeInterval(Double(step) * 300)
+                guard let snapshot = publishes.last(where: { $0.publishedAt <= now }) else { continue }
+                let plan = TomorrowWidgetTimeline.plan(snapshot: snapshot, now: now, currentTimeZoneID: calendar.timeZone.identifier)
+                guard case .status(let shown) = plan.items[0].state else { XCTFail("No status at \(now)"); continue }
+                let label = "rain \(rainDecided) at \(now)"
+                if shown.isToday {
+                    XCTAssertEqual(shown.day, calendar.startOfDay(for: now), label)
+                    XCTAssertLessThanOrEqual(now, shown.expectedRingDate ?? shown.normalAlarmDate, label)
+                } else {
+                    XCTAssertEqual(shown.day, calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)), label)
+                }
+                let rolled = registered.rollingForwardAsPair(selectedWeekdays: value.selectedWeekdays, now: now, calendar: calendar)
+                let truth = rolled.normalAlarmDate == shown.normalAlarmDate ? rolled.scheduledAlarmDate : nil
+                XCTAssertTrue(truth == nil || shown.expectedRingDate == truth || shown.scheduleIssue == .updateNeeded,
+                              "\(label): shows \(String(describing: shown.expectedRingDate)), AlarmKit rings \(String(describing: truth))")
+                // Between midnight and the ring, the day that rings is today's.
+                let midnight = calendar.startOfDay(for: now)
+                if now >= midnight, now <= (rainDecided ? date(15, 7) : date(15, 7, 30)), calendar.isDate(now, inSameDayAs: date(15, 0)) {
+                    XCTAssertTrue(shown.isToday, label)
+                }
+            }
+        }
+    }
+
+    /// DST: the today entry starts at the local midnight and ends at the local ring time,
+    /// however many real hours lie between them.
+    func testTodayEntryFollowsLocalMidnightAndRingAcrossDST() throws {
+        var newYork = Calendar(identifier: .gregorian)
+        newYork.timeZone = TimeZone(identifier: "America/New_York")!
+        func ny(_ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0, _ second: Int = 0) -> Date {
+            newYork.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour, minute: minute, second: second))!
+        }
+        // Spring forward (2026-03-08: 02:00 → 03:00) and fall back (2026-11-01: 02:00 → 01:00).
+        for (month, day, hoursToRing) in [(3, 8, 5.0), (11, 1, 7.0)] {
+            var value = settings()
+            value.alarmTime = ny(month, day, 6, 30)
+            let registered = summary(normal: ny(month, day, 6, 30), ring: ny(month, day, 6, 0))
+            let context = Builder.Context(calendar: newYork, clockFormat: .twelveHour, mode: .car, addressesMissing: false,
+                                          flags: .init(), rainLeadTimeMinutes: 30,
+                                          ringAnchors: [registered.scheduledAlarmDate, registered.normalAlarmDate])
+            let publish = newYork.date(byAdding: .hour, value: -3, to: ny(month, day, 0))!
+            let snapshot = Builder.snapshot(
+                now: publish, context: context,
+                status: statusProvider(value, weather: nil, summary: registered, calendar: newYork),
+                today: statusProvider(value, weather: nil, summary: registered, dayOffset: 0, calendar: newYork))
+            XCTAssertTrue(snapshot.isValid, "\(month)/\(day)")
+            let midnight = newYork.startOfDay(for: ny(month, day, 12))
+            XCTAssertEqual(midnight, ny(month, day, 0))
+            let today = try XCTUnwrap(snapshot.entries.first { $0.isToday }, "\(month)/\(day)")
+            XCTAssertEqual(today.validFrom, midnight)
+            XCTAssertEqual(today.expectedRingDate, ny(month, day, 6, 0))
+            XCTAssertEqual(today.reasonLine, .rainEarlier(minutes: 30))
+            XCTAssertEqual(today.expectedRingDate?.timeIntervalSince(midnight), hoursToRing * 3_600,
+                           "\(month)/\(day): the local 06:00 is \(hoursToRing) real hours after midnight")
+            let next = try XCTUnwrap(snapshot.entries.first { $0.validFrom > midnight && !$0.isToday }, "\(month)/\(day)")
+            XCTAssertEqual(next.validFrom, ny(month, day, 6, 0, 1), "Tomorrow again one second after the ring")
+            XCTAssertEqual(next.day, ny(month, day + 1, 0))
+        }
+    }
+
     // MARK: Timeline plan
 
     func testTimelinePlan() throws {
@@ -714,6 +946,57 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(before, unrolled)
         XCTAssertEqual(before.expectedRingDate, at(day, 7, 0))
         XCTAssertEqual(before.registeredRingDate, at(day, 7, 0))
+    }
+}
+
+extension TomorrowWidgetSnapshotTests {
+    /// D-C on the real model: `todayStatus` is the registered morning, and the published
+    /// snapshot opens on it after midnight.
+    func testModelTodayStatusIsTheRegisteredMorning() throws {
+        let alarmCalendar = AlarmCalendarSettings.calendar
+        let day = alarmCalendar.date(byAdding: .day, value: 2, to: alarmCalendar.startOfDay(for: Date()))!
+        let next = alarmCalendar.date(byAdding: .day, value: 1, to: day)!
+        func at(_ base: Date, _ hour: Int, _ minute: Int) -> Date {
+            alarmCalendar.date(bySettingHour: hour, minute: minute, second: 0, of: base)!
+        }
+        var value = CommuteAlarmSettings()
+        value.homeAddress = "Home"
+        value.workAddress = "Work"
+        value.selectedWeekdays = Set(1...7)
+        value.alarmTime = at(day, 7, 30)
+        value.rainLeadTimeMinutes = 30
+        let registered = ScheduledAlarmSummary(
+            normalAlarmDate: at(day, 7, 30), scheduledAlarmDate: at(day, 7, 0), weatherRefreshDate: at(day, 7, 0),
+            exceedsRainThreshold: true, leadTimeMinutes: 30, rainProbabilityThreshold: 0.5,
+            maximumPrecipitationProbability: 0.8, decisionNormalAlarmDate: at(day, 7, 30))
+        let encoder = JSONEncoder()
+        storage.set(try encoder.encode(value), forKey: "commuteAlarmSettings")
+        storage.set(try encoder.encode(registered), forKey: "scheduledAlarmSummaryDisplay")
+        storage.set(try encoder.encode(value.scheduleFingerprint(calendar: alarmCalendar)), forKey: "scheduledAlarmFingerprint")
+        let model = AlarmViewModel(notificationScheduler: SilentScheduler(), settingsStorage: storage,
+                                   membershipEntitlements: { nil })
+
+        let early = model.todayStatus(now: at(day, 3, 0))
+        XCTAssertEqual(early.day, day)
+        XCTAssertEqual(early.expectedRingDate, at(day, 7, 0))
+        XCTAssertEqual(early.registeredRingDate, at(day, 7, 0))
+        XCTAssertEqual(early.reason, .rain)
+        XCTAssertFalse(early.rainLeadIsCarriedOver)
+        XCTAssertEqual(model.tomorrowStatus(now: at(day, 3, 0)).day, next, "The card keeps describing tomorrow")
+
+        let snapshot = Builder.snapshot(for: model, now: at(day, 3, 0))
+        XCTAssertTrue(snapshot.isValid)
+        XCTAssertTrue(snapshot.entries[0].isToday)
+        XCTAssertEqual(snapshot.entries[0].expectedRingDate, at(day, 7, 0))
+        XCTAssertEqual(snapshot.entries[0].reasonLine, .rainEarlier(minutes: 30))
+        XCTAssertEqual(snapshot.entries[1].validFrom, at(day, 7, 0).addingTimeInterval(1))
+        XCTAssertFalse(snapshot.entries[1].isToday)
+
+        // The next morning, before its ring: the weekly repeat of that rain, carried over.
+        let carried = model.todayStatus(now: at(next, 3, 0))
+        XCTAssertEqual(carried.day, next)
+        XCTAssertEqual(carried.expectedRingDate, at(next, 7, 0))
+        XCTAssertTrue(carried.rainLeadIsCarriedOver)
     }
 }
 

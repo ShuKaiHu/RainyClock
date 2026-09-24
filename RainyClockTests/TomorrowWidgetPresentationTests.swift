@@ -52,6 +52,11 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             .ringPreviousDay: (.rain, "time+original", .reason(.rainForecast(percent: 70, minutes: 30))),
             // D-D: the registered early time, but neither the rain glyph nor 因雨提早.
             .carriedOver: (.alarm, "time+original", .reason(.awaitingForecast)),
+            // D-C: today's alarm between midnight and its ring.
+            .todayRain: (.rain, "time+original", .todayReason(.rainEarlier(minutes: 30))),
+            .todayNormal: (.alarm, "time", .routeRain(percent: 20)),
+            .todaySkipped: (.silent, "skipped", .todayReason(.weekend)),
+            .todayCarriedOver: (.alarm, "time+original", .todayReason(.awaitingForecast)),
             .expired: (.refresh, "openApp.expired", nil),
             .missing: (.refresh, "openApp.missing", nil),
         ]
@@ -151,6 +156,9 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
                 if scenario == .ringPreviousDay {
                     XCTAssertEqual(value.ringDay, .on(ring))
                     XCTAssertFalse(calendar.isDate(ring, inSameDayAs: day), "The sample rings the evening before")
+                } else if value.isToday {
+                    XCTAssertEqual(value.ringDay, .today(day), "\(scenario)")
+                    XCTAssertTrue(calendar.isDate(ring, inSameDayAs: day), "\(scenario)")
                 } else {
                     XCTAssertEqual(value.ringDay, .tomorrow(day), "\(scenario)")
                     XCTAssertTrue(calendar.isDate(ring, inSameDayAs: day), "\(scenario)")
@@ -159,6 +167,39 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
                 XCTAssertNil(value.ringDay, "\(scenario)")
             }
         }
+    }
+
+    /// D-C: today's entry names today everywhere a day is named.
+    func testTodayEntriesSayToday() {
+        for scenario in [Scenario.todayRain, .todayNormal, .todaySkipped, .todayCarriedOver] {
+            let value = presentation(scenario)
+            XCTAssertTrue(value.isToday, "\(scenario)")
+            XCTAssertEqual(value.dayWordKey, "widget_today", "\(scenario)")
+            XCTAssertEqual(value.day, calendar.startOfDay(for: now), "\(scenario)")
+        }
+        for scenario in Scenario.allCases where ![.todayRain, .todayNormal, .todaySkipped, .todayCarriedOver].contains(scenario) {
+            let value = presentation(scenario)
+            XCTAssertFalse(value.isToday, "\(scenario)")
+            XCTAssertEqual(value.dayWordKey, value.day == nil ? nil : "ux_tomorrow", "\(scenario)")
+        }
+        // Every reason that names 明天 has its own today line; those that name no day are shared.
+        typealias Line = Presentation.Line
+        let named: [(TomorrowWidgetSnapshot.ReasonLine, String)] = [
+            (.awaitingForecast, "widget_today_awaiting_forecast"), (.holidayNamed("國慶日"), "widget_today_holiday_named"),
+            (.holiday, "widget_today_holiday"), (.manualSkip, "widget_today_manual_skip"),
+            (.manualRing, "widget_today_manual_ring"), (.weekend, "widget_today_weekend"),
+            (.unselectedWeekday, "widget_today_unselected"), (.closure, "widget_today_closure")]
+        for (reason, key) in named {
+            XCTAssertEqual(Line.todayReason(reason).full.key, key)
+            XCTAssertNotEqual(Line.reason(reason).full.key, key)
+        }
+        for reason in [TomorrowWidgetSnapshot.ReasonLine.rainForecast(percent: 80, minutes: 30), .rainEarlier(minutes: 30), .routeNeeded] {
+            XCTAssertEqual(Line.todayReason(reason).full, Line.reason(reason).full)
+            XCTAssertEqual(Line.todayReason(reason).short, Line.reason(reason).short)
+        }
+        XCTAssertEqual(Line.todayReason(.weekend).short.key, "widget_today_weekend", "Never falls back to 明天是週末")
+        XCTAssertEqual(Line.todayReason(.holiday).short.key, "widget_today_holiday")
+        XCTAssertEqual(presentation(.todayRain).relevanceScore, 50)
     }
 
     func testCircularSkipWordNamesHolidayAndClosureApart() {

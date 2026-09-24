@@ -75,3 +75,17 @@
 "widget_skip_closure" = "Closed";
 /* Any other skipped day: a weekend, an unselected weekday or a manual skip. */
 "widget_skip_other" = "Skipped";
+
+/* Today, between midnight and today's ring (the card keeps saying Tomorrow). */
+"widget_today" = "Today";
+"widget_today_awaiting_forecast" = "Waiting for today's forecast";
+"widget_today_holiday_named" = "Today is a holiday: %@";
+"widget_today_holiday" = "Today is a public holiday";
+"widget_today_manual_skip" = "Today was manually set to silent";
+"widget_today_manual_ring" = "Today was manually set to ring";
+"widget_today_weekend" = "Today is a weekend day";
+"widget_today_unselected" = "Today is not a selected repeat day";
+"widget_today_closure" = "Work or school is closed today";
+"widget_inline_today_ring" = "Today %@";
+"widget_inline_today_rain" = "Today %1$@ · %2$d min earlier";
+"widget_inline_today_skipped" = "Today: skipped";

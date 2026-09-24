@@ -29,6 +29,7 @@ final class TomorrowWidgetStringsTests: XCTestCase {
             .rainForecast(percent: 80, minutes: 30), .rainEarlier(minutes: 30), .awaitingForecast, .holidayNamed("國慶日"), .holiday,
             .manualSkip, .manualRing, .weekend, .unselectedWeekday, .closure, .routeNeeded]
         lines += reasons.map { .reason($0) }
+        lines += reasons.map { .todayReason($0) }
         return lines
     }
 
@@ -58,7 +59,7 @@ final class TomorrowWidgetStringsTests: XCTestCase {
             keys.insert(line.full.key)
             keys.insert(line.short.key)
         }
-        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 31)
+        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 43)
         XCTAssertEqual(Set(TomorrowWidgetStrings.widgetOnlyKeys).count, TomorrowWidgetStrings.widgetOnlyKeys.count)
         for language in languages {
             let widget = try widgetTable(language)
@@ -94,6 +95,14 @@ final class TomorrowWidgetStringsTests: XCTestCase {
             XCTAssertFalse(english[key]?.contains("Tomorrow") ?? true, key)
             XCTAssertFalse(chinese[key]?.contains("明天") ?? true, key)
         }
+        // Today's lines (D-C) say today, never tomorrow, in both languages.
+        for key in TomorrowWidgetStrings.widgetOnlyKeys where key.hasPrefix("widget_today") || key.hasPrefix("widget_inline_today") {
+            XCTAssertTrue(english[key]?.contains("Today") ?? false || english[key]?.contains("today") ?? false, key)
+            XCTAssertTrue(chinese[key]?.contains("今天") ?? false, key)
+            XCTAssertFalse(english[key]?.localizedCaseInsensitiveContains("tomorrow") ?? true, key)
+            XCTAssertFalse(chinese[key]?.contains("明天") ?? true, key)
+        }
+        XCTAssertEqual(specifiers(english["widget_inline_today_rain"] ?? ""), ["%1$@", "%2$d"])
         // Before the app has published anything there is nothing to refresh.
         for key in ["widget_inline_start", "widget_inline_start_short"] {
             XCTAssertFalse(english[key]?.localizedCaseInsensitiveContains("refresh") ?? true, key)
