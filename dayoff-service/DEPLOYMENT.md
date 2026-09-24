@@ -1,7 +1,7 @@
 # 停班停課服務部署（Cloud Run Job + service + Firestore）
 
 2026-09-24：程式與測試完成（`npm test` 100 通過、7 個 Emulator 測試略過；Firestore Emulator 全套 107 通過）。
-資料庫、TTL、索引豁免、secret 容器與映像已建立；service／Job／Scheduler **尚未部署**，見最下方「執行紀錄」。
+資料庫、TTL、索引豁免、secret 容器、映像、service、Job 與 Scheduler 都已建立並以 `open-data` 來源跑過；推播（APNs）與 Scheduler 的 `run.invoker` 尚缺，見最下方「執行紀錄」。
 每一步實際執行後，把讀回的結果寫進最下方的「執行紀錄」，沒做過的不要寫成做過。
 設計依據見 `docs/DISASTER-PREVIEW.md` 與 `README.md`；本頁只講怎麼部署、怎麼看、怎麼救。
 
@@ -394,10 +394,25 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
 - `gcloud run deploy rainyclock-dayoff --image=<上面 digest>` → revision `rainyclock-dayoff-00002-f6j`，100% 流量；
   `/health` 503 `not_configured`，九鍵完整。等第一次 Job 跑完才會變 200。
 
-**未執行**：兩個 secret 版本（§4，擁有者）；Job 與 Scheduler（等 secret 版本後執行
-`IMAGE=… APNS_KEY_ID=… APNS_PRODUCTION=… sh deploy/deploy.sh`，再重跑 `deploy/iam.sh` 補 `run.invoker`）；
-告警通道與三個 policy（§9）；真機推播驗證（§10）。Firestore deny-all rules 未用 firebase-tools 部署
-（本機未登入）；服務帳號走 IAM，rules 只影響手機 SDK。
+### 2026-09-24 11:24–11:27（Claude 執行 `deploy/deploy.sh`，`NCDR_SOURCE=open-data`、無 APNs，讀回值）
+
+- 為什麼是 open-data：NCDR 會員註冊頁「僅受理公務、公司或學校信箱」，個人申請不到金鑰（`3c227c4`）。
+- Cloud Build `120a877b-4a38-4995-adbc-37b18365a130`，35 秒，SUCCESS，來源 commit `3c227c4`；**現行 digest**
+  `asia-east1-docker.pkg.dev/rainyclock/cloud-run-source-deploy/rainyclock-dayoff@sha256:d4024db97dc0243b32b7a3f38985d29350616c3ec23b325e16d937ecb936349d`。
+- service `rainyclock-dayoff` revision `rainyclock-dayoff-00003-x2l`，`PUSH_CONFIGURED=0`（無 APNs）。
+- Job `rainyclock-dayoff-poll` 建立（`NCDR_SOURCE=open-data`，無 secret 掛載）。第一次執行
+  `rainyclock-dayoff-poll-kzsx5`：摘要 `ok=true refreshed=true changed=true noticeCount=14 source=open-data
+  warmup={status:200, revisionMatches:true}`，1,240 ms。之後 `/health` 200 `ready`；`/v1/suspensions`
+  回 14 則 2026-08-22～08-24 的真實 DGPA 公告（`sourceUpdatedAt` 2026-08-24T10:29Z）；`/health/details`
+  `source:"open-data"`、`storage:"firestore"`、`broadcast.state:"pending"`（沒有 dispatcher 就不送，指標保留）。
+- 重疊證明：同時執行兩次 → `hq47r` `refreshed=true changed=false`、`px7vj` `skipped=lease_held`，兩者 exit 0。
+- Scheduler `rainyclock-dayoff-poll` 建立，`*/5 * * * *` Asia/Taipei，ENABLED；**在擁有者重跑 `deploy/iam.sh`
+  補 `run.invoker` 之前，整點觸發會被拒**。
+
+**未執行**：`run.invoker`（擁有者重跑 `deploy/iam.sh`）；APNs `.p8` 版本（§4，擁有者）→ 之後帶
+`APNS_KEY_ID`、`APNS_PRODUCTION` 重跑 `deploy/deploy.sh` 開啟推播；告警通道與三個 policy（§9）；
+真機推播驗證（§10）。Firestore deny-all rules 未用 firebase-tools 部署（本機未登入）；服務帳號走 IAM，
+rules 只影響手機 SDK。
 
 ### 更早
 第一次執行時，在這裡逐條記錄：日期、指令、讀回的結果（資料庫設定、SA 與 IAM 條件、secret 版本號、
