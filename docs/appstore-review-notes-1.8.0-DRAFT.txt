@@ -4,7 +4,7 @@ everything down to and including the "PASTE BELOW" line, before pasting.
 
 Editor notes:
 - App Review Information > Notes is limited to 4,000 characters (the 1.7.0 (34) note was 3,979). The
-  paste text below is 3,823 characters with the gated line, 3,993 with the OPTIONAL block swapped in
+  paste text below is 3,824 characters with the gated line, 3,994 with the OPTIONAL block swapped in
   (brackets removed). Recount after any edit.
 - Dropped from the 1.7.0 (34) note: "KNOWN PRICE DISPLAY LIMITATION" (iOS 27 + build 36 showed NT$10 / NT$100
   on both the cards and Apple's payment sheet; STATUS-IOS says delete it before resubmitting), the Local
@@ -15,8 +15,9 @@ Editor notes:
   If Apple still wants the physical-device ATT recording, add its link to ADS AND TRACKING - only once
   the recording exists.
 - Must match the submitted build before pasting:
-  * The Apple Weather mark on the medium widget is NOT in the code as of 85b8565 (STATUS-IOS, 1.8.0
-    widget, blocking item 1 and decision 4). If the chosen treatment differs, rewrite that sentence.
+  * The Apple Weather mark (decision D-A): medium widget only, under its weather column - Apple's image
+    once the app has fetched it, the text " Weather" until then - and the column opens Apple's legal
+    page through the app. Confirm on the submitted build, on a device, before pasting.
   * The widget's App ID needs the App Group enabled, or the widget stays on "Open the app..." forever
     (blocking item 2).
   * AppEnvironment.supportsTemporaryClosures: if still false, keep the "disabled in this version" line;
@@ -29,15 +30,17 @@ RAINY CLOCK 1.8.0 (38)
 iPhone-only, iOS 17+. Alarms use AlarmKit on iOS 26+ and local notifications on iOS 17-25.
 
 NEW: HOME SCREEN AND LOCK SCREEN WIDGET
-Earlier notes said the app had no Home Screen widget; it now has one, "Tomorrow's Alarm". It needs iOS 26+, as it shares the AlarmKit Live Activity extension. iPad compatibility mode offers no widgets, so please test on an iPhone.
+Earlier notes said there was no Home Screen widget; there now is one, "Next Alarm" (iOS 26+; test on an iPhone: iPad compatibility mode has no widgets).
 
-Sizes: Home Screen small and medium; Lock Screen rectangular, circular and inline. It shows tomorrow's expected alarm time and why: earlier because rain is forecast on the route, or skipped for a holiday, a non-repeat day or a date set to silent. The medium size adds home and work weather with the Apple Weather mark. It matches the app's Tomorrow card.
+Sizes: small, medium; Lock Screen rectangular, circular, inline. Each shows the next alarm and why (earlier for rain on the route; skipped for a holiday, non-repeat day or silent date): today's from midnight until it rings, then tomorrow's. A repeated early ring awaiting its own morning's forecast reads "Waiting for tomorrow's forecast".
 
-The widget makes no network requests and shows no ads. It reads a snapshot (no addresses) the app writes to its App Group whenever it runs, including background refresh.
+Only the medium size shows weather (conditions, rain chance), with the Apple Weather mark under it; tapping that column opens Apple's legal attribution page via the app. Other sizes: no weather.
+
+No network, no ads: it reads a snapshot (no addresses) the app writes to its App Group, also from background refresh.
 
 To test:
-1. Open the app; set Home and Work in Settings > Route and the time in Settings > Time; allow alarms. Until the app has run, the widget says "Open the app to show tomorrow's alarm".
-2. Home Screen: long-press an empty area > Edit > Add Widget > search "Rainy Clock" (Chinese: "雨天鬧鐘") > small or medium > Add Widget.
+1. Open the app; set Home and Work (Settings > Route) and the time (Settings > Time); allow alarms. Before that the widget reads "Open the app to show your next alarm".
+2. Home Screen: long-press > Edit > Add Widget > search "Rainy Clock" (雨天鬧鐘) > small or medium.
 3. Lock Screen: long-press > Customize > Lock Screen > tap the widget area > Rainy Clock.
 4. Change the time in Settings > Time; the widget follows.
 

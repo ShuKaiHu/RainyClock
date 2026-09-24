@@ -14,18 +14,20 @@
 - **颱風停班停課仍關閉**：`AppEnvironment.supportsTemporaryClosures == false`（見 STATUS-IOS
   「1.8.0 準備中」）。方括號條目只在開閘時才加入，並依「買斷是否包含此功能」的決定補上適用方案。
 - Widget 只有 **iOS 26 以上**（與 AlarmKit Live Activity 同一個擴充功能）；App 最低 iOS 17，iPhone only。
-- **中型 widget 的 Apple Weather 標示**：草稿依計畫寫「中型顯示 Apple Weather 標示」，但 `85b8565`
-  的程式還沒有（STATUS-IOS widget 小節阻擋項 1、決定 4）。做法定案後，What's New 與審查備註的相關句子要一起核對。
+- **中型 widget 的 Apple Weather 標示已實作（決定 D-A）**：天氣資料只在 medium，標記在天氣欄下方
+  （App 下載到的 Apple 官方圖，下載前是文字「 Weather」），點天氣欄經 App 開 Apple 的法律頁；其他尺寸
+  不顯示天氣資料。widget 名稱改為「下次鬧鐘／Next Alarm」（午夜到響鈴前顯示今天）。送審前在真機確認。
 - 上方 1.7.0（30）審查備註「not a Home Screen widget」、`appstore-review-notes-1.7.0-34.txt` 第 3 行，
   以及下方 1.6.x 的 2.1(a) 回覆，都說 App 沒有主畫面 widget；**1.8.0 起不成立，不可沿用。**
 
 ### What's New — English (DRAFT)
 
 ```
-Tomorrow's alarm, now on your Home Screen and Lock Screen.
+Your next alarm, now on your Home Screen and Lock Screen.
 
-• New widget: see when your alarm will ring tomorrow and why — moved earlier for rain on your route, or skipped for a holiday, a weekend or a day you set to stay silent.
-• Choose a small or medium widget for the Home Screen, or add one to the Lock Screen. The medium widget also shows home and work weather.
+• New widget: see when your alarm will ring and why — moved earlier for rain on your route, or skipped for a holiday, a weekend or a day you set to stay silent. After midnight it shows today's alarm until it rings, then tomorrow's.
+• After an early ring for rain, the next morning's alarm keeps that time until its own forecast arrives; the widget then says "Waiting for tomorrow's forecast".
+• Choose a small or medium widget for the Home Screen, or add one to the Lock Screen. The medium widget also shows home and work weather from Apple Weather.
 • The widget updates whenever Rainy Clock checks the forecast. Open the app once after updating to set it up.
 • Widgets require iOS 26 or later.
 ```
@@ -43,10 +45,11 @@ Optional lines — include only when the condition in brackets holds, and drop t
 ### What's New — 繁體中文（草稿）
 
 ```
-明天的鬧鐘，主畫面和鎖定畫面就看得到。
+下次鬧鐘，主畫面和鎖定畫面就看得到。
 
-・新增小工具：顯示明天幾點響與原因——路線可能下雨而提早，或因假日、週末、手動設為安靜而略過。
-・主畫面可選小型或中型，也能加到鎖定畫面；中型另外顯示住家與公司天氣。
+・新增小工具：顯示鬧鐘幾點響與原因——路線可能下雨而提早，或因假日、週末、手動設為安靜而略過。午夜後到今天的鬧鐘響之前顯示「今天」，響過之後改顯示明天。
+・因雨提早響過之後，隔天的鬧鐘在自己的預報出來前仍會在同一時間響，小工具這時顯示「等待明天預報」。
+・主畫面可選小型或中型，也能加到鎖定畫面；中型另外顯示住家與公司天氣（Apple 天氣）。
 ・雨天鬧鐘每次檢查預報都會更新小工具。更新後請先開啟 App 一次，小工具才會顯示內容。
 ・小工具需要 iOS 26 以上。
 ```
@@ -66,7 +69,7 @@ Optional lines — include only when the condition in brackets holds, and drop t
 The full paste-ready note is
 [`appstore-review-notes-1.8.0-DRAFT.txt`](appstore-review-notes-1.8.0-DRAFT.txt): the 1.7.0 (34)
 note plus the widget section, with editor notes at the top. App Review Information → Notes holds
-4,000 characters; the note is 3,823 without the optional closure block and 3,993 with it swapped in.
+4,000 characters; the note is 3,824 without the optional closure block and 3,994 with it swapped in.
 Compared with the 1.7.0 (34) note it:
 
 - **supersedes the 2.1(a) answer** — earlier notes said there was no Home Screen widget; 1.8.0 has one;
@@ -83,15 +86,17 @@ is the paste source — keep the two in step):
 
 ```
 NEW: HOME SCREEN AND LOCK SCREEN WIDGET
-Earlier notes said the app had no Home Screen widget; it now has one, "Tomorrow's Alarm". It needs iOS 26+, as it shares the AlarmKit Live Activity extension. iPad compatibility mode offers no widgets, so please test on an iPhone.
+Earlier notes said there was no Home Screen widget; there now is one, "Next Alarm" (iOS 26+; test on an iPhone: iPad compatibility mode has no widgets).
 
-Sizes: Home Screen small and medium; Lock Screen rectangular, circular and inline. It shows tomorrow's expected alarm time and why: earlier because rain is forecast on the route, or skipped for a holiday, a non-repeat day or a date set to silent. The medium size adds home and work weather with the Apple Weather mark. It matches the app's Tomorrow card.
+Sizes: small, medium; Lock Screen rectangular, circular, inline. Each shows the next alarm and why (earlier for rain on the route; skipped for a holiday, non-repeat day or silent date): today's from midnight until it rings, then tomorrow's. A repeated early ring awaiting its own morning's forecast reads "Waiting for tomorrow's forecast".
 
-The widget makes no network requests and shows no ads. It reads a snapshot (no addresses) the app writes to its App Group whenever it runs, including background refresh.
+Only the medium size shows weather (conditions, rain chance), with the Apple Weather mark under it; tapping that column opens Apple's legal attribution page via the app. Other sizes: no weather.
+
+No network, no ads: it reads a snapshot (no addresses) the app writes to its App Group, also from background refresh.
 
 To test:
-1. Open the app; set Home and Work in Settings > Route and the time in Settings > Time; allow alarms. Until the app has run, the widget says "Open the app to show tomorrow's alarm".
-2. Home Screen: long-press an empty area > Edit > Add Widget > search "Rainy Clock" (Chinese: "雨天鬧鐘") > small or medium > Add Widget.
+1. Open the app; set Home and Work (Settings > Route) and the time (Settings > Time); allow alarms. Before that the widget reads "Open the app to show your next alarm".
+2. Home Screen: long-press > Edit > Add Widget > search "Rainy Clock" (雨天鬧鐘) > small or medium.
 3. Lock Screen: long-press > Customize > Lock Screen > tap the widget area > Rainy Clock.
 4. Change the time in Settings > Time; the widget follows.
 ```
