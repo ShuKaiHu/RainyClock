@@ -1,5 +1,116 @@
 # Rainy Clock App Store Metadata
 
+## 1.8.0 (38) — DRAFT, not approved: widget What's New and App Review note — 2026-09-24
+
+> **DRAFT.** Nothing in this section has been approved, pasted into App Store Connect or
+> submitted. The user approves the final text. Written on `ios/widget` (worktree
+> `RainyClock-widget`) for 1.8.0 (38).
+
+草稿前提與待定事項：
+
+- **前提是 1.7.0／1.7.1 先公開發布。** 若 1.8.0 是 1.6.9 之後第一個公開版本，要把 1.7.0（30）
+  What's New 的條目併進來（同 1.6.5 併入 1.6.4 的做法）；若 1.7.1 沒有單獨發布，加入下方標示的
+  1.7.1 選擇性條目。
+- **颱風停班停課仍關閉**：`AppEnvironment.supportsTemporaryClosures == false`（見 STATUS-IOS
+  「1.8.0 準備中」）。方括號條目只在開閘時才加入，並依「買斷是否包含此功能」的決定補上適用方案。
+- Widget 只有 **iOS 26 以上**（與 AlarmKit Live Activity 同一個擴充功能）；App 最低 iOS 17，iPhone only。
+- **中型 widget 的 Apple Weather 標示**：草稿依計畫寫「中型顯示 Apple Weather 標示」，但 `85b8565`
+  的程式還沒有（STATUS-IOS widget 小節阻擋項 1、決定 4）。做法定案後，What's New 與審查備註的相關句子要一起核對。
+- 上方 1.7.0（30）審查備註「not a Home Screen widget」、`appstore-review-notes-1.7.0-34.txt` 第 3 行，
+  以及下方 1.6.x 的 2.1(a) 回覆，都說 App 沒有主畫面 widget；**1.8.0 起不成立，不可沿用。**
+
+### What's New — English (DRAFT)
+
+```
+Tomorrow's alarm, now on your Home Screen and Lock Screen.
+
+• New widget: see when your alarm will ring tomorrow and why — moved earlier for rain on your route, or skipped for a holiday, a weekend or a day you set to stay silent.
+• Choose a small or medium widget for the Home Screen, or add one to the Lock Screen. The medium widget also shows home and work weather.
+• The widget updates whenever Rainy Clock checks the forecast. Open the app once after updating to set it up.
+• Widgets require iOS 26 or later.
+```
+
+Optional lines — include only when the condition in brackets holds, and drop the brackets:
+
+```
+[Only if temporary closures are enabled in 1.8.0; add the plan(s) that include it once decided:]
+• Typhoon closures in Taiwan: choose to skip your alarm when work or school is officially closed at home or at your destination. The widget shows the closure too.
+
+[Only if 1.7.1 is not released on its own before 1.8.0:]
+• Address suggestions appear again as you type your home or work address, and an address that still needs confirming is marked on the Route page.
+```
+
+### What's New — 繁體中文（草稿）
+
+```
+明天的鬧鐘，主畫面和鎖定畫面就看得到。
+
+・新增小工具：顯示明天幾點響與原因——路線可能下雨而提早，或因假日、週末、手動設為安靜而略過。
+・主畫面可選小型或中型，也能加到鎖定畫面；中型另外顯示住家與公司天氣。
+・雨天鬧鐘每次檢查預報都會更新小工具。更新後請先開啟 App 一次，小工具才會顯示內容。
+・小工具需要 iOS 26 以上。
+```
+
+選擇性條目——符合方括號條件才加入，並刪除方括號：
+
+```
+［僅在 1.8.0 開放臨時停班停課時加入；方案確定後補上適用方案：］
+・台灣颱風停班停課：可選擇在住家或目的地所在區域公告停班或停課時略過鬧鐘，小工具也會顯示。
+
+［僅在 1.7.1 未先單獨發布時加入：］
+・輸入住家或公司地址時，建議清單恢復顯示；地址仍待確認時，路線頁會標示提醒。
+```
+
+### App Review Notes — English (DRAFT)
+
+The full paste-ready note is
+[`appstore-review-notes-1.8.0-DRAFT.txt`](appstore-review-notes-1.8.0-DRAFT.txt): the 1.7.0 (34)
+note plus the widget section, with editor notes at the top. App Review Information → Notes holds
+4,000 characters; the note is 3,823 without the optional closure block and 3,993 with it swapped in.
+Compared with the 1.7.0 (34) note it:
+
+- **supersedes the 2.1(a) answer** — earlier notes said there was no Home Screen widget; 1.8.0 has one;
+- adds ADS AND TRACKING (the ATT flow Apple could not find in 1.7.0 (34)) and the address-suggestion
+  path (Taipei Main Station, Taipei 101) to the alarm test;
+- drops KNOWN PRICE DISPLAY LIMITATION (resolved on iOS 27 with build 36), the Local StoreKit
+  IAP-screenshot paragraph (restore it only if the IAPs are still awaiting first review) and the
+  "validation remains in progress" line;
+- states that the Taiwan closure feature in the binary is disabled, with a bracketed replacement
+  paragraph for the case where the gate opens.
+
+The widget section, reproduced here so it can be reviewed with the release notes (the `.txt` file
+is the paste source — keep the two in step):
+
+```
+NEW: HOME SCREEN AND LOCK SCREEN WIDGET
+Earlier notes said the app had no Home Screen widget; it now has one, "Tomorrow's Alarm". It needs iOS 26+, as it shares the AlarmKit Live Activity extension. iPad compatibility mode offers no widgets, so please test on an iPhone.
+
+Sizes: Home Screen small and medium; Lock Screen rectangular, circular and inline. It shows tomorrow's expected alarm time and why: earlier because rain is forecast on the route, or skipped for a holiday, a non-repeat day or a date set to silent. The medium size adds home and work weather with the Apple Weather mark. It matches the app's Tomorrow card.
+
+The widget makes no network requests and shows no ads. It reads a snapshot (no addresses) the app writes to its App Group whenever it runs, including background refresh.
+
+To test:
+1. Open the app; set Home and Work in Settings > Route and the time in Settings > Time; allow alarms. Until the app has run, the widget says "Open the app to show tomorrow's alarm".
+2. Home Screen: long-press an empty area > Edit > Add Widget > search "Rainy Clock" (Chinese: "雨天鬧鐘") > small or medium > Add Widget.
+3. Lock Screen: long-press > Customize > Lock Screen > tap the widget area > Rainy Clock.
+4. Change the time in Settings > Time; the widget follows.
+```
+
+### Before pasting — internal, not App Store copy
+
+- [ ] The Apple Weather treatment in the build matches the sentence above (medium widget), or the
+      sentence is rewritten.
+- [ ] The widget App ID has the App Group enabled and the archived `.appex` carries it; otherwise the
+      widget never leaves "Open the app…" and the test steps above fail for the reviewer.
+- [ ] The gate is decided: keep the "disabled in this version" line, or swap in the closure paragraph and
+      the closure What's New line with the plan wording.
+- [ ] The 1.7.0 / 1.7.1 release order is settled, so the What's New carries exactly what users do not
+      yet have.
+- [ ] The 2.1(a) section of `app-store-submission-checklist.md` is marked historical for 1.8.0+ (this
+      pass only flagged the "if 2.1(a) is raised again" advice in this file).
+
+---
+
 ## 1.7.0 (30) — current submission copy, 2026-09-21
 
 本節為目前版本優先使用的完整文案。1.7.0（30）已完成封存及 ASC 上傳，並加入內部
@@ -654,7 +765,9 @@ The app has no server and sends nothing anywhere; the background task calls Appl
 WeatherKit and re-registers the local alarm.
 ```
 
-If 2.1(a) (Home Screen widgets) is raised again, append the iPhone-only/AlarmKit paragraph
+**Not for 1.8.0 or later:** from 1.8.0 the app has a Home Screen widget, so the "no Home Screen
+widget" argument is false; use the widget section of the 1.8.0 DRAFT note at the top instead.
+Up to 1.7.x: if 2.1(a) (Home Screen widgets) is raised again, append the iPhone-only/AlarmKit paragraph
 from the `1.6.5` block below verbatim; it is left out here because that rejection was
 answered and cleared, and re-arguing a settled point invites a fresh look at it.
 
