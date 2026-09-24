@@ -5,5 +5,6 @@ import WidgetKit
 struct RainyClockAlarmWidgetBundle: WidgetBundle {
     var body: some Widget {
         CommuteAlarmLiveActivity()
+        TomorrowAlarmWidget()
     }
 }

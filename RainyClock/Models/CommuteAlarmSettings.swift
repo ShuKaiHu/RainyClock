@@ -515,6 +515,52 @@ extension ScheduledAlarmSummary {
         return summary
     }
 
+    /// `rollingForward`, except that a weekly summary's ring and normal time move as the
+    /// pair AlarmKit's weekly repeat rings: the next ring after `now`, and the normal time
+    /// that ring serves. For display (`AlarmViewModel.tomorrowStatus`) only.
+    ///
+    /// `rollingForward` moves each date on its own, so between an early ring and its normal
+    /// time it pairs the NEXT ring with TODAY's normal time — for a lead that crosses
+    /// midnight, a mismatch that reads as "update needed". `init` and the background
+    /// refresh guard depend on that unrolled normal time, so they keep `rollingForward`.
+    ///
+    /// Works on a summary that was already rolled one date at a time (a relaunch between
+    /// the ring and the normal time): each date keeps its wall-clock time, so the lead and
+    /// its day shift are recovered from the times of day, not from the stored dates.
+    func rollingForwardAsPair(
+        selectedWeekdays: Set<Int>,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> ScheduledAlarmSummary {
+        var summary = rollingForward(selectedWeekdays: selectedWeekdays, now: now, calendar: calendar)
+        guard calendarPlan == nil else { return summary }
+
+        let day: TimeInterval = 86_400
+        func secondOfDay(_ date: Date) -> TimeInterval {
+            let time = calendar.dateComponents([.hour, .minute, .second], from: date)
+            return TimeInterval((time.hour ?? 0) * 3_600 + (time.minute ?? 0) * 60 + (time.second ?? 0))
+        }
+        let ringTime = secondOfDay(scheduledAlarmDate)
+        let lead = (secondOfDay(normalAlarmDate) - ringTime + day).truncatingRemainder(dividingBy: day)
+        let dayShift = ringTime + lead >= day ? 1 : 0
+        let weekdays = selectedWeekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : selectedWeekdays
+        let ringWeekdays = dayShift == 0 ? weekdays
+            : Set(weekdays.map { AlarmTimeCalculator.shiftedWeekday($0, byDays: -dayShift) })
+        let ring = Self.nextOccurrence(of: scheduledAlarmDate, weekdays: ringWeekdays, after: now, calendar: calendar)
+
+        // An upcoming ring still paired with its own normal time: nothing to re-pair.
+        let storedLead = normalAlarmDate.timeIntervalSince(scheduledAlarmDate)
+        if ring == scheduledAlarmDate, storedLead >= 0, storedLead < day { return summary }
+
+        let normalTime = calendar.dateComponents([.hour, .minute, .second], from: normalAlarmDate)
+        guard let normalDay = calendar.date(byAdding: .day, value: dayShift, to: calendar.startOfDay(for: ring)),
+              let normal = calendar.date(bySettingHour: normalTime.hour ?? 0, minute: normalTime.minute ?? 0,
+                                         second: normalTime.second ?? 0, of: normalDay) else { return summary }
+        summary.scheduledAlarmDate = ring
+        summary.normalAlarmDate = normal
+        return summary
+    }
+
     /// A ring that sits on an earlier day than the normal alarm (rain lead time
     /// crossing midnight) rings on every selected weekday shifted by that delta.
     private static func shiftedWeekdays(
@@ -563,28 +609,5 @@ extension ScheduledAlarmSummary {
         }
 
         return date
-    }
-}
-
-/// A display preference only: never changes a Date or the scheduled alarm time.
-enum ClockTimeFormat: String, Codable, CaseIterable, Identifiable, Sendable {
-    case twelveHour, twentyFourHour
-    var id: String { rawValue }
-    var title: String { String(localized: self == .twelveHour ? "clock_format_12" : "clock_format_24") }
-
-    func time(_ date: Date, locale: Locale = .current, timeZone: TimeZone = .current) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = timeZone
-        let chinese = locale.language.languageCode?.identifier == "zh"
-        formatter.amSymbol = chinese ? "上午" : "AM"
-        formatter.pmSymbol = chinese ? "下午" : "PM"
-        formatter.dateFormat = self == .twentyFourHour ? "HH:mm" : (chinese ? "a h:mm" : "h:mm a")
-        return formatter.string(from: date)
-    }
-
-    func dateTime(_ date: Date) -> String {
-        date.formatted(date: .abbreviated, time: .omitted) + " " + time(date)
     }
 }

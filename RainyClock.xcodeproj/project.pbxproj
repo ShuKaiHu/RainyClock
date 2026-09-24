@@ -119,6 +119,23 @@
 		00145F4219C44BA1A4258D73 /* MembershipStoreKitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9DD135B1874EC8AD51B279 /* MembershipStoreKitTests.swift */; };
 		637B2885F7A34C9299B06A6E /* RainyClockMembership.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 7154F44B61E340CB96450D9D /* RainyClockMembership.storekit */; };
 		8E2D4EB82DB145A3AB8D562C /* MembershipVoiceGeneration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1547AF7021B465DA576E51D /* MembershipVoiceGeneration.swift */; };
+		7D1D6E700000000000000021 /* ClockTimeFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000001 /* ClockTimeFormat.swift */; };
+		7D1D6E700000000000000022 /* ClockTimeFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000001 /* ClockTimeFormat.swift */; };
+		7D1D6E700000000000000023 /* TomorrowWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000002 /* TomorrowWidgetSnapshot.swift */; };
+		7D1D6E700000000000000024 /* TomorrowWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000002 /* TomorrowWidgetSnapshot.swift */; };
+		7D1D6E700000000000000025 /* TomorrowWidgetPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000003 /* TomorrowWidgetPresentation.swift */; };
+		7D1D6E700000000000000026 /* TomorrowWidgetPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000003 /* TomorrowWidgetPresentation.swift */; };
+		7D1D6E700000000000000027 /* TomorrowWidgetSnapshotBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000004 /* TomorrowWidgetSnapshotBuilder.swift */; };
+		7D1D6E700000000000000028 /* TomorrowWidgetPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000005 /* TomorrowWidgetPublisher.swift */; };
+		7D1D6E700000000000000029 /* TomorrowWidgetDemo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000006 /* TomorrowWidgetDemo.swift */; };
+		7D1D6E70000000000000002A /* TomorrowWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000007 /* TomorrowWidget.swift */; };
+		7D1D6E70000000000000002B /* TomorrowWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000008 /* TomorrowWidgetViews.swift */; };
+		7D1D6E70000000000000002C /* TomorrowWidgetSky.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000009 /* TomorrowWidgetSky.swift */; };
+		7D1D6E70000000000000002D /* TomorrowWidgetSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E70000000000000000A /* TomorrowWidgetSnapshotTests.swift */; };
+		7D1D6E70000000000000002E /* TomorrowWidgetPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E70000000000000000B /* TomorrowWidgetPresentationTests.swift */; };
+		7D1D6E70000000000000002F /* TomorrowWidgetStringsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E70000000000000000C /* TomorrowWidgetStringsTests.swift */; };
+		7D1D6E700000000000000030 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 7D1D6E70000000000000000F /* Localizable.strings */; };
+		7D1D6E700000000000000031 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 7D1D6E70000000000000000E /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -268,6 +285,22 @@
 		BE9DD135B1874EC8AD51B279 /* MembershipStoreKitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipStoreKitTests.swift; sourceTree = "<group>"; };
 		7154F44B61E340CB96450D9D /* RainyClockMembership.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Configuration/RainyClockMembership.storekit; sourceTree = SOURCE_ROOT; };
 		E1547AF7021B465DA576E51D /* MembershipVoiceGeneration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipVoiceGeneration.swift; sourceTree = "<group>"; };
+		7D1D6E700000000000000001 /* ClockTimeFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockTimeFormat.swift; sourceTree = "<group>"; };
+		7D1D6E700000000000000002 /* TomorrowWidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetSnapshot.swift; sourceTree = "<group>"; };
+		7D1D6E700000000000000003 /* TomorrowWidgetPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetPresentation.swift; sourceTree = "<group>"; };
+		7D1D6E700000000000000004 /* TomorrowWidgetSnapshotBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetSnapshotBuilder.swift; sourceTree = "<group>"; };
+		7D1D6E700000000000000005 /* TomorrowWidgetPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetPublisher.swift; sourceTree = "<group>"; };
+		7D1D6E700000000000000006 /* TomorrowWidgetDemo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetDemo.swift; sourceTree = "<group>"; };
+		7D1D6E700000000000000007 /* TomorrowWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidget.swift; sourceTree = "<group>"; };
+		7D1D6E700000000000000008 /* TomorrowWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetViews.swift; sourceTree = "<group>"; };
+		7D1D6E700000000000000009 /* TomorrowWidgetSky.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetSky.swift; sourceTree = "<group>"; };
+		7D1D6E70000000000000000A /* TomorrowWidgetSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetSnapshotTests.swift; sourceTree = "<group>"; };
+		7D1D6E70000000000000000B /* TomorrowWidgetPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetPresentationTests.swift; sourceTree = "<group>"; };
+		7D1D6E70000000000000000C /* TomorrowWidgetStringsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetStringsTests.swift; sourceTree = "<group>"; };
+		7D1D6E70000000000000000D /* RainyClockAlarmWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RainyClockAlarmWidget.entitlements; sourceTree = "<group>"; };
+		7D1D6E70000000000000000E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		7D1D6E700000000000000010 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		7D1D6E700000000000000011 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/Localizable.strings"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -377,6 +410,9 @@
 				0A1000132C00000000000001 /* CommuteAlarmSettings.swift */,
 				F4BB22C84DAA14A208462B12 /* CommuteAlarmMetadata.swift */,
 				262973271663C0D9E9899FDF /* VoicePersona.swift */,
+				7D1D6E700000000000000001 /* ClockTimeFormat.swift */,
+				7D1D6E700000000000000002 /* TomorrowWidgetSnapshot.swift */,
+				7D1D6E700000000000000003 /* TomorrowWidgetPresentation.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -421,6 +457,9 @@
 				B2E3864C9B7F4CDDAB3D17DC /* DisasterMapStatus.swift */,
 				09F2856AEBC649E29CF1015D /* DisasterAlarmPlan.swift */,
 				ADAB6B006C9443C388B4BC1B /* DisasterSuspension.swift */,
+				7D1D6E700000000000000004 /* TomorrowWidgetSnapshotBuilder.swift */,
+				7D1D6E700000000000000005 /* TomorrowWidgetPublisher.swift */,
+				7D1D6E700000000000000006 /* TomorrowWidgetDemo.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -458,6 +497,9 @@
 				FDA82D02716704A4024FBA29 /* AlarmSchedulingSettingsTests.swift */,
 				39C8C3492E7E1E5211E865AC /* AlarmViewModelSchedulingTests.swift */,
 				9606BA5A5CBAB2AB6039C090 /* GeneratedVoiceAssemblerTests.swift */,
+				7D1D6E70000000000000000A /* TomorrowWidgetSnapshotTests.swift */,
+				7D1D6E70000000000000000B /* TomorrowWidgetPresentationTests.swift */,
+				7D1D6E70000000000000000C /* TomorrowWidgetStringsTests.swift */,
 			);
 			path = RainyClockTests;
 			sourceTree = "<group>";
@@ -483,6 +525,12 @@
 			children = (
 				36DE7F14501F8A8F682E4478 /* RainyClockAlarmWidgetBundle.swift */,
 				1C36A72344C85323EDB4B2B8 /* CommuteAlarmLiveActivity.swift */,
+				7D1D6E700000000000000007 /* TomorrowWidget.swift */,
+				7D1D6E700000000000000008 /* TomorrowWidgetViews.swift */,
+				7D1D6E700000000000000009 /* TomorrowWidgetSky.swift */,
+				7D1D6E70000000000000000F /* Localizable.strings */,
+				7D1D6E70000000000000000E /* PrivacyInfo.xcprivacy */,
+				7D1D6E70000000000000000D /* RainyClockAlarmWidget.entitlements */,
 				4133FF63012A434AB5C610F5 /* Info.plist */,
 			);
 			name = RainyClockAlarmWidget;
@@ -645,6 +693,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7D1D6E700000000000000030 /* Localizable.strings in Resources */,
+				7D1D6E700000000000000031 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -676,6 +726,9 @@
 				D9AFFD3EDD2005FE2CE06FEC /* AlarmSchedulingSettingsTests.swift in Sources */,
 				F7F9A507A2726D0344BDA3B7 /* AlarmViewModelSchedulingTests.swift in Sources */,
 				E02AA2444353D39C4B42A1E9 /* GeneratedVoiceAssemblerTests.swift in Sources */,
+				7D1D6E70000000000000002D /* TomorrowWidgetSnapshotTests.swift in Sources */,
+				7D1D6E70000000000000002E /* TomorrowWidgetPresentationTests.swift in Sources */,
+				7D1D6E70000000000000002F /* TomorrowWidgetStringsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -735,6 +788,12 @@
 				0A1000AD2C0000000000AD08 /* EveningPreview.swift in Sources */,
 				01D38ACAF517A7C2D707E95E /* RewardedAdController.swift in Sources */,
 				D901596ADED0CA3EC1B23B61 /* AdReport.swift in Sources */,
+				7D1D6E700000000000000021 /* ClockTimeFormat.swift in Sources */,
+				7D1D6E700000000000000023 /* TomorrowWidgetSnapshot.swift in Sources */,
+				7D1D6E700000000000000025 /* TomorrowWidgetPresentation.swift in Sources */,
+				7D1D6E700000000000000027 /* TomorrowWidgetSnapshotBuilder.swift in Sources */,
+				7D1D6E700000000000000028 /* TomorrowWidgetPublisher.swift in Sources */,
+				7D1D6E700000000000000029 /* TomorrowWidgetDemo.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -745,6 +804,12 @@
 				305482FE2E7CFA780A020BD2 /* RainyClockAlarmWidgetBundle.swift in Sources */,
 				CD94782468365102E82370FC /* CommuteAlarmLiveActivity.swift in Sources */,
 				754AECAC7E45A94AF3DEA98E /* CommuteAlarmMetadata.swift in Sources */,
+				7D1D6E700000000000000022 /* ClockTimeFormat.swift in Sources */,
+				7D1D6E700000000000000024 /* TomorrowWidgetSnapshot.swift in Sources */,
+				7D1D6E700000000000000026 /* TomorrowWidgetPresentation.swift in Sources */,
+				7D1D6E70000000000000002A /* TomorrowWidget.swift in Sources */,
+				7D1D6E70000000000000002B /* TomorrowWidgetViews.swift in Sources */,
+				7D1D6E70000000000000002C /* TomorrowWidgetSky.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -781,6 +846,15 @@
 				0A1000452C00000000000002 /* zh-Hant */,
 			);
 			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
+		7D1D6E70000000000000000F /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				7D1D6E700000000000000010 /* en */,
+				7D1D6E700000000000000011 /* zh-Hant */,
+			);
+			name = Localizable.strings;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */
@@ -1102,6 +1176,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = RainyClockAlarmWidget/RainyClockAlarmWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
@@ -1133,6 +1208,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = RainyClockAlarmWidget/RainyClockAlarmWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;
@@ -1164,6 +1240,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = RainyClockAlarmWidget/RainyClockAlarmWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 34;
 				DEVELOPMENT_TEAM = MQJ88U9NAJ;

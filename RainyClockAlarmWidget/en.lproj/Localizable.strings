@@ -1,0 +1,74 @@
+/* Rainy Clock widget extension. Keys under "Shared with the app" are copied
+   byte-for-byte from RainyClock/en.lproj/Localizable.strings; a unit test
+   (TomorrowWidgetStringsTests) keeps them identical. */
+
+/* Shared with the app */
+"app_title" = "Rainy Clock";
+"ux_tomorrow" = "Tomorrow";
+"ux_expected_ring" = "Expected alarm";
+"ux_tomorrow_skipped" = "Skipped";
+"ux_not_set" = "No alarm set";
+"ux_rain_applied_forecast" = "Route rain %d%%, %d\U00A0min earlier";
+"ux_rain_applied" = "%d minutes earlier for rain";
+"ux_tomorrow_holiday_named" = "Tomorrow is a holiday: %@";
+"ux_tomorrow_holiday" = "Tomorrow is a public holiday";
+"ux_tomorrow_manual_skip" = "Tomorrow was manually set to silent";
+"ux_tomorrow_manual_ring" = "Tomorrow was manually set to ring";
+"ux_tomorrow_weekend" = "Tomorrow is a weekend day";
+"ux_tomorrow_unselected" = "Tomorrow is not a selected repeat day";
+"ux_tomorrow_closure" = "Work or school is closed tomorrow";
+"ux_route_needed" = "Complete your route";
+"ux_tomorrow_weather_failed" = "Tomorrow's weather could not be updated";
+"ux_tomorrow_weather_stale" = "Weather needs an update";
+"ux_tomorrow_weather_unavailable" = "Tomorrow's forecast is not available yet";
+"ux_schedule_update_needed" = "The alarm schedule has not finished updating";
+"ux_closure_update_failed" = "Temporary closure information could not be updated";
+"ux_rain_chance" = "Rain %d%%";
+"ux_weather_home" = "Home";
+"ux_weather_work" = "Work";
+"ux_weather_clear" = "Sunny";
+"ux_weather_cloudy" = "Cloudy";
+"ux_weather_rain" = "Rainy";
+"ux_weather_updated" = "Weather checked %@";
+"calendar_silent" = "Silent";
+"commute_mode_car" = "Car";
+"commute_mode_scooter" = "Scooter";
+"commute_mode_walking" = "Walking";
+"commute_mode_public_transit" = "Transit";
+
+/* Widget only */
+"widget_display_name" = "Tomorrow's Alarm";
+"widget_description" = "Your expected alarm, and whether rain moves it earlier.";
+"widget_open_to_refresh" = "Open the app to refresh";
+"widget_open_to_start" = "Open the app to show tomorrow's alarm";
+"widget_route_rain_chance" = "Route rain %d%%";
+"widget_rain_short" = "Earlier for rain";
+"widget_manual_skip_short" = "Set to silent";
+"widget_manual_ring_short" = "Set to ring";
+"widget_holiday_named_short" = "Holiday: %@";
+"widget_unselected_short" = "Not a repeat day";
+"widget_closure_short" = "Work or school closed";
+"widget_issue_schedule_failed" = "Open the app to check your alarm";
+"widget_issue_alarmkit" = "Your alarm needs to be rescheduled";
+"widget_issue_closure_uncertain" = "Closure schedule not confirmed";
+"widget_issue_short" = "Check your alarm";
+"widget_weather_failed_short" = "Weather update failed";
+"widget_weather_stale_short" = "Weather out of date";
+"widget_forecast_pending" = "No forecast yet";
+"widget_inline_ring" = "Tomorrow %@";
+"widget_inline_rain" = "Tomorrow %1$@ · %2$d min earlier";
+"widget_inline_skipped" = "Tomorrow: skipped";
+"widget_inline_refresh" = "Open Rainy Clock to refresh";
+"widget_inline_refresh_short" = "Open to refresh";
+/* Before the app has published anything: nothing is on the widget to refresh yet. */
+"widget_inline_start" = "Open Rainy Clock to start";
+"widget_inline_start_short" = "Open Rainy Clock";
+/* Rain moved the ring across midnight: %1$@ is the ring's weekday, %2$@ its time. */
+"widget_inline_ring_on" = "%1$@ %2$@";
+"widget_inline_rain_on" = "%1$@ %2$@ · %3$d min earlier";
+
+/* Circular Lock Screen face: one word under a skipped day's glyph. */
+"widget_skip_holiday" = "Holiday";
+"widget_skip_closure" = "Closed";
+/* Any other skipped day: a weekend, an unselected weekday or a manual skip. */
+"widget_skip_other" = "Skipped";

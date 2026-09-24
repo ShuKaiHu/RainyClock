@@ -169,6 +169,8 @@ enum BackgroundWeatherRefresh {
                 scheduleNextRun(before: nextRefreshDate)
             }
             logger.info("Background refresh finished, rescheduled: \(outcome.didReschedule, privacy: .public)")
+            // Synchronously: the publisher's debounce would never fire before suspension.
+            TomorrowWidgetPublisher.shared.publish()
             task.setTaskCompleted(success: outcome.didReschedule)
         }
     }
@@ -191,6 +193,7 @@ enum CommuteAlarmRefresher {
         let model = AlarmViewModel(routeWeatherService: AppEnvironment.routeWeatherService,
             notificationScheduler: SystemAlarmScheduler())
         processModel = model
+        TomorrowWidgetPublisher.shared.start(observing: model)
         return model
     }
 

@@ -198,19 +198,18 @@ private struct AlarmHomeView: View {
         viewModel.settings.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || viewModel.settings.workAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+    /// Selection shared with the Home Screen widget (TomorrowWidgetSnapshotBuilder),
+    /// so the two say the same thing by construction. The card keeps the real
+    /// `isScheduling`; only the widget snapshot treats it as false.
     private var scheduleIssue: String? {
-        if let message = viewModel.scheduleErrorMessage { return message }
-        if viewModel.requiresAlarmKitReschedule { return String(localized: "alarmkit_reschedule_notice") }
-        if AppEnvironment.supportsTemporaryClosures && viewModel.disasterScheduleNeedsAttention { return String(localized: "disaster_schedule_uncertain") }
-        if viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled && viewModel.disasterRefreshFailed {
-            return String(localized: "ux_closure_update_failed")
+        switch TomorrowWidgetSnapshotBuilder.scheduleIssue(for: tomorrow, flags: .init(model: viewModel)) {
+        case nil: nil
+        case .schedulingFailed: viewModel.scheduleErrorMessage
+        case .alarmKitReschedule: String(localized: "alarmkit_reschedule_notice")
+        case .closureUncertain: String(localized: "disaster_schedule_uncertain")
+        case .closureUpdateFailed: String(localized: "ux_closure_update_failed")
+        case .updateNeeded: String(localized: "ux_schedule_update_needed")
         }
-        if viewModel.isScheduleStale && !viewModel.isScheduling { return String(localized: "ux_schedule_update_needed") }
-        if !viewModel.isScheduling, let registered = tomorrow.registeredRingDate,
-           registered != tomorrow.expectedRingDate {
-            return String(localized: "ux_schedule_update_needed")
-        }
-        return nil
     }
 
     var body: some View {
@@ -341,13 +340,13 @@ private struct AlarmHomeView: View {
     }
 
     private var weatherNotice: String? {
-        if tomorrow.weatherRefreshFailed { return String(localized: "ux_tomorrow_weather_failed") }
-        if tomorrow.weatherIsStale { return String(localized: "ux_tomorrow_weather_stale") }
-        if tomorrow.weather == nil {
-            if routeIncomplete { return String(localized: "ux_route_needed") }
-            return String(localized: "ux_tomorrow_weather_loading")
+        switch TomorrowWidgetSnapshotBuilder.weatherNotice(for: tomorrow, addressesMissing: routeIncomplete) {
+        case nil: nil
+        case .failed: String(localized: "ux_tomorrow_weather_failed")
+        case .stale: String(localized: "ux_tomorrow_weather_stale")
+        case .routeNeeded: String(localized: "ux_route_needed")
+        case .noForecast: String(localized: "ux_tomorrow_weather_loading")   // the card can load; the widget cannot
         }
-        return nil
     }
 
     private var isWaitingForFirstForecast: Bool {
@@ -355,24 +354,19 @@ private struct AlarmHomeView: View {
     }
 
     private var reason: String? {
-        switch tomorrow.reason {
-        case .normal: return nil
-        case .rain:
-            if let weather = tomorrow.weather, !tomorrow.weatherIsStale {
-                return String.localizedStringWithFormat(String(localized: "ux_rain_applied_forecast"),
-                                                        Int((weather.maximumPrecipitationProbability * 100).rounded()), tomorrow.leadTimeMinutes)
-            }
-            return String.localizedStringWithFormat(String(localized: "ux_rain_applied"), tomorrow.leadTimeMinutes)
-        case .holiday:
-            if let name = tomorrow.holidayName, !name.isEmpty {
-                return String.localizedStringWithFormat(String(localized: "ux_tomorrow_holiday_named"), name)
-            }
-            return String(localized: "ux_tomorrow_holiday")
-        case .manual: return String(localized: tomorrow.expectedRingDate == nil ? "ux_tomorrow_manual_skip" : "ux_tomorrow_manual_ring")
-        case .weekend: return String(localized: "ux_tomorrow_weekend")
-        case .unselectedWeekday: return String(localized: "ux_tomorrow_unselected")
-        case .disaster: return String(localized: "ux_tomorrow_closure")
-        case .routeIncomplete: return String(localized: "ux_route_needed")
+        switch TomorrowWidgetSnapshotBuilder.reasonLine(for: tomorrow) {
+        case nil: nil
+        case .rainForecast(let percent, let minutes):
+            String.localizedStringWithFormat(String(localized: "ux_rain_applied_forecast"), percent, minutes)
+        case .rainEarlier(let minutes): String.localizedStringWithFormat(String(localized: "ux_rain_applied"), minutes)
+        case .holidayNamed(let name): String.localizedStringWithFormat(String(localized: "ux_tomorrow_holiday_named"), name)
+        case .holiday: String(localized: "ux_tomorrow_holiday")
+        case .manualSkip: String(localized: "ux_tomorrow_manual_skip")
+        case .manualRing: String(localized: "ux_tomorrow_manual_ring")
+        case .weekend: String(localized: "ux_tomorrow_weekend")
+        case .unselectedWeekday: String(localized: "ux_tomorrow_unselected")
+        case .closure: String(localized: "ux_tomorrow_closure")
+        case .routeNeeded: String(localized: "ux_route_needed")
         }
     }
 

@@ -1,0 +1,74 @@
+/* Rainy Clock widget extension. Keys under "Shared with the app" are copied
+   byte-for-byte from RainyClock/zh-Hant.lproj/Localizable.strings; a unit test
+   (TomorrowWidgetStringsTests) keeps them identical. */
+
+/* Shared with the app */
+"app_title" = "雨天鬧鐘";
+"ux_tomorrow" = "明天";
+"ux_expected_ring" = "預計響鈴";
+"ux_tomorrow_skipped" = "略過鬧鐘";
+"ux_not_set" = "尚未設定鬧鐘";
+"ux_rain_applied_forecast" = "路線降雨機率 %d%%，提前 %d 分鐘";
+"ux_rain_applied" = "因雨提早 %d 分鐘";
+"ux_tomorrow_holiday_named" = "明天放假：%@";
+"ux_tomorrow_holiday" = "明天是國定假日";
+"ux_tomorrow_manual_skip" = "明天已手動設為略過";
+"ux_tomorrow_manual_ring" = "明天已手動設為照常響鈴";
+"ux_tomorrow_weekend" = "明天是週末";
+"ux_tomorrow_unselected" = "明天未列入重複星期";
+"ux_tomorrow_closure" = "明天因臨時停班／停課略過";
+"ux_route_needed" = "請完成路線";
+"ux_tomorrow_weather_failed" = "明天天氣更新失敗";
+"ux_tomorrow_weather_stale" = "天氣資料需要更新";
+"ux_tomorrow_weather_unavailable" = "尚未取得明天天氣";
+"ux_schedule_update_needed" = "鬧鐘設定尚未更新完成";
+"ux_closure_update_failed" = "臨時放假資訊尚未更新成功";
+"ux_rain_chance" = "降雨 %d%%";
+"ux_weather_home" = "住家";
+"ux_weather_work" = "公司";
+"ux_weather_clear" = "晴天";
+"ux_weather_cloudy" = "多雲";
+"ux_weather_rain" = "下雨";
+"ux_weather_updated" = "天氣更新於 %@";
+"calendar_silent" = "不響";
+"commute_mode_car" = "開車";
+"commute_mode_scooter" = "騎車";
+"commute_mode_walking" = "步行";
+"commute_mode_public_transit" = "大眾交通";
+
+/* Widget only */
+"widget_display_name" = "明天的鬧鐘";
+"widget_description" = "預計響鈴時間，以及是否因下雨提早。";
+"widget_open_to_refresh" = "開啟 App 更新";
+"widget_open_to_start" = "開啟 App 以顯示明天的鬧鐘";
+"widget_route_rain_chance" = "路線降雨機率 %d%%";
+"widget_rain_short" = "因雨提早";
+"widget_manual_skip_short" = "已設為略過";
+"widget_manual_ring_short" = "已設為照常響鈴";
+"widget_holiday_named_short" = "放假：%@";
+"widget_unselected_short" = "非重複日";
+"widget_closure_short" = "停班停課略過";
+"widget_issue_schedule_failed" = "請開啟 App 檢查鬧鐘";
+"widget_issue_alarmkit" = "鬧鐘需要重新排程";
+"widget_issue_closure_uncertain" = "停班停課排程尚未確認";
+"widget_issue_short" = "請開啟 App 確認鬧鐘";
+"widget_weather_failed_short" = "天氣更新失敗";
+"widget_weather_stale_short" = "天氣資料需要更新";
+"widget_forecast_pending" = "尚無天氣預報";
+"widget_inline_ring" = "明天 %@";
+"widget_inline_rain" = "明天 %1$@，提早 %2$d 分鐘";
+"widget_inline_skipped" = "明天略過鬧鐘";
+"widget_inline_refresh" = "開啟雨天鬧鐘以更新";
+"widget_inline_refresh_short" = "開啟以更新";
+/* Before the app has published anything: nothing is on the widget to refresh yet. */
+"widget_inline_start" = "開啟雨天鬧鐘開始使用";
+"widget_inline_start_short" = "開啟雨天鬧鐘";
+/* Rain moved the ring across midnight: %1$@ is the ring's weekday, %2$@ its time. */
+"widget_inline_ring_on" = "%1$@ %2$@";
+"widget_inline_rain_on" = "%1$@ %2$@，提早 %3$d 分鐘";
+
+/* Circular Lock Screen face: one word under a skipped day's glyph. */
+"widget_skip_holiday" = "放假";
+"widget_skip_closure" = "停班";
+/* Any other skipped day: a weekend, an unselected weekday or a manual skip. */
+"widget_skip_other" = "不響";

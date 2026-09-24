@@ -500,7 +500,9 @@ final class AlarmViewModel: ObservableObject {
         return TomorrowAlarmStatus.resolve(settings: settings, holidays: holidayCalendar,
             weatherRecord: tomorrowWeatherRecord, weatherRefreshFailed: tomorrowWeatherFailureRequest == request,
             routeIsReady: routeIsReady,
-            summary: scheduledAlarmSummary, registeredFingerprint: scheduledFingerprint,
+            summary: scheduledAlarmSummary?.rollingForwardAsPair(selectedWeekdays: settings.selectedWeekdays, now: now,
+                                                                 calendar: AlarmCalendarSettings.calendar),
+            registeredFingerprint: scheduledFingerprint,
             disasterFeed: disasterFeed, disasterSourceFailed: disasterRefreshFailed, now: now)
     }
 

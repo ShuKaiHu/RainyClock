@@ -11,6 +11,7 @@ struct RainyClockApp: App {
         if ProcessInfo.processInfo.arguments.contains("-weather-scene-preview") { return }
         #endif
         #if DEBUG
+        if TomorrowWidgetDemo.isActive { return }
         if AppEnvironment.supportsTemporaryClosures && ProcessInfo.processInfo.arguments.contains("-disaster-map-preview") { return }
         #endif
         UNUserNotificationCenter.current().delegate = NotificationPresentationDelegate.shared
@@ -39,7 +40,9 @@ struct RainyClockApp: App {
 
     @ViewBuilder private var standardContent: some View {
         #if DEBUG
-        if AppEnvironment.supportsTemporaryClosures && ProcessInfo.processInfo.arguments.contains("-disaster-map-preview") {
+        if TomorrowWidgetDemo.isActive {
+            TomorrowWidgetDemoHost()
+        } else if AppEnvironment.supportsTemporaryClosures && ProcessInfo.processInfo.arguments.contains("-disaster-map-preview") {
             DisasterMapPreviewHost()
         } else { mainContent }
         #else
@@ -49,11 +52,23 @@ struct RainyClockApp: App {
 
     private func handleScenePhase(_ newPhase: ScenePhase) {
         #if DEBUG
+        if TomorrowWidgetDemo.isActive { return }
         if AppEnvironment.supportsTemporaryClosures && ProcessInfo.processInfo.arguments.contains("-disaster-map-preview") { return }
         #endif
+        // The widget's snapshot must be current when the app leaves the screen:
+        // the debounce would not fire once suspended.
+        if newPhase == .background {
+            TomorrowWidgetPublisher.shared.publish()
+        }
         guard newPhase == .active else {
             return
         }
+
+        // A widget showing "open the app to refresh" must update even when no
+        // model property changes on return from suspension — and even when the
+        // snapshot itself is unchanged (a time zone or clock change undone), so
+        // reload regardless; a foreground app's reloads are not budgeted.
+        TomorrowWidgetPublisher.shared.publish(forceReload: true)
 
         // Runs on every system, not just pre-26: an install that upgraded to
         // iOS 26 before rescheduling still carries notification alarms, and
