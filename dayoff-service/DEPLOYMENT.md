@@ -367,11 +367,36 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
   `asia-east1-docker.pkg.dev/rainyclock/cloud-run-source-deploy/rainyclock-dayoff@sha256:dabe3190a127fb5ac0c31af85cc5c1a862eb72ed6562650caebcb1835d472196`。
 - 本機：`npm test` 100 過 7 略過；Firestore Emulator 1.22.0 ＋ Homebrew `openjdk@21` 107 全過。
 
-**未執行**（無人值守的 session 不做授權，留給擁有者）：三個 service account 與 IAM 條件綁定、
-secret accessor、Scheduler 的 `run.invoker` → 一次執行 `deploy/iam.sh`。之後：加入兩個 secret 版本
-（§4），再以上面的 digest 執行 `IMAGE=… APNS_KEY_ID=… APNS_PRODUCTION=… sh deploy/deploy.sh`
-（service → Job 手動跑一次 → Scheduler）。告警通道與三個 policy（§9）、真機推播驗證（§10）也都還沒做。
-Firestore deny-all rules 未用 firebase-tools 部署（本機未登入）；服務帳號走 IAM，rules 只影響手機 SDK。
+### 2026-09-24 09:2x（擁有者執行 `deploy/iam.sh`，讀回值）
+
+- 建立 `rainyclock-dayoff-service@`、`rainyclock-dayoff-job@`、`rainyclock-dayoff-scheduler@`。
+- `roles/datastore.user` 條件 `resource.name=="projects/rainyclock/databases/dayoff-production"` 綁到
+  service 與 job 兩個 SA（etag `BwZcMJgIpic=`、`BwZcMJhEZ2Y=`）；兩個 secret 的 `secretAccessor` 綁到 job SA。
+- Scheduler 的 `run.invoker` 尚未綁（Job 還不存在，Job 建好後重跑腳本）。
+
+### 2026-09-24 09:35（Claude 部署 service，讀回值）
+
+- `gcloud run deploy rainyclock-dayoff`（§6 的參數，digest `sha256:dabe3190…`）→ revision
+  `rainyclock-dayoff-00001-h5r`，URL `https://rainyclock-dayoff-510427696731.asia-east1.run.app`
+  （`status.url` 另回 `https://rainyclock-dayoff-hclsjropwq-de.a.run.app`，兩者同一服務）。
+- 前幾分鐘 `/health` 回 503 `storage_unavailable`：新 SA 的 IAM 還在傳播。約 5 分鐘後回
+  503 `{"configured":false,"available":false,"state":"not_configured",…,"pushConfigured":true,"pushMode":"alert"}`，
+  九個鍵完整。`DELETE /v1/devices` 帶垃圾 JSON → 400 `invalid_device_request`（body 有轉送、無轉址）。
+- 教訓寫進程式：`10d9951` 起 store 在 SDK 失敗時記一筆 `storage_failure` 與 gRPC 狀態碼（不含訊息）。
+  重建映像並以新 digest 重新部署，見下一條。
+
+### 2026-09-24 09:40（Claude 重建並重新部署 service，讀回值）
+
+- Cloud Build `43e2bed6-a679-4b25-bc93-7bf082d40dac`，40 秒，SUCCESS，來源 commit `10d9951`；
+  **目前 service 與未來 Job 都要用這個 digest**：
+  `asia-east1-docker.pkg.dev/rainyclock/cloud-run-source-deploy/rainyclock-dayoff@sha256:dbe6fca534098277f2c9ce5f02520413cddaccbd70449a277620c0ed8c39aef5`。
+- `gcloud run deploy rainyclock-dayoff --image=<上面 digest>` → revision `rainyclock-dayoff-00002-f6j`，100% 流量；
+  `/health` 503 `not_configured`，九鍵完整。等第一次 Job 跑完才會變 200。
+
+**未執行**：兩個 secret 版本（§4，擁有者）；Job 與 Scheduler（等 secret 版本後執行
+`IMAGE=… APNS_KEY_ID=… APNS_PRODUCTION=… sh deploy/deploy.sh`，再重跑 `deploy/iam.sh` 補 `run.invoker`）；
+告警通道與三個 policy（§9）；真機推播驗證（§10）。Firestore deny-all rules 未用 firebase-tools 部署
+（本機未登入）；服務帳號走 IAM，rules 只影響手機 SDK。
 
 ### 更早
 第一次執行時，在這裡逐條記錄：日期、指令、讀回的結果（資料庫設定、SA 與 IAM 條件、secret 版本號、
