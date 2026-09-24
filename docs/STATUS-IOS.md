@@ -15,6 +15,9 @@ Last updated: 2026-09-24.
 
 > **颱風／臨時放假改定 1.8.0（2026-09-24）**，1.7.1 另作他用。下方較早紀錄裡指這項功能的「1.7.1」
 > 保留原文，一律讀成 1.8.0；現況見「1.8.0 準備中」一節。
+>
+> **1.8.0 = 颱風停班停課 + 主畫面／鎖定畫面 widget，widget 在 `ios/widget` 分支**（worktree
+> `RainyClock-widget`，1.8.0（38），尚未合回 `ios/main`）；送審前欠項見「1.8.0 準備中」的 widget 小節。
 
 > **1.7.1（37）已在本機完成，尚未上傳：** 修正 1.7.0 起 Home／Work 輸入時完全沒有地址建議，
 > 以及手動輸入的地址被藏在 sheet 裡的黃色確認擋住、首頁一直「No alarm set」。見下節。
@@ -207,13 +210,9 @@ Last updated: 2026-09-24.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
-- **2026-09-24：主畫面／鎖定畫面「明天」widget 也納入 1.8.0。** 在 `ios/widget` 分支（worktree
-  `RainyClock-widget`）合併 `ios/main`（1.7.0（36）＋作法 B），並升到 **1.8.0（37）**：
-  `Info.plist` 與專案檔全部 11 個 build configuration 的 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION` 一致。App、
-  `RainyClockAlarmWidget`、`RainyClockDayOffNotification` 都帶 App Group
-  `group.com.shukaihu.RainyClock`（widget 存 `tomorrowWidgetSnapshot.v1`，天災擴充功能存
-  `dayOffSharedState.v1`，同 group 不同 key）。尚未合回 `ios/main`；`supportsTemporaryClosures`
-  仍為 `false`，下方開閘條件不變。
+- **2026-09-24：主畫面／鎖定畫面「明天」widget 也納入 1.8.0**，在 `ios/widget` 分支，現為
+  **1.8.0（38）**；見本節末「主畫面／鎖定畫面 widget」小節。`supportsTemporaryClosures` 仍為
+  `false`，下方開閘條件不變。
 - **工作樹已全部提交到 `ios/main`**（四個 commit：App 與測試、weather-proxy 會員後端、
   dayoff-service 與天災文件、其餘文件與素材）。1.7.0（34）送審的原始碼從此有 git 紀錄；
   之前自 9/10 起 110 個檔案都只在本機。變體 PNG 的重複 `.zip` 已 gitignore，其餘 `docs/`
@@ -261,6 +260,81 @@ Last updated: 2026-09-24.
   **尚未在真機驗證**：擴充功能需要真的 APNs 推播才會執行；模擬器無法收 APNs。
 - ASC 審查結果本輪未讀到（隔離瀏覽器為登入頁，Gmail 無 Apple 信件）。
   `RainyClock-dayoff-preview/` 工作樹每個檔案都比主工作樹舊，可移除。
+
+### 主畫面／鎖定畫面「明天」widget — 2026-09-24
+
+- **是什麼：** 顯示明天預計幾點響、為什麼（下雨提早、假日、週末、停班停課、路線未設、天氣過期／失敗、
+  排程待更新）。規則與 App 鬧鐘頁的明天卡片共用 `TomorrowWidgetSnapshotBuilder`（reason／notice／issue），
+  停班停課走同一個 `DisasterSuspensionEvaluator`，widget 不自己判斷。尺寸：主畫面 small、medium；
+  鎖定畫面 rectangular、circular、inline。放在既有 `RainyClockAlarmWidget` 擴充功能，所以**只有 iOS 26+**；
+  iOS 17–25 看不到，`TomorrowWidgetPublisher` 不動作。App 仍是 iPhone only。
+- **資料流：** App 把 Codable snapshot 寫進 App Group `group.com.shukaihu.RainyClock` 的
+  `tomorrowWidgetSnapshot.v1`（天災擴充功能用 `dayOffSharedState.v1`，同 group 不同 key）並 reload
+  timeline；前景、背景 BGTask、推播喚醒都會 publish。snapshot 先算好下一個邊界（天氣過期、午夜、
+  提早點、響鈴），第二個午夜後改為「開啟 App 更新」。**widget 本身不連網**：無 WeatherKit、MapKit、
+  定位、廣告 SDK（LevelPlay 只連 App target），不存地址或路段名稱（有測試）。隱私營養標籤不用改；
+  widget 自帶 `PrivacyInfo.xcprivacy`（UserDefaults 1C8F.1）。DEBUG 的 `-widget-demo` 範例不進 Release。
+- **分支：** `ios/widget`，worktree `/Users/shukaihu/Code_Project_Local/RainyClock-widget`。**尚未合回
+  `ios/main`**，因為 1.7.0／1.7.1 可能還要從 `ios/main` 出 build；只做 `ios/main` → `ios/widget`，
+  不可反向。今天合過兩次：`8a29847`（1.7.0（36）＋作法 B）、`1ce7bf5`（1.7.1（37）地址修正＋
+  dayoff-service absence 告警；只有版本號衝突，ContentView／AlarmViewModel／字串改的是不同段落）。
+  之後 `ios/main` 每多一個 commit 都要再合進來，否則 1.8.0 archive 會少掉它（例如 1.7.1 的地址建議）。
+- **版本：** 本分支 **1.8.0（38）**。`43bedcf` 原設 1.8.0（37），但 `ios/main` 的 1.7.1 也是 37，兩邊
+  相同時合併不會衝突、沒人會發現，故 `da9105e` 改 38：不論 1.7.1 或 1.8.0 先送都高於已上傳的 build。
+  `Info.plist` 與 11 個 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`（App ×3、AlarmWidget ×3、
+  DayOffNotification ×3、tests ×2）一致；建置後三個 bundle 都是 1.8.0（38）。`-ObjC`、`LevelPlayAppKey` 未動。
+- **合併審查修正（`b54483d`）：**
+  - 圓形鎖定畫面的略過字「停班」→「停班課」：spec v3 是 OR，只停課也會略過鬧鐘。英文 `Closed` 本來就中性。
+  - `RainyClockDayOffNotification` 補 `PrivacyInfo.xcprivacy`（無追蹤、無收集、UserDefaults 1C8F.1），
+    與 widget 一致。**`ios/main` 同樣缺**，1.7.x 若再出 build 要一起補。
+  - `DisasterPushDelegate` 在 `completionHandler` 前同步 publish widget，與 BGTask 路徑相同（debounce 在
+    App 被掛起前不會觸發）。目前 `supportsTemporaryClosures=false`，屬預先修正。
+- **建置／測試（`da9105e` 之後的程式碼）：** Debug 模擬器建置成功、0 錯誤；三個 bundle 都帶 manifest。
+  `RainyClock Membership Local` 簽章、iPhone Air 模擬器（iOS 26.5，`8C5C0CD4`）：**420 項全過、0 失敗、0 跳過**
+  （`-parallel-testing-worker-count 1 -skip-testing:RainyClockTests/MembershipStoreKitTests`，xcresult
+  `DerivedData/Logs/Test/Test-RainyClock Membership Local-2026.09.24_15-12-07-+0800.xcresult`），含 widget
+  31 項、`TomorrowAlarmStatusTests`、`AlarmViewModelSchedulingTests`（含 1.7.1 新增）、`DayOffPushContentTests`
+  與全部 Disaster 測試。
+  **`MembershipStoreKitTests`（7 項）在這台模擬器跑不了**：第一項 `testAskToBuyDoesNotUnlockBeforeApproval`
+  一開始就彈出「登入 Apple 帳號」，App 啟動被 SpringBoard 拒絕、xcodebuild 無限等待，三次都一樣。
+  會員程式與這些測試和 `ios/main` 完全相同（`ios/main` 的 395 項在 iOS 26.2 模擬器全過），判斷是
+  iOS 26.5 模擬器環境問題，不是 widget 造成；送審前在 26.2 模擬器或真機補跑一次。
+  另：預設兩個以上 clone 時多出來的 clone 會被 SpringBoard 拒絕啟動，照舊用 `-parallel-testing-worker-count 1`。
+- **送審 1.8.0 前 widget 還欠：**
+  - 阻擋：
+    1. **WeatherKit 標示。** widget 顯示 Apple 天氣資料（medium 天氣欄、small 的天空與「路線降雨 N%」、
+       StandBy 天氣符號、rectangular 的 %），extension 卻沒有任何  Weather 標記；5.2.5 有 widget 缺標記
+       被退的前例。做法要你決定（見下方第 4 項），但送審前一定要處理。
+    2. **widget 的 App ID 還沒開 App Groups。** `com.shukaihu.RainyClock.AlarmWidget` 唯一的 profile
+       （`6932dac7`，7/27）沒有 application-groups，1.7.0（36）archive 裡的 widget entitlements 也沒有；
+       App 與 DayOffNotification 已有。要在 Xcode Signing & Capabilities（team `MQJ88U9NAJ`）或開發者網站
+       Identifiers 勾 `group.com.shukaihu.RainyClock`，archive 用 `-allowProvisioningUpdates`，再用
+       `codesign -d --entitlements -` 確認 appex 帶 group。否則 archive 失敗，或 widget 永遠停在「開啟 App」。
+    3. **審查備註與 What's New。** 現有備註寫「不是主畫面 widget」（`appstore-review-notes-1.7.0-34.txt`
+       第 3 行、`appstore-metadata.md` 第 138 行與 2.1(a) 回覆），ASC 會沿用。1.8.0 要改成：有 widget、
+       需 iOS 26+、iPhone only、測試步驟（設 Home／Work 與時間 → 主畫面長按加入）、首次未開 App 顯示
+       「開啟 App」、widget 無廣告不連網、Weather 標記位置。What's New 兩種語言列出 widget（2.3.1(a)、
+       2.3.12）。2.1(a) 回覆與送審清單的相關段落標成歷史。最終文字由你核准後再貼。
+  - 需要你決定：
+    4. WeatherKit 標示做法：各尺寸加文字標記「 Weather」（建議），或鎖定畫面 rectangular 不顯示
+       WeatherKit 數字、只留「因雨提早 30 分」；另加 `widgetURL` 讓點擊落在鬧鐘頁（有 Legal 連結）。
+    5. **天氣「過期」警告：** `weatherLifetime` 30 分鐘，widget 放一整天，大部分時間會是橘色「天氣需要更新」。
+       建議 widget 把 `.stale` 改成中性「天氣 9:05 檢查」、只在提早點前 2 小時內才警告；這會讓 widget 比
+       卡片溫和，違反「widget 說的和卡片一樣」。另案：晚間背景抓明天天氣。
+    6. **午夜到響鈴之間：** widget 一律描述 `startOfDay(now)+1`，00:30 看鎖定畫面寫的是「後天」，
+       看不到今天早上下雨提早的決定。保留（寫進 PRODUCT_DECISIONS）或改成響鈴前顯示「今天」。
+    7. **D1 響鈴後的顯示：** `tomorrowStatus` 改用 `rollingForwardAsPair`，提早響鈴後卡片與 widget 立刻顯示
+       隔天沿用的提早時間與「因雨提早」，其實是前一天的預報。A 接受／B 中性文字「預報更新前維持 7:00」／
+       C 顯示原時間＋待預報。同一 commit 也改了卡片共用的英文字串（Rainy、weekend day、closure）；
+       決定後記入 PRODUCT_DECISIONS 與 What's New。
+    8. 1.7.1 與 1.8.0 的送審順序。1.8.0 已含 1.7.1 修正；build 38 兩種順序都成立，若要別的號碼再改。
+  - 機械項目：
+    9. 1.8.0 TestFlight 真機：開一次 App 後 small／medium／鎖定畫面顯示真實鬧鐘；改時間、背景更新後會變；
+       gallery 兩種語言、五個尺寸、StandBy 日夜（紅）、著色／透明圖示、12／24 小時、換時區。
+    10. Archive 後 Organizer → Generate Privacy Report，確認 App、widget、DayOffNotification 三份 manifest。
+    11. `MembershipStoreKitTests` 在 26.2 模擬器或真機補跑（見上）。
+    12. ASC 新增 1.8.0 版本頁。選擇性：`privacy-policy.html` 加一句 widget 只顯示本機資料；
+        `.disfavoredLocations([.carPlay], for: [.systemSmall])`。
 
 > **下一個 AI 請先讀 [2026-09-23 iOS 交接檔](HANDOFF-IOS-2026-09-23.md)。**
 > [9/22 交接](HANDOFF-IOS-2026-09-22.md) 與以下時序保留為歷史背景；目前已退審並交付 build 35，
