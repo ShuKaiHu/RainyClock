@@ -364,7 +364,8 @@ enum TomorrowWidgetSamples {
         let normal = calendar.date(bySettingHour: 7, minute: 30, second: 0, of: day) ?? day
         let early = normal.addingTimeInterval(-30 * 60)
         let fresh = now.addingTimeInterval(-5 * 60)
-        let old = now.addingTimeInterval(-2 * 3_600)
+        // Past the widget's 3-hour stale threshold (TomorrowWidgetSnapshotBuilder.widgetWeatherLifetime).
+        let old = now.addingTimeInterval(-4 * 3_600)
         func forecast(_ home: S.Condition, _ homePercent: Int, _ work: S.Condition?, _ workPercent: Int = 0,
                       checkedAt: Date? = nil) -> S.RouteForecast {
             S.RouteForecast(checkedAt: checkedAt ?? fresh, home: .init(condition: home, percent: homePercent),

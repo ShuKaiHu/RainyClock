@@ -373,9 +373,50 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(stale.expectedRingDate, date(15, 7))
         XCTAssertEqual(stale.reason, .rain)
         XCTAssertEqual(stale.reasonLine, .rainEarlier(minutes: 30))
-        XCTAssertEqual(stale.weatherNotice, .stale)
+        XCTAssertNil(stale.weatherNotice, "Half an hour old: the card warns, the widget does not yet (D-B)")
         XCTAssertNotNil(stale.forecast, "The card keeps showing the stale forecast")
         XCTAssertNil(stale.scheduleIssue)
+    }
+
+    /// D-B: the widget warns only after 3 hours; the card keeps its 30 minutes, and the
+    /// decision (which stops reading the forecast at 30 minutes) is the card's either way.
+    func testWidgetWarnsAboutStaleWeatherOnlyAfterThreeHours() throws {
+        XCTAssertEqual(Builder.widgetWeatherLifetime, 3 * 3_600)
+        XCTAssertEqual(TomorrowAlarmStatus.weatherLifetime, 30 * 60, "The card's rule is unchanged")
+        let now = date(14, 19)
+        let value = settings()
+        let weather = record(value, requestedAt: now, checkedAt: now)
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7))
+        let provider = statusProvider(value, weather: weather, summary: registered)
+        let context = context(value, summary: registered)
+        let snapshot = Builder.snapshot(now: now, context: context, status: provider)
+
+        let fresh = try XCTUnwrap(entry(snapshot, at: now))
+        XCTAssertNil(fresh.weatherNotice)
+        XCTAssertEqual(fresh.reasonLine, .rainForecast(percent: 80, minutes: 30))
+
+        // 19:30:01: the card already says 天氣資料需要更新; the widget stays quiet.
+        let halfHour = date(14, 19, 30, 1)
+        XCTAssertEqual(Builder.weatherNotice(for: provider(halfHour), addressesMissing: false), .stale)
+        let quiet = try XCTUnwrap(entry(snapshot, at: halfHour))
+        XCTAssertNil(quiet.weatherNotice)
+        XCTAssertEqual(quiet.reasonLine, .rainEarlier(minutes: 30), "The decision no longer reads the stale forecast")
+        XCTAssertNotNil(quiet.forecast)
+
+        // Exactly three hours is not yet stale (strict >); one second later it is.
+        XCTAssertNil(Builder.widgetWeatherNotice(for: provider(date(14, 22)), addressesMissing: false, at: date(14, 22)))
+        let stale = try XCTUnwrap(entry(snapshot, at: date(14, 22, 0, 1)), "A precomputed entry at the widget's threshold")
+        XCTAssertEqual(stale.weatherNotice, .stale)
+        XCTAssertEqual(stale.expectedRingDate, date(15, 7))
+        XCTAssertEqual(stale.reasonLine, .rainEarlier(minutes: 30))
+
+        // A failed refresh is not about age: it shows at once, as on the card.
+        let failing = statusProvider(value, weather: weather, summary: registered, failedRequest: weather.request)
+        XCTAssertEqual(Builder.widgetWeatherNotice(for: failing(now), addressesMissing: false, at: now), .failed)
+        // No forecast at all, or no route: the card's notices.
+        let none = statusProvider(value, weather: nil, summary: registered)
+        XCTAssertEqual(Builder.widgetWeatherNotice(for: none(now), addressesMissing: false, at: now), .noForecast)
+        XCTAssertEqual(Builder.widgetWeatherNotice(for: none(now), addressesMissing: true, at: now), .routeNeeded)
     }
 
     func testMidnightEntryDescribesTheDayAfter() throws {

@@ -5,7 +5,12 @@ import Foundation
 /// so the widget says what the card says by construction.
 ///
 /// Snapshot semantics:
-/// - Every entry is exactly what the card would show at its `validFrom`. The model
+/// - Every entry is what the card would show at its `validFrom`, with one deliberate
+///   difference: the widget only warns that the weather is stale once it is older than
+///   `widgetWeatherLifetime` (3 h), where the card warns after
+///   `TomorrowAlarmStatus.weatherLifetime` (30 min). A widget sits on a screen all day and
+///   cannot refresh anything itself; the card is looked at for seconds and refreshes on
+///   sight. The decision (ring time, reason) is the card's either way. The model
 ///   rolls a weekly summary forward inside `tomorrowStatus(now:)`, ring and normal time
 ///   as one pair, so a process that stays alive and a relaunch agree.
 /// - Card flags (the scheduling error, the AlarmKit reschedule notice and the stale
@@ -16,6 +21,9 @@ import Foundation
 enum TomorrowWidgetSnapshotBuilder {
     static let maximumEntries = 24
     static let epsilon: TimeInterval = 1
+    /// How old the weather may get before the WIDGET says it needs an update (D-B). Display
+    /// only: `TomorrowAlarmStatus.resolve` still decides with its own 30-minute lifetime.
+    static let widgetWeatherLifetime: TimeInterval = 3 * 3_600
 
     struct CardFlags: Equatable, Sendable {
         var hasSchedulingError = false        // model.scheduleErrorMessage != nil (text never copied)
@@ -98,6 +106,18 @@ enum TomorrowWidgetSnapshotBuilder {
         return nil
     }
 
+    /// The card's notice, except that weather counts as stale only once it is older than
+    /// `widgetWeatherLifetime` at `moment` (the entry's `validFrom`). A failed refresh still
+    /// says so at once, as on the card: that is not about age.
+    static func widgetWeatherNotice(for status: TomorrowAlarmStatus, addressesMissing: Bool,
+                                    at moment: Date) -> TomorrowWidgetSnapshot.WeatherNotice? {
+        if status.weatherRefreshFailed { return .failed }
+        if let weather = status.weather {
+            return moment.timeIntervalSince(weather.checkedAt) > widgetWeatherLifetime ? .stale : nil
+        }
+        return addressesMissing ? .routeNeeded : .noForecast
+    }
+
     /// First match wins. `isScheduleVerified` is deliberately never read: the card
     /// never displays it.
     static func scheduleIssue(for status: TomorrowAlarmStatus, flags: CardFlags) -> TomorrowWidgetSnapshot.ScheduleIssue? {
@@ -139,7 +159,7 @@ enum TomorrowWidgetSnapshotBuilder {
                      ringIsOnAnotherDay: status.expectedRingDate.map { !context.calendar.isDate($0, inSameDayAs: status.day) } ?? false,
                      reason: reason, reasonLine: snapshotReasonLine(for: status), leadTimeMinutes: status.leadTimeMinutes,
                      forecast: forecast(from: status.weather),
-                     weatherNotice: weatherNotice(for: status, addressesMissing: context.addressesMissing),
+                     weatherNotice: widgetWeatherNotice(for: status, addressesMissing: context.addressesMissing, at: validFrom),
                      scheduleIssue: scheduleIssue(for: status, flags: context.flags))
     }
 
@@ -161,9 +181,11 @@ enum TomorrowWidgetSnapshotBuilder {
         var candidates: [Date] = []
         // "Tomorrow" moves on; weather and the failure flag drop because the request changes.
         if days.count > 1 { candidates.append(days[1]) }
-        // Staleness is a strict `>` against weatherLifetime.
+        // Staleness is a strict `>`: at weatherLifetime the decision stops reading the forecast
+        // (the card's rule); at widgetWeatherLifetime the widget starts to warn.
         if let checkedAt = first.weather?.checkedAt {
             candidates.append(checkedAt.addingTimeInterval(TomorrowAlarmStatus.weatherLifetime + epsilon))
+            candidates.append(checkedAt.addingTimeInterval(widgetWeatherLifetime + epsilon))
         }
         // The `earlier > now` guard: matters only for leads that cross midnight.
         for normal in [first.normalAlarmDate, atFirstMidnight.normalAlarmDate] {
