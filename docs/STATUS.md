@@ -20,7 +20,7 @@ hold the whole repo — the separation is by branch, not by directory.
 
 | Platform | State |
 | --- | --- |
-| **iOS** | `1.6.5` live on the App Store since 2026-08-04. `1.6.6 (24)` uploaded to App Store Connect 2026-08-13, not yet submitted for review. |
+| **iOS** | `1.7.1 (37)` live on the App Store since 2026-09-26 (TW and US storefronts): RainyClock Plus membership (monthly subscription + one-time purchase), Unity LevelPlay ads, address suggestions. Typhoon day-off is next, in 1.8.0. |
 | **Android** | Never shipped. The port builds, runs and matches the iOS behaviour, but a weather-provider licensing call and a Play developer account still block a first release. |
 
 ## Shared references

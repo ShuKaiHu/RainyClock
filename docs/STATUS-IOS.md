@@ -11,7 +11,14 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-09-24.
+Last updated: 2026-09-26.
+
+> **1.7.1（37）已上架：2026-09-26 05:33 UTC（台灣 13:33）**，台灣與美國商店的 App Store lookup 都回 1.7.1。
+> 這是 1.7.0（34）退審後的重送版，包含會員方案（月訂閱、買斷）、LevelPlay 廣告、地址建議清單修復。
+> **上架後待確認（正式環境第一次有資料）：**
+> 1. 用台灣 Apple 帳號從 App Store 安裝，會員頁卡片應為 NT$10／月、NT$100（9/23 的正式版價格檢查）。
+> 2. 正式會員服務（production App Attest、Production Apple 交易）第一筆真實購買與恢復購買。
+> 3. LevelPlay 正式廣告流量、ATT 同意率與 Organizer／Crashes 的 1.7.1 崩潰。
 
 > **颱風／臨時放假改定 1.8.0（2026-09-24）**，1.7.1 另作他用。下方較早紀錄裡指這項功能的「1.7.1」
 > 保留原文，一律讀成 1.8.0；現況見「1.8.0 準備中」一節。
