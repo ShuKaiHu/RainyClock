@@ -312,7 +312,7 @@ gcloud secrets versions disable <OLD_VERSION> --secret=dayoff-apns-key
 
 ```sh
 # 先照「更新程式」那節用含 fixture 來源的 HEAD 建新 image；sandbox 與正式要同 digest，所以之後也用同一個 IMAGE 重佈正式（gcloud run deploy rainyclock-dayoff / jobs update rainyclock-dayoff-poll）
-# 執行紀錄裡正式在跑的 sha256:d4024db9… 早於 NCDR_SOURCE=fixture，拿它部署 sandbox 的第一次執行會以 invalid_configuration 失敗
+# 執行紀錄裡正式在跑的 sha256:d4024db9… 早於 NCDR_SOURCE=fixture，拿它部署 sandbox 的第一次執行會以 invalid_configuration 失敗；sandbox 現行 digest 見「執行紀錄（sandbox）」
 # APNS_KEY_ID 與正式 Job 相同（同一把 .p8 兩個 gateway 都能用）
 IMAGE=asia-east1-docker.pkg.dev/rainyclock/cloud-run-source-deploy/rainyclock-dayoff@sha256:<digest> \
 APNS_KEY_ID=<APNS_KEY_ID> sh dayoff-service/deploy/sandbox.sh
@@ -364,10 +364,23 @@ curl -sS "$SANDBOX_URL/v1/suspensions"   # 手機的通知擴充功能讀到的�
 
 ### 執行紀錄（sandbox）
 
-**尚未執行**：`deploy/sandbox.sh`、`deploy/fixture.sh` 都還沒有對 `rainyclock` 專案跑過；sandbox service 與
-Job 不存在，`dayoff_sandbox_v1` namespace 是空的。第一次執行後在這裡記：日期、digest、sandbox service URL、
-第一次 execution 名稱與摘要、`fixture.sh set` 的 JSON（不含 token）、Job 摘要的 `changed`／`broadcast`、
-手機收到的橫幅內容與鬧鐘判斷結果。
+### 2026-09-28 01:54–02:05（Claude 執行，讀回值）
+
+- Cloud Build `d9d55807-0981-472f-ba6a-d115af119378`，37 秒，SUCCESS，來源 commit `df5ec48`（含 fixture 來源）；
+  digest `asia-east1-docker.pkg.dev/rainyclock/cloud-run-source-deploy/rainyclock-dayoff@sha256:20a7a485862bc2588bfd202d5a8dc11556c91030f4143ccc55f3d7c5eccdfce3`。
+  **正式堆疊仍跑 `sha256:d4024db9…`**，未重新部署；正式與 sandbox 暫時不同 digest，下次正式更新時對齊。
+- `IMAGE=<上面 digest> APNS_KEY_ID=H9SMW8923R sh deploy/sandbox.sh` → service `rainyclock-dayoff-sandbox`
+  revision `rainyclock-dayoff-sandbox-00001-fkk`（URL `https://rainyclock-dayoff-sandbox-510427696731.asia-east1.run.app`），
+  Job `rainyclock-dayoff-poll-sandbox`（`NCDR_SOURCE=fixture`、`dayoff_sandbox_v1`、`APNS_PRODUCTION=false`、無 Scheduler）。
+  第一次執行 `…-2kxtg`：`source=fixture changed=true noticeCount=0`、broadcast `done`、`accepted=0`（沒有裝置）。
+- 第一次 `fixture.sh set` 失敗：本機 ADC 過期（`invalid_grant`）且屬於另一個專案。`7c9b684` 起 `fixture.sh`
+  改用 `gcloud auth print-access-token` 的權杖，不再依賴 ADC。
+- `fixture.sh set --county 新北市 --district 板橋區` → execution `…-gs5tf`：`changed=true`、broadcast `done`、
+  `accepted=0`；sandbox `/v1/suspensions` 回 1 則：`[停班停課通知]新北市板橋區:明天停止上班、停止上課。行政院人事行政總處。`
+  （Extreme／Alert／Actual，geocode `65000`）。隨後 `fixture.sh clear` → 0 則。
+- 正式堆疊全程不受影響：`source=open-data`、14 則。
+
+**尚未執行**：手機端（Debug build 登記到 sandbox、收到橫幅、擴充功能改寫、隔天鬧鐘被略過）。
 
 ## 更新程式
 
