@@ -250,7 +250,7 @@ Job（`rainyclock-dayoff-poll`）：
 | `APNS_PRODUCTION` | `true`（TestFlight／App Store）或 `false`（Xcode Debug） | 必填，沒有預設 |
 | `APNS_PUSH_MODE` | `alert` | |
 | `APNS_PRIVATE_KEY_PATH` | `/secrets/apns/AuthKey.p8` | Secret 掛載路徑 |
-| `NCDR_SOURCE` | `member` 或 `open-data` | `open-data` 免金鑰（data.gov.tw 資料集 20457 的網址）；個人信箱申請不到 NCDR 會員時用它 |
+| `NCDR_SOURCE` | `member` 或 `open-data` | `open-data` 免金鑰（data.gov.tw 資料集 20457 的網址）；個人信箱申請不到 NCDR 會員時用它。第三個值 `fixture` 只給 sandbox Job（namespace 不含 `sandbox` 即啟動失敗 `fixture_not_allowed`） |
 | `NCDR_API_KEY` | secret `dayoff-ncdr-api-key:latest` | `--set-secrets` 注入的環境變數；只在 `member` 來源，`open-data` 時不要掛 |
 | `CLOUD_RUN_EXECUTION` | Cloud Run 注入 | 租約的 owner；同一 execution 的 task 重試可接管 |
 
@@ -289,6 +289,85 @@ gcloud secrets versions disable <OLD_VERSION> --secret=dayoff-apns-key
   換鑰後的那次執行從游標續傳，不重送已送出的頁。
 - NCDR key 輪替：加入新版本後 `gcloud run jobs update ... --update-secrets=NCDR_API_KEY=dayoff-ncdr-api-key:latest`
   （Job 每次執行都重新讀 `latest`，其實只要停用舊版本並執行一次確認）。
+
+## Sandbox 堆疊（隨時在 Debug 手機上製造一次真正的推播）
+
+正式 Job 只在 revision 改變時推播，NCDR 又只在颱風期間才變，所以「手機收到推播 → 通知擴充功能改寫
+→ 鬧鐘判斷」在平常無法驗證。Sandbox 堆疊用**同一個映像 digest**（≥ 含 `NCDR_SOURCE=fixture` 的版本）跑第二組 service ＋ Job，差別只有：
+
+| 項目 | 正式 | Sandbox |
+| --- | --- | --- |
+| Service | `rainyclock-dayoff` | `rainyclock-dayoff-sandbox`（其餘旗標與正式相同） |
+| Job | `rainyclock-dayoff-poll` | `rainyclock-dayoff-poll-sandbox` |
+| `DAYOFF_NAMESPACE` | `dayoff_production_v1` | `dayoff_sandbox_v1`（同一個 `dayoff-production` 資料庫） |
+| `NCDR_SOURCE` | `open-data` | `fixture`：讀 `dayoffNamespaces/dayoff_sandbox_v1/fixture/current`，不連 NCDR |
+| `APNS_PRODUCTION` | `true` | `false`（Xcode Debug 裝置的 token 在 APNs sandbox） |
+| Scheduler | `*/5` | **沒有**；每次輪詢都是 `deploy/fixture.sh` 或手動 `jobs execute` |
+| Service account、secret、IAM | 相同（`.p8` 掛載同一個 `dayoff-apns-key`；`datastore.user` 條件是整個資料庫） | 相同，不必新增 |
+
+正式環境不受影響：`src/job.js` 在 namespace 不含 `sandbox` 時拒絕 `fixture` 來源，正式 Job 的
+`open-data` 來源不讀 `fixture/current`，`src/fixture-cli.js` 拒絕寫入非 sandbox namespace。
+
+### 部署（一次；換 digest 時重跑）
+
+```sh
+# 先照「更新程式」那節用含 fixture 來源的 HEAD 建新 image；sandbox 與正式要同 digest，所以之後也用同一個 IMAGE 重佈正式（gcloud run deploy rainyclock-dayoff / jobs update rainyclock-dayoff-poll）
+# 執行紀錄裡正式在跑的 sha256:d4024db9… 早於 NCDR_SOURCE=fixture，拿它部署 sandbox 的第一次執行會以 invalid_configuration 失敗
+# APNS_KEY_ID 與正式 Job 相同（同一把 .p8 兩個 gateway 都能用）
+IMAGE=asia-east1-docker.pkg.dev/rainyclock/cloud-run-source-deploy/rainyclock-dayoff@sha256:<digest> \
+APNS_KEY_ID=<APNS_KEY_ID> sh dayoff-service/deploy/sandbox.sh
+SANDBOX_URL=$(gcloud run services describe rainyclock-dayoff-sandbox --region=asia-east1 --format='value(status.url)')
+curl -sS "$SANDBOX_URL/health/details"   # 第一次執行後：state ready、source "fixture"、noticeCount 0（沒有 fixture = 空 Feed）
+```
+
+腳本會部署 service、建立／更新 Job（`NCDR_SOURCE=fixture`、`APNS_PRODUCTION=false`、`DAYOFF_SERVICE_URL`
+指向 sandbox service）、手動執行一次，**不建 Scheduler**。
+
+### 製造一次推播
+
+```sh
+# 本機以擁有者的 gcloud ADC 寫 fixture（project rainyclock、資料庫 dayoff-production、namespace dayoff_sandbox_v1），
+# 再執行 sandbox Job 一次（--wait），推播當場發生
+sh dayoff-service/deploy/fixture.sh set --county 新北市 --district 板橋區                  # 明天停止上班、停止上課
+sh dayoff-service/deploy/fixture.sh set --county 臺東縣 --when today --scope school        # 今天照常上班、停止上課
+sh dayoff-service/deploy/fixture.sh set --county 連江縣 --day-part morning                 # 明天上午停止上班、停止上課
+sh dayoff-service/deploy/fixture.sh show                                                   # 只看，不執行 Job
+sh dayoff-service/deploy/fixture.sh clear                                                  # 空 Feed，也是一次 revision 改變 → 也推播
+gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="rainyclock-dayoff-poll-sandbox" AND jsonPayload.event="dayoff_job"' --limit=3 --format=json
+curl -sS "$SANDBOX_URL/v1/suspensions"   # 手機的通知擴充功能讀到的就是這個
+```
+
+同一份 fixture 再執行一次是 `changed:false`、`broadcast:null`，不會重複推播。沒有 Scheduler，所以最後一次
+執行 15 分鐘後 sandbox service 回 503 `stale_cache`（手機退回保守規則），要再看就再執行一次 Job。
+`gcloud logging read` 用正式的 metric 過濾不到 sandbox Job（`job_name` 不同），三個告警都不會被 sandbox 觸發。
+
+### 手機端
+
+1. **不改任何 plist。** App 自己選 sandbox：`AppEnvironment.dayOffServiceURL` 在每個 Debug build
+   （`RainyClock`、`RainyClock Membership Local`、Debug Sandbox 皆是，因為它們都以 `aps-environment = development`
+   簽章，token 只在 APNs sandbox）讀 `RainyClock/Info.plist` 的 `DayOffSandboxServiceURL`，Release 才讀
+   `DayOffServiceURL`。確認 `$SANDBOX_URL` 等於 `DayOffSandboxServiceURL`（預期
+   `https://rainyclock-dayoff-sandbox-510427696731.asia-east1.run.app`；Cloud Run 若印出別的 host，要更新的是
+   `DayOffSandboxServiceURL`，不是 `DayOffServiceURL`），然後從 Xcode 以 Debug 裝到真機（模擬器沒有 APNs token）。
+   通知擴充功能用的是 App 註冊時寫進 `DayOffSharedState.serviceURL` 的同一個網址，擴充功能那邊不必改。
+2. 在 App 開啟停班停課功能、確認縣市／行政區，讓 App 向 sandbox service `POST /v1/devices`（201）。
+   `curl -sS "$SANDBOX_URL/health"` 的 `pushConfigured:true`；Firestore console 的
+   `dayoffNamespaces/dayoff_sandbox_v1/devices/` 多一筆（不要抄 token 到任何地方）。
+3. `sh dayoff-service/deploy/fixture.sh set --county <手機設定的縣市> --district <手機設定的行政區>`；
+   腳本印出這次 execution 名稱與它自己的摘要（`skipped changed broadcast.state broadcast.accepted`，
+   依 execution 名稱過濾，不會拿到上一次的），應為 `changed:true`、`broadcast.accepted:1`；`skipped` 非空
+   （`lease_held`／`backoff`）就是這次沒輪詢。手機在幾秒內收到橫幅，內容由通知擴充功能改寫成
+   符合本機行政區的文字。
+4. 換 `--scope`／`--when`／`--day-part` 各跑一次，最後 `clear`，確認每次都是新的 revision、都收到一則、
+   而且鬧鐘判斷符合 `docs/dayoff-fixtures.json` 的預期。
+5. 結束後不必還原任何設定；TestFlight／App Store（Release）build 一直走正式 URL 與 production APNs。
+
+### 執行紀錄（sandbox）
+
+**尚未執行**：`deploy/sandbox.sh`、`deploy/fixture.sh` 都還沒有對 `rainyclock` 專案跑過；sandbox service 與
+Job 不存在，`dayoff_sandbox_v1` namespace 是空的。第一次執行後在這裡記：日期、digest、sandbox service URL、
+第一次 execution 名稱與摘要、`fixture.sh set` 的 JSON（不含 token）、Job 摘要的 `changed`／`broadcast`、
+手機收到的橫幅內容與鬧鐘判斷結果。
 
 ## 更新程式
 
@@ -340,9 +419,9 @@ gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name=
 一套正式環境、`min-instances 0`：估計每月約 US$0.50。具名 Firestore 資料庫沒有免費額度（每天
 288 次 Job 各讀寫幾份小文件，手機讀取被 5 秒快取吸收）；Secret Manager 已超過 6 個免費版本
 （約 US$0.12）；Cloud Scheduler 免費額度 3 個 job，這是第 2 個。`min-instances 1`（約 US$5–8／月）
-只在真實警報期間 p95 延遲超過 3 秒時考慮。可選的 sandbox 堆疊（`dayoff-sandbox`、
-`rainyclock-dayoff-sandbox`、`rainyclock-dayoff-poll-sandbox`、`DAYOFF_NAMESPACE=dayoff_sandbox_v1`、
-`APNS_PRODUCTION=false`，給 Xcode Debug 裝置用）不測試時要 `pause` 它的 Scheduler。
+只在真實警報期間 p95 延遲超過 3 秒時考慮。Sandbox 堆疊（`rainyclock-dayoff-sandbox`、
+`rainyclock-dayoff-poll-sandbox`、同一資料庫的 `DAYOFF_NAMESPACE=dayoff_sandbox_v1`、`APNS_PRODUCTION=false`，
+給 Xcode Debug 裝置用，見「Sandbox 堆疊」）沒有 Scheduler、`min-instances 0`，不用時幾乎零成本。
 
 ## 部署前在本機做的驗證
 

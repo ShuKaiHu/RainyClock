@@ -13,6 +13,19 @@ export const SOURCES = {
   member: 'https://alerts.ncdr.nat.gov.tw/webapi/RssAtomFeed.ashx',
   'open-data': 'https://alerts.ncdr.nat.gov.tw/RssAtomFeed.ashx'
 };
+// The third source never contacts NCDR: the feed is whatever an operator
+// wrote to fixture/current in the same namespace. It exists because NCDR
+// only changes during a typhoon, so nothing else can make the sandbox stack
+// broadcast on demand. It is refused outside a namespace that names itself
+// sandbox, so production cannot be pointed at it by a typo in one flag.
+export const FIXTURE_SOURCE = 'fixture';
+export const FIXTURE_PATH = 'fixture/current';
+export const knownSource = (source) => Object.hasOwn(SOURCES, source) || source === FIXTURE_SOURCE;
+export const fixtureAllowed = (namespace) => typeof namespace === 'string' && namespace.includes('sandbox');
+const NOTICE_ID = /^dgpa\.gov\.tw_workSchlClos_[A-Za-z0-9_-]+$/;
+const SEVERITIES = ['Extreme', 'Severe', 'Moderate', 'Minor', 'Unknown'];
+const MSG_TYPES = ['Alert', 'Update', 'Cancel'];
+const STATUSES = ['Actual', 'Exercise', 'System', 'Test', 'Draft'];
 // Firestore documents stop at 1 MiB; the rest of state/current is small, so
 // this leaves room without ever truncating a notice list silently.
 const STORED_NOTICES_BYTES = 900_000;
@@ -96,6 +109,38 @@ function restoredCap(doc, entry) {
   } catch { return null; }
 }
 
+// A fixture notice must satisfy every shape rule parseCAP guarantees, and
+// is rebuilt in the API's key order so the revision hash depends on the
+// content, not on how the operator's JSON happened to be ordered.
+function fixtureNotice(raw, seen) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ServiceError('invalid_fixture_notice');
+  const { id, description, severity, msgType, status } = raw;
+  if (typeof id !== 'string' || !NOTICE_ID.test(id) || id.length > 256 || seen.has(id)) throw new ServiceError('invalid_fixture_notice');
+  seen.add(id);
+  const sentAt = isoTimestamp(raw.sentAt);
+  if (!MSG_TYPES.includes(msgType) || !STATUSES.includes(status)) throw new ServiceError('invalid_fixture_notice');
+  // Only a Cancel may carry no info block, exactly as the parser allows.
+  const bare = msgType === 'Cancel' && description === '' && severity === '';
+  if (!bare && (typeof description !== 'string' || !description.trim() || description.length > LIMITS.text || !SEVERITIES.includes(severity))) throw new ServiceError('invalid_fixture_notice');
+  const geocodes = raw.geocodes ?? [];
+  if (!Array.isArray(geocodes) || geocodes.length > 500 || geocodes.some((code) => typeof code !== 'string' || !/^\d{2,11}$/.test(code))) throw new ServiceError('invalid_fixture_notice');
+  const references = raw.references ?? [];
+  if (!Array.isArray(references) || references.length > LIMITS.entries || references.some((reference) => typeof reference !== 'string' || !NOTICE_ID.test(reference))) throw new ServiceError('invalid_fixture_notice');
+  return { id, sentAt, description: bare ? '' : description, severity: bare ? '' : severity, msgType, status, geocodes: [...new Set(geocodes)].sort(), references: [...new Set(references)] };
+}
+
+// No document is a legitimately empty feed, the same answer a real source
+// gives between typhoons; a document that exists must be well-formed.
+export function fixtureFeed(doc) {
+  if (doc === null || doc === undefined) return { sourceUpdatedAt: null, notices: [] };
+  if (typeof doc !== 'object' || Array.isArray(doc) || !Array.isArray(doc.notices)) throw new ServiceError('invalid_fixture_document');
+  if (doc.notices.length > LIMITS.entries) throw new ServiceError('too_many_notices');
+  const sourceUpdatedAt = doc.sourceUpdatedAt == null ? null : isoTimestamp(doc.sourceUpdatedAt);
+  if (doc.notices.length && !sourceUpdatedAt) throw new ServiceError('invalid_fixture_document');
+  const seen = new Set();
+  return { sourceUpdatedAt, notices: doc.notices.map((raw) => fixtureNotice(raw, seen)) };
+}
+
 // Fields carried forward when a run fails, so the served snapshot survives a
 // bad poll and only the health fields change. A document of another schema
 // carries nothing forward.
@@ -113,13 +158,16 @@ function carriedState(stored) {
 }
 
 export class SuspensionService {
-  constructor({ source = 'member', apiKey, store, owner = null, fetchImpl = fetch, now = Date.now, pollIntervalMs = 300_000, maxCacheAgeMs = 900_000, requestTimeoutMs = 10_000, push = { configured: false, mode: null }, onRevision = async () => {}, log = () => {} }) {
-    if (!Object.hasOwn(SOURCES, source)) throw new ServiceError('invalid_configuration');
+  constructor({ source = 'member', apiKey, store, owner = null, namespace = null, fetchImpl = fetch, now = Date.now, pollIntervalMs = 300_000, maxCacheAgeMs = 900_000, requestTimeoutMs = 10_000, push = { configured: false, mode: null }, onRevision = async () => {}, log = () => {} }) {
+    if (!knownSource(source)) throw new ServiceError('invalid_configuration');
     this.source = source;
     this.apiKey = apiKey?.trim() ?? '';
-    // A key with the open-data source is a deployment mistake, not a choice.
-    if (source === 'open-data' && this.apiKey) throw new ServiceError('invalid_configuration');
-    this.configured = source === 'open-data' || Boolean(this.apiKey);
+    // A key with a keyless source is a deployment mistake, not a choice.
+    if (source !== 'member' && this.apiKey) throw new ServiceError('invalid_configuration');
+    // Checked here as well as in jobConfig: whoever builds a service with the
+    // fixture source has to say which namespace it writes to.
+    if (source === FIXTURE_SOURCE && !fixtureAllowed(namespace)) throw new ServiceError('fixture_not_allowed');
+    this.configured = source !== 'member' || Boolean(this.apiKey);
     this.store = store;
     this.owner = owner;
     this.fetchImpl = fetchImpl;
@@ -195,45 +243,17 @@ export class SuspensionService {
     const cycleTimer = setTimeout(() => cycleAbort.abort(), 60_000);
     const signalFor = () => AbortSignal.any([cycleAbort.signal, AbortSignal.timeout(this.requestTimeoutMs)]);
     try {
-      const url = new URL(SOURCES[this.source]);
-      url.searchParams.set('AlertType', '33');
-      if (this.source === 'member') url.searchParams.set('apikey', this.apiKey);
-      const feed = parseAtom(await boundedXML(this.fetchImpl, url.href, LIMITS.feedBytes, signalFor(), this.now()));
-      if (feed.sourceUpdatedAt && Date.parse(feed.sourceUpdatedAt) > this.now() + 300_000) throw new ServiceError('source_time_in_future');
-      const stored = await this.storedCaps(feed.entries.filter((entry) => !this.capCache.has(entry.id)));
-      const nextCaps = new Map();
-      const fetched = new Set();
-      let cursor = 0, totalBytes = 0;
-      const workers = Array.from({ length: Math.min(4, feed.entries.length) }, async () => {
-        while (cursor < feed.entries.length) {
-          const entry = feed.entries[cursor++];
-          const cached = this.capCache.get(entry.id) ?? stored.get(entry.id);
-          if (cached && cached.updatedAt === entry.updatedAt && cached.url === entry.url) {
-            nextCaps.set(entry.id, cached);
-            continue;
-          }
-          const xml = await boundedXML(this.fetchImpl, entry.url, LIMITS.capBytes, signalFor(), this.now());
-          totalBytes += Buffer.byteLength(xml);
-          if (totalBytes > 16 * 1024 * 1024) throw new ServiceError('source_too_large');
-          const notice = parseCAP(xml, entry.id);
-          if (Date.parse(notice.sentAt) > this.now() + 300_000) throw new ServiceError('source_time_in_future');
-          nextCaps.set(entry.id, { ...entry, xml, notice });
-          fetched.add(entry.id);
-        }
-      });
-      try { await Promise.all(workers); } catch (error) {
-        cycleAbort.abort();
-        await Promise.allSettled(workers);
-        throw error;
-      }
+      // Both branches end in the same commit: a fixture change is committed,
+      // detected and broadcast exactly as a real feed change would be.
+      const { sourceUpdatedAt, nextCaps, fresh } = this.source === FIXTURE_SOURCE ? await this.loadFixture() : await this.loadFeed(signalFor, cycleAbort);
       const notices = [...nextCaps.values()].map((item) => item.notice).sort((a, b) => a.sentAt.localeCompare(b.sentAt) || a.id.localeCompare(b.id));
       // Hash the exact string that is stored, so the served bytes and the
       // revision cannot drift apart however the store returns the document.
       const noticesJSON = JSON.stringify(notices);
       if (Buffer.byteLength(noticesJSON) > STORED_NOTICES_BYTES) throw new ServiceError('stored_state_too_large');
       const revision = hashOf(noticesJSON);
-      const snapshot = { schemaVersion: 1, checkedAt: new Date(this.now()).toISOString(), sourceUpdatedAt: feed.sourceUpdatedAt, notices, revision };
-      const changed = await this.commit({ snapshot, noticesJSON, fresh: [...nextCaps.values()].filter((item) => fetched.has(item.id)), startedAt });
+      const snapshot = { schemaVersion: 1, checkedAt: new Date(this.now()).toISOString(), sourceUpdatedAt, notices, revision };
+      const changed = await this.commit({ snapshot, noticesJSON, fresh, startedAt });
       this.capCache = nextCaps;
       this.snapshot = snapshot;
       this.lastSuccessAt = snapshot.checkedAt;
@@ -253,6 +273,49 @@ export class SuspensionService {
       await this.recordFailure(startedAt);
       return false;
     } finally { clearTimeout(cycleTimer); this.cycleAbort = null; }
+  }
+
+  async loadFeed(signalFor, cycleAbort) {
+    const url = new URL(SOURCES[this.source]);
+    url.searchParams.set('AlertType', '33');
+    if (this.source === 'member') url.searchParams.set('apikey', this.apiKey);
+    const feed = parseAtom(await boundedXML(this.fetchImpl, url.href, LIMITS.feedBytes, signalFor(), this.now()));
+    if (feed.sourceUpdatedAt && Date.parse(feed.sourceUpdatedAt) > this.now() + 300_000) throw new ServiceError('source_time_in_future');
+    const stored = await this.storedCaps(feed.entries.filter((entry) => !this.capCache.has(entry.id)));
+    const nextCaps = new Map();
+    const fetched = new Set();
+    let cursor = 0, totalBytes = 0;
+    const workers = Array.from({ length: Math.min(4, feed.entries.length) }, async () => {
+      while (cursor < feed.entries.length) {
+        const entry = feed.entries[cursor++];
+        const cached = this.capCache.get(entry.id) ?? stored.get(entry.id);
+        if (cached && cached.updatedAt === entry.updatedAt && cached.url === entry.url) {
+          nextCaps.set(entry.id, cached);
+          continue;
+        }
+        const xml = await boundedXML(this.fetchImpl, entry.url, LIMITS.capBytes, signalFor(), this.now());
+        totalBytes += Buffer.byteLength(xml);
+        if (totalBytes > 16 * 1024 * 1024) throw new ServiceError('source_too_large');
+        const notice = parseCAP(xml, entry.id);
+        if (Date.parse(notice.sentAt) > this.now() + 300_000) throw new ServiceError('source_time_in_future');
+        nextCaps.set(entry.id, { ...entry, xml, notice });
+        fetched.add(entry.id);
+      }
+    });
+    try { await Promise.all(workers); } catch (error) {
+      cycleAbort.abort();
+      await Promise.allSettled(workers);
+      throw error;
+    }
+    return { sourceUpdatedAt: feed.sourceUpdatedAt, nextCaps, fresh: [...nextCaps.values()].filter((item) => fetched.has(item.id)) };
+  }
+
+  // The fixture is the parsed feed: no CAP fetch and nothing to cache, so
+  // the notices are carried in the same map shape with no xml behind them.
+  async loadFixture() {
+    const { sourceUpdatedAt, notices } = fixtureFeed(await this.store.get(FIXTURE_PATH));
+    for (const notice of notices) if (Date.parse(notice.sentAt) > this.now() + 300_000) throw new ServiceError('source_time_in_future');
+    return { sourceUpdatedAt, nextCaps: new Map(notices.map((notice) => [notice.id, { id: notice.id, notice }])), fresh: [] };
   }
 
   async storedCaps(entries) {

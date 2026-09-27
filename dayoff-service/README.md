@@ -67,8 +67,8 @@ Firestore（Job 與 service 共用）：
 
 | 環境變數 | 預設／用途 |
 |---|---|
-| `NCDR_SOURCE` | `member`（預設，需 `NCDR_API_KEY`）或 `open-data`（免金鑰，用 data.gov.tw 資料集 20457 登錄的 `RssAtomFeed.ashx?AlertType=33`）。明確設定，不是備援；摘要、`state/current.source` 與 `/health/details` 都會標示 |
-| `NCDR_API_KEY` | `member` 來源的 NCDR 會員金鑰，由 Secret Manager 注入，只在 Job；`open-data` 時必須留白 |
+| `NCDR_SOURCE` | `member`（預設，需 `NCDR_API_KEY`）、`open-data`（免金鑰，用 data.gov.tw 資料集 20457 登錄的 `RssAtomFeed.ashx?AlertType=33`）或 `fixture`（不連 NCDR，把同一 namespace 的 `fixture/current` 文件當成已解析的 Feed；只允許名稱含 `sandbox` 的 `DAYOFF_NAMESPACE`，否則啟動即 `fixture_not_allowed`，見下方「Sandbox 測試堆疊」）。明確設定，不是備援；摘要、`state/current.source` 與 `/health/details` 都會標示 |
+| `NCDR_API_KEY` | `member` 來源的 NCDR 會員金鑰，由 Secret Manager 注入，只在 Job；`open-data` 與 `fixture` 時必須留白 |
 | `POLL_INTERVAL_MS` | `300000`；成功後下一次允許抓取的時間，也是 Scheduler 的節奏；最低 1 分鐘 |
 | `REQUEST_TIMEOUT_MS` | `10000`，包括回應串流的每次請求期限；整輪最長 60 秒 |
 | `BROADCAST_CONCURRENCY` | `16`（1–64）個並行 APNs 請求 |
@@ -83,7 +83,7 @@ Firestore（Job 與 service 共用）：
 | `APNS_PUSH_MODE` | `alert`（預設）：對所有裝置送同一則可見推播，由手機的通知擴充功能比對本機行政區後改寫；`background`：舊的靜默同步提示 |
 | `CLOUD_RUN_EXECUTION` | Cloud Run 注入的 execution 名稱，作為租約擁有者；只在測試覆寫 |
 
-`src/local.js` 讀取 Job 的 `NCDR_API_KEY`（可留白）、`POLL_INTERVAL_MS`、`REQUEST_TIMEOUT_MS` 與 APNs 設定，service 的 `PORT`、`MAX_CACHE_AGE_MS`、`SNAPSHOT_CACHE_MS`，以及 `BROADCAST_CONCURRENCY`（本機預設 4）。
+`src/local.js` 讀取 Job 的 `NCDR_API_KEY`（可留白）、`POLL_INTERVAL_MS`、`REQUEST_TIMEOUT_MS` 與 APNs 設定，service 的 `PORT`、`MAX_CACHE_AGE_MS`、`SNAPSHOT_CACHE_MS`，以及 `BROADCAST_CONCURRENCY`（本機預設 4）。`NCDR_SOURCE=fixture` 在本機也受 namespace 限制：設了 `FIRESTORE_EMULATOR_HOST` 時用 `DAYOFF_NAMESPACE`（預設是正式名稱，所以要設成含 `sandbox` 的名稱），記憶體模式預設 `local_sandbox`。
 
 ## HTTP 契約
 
@@ -203,6 +203,7 @@ Firestore（Job 與 service 共用）：
 - `state/current`：唯一一份手機看得到的狀態。`noticesJSON` 保存 Job 雜湊時的那一串 `JSON.stringify(notices)` 原文（上限 900,000 bytes，超過即 `stored_state_too_large`），`revision` 是它的 sha256，只在 Job 從剛解析的 CAP 算一次、以字串比對、絕不從 Firestore 讀回的 map 重算。`checkedAt` 每次成功都重寫。抓取失敗時只改 `errorCode`、`failures`、`lastAttemptAt`、`nextAttemptAt`，快照欄位不動；HTTP 429 的 Retry-After（上限 1 小時）與 30 秒起指數退避至 30 分鐘的等待都存在這裡，下一次 Job 執行在任何網路請求前先看它，時間未到就以 `skipped: "backoff"` 結束。
 - `state/lease`：輪詢租約（`LEASE_MS`，心跳續約），兩次執行重疊時後者以 `skipped: "lease_held"` 結束；同一 execution 的 task 重試可接管自己的租約。寫入 `state/current` 的交易會先確認租約仍在自己手上，較慢的舊執行不能覆蓋較新的結果。
 - `caps/<capId>`：CAP 原始 XML（每則 ≤ 256 KiB，30 天 TTL），重用前一律重新通過 `parseCAP`，解析不了就當快取未命中重抓，不視為失敗。
+- `fixture/current`：只有 sandbox namespace 才有的操作員文件（`{ notices: [...], sourceUpdatedAt }`），由 `src/fixture-cli.js` 寫入、`NCDR_SOURCE=fixture` 的 Job 讀取；沒有文件就是合法的空 Feed。正式 namespace 裡即使有這份文件也不會被讀。
 - `devices/<installationId>`、`broadcasts/<revision>`、`broadcasts/<revision>/retries/<token>`：註冊與回報、可續傳的推播 claim、待重送的 token；`expiresAt` 分別為 90 天、7 天、7 天 TTL。
 - `firestore.indexes.json` 記錄 `state.noticesJSON` 與 `caps.xml` 的索引豁免（索引字串上限 1500 bytes）和四個 `expiresAt` TTL 政策；沒有複合索引。`firebase.json` 指向 `dayoff-production`。
 
@@ -218,8 +219,61 @@ Firestore（Job 與 service 共用）：
 
 後續可申請 NCDR 官方 HTTPS 推送，以減少輪詢延遲並保留輪詢補漏；目前沒有啟用該端點、申請審核或對外发送任何資料。
 
+## Sandbox 測試堆疊
+
+正式 Job 只在 Feed 的 revision 改變時推播，而 NCDR 只在颱風期間才會改，所以平常沒有辦法在手機上走完
+「推播 → 通知擴充功能改寫 → 鬧鐘判斷」這條路。Sandbox 堆疊就是為了隨時能製造一次真正的推播：
+
+- **同一個映像 digest**、同一個 `dayoff-production` 資料庫，但 namespace 是 `dayoff_sandbox_v1`：
+  service `rainyclock-dayoff-sandbox`、Job `rainyclock-dayoff-poll-sandbox`，`APNS_PRODUCTION=false`
+  （Xcode Debug 裝置的 token 只存在於 APNs sandbox），**沒有 Scheduler**，每次輪詢都是人手動執行。
+- Job 用 `NCDR_SOURCE=fixture`：`performRefresh` 不連 NCDR，改讀 `fixture/current` 文件，把裡面的
+  `notices` 當成已解析的 Feed（沒有 CAP 下載、沒有 CAP 快取）。之後的 `revisionFor`、單筆交易寫入、
+  changed 判定、`pendingBroadcastRevision`、失敗退避全部與真實來源走同一段程式，所以改一次 fixture
+  就是一次真正的推播。每則 fixture notice 都以 parser 保證的形狀規則驗證（ISO `sentAt`、非空
+  `description`、`\d{2,11}` 的 geocode、DGPA 的 id 格式、合法的 `msgType`／`status`／`severity`），
+  不合就是 `invalid_fixture_notice`／`invalid_fixture_document` 的失敗輪詢，快照保留、退避照記。
+- **絕不碰正式環境**：`src/job.js` 與 `src/service.js` 都在 `DAYOFF_NAMESPACE` 不含 `sandbox` 時拒絕
+  `fixture` 來源（`fixture_not_allowed`），`src/fixture-cli.js` 也拒絕寫入這種 namespace；正式 Job 的
+  `open-data` 來源根本不讀 `fixture/current`。兩個堆疊唯一共用的是資料庫、IAM 與 `.p8` secret。
+
+操作員 CLI（`npm run fixture -- <command>`，或部署後用 `deploy/fixture.sh` 一次做完「寫入 ＋ 執行 Job」）：
+
+```sh
+# 環境變數與 Job 相同：GOOGLE_CLOUD_PROJECT、DAYOFF_FIRESTORE_DATABASE、DAYOFF_NAMESPACE（必須含 sandbox）
+npm run fixture -- set --county 新北市 --district 板橋區            # 明天停止上班、停止上課（預設）
+npm run fixture -- set --county 臺東縣 --when today --scope school  # 今天照常上班、停止上課
+npm run fixture -- set --county 連江縣 --day-part morning           # 明天上午停止上班、停止上課
+npm run fixture -- set --county 臺東縣 --district 蘭嶼鄉 --geocode 1001416
+npm run fixture -- show                                             # 印出目前的文件
+npm run fixture -- clear                                            # 刪除文件 = 空 Feed，也是一次 revision 改變
+```
+
+不必部署也能在筆電上看完整流程：對 emulator 用同一組環境（`GOOGLE_CLOUD_PROJECT=demo-…`、
+`DAYOFF_NAMESPACE=dayoff_sandbox_local`）先 `npm run fixture -- set …`，再 `NCDR_SOURCE=fixture npm run local`。
+指令必須放在第一個參數（`set --county …`，不是 `--county … set`），未知或缺值的選項一律回 `invalid_fixture_command`；
+Firestore 失敗時 stderr 會多一行 `{"event":"storage_failure","grpcCode":N}`，7／16 是 ADC 或 IAM、5 是資料庫 id、14 才是服務中斷。
+
+`set` 產生**一則** `Alert`／`Actual` 公告，措辭照 `docs/dayoff-fixtures.json` 裡真實 DGPA 的句型
+（`[停班停課通知]<縣市><鄉鎮市區>:<今天|明天><上午>?<停止上班、停止上課|停止上班、照常上課|照常上班、停止上課>。行政院人事行政總處。`），
+停班時 `severity` 為 `Extreme`、只停課為 `Severe`，`sentAt` 是現在，id 為
+`dgpa.gov.tw_workSchlClos_<台北時間 yyyymmddHHMMSS>_i_<geocode>_001`。`--district` 省略即縣市層級；
+給了就對照 `RainyClock/Resources/taiwan-districts.json` 確認存在。那張表只有名稱沒有代碼，所以
+geocode 預設是縣市的 Taiwan_Geocode_103 五碼（CLI 內建 22 個），要精確的七碼鄉鎮代碼用 `--geocode`。
+手機端是用公告原文的地區文字比對使用者的縣市／行政區，geocode 只要求格式正確（2、5 或 7 碼、沒有 `-`），
+所以縣市碼配鄉鎮文字足以走完手機上每一條路徑。CLI 先驗證指令、名稱、namespace，再建立 Firestore client；
+只印一行 JSON，失敗只印錯誤碼。
+
+手機端不改任何 plist：每個 Debug build 都由 `AppEnvironment.dayOffServiceURL` 讀 `Info.plist` 的
+`DayOffSandboxServiceURL`（Release 才讀 `DayOffServiceURL`），裝置 token 也自然是 APNs sandbox 的
+（TestFlight／App Store build 走 production APNs，對 sandbox Job 而言是無效 token，不要混用）。
+`deploy/sandbox.sh` 印出的網址要等於 `DayOffSandboxServiceURL`；不同時更新的是那個鍵。通知擴充功能用 App
+註冊時寫進 `DayOffSharedState.serviceURL` 的同一個網址。以 Debug 裝到真機、註冊後執行一次 `deploy/fixture.sh set …`，Job 立即推播，通知擴充功能自己 GET `/v1/suspensions` 拿到這則
+fixture 公告並改寫橫幅。沒有 Scheduler，所以最後一次執行 15 分鐘後 sandbox service 會回 503 `stale_cache`
+（手機退回保守規則、鬧鐘照響）——這正是設計行為；要再看一次就再執行一次 Job。
+
 ## 驗證
 
-`npm test` 使用 Node 內建測試器與記憶體 store（與 Firestore store 同一介面、同樣的讀後寫限制與序列化交易），不碰磁碟、不需雲端。涵蓋真实 CAP、空 Feed、舊公告日期、CAP 更新／撤銷、XML namespace／DTD／超量、來源 URL 白名單、超時、429、單一抓取、來源失敗 503、狀態恢復與損毀狀態不服務、裝置 credential／限速、APNs 簽章與推播回應，手機回報的認證、排序、重複、時鐘差異、持久保存、重新註冊／刪除、來源異常和台灣跨日狀態，以及 store 語意、快照讀取端的快取與可用性判斷、推播 claim 的續傳／重送／斷路器／取代／嘗試上限、Job 的租約／退避／退出碼／摘要，和 service 設定、`X-Forwarded-For` 限速鍵與 `/health/details`。測試注入本機 fetch／HTTP2 transport，不需真實外部憑證。設定 `FIRESTORE_EMULATOR_HOST` 時另外執行真 Firestore 交易的測試（`test/firestore.test.js`），未設定時跳過。`npm run check` 對每個原始檔做語法檢查。
+`npm test` 使用 Node 內建測試器與記憶體 store（與 Firestore store 同一介面、同樣的讀後寫限制與序列化交易），不碰磁碟、不需雲端。涵蓋真实 CAP、空 Feed、舊公告日期、CAP 更新／撤銷、XML namespace／DTD／超量、來源 URL 白名單、超時、429、單一抓取、來源失敗 503、狀態恢復與損毀狀態不服務、裝置 credential／限速、APNs 簽章與推播回應，手機回報的認證、排序、重複、時鐘差異、持久保存、重新註冊／刪除、來源異常和台灣跨日狀態，以及 store 語意、快照讀取端的快取與可用性判斷、推播 claim 的續傳／重送／斷路器／取代／嘗試上限、Job 的租約／退避／退出碼／摘要，和 service 設定、`X-Forwarded-For` 限速鍵與 `/health/details`，以及 fixture 來源（`test/fixture.test.js`：非 sandbox namespace 拒絕、設定 → 推播 → 不重複 → 清除再推播、壞 fixture 的失敗分支、CLI 措辭與參數驗證、以壞環境啟動 CLI 只印錯誤碼）。測試注入本機 fetch／HTTP2 transport，不需真實外部憑證。設定 `FIRESTORE_EMULATOR_HOST` 時另外執行真 Firestore 交易的測試（`test/firestore.test.js`，含以子程序執行 fixture CLI 寫入 emulator、再以 fixture 模式跑完整 `runJob` 到推播完成），未設定時跳過。`npm run check` 對每個原始檔做語法檢查。
 
 尚未驗證：正式 NCDR API Key 回應是否仍使用相同 CAP link 路徑（不同時會明確報來源錯誤，不會放寬白名單）、正式 APNs credentials、實際裝置在背景／低耗電／强制關閉狀態的行為，以及容器部署。這些是正式上線前的實際環境整合工作，不得把本機通過測試描述為已上線。

@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { ServiceError } from './errors.js';
 import { createMemoryStore } from './store.js';
-import { createStoreFromEnv, integerSetting } from './runtime.js';
+import { createStoreFromEnv, firestoreConfiguration, integerSetting } from './runtime.js';
 import { apnsConfiguration, createDispatcher } from './job.js';
 import { SuspensionService } from './service.js';
 import { DeviceRegistry, RevisionBroadcaster } from './devices.js';
@@ -22,6 +22,10 @@ export function localConfig(env = process.env) {
     // Without a key the poller never runs and every read is not_configured,
     // which is still a useful way to check the HTTP surface.
     source: (env.NCDR_SOURCE ?? 'member').trim(),
+    // The fixture source is gated on the namespace, so local mode has to say
+    // which one it is in: under the emulator the one the store really uses,
+    // in memory a label that can reach nothing (and so counts as sandbox).
+    namespace: env.FIRESTORE_EMULATOR_HOST ? firestoreConfiguration(env).namespace : (env.DAYOFF_NAMESPACE ?? 'local_sandbox'),
     apiKey: env.NCDR_API_KEY?.trim() || null,
     pollIntervalMs,
     maxCacheAgeMs: integerSetting(env, 'MAX_CACHE_AGE_MS', 900_000, pollIntervalMs, 86_400_000),
@@ -45,7 +49,7 @@ async function main() {
   const { store, close } = localStore(process.env);
   const registry = new DeviceRegistry({ store });
   const broadcaster = new RevisionBroadcaster({ registry, dispatcher, concurrency: config.concurrency, log });
-  const service = new SuspensionService({ source: config.source, apiKey: config.apiKey, store, pollIntervalMs: config.pollIntervalMs, maxCacheAgeMs: config.maxCacheAgeMs, requestTimeoutMs: config.requestTimeoutMs, push, onRevision: (revision) => broadcaster.enqueue(revision), log });
+  const service = new SuspensionService({ source: config.source, apiKey: config.apiKey, store, namespace: config.namespace, pollIntervalMs: config.pollIntervalMs, maxCacheAgeMs: config.maxCacheAgeMs, requestTimeoutMs: config.requestTimeoutMs, push, onRevision: (revision) => broadcaster.enqueue(revision), log });
   await service.initialize();
   // Phones are served through the same reader the deployed service uses, so
   // what this process shows on /health/details is what production shows.

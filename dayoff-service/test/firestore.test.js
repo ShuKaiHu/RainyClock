@@ -9,6 +9,9 @@ import { SuspensionService, revisionFor } from '../src/service.js';
 import { createSnapshotReader } from '../src/snapshot.js';
 import { broadcastRevision } from '../src/broadcast.js';
 import { runJob } from '../src/job.js';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { FIXTURE_PATH } from '../src/service.js';
 import { cap, atom, CAP_ID, CAP_URL, NOW, xmlResponse, apnsEnv } from './helpers.js';
 
 // The memory store serialises transactions; these tests run the same code
@@ -39,8 +42,8 @@ function firstFinished() {
 
 // firestoreConfiguration refuses a project outside demo- before a client
 // exists, so this helper cannot be pointed at a real database by mistake.
-async function withEmulator(work) {
-  const env = { GOOGLE_CLOUD_PROJECT: 'demo-rc-dayoff', DAYOFF_FIRESTORE_DATABASE: 'dayoff-emulator', DAYOFF_NAMESPACE: `dayoff_test_${randomUUID().replaceAll('-', '')}`, FIRESTORE_EMULATOR_HOST: EMULATOR };
+async function withEmulator(work, prefix = 'dayoff_test_') {
+  const env = { GOOGLE_CLOUD_PROJECT: 'demo-rc-dayoff', DAYOFF_FIRESTORE_DATABASE: 'dayoff-emulator', DAYOFF_NAMESPACE: `${prefix}${randomUUID().replaceAll('-', '')}`, FIRESTORE_EMULATOR_HOST: EMULATOR };
   const { projectId, databaseId, namespace, emulatorHost } = firestoreConfiguration(env);
   const firestore = new Firestore({ projectId, databaseId, host: emulatorHost, ssl: false });
   try {
@@ -216,4 +219,49 @@ test('Firestore: a full Job run commits, broadcasts and clears the pointer; an o
   assert.deepEqual({ exitCode: again.exitCode, refreshed: again.summary.refreshed, changed: again.summary.changed, broadcast: again.summary.broadcast }, { exitCode: 0, refreshed: true, changed: false, broadcast: null });
   assert.equal(sends.length, 2);
   assert.equal((await store.get('state/current')).checkedAt, new Date(NOW + 300_001).toISOString());
+}));
+
+test('Firestore: the fixture CLI writes a sandbox notice and a fixture-mode Job run broadcasts it end to end', options, (t) => withEmulator(async ({ env, store }) => {
+  // Unlike its neighbours this test cannot run on NOW: the CLI stamps sentAt
+  // with the wall clock, so the Job does too, and a device registered on a
+  // frozen date would age past the 90-day TTL and silently stop receiving.
+  const registry = new DeviceRegistry({ store, now: Date.now });
+  await registry.register(registration(1));
+  // The CLI is run as the operator runs it: its own process, its own client
+  // built from the environment, a real Firestore write.
+  const cli = spawnSync(process.execPath, [fileURLToPath(new URL('../src/fixture-cli.js', import.meta.url)), 'set', '--county', '新北市', '--district', '板橋區', '--when', 'today'], { env: { ...env, PATH: process.env.PATH }, encoding: 'utf8' });
+  assert.equal(cli.status, 0, cli.stderr);
+  const written = JSON.parse(cli.stdout);
+  assert.deepEqual({ event: written.event, command: written.command, namespace: written.namespace }, { event: 'dayoff_fixture', command: 'set', namespace: env.DAYOFF_NAMESPACE });
+  assert.deepEqual(await store.get(FIXTURE_PATH), written.document);
+  const sends = [];
+  const transport = async ({ headers }) => { sends.push(headers[':path'].slice('/3/device/'.length)); return { status: 200, body: '' }; };
+  transport.close = () => {};
+  const fetchImpl = async () => { throw new Error('fixture mode must not fetch'); };
+  // The CLI stamped sentAt with the wall clock, so the Job runs on it too:
+  // a frozen NOW would be days behind and the poll would reject the notice
+  // as future-dated, exactly as it should.
+  const jobEnv = { ...env, ...await apnsEnv(t), NCDR_SOURCE: 'fixture', CLOUD_RUN_EXECUTION: 'exec-fixture' };
+  const first = await runJob({ env: jobEnv, fetchImpl, transport, now: Date.now, log: () => {}, stdout: () => {} });
+  assert.deepEqual({ exitCode: first.exitCode, ok: first.summary.ok, source: first.summary.source, changed: first.summary.changed, noticeCount: first.summary.noticeCount, revision: first.summary.revision, broadcast: first.summary.broadcast }, { exitCode: 0, ok: true, source: 'fixture', changed: true, noticeCount: 1, revision: revisionFor(written.document.notices), broadcast: { revision: first.summary.revision, state: 'done', attempts: 1, accepted: 1, failed: 0, unregistered: 0, retryPending: 0, complete: true } });
+  assert.deepEqual(sends, [tokenOf(1)]);
+  const reader = createSnapshotReader({ store, now: Date.now });
+  assert.equal((await reader.getSnapshot()).notices[0].description, '[停班停課通知]新北市板橋區:今天停止上班、停止上課。行政院人事行政總處。');
+  assert.deepEqual(await store.list('caps'), []);
+  assert.equal((await reader.details()).source, 'fixture');
+  // The same fixture again is unchanged; clearing it is a new (empty) revision.
+  const again = await runJob({ env: { ...jobEnv, CLOUD_RUN_EXECUTION: 'exec-fixture-2' }, fetchImpl, transport, now: Date.now, log: () => {}, stdout: () => {} });
+  assert.deepEqual({ changed: again.summary.changed, broadcast: again.summary.broadcast }, { changed: false, broadcast: null });
+  const cleared = spawnSync(process.execPath, [fileURLToPath(new URL('../src/fixture-cli.js', import.meta.url)), 'clear'], { env: { ...env, PATH: process.env.PATH }, encoding: 'utf8' });
+  assert.equal(cleared.status, 0, cleared.stderr);
+  assert.equal(await store.get(FIXTURE_PATH), null);
+  const empty = await runJob({ env: { ...jobEnv, CLOUD_RUN_EXECUTION: 'exec-fixture-3' }, fetchImpl, transport, now: Date.now, log: () => {}, stdout: () => {} });
+  assert.deepEqual({ changed: empty.summary.changed, noticeCount: empty.summary.noticeCount, revision: empty.summary.revision, accepted: empty.summary.broadcast.accepted }, { changed: true, noticeCount: 0, revision: revisionFor([]), accepted: 1 });
+  assert.equal(sends.length, 2);
+}, 'dayoff_sandbox_test_'));
+
+test('Firestore: a production-looking namespace refuses the fixture source before any document is touched', options, () => withEmulator(async ({ env, store }) => {
+  await assert.rejects(runJob({ env: { ...env, NCDR_SOURCE: 'fixture' }, store, log: () => {}, stdout: () => {} }), /fixture_not_allowed/);
+  assert.equal(await store.get('state/lease'), null);
+  assert.equal(await store.get('state/current'), null);
 }));

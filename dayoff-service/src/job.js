@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { createApnsDispatcher } from '../apns.js';
 import { ServiceError } from './errors.js';
 import { firestoreConfiguration, createStoreFromEnv, integerSetting } from './runtime.js';
-import { SuspensionService, SOURCES } from './service.js';
+import { SuspensionService, FIXTURE_SOURCE, knownSource, fixtureAllowed } from './service.js';
 import { DeviceRegistry } from './devices.js';
 import { broadcastRevision } from './broadcast.js';
 
@@ -46,9 +46,13 @@ export function apnsConfiguration(env) {
 export function jobConfig(env = process.env) {
   const source = (env.NCDR_SOURCE ?? 'member').trim();
   const apiKey = env.NCDR_API_KEY?.trim() || null;
-  if (!Object.hasOwn(SOURCES, source)) throw new ServiceError('invalid_configuration');
+  if (!knownSource(source)) throw new ServiceError('invalid_configuration');
   if (source === 'member' && !apiKey) throw new ServiceError('invalid_configuration');
-  if (source === 'open-data' && apiKey) throw new ServiceError('invalid_configuration');
+  if (source !== 'member' && apiKey) throw new ServiceError('invalid_configuration');
+  const firestore = firestoreConfiguration(env);
+  // The fixture source reads whatever an operator wrote; only a namespace
+  // that says sandbox may ever be served from it.
+  if (source === FIXTURE_SOURCE && !fixtureAllowed(firestore.namespace)) throw new ServiceError('fixture_not_allowed');
   const leaseMs = integerSetting(env, 'LEASE_MS', 120_000, 10_000, 600_000);
   const leaseRenewMs = integerSetting(env, 'LEASE_RENEW_MS', 30_000, 1000, 600_000);
   if (leaseRenewMs >= leaseMs) throw new ServiceError('invalid_configuration');
@@ -67,7 +71,7 @@ export function jobConfig(env = process.env) {
     // Execution-level, so a task retry of the same execution takes over the
     // lease its killed predecessor still holds.
     owner: env.CLOUD_RUN_EXECUTION?.trim() || randomUUID(),
-    firestore: firestoreConfiguration(env)
+    firestore
   };
 }
 
@@ -166,7 +170,7 @@ export async function runJob({ env = process.env, store: injectedStore, closeSto
           .finally(() => { renewal = null; });
       }, config.leaseRenewMs);
       heartbeat.unref();
-      const service = new SuspensionService({ source: config.source, apiKey: config.apiKey, store, owner, fetchImpl, now, pollIntervalMs: config.pollIntervalMs, requestTimeoutMs: config.requestTimeoutMs, push: { configured: Boolean(dispatcher), mode: dispatcher ? config.pushMode : null }, log });
+      const service = new SuspensionService({ source: config.source, apiKey: config.apiKey, store, owner, namespace: config.firestore.namespace, fetchImpl, now, pollIntervalMs: config.pollIntervalMs, requestTimeoutMs: config.requestTimeoutMs, push: { configured: Boolean(dispatcher), mode: dispatcher ? config.pushMode : null }, log });
       await service.initialize();
       if (now() < service.nextAttemptAt) summary.skipped = 'backoff';
       summary.refreshed = await service.refresh();

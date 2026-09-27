@@ -7,6 +7,7 @@ import { localConfig, localStore } from '../src/local.js';
 import { createHTTPServer } from '../src/http.js';
 import { createSnapshotReader } from '../src/snapshot.js';
 import { DeviceRegistry } from '../src/devices.js';
+import { SuspensionService } from '../src/service.js';
 import { NOW, memoryStore } from './helpers.js';
 
 const SERVER = fileURLToPath(new URL('../src/server.js', import.meta.url));
@@ -118,7 +119,17 @@ test('server.js started with a bad environment prints one startup_failed line wi
 
 test('local mode uses the memory store unless the emulator is named, and never a real project', async () => {
   const config = localConfig({});
-  assert.deepEqual(config, { source: 'member', apiKey: null, pollIntervalMs: 300_000, maxCacheAgeMs: 900_000, requestTimeoutMs: 10_000, cacheMs: 5000, port: 8080, concurrency: 4, apns: null, pushMode: 'alert' });
+  assert.deepEqual(config, { source: 'member', namespace: 'local_sandbox', apiKey: null, pollIntervalMs: 300_000, maxCacheAgeMs: 900_000, requestTimeoutMs: 10_000, cacheMs: 5000, port: 8080, concurrency: 4, apns: null, pushMode: 'alert' });
+  // The namespace is what the fixture source is gated on: the emulator's
+  // default is the production name, so fixture needs a sandbox one there.
+  const emulatorEnv = { FIRESTORE_EMULATOR_HOST: '127.0.0.1:8686', ...baseEnv };
+  assert.equal(localConfig(emulatorEnv).namespace, 'dayoff_production_v1');
+  assert.equal(localConfig({ ...emulatorEnv, DAYOFF_NAMESPACE: 'dayoff_sandbox_local' }).namespace, 'dayoff_sandbox_local');
+  const fixture = localConfig({ ...emulatorEnv, NCDR_SOURCE: 'fixture', DAYOFF_NAMESPACE: 'dayoff_sandbox_local' });
+  assert.equal(new SuspensionService({ source: fixture.source, store: memoryStore(), namespace: fixture.namespace }).configured, true);
+  const production = localConfig({ ...emulatorEnv, NCDR_SOURCE: 'fixture' });
+  assert.throws(() => new SuspensionService({ source: production.source, store: memoryStore(), namespace: production.namespace }), /fixture_not_allowed/);
+  assert.throws(() => localConfig({ ...emulatorEnv, DAYOFF_NAMESPACE: 'bad/namespace' }), /invalid_configuration/);
   assert.throws(() => localConfig({ APNS_TEAM_ID: 'TEAM123456' }), /invalid_apns_configuration/);
   assert.throws(() => localConfig({ MAX_CACHE_AGE_MS: '60000' }), /invalid_configuration/);
   const memory = localStore({});
