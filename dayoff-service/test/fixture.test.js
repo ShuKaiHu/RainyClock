@@ -210,3 +210,24 @@ test('run directly with a bad environment, the CLI exits 1 and prints only a fai
   const output = empty.stdout + empty.stderr + production.stdout + production.stderr + command.stdout + command.stderr + flag.stdout + flag.stderr;
   for (const forbidden of [SECRET, 'KEY1234567', 'demo-rc-dayoff', 'dayoff-emulator']) assert.equal(output.includes(forbidden), false, forbidden);
 });
+
+test('the operator token replaces stale ADC for laptop tools only, and is never printed', async () => {
+  const { operatorAuthClient } = await import('../src/runtime.js');
+  assert.equal(await operatorAuthClient({}), undefined);
+  assert.equal(await operatorAuthClient({ DAYOFF_ACCESS_TOKEN: '  ' }), undefined);
+  assert.equal(await operatorAuthClient({ DAYOFF_ACCESS_TOKEN: 'ya29.fake', FIRESTORE_EMULATOR_HOST: '127.0.0.1:8686' }), undefined, 'the emulator needs no token');
+  const client = await operatorAuthClient({ DAYOFF_ACCESS_TOKEN: 'ya29.fake-operator-token' });
+  assert.equal(client.credentials.access_token, 'ya29.fake-operator-token');
+
+  const handed = [];
+  const lines = [];
+  const store = memoryStore();
+  const createStore = (_env, options) => { handed.push(options.authClient); return { store, close: async () => {} }; };
+  const env = { ...sandboxEnv, DAYOFF_ACCESS_TOKEN: 'ya29.fake-operator-token' };
+  const result = await runFixtureCli({ argv: ['set', '--county', '新北市', '--district', '板橋區'], env, now: () => NOW, createStore, stderr: (line) => lines.push(line) });
+  assert.equal(handed[0].credentials.access_token, 'ya29.fake-operator-token');
+  assert.equal(JSON.stringify(result).includes('ya29'), false);
+  assert.equal(lines.join('').includes('ya29'), false);
+  await runFixtureCli({ argv: ['show'], env: sandboxEnv, createStore });
+  assert.equal(handed[1], undefined, 'without a token the SDK falls back to its own credentials');
+});

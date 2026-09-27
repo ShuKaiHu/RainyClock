@@ -24,6 +24,10 @@ esac
 R=asia-east1
 JOB=rainyclock-dayoff-poll-sandbox
 
+# The gcloud login, not Application Default Credentials: ADC on this kind of
+# machine is often lapsed or tied to another project, and gcloud is already
+# required for the execution below. The token lives only in node's env.
+DAYOFF_ACCESS_TOKEN=$(gcloud auth print-access-token) \
 GOOGLE_CLOUD_PROJECT=rainyclock DAYOFF_FIRESTORE_DATABASE=dayoff-production DAYOFF_NAMESPACE=dayoff_sandbox_v1 \
   node src/fixture-cli.js "$@"
 

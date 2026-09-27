@@ -5,5 +5,5 @@
   "type": "module",
   "engines": { "node": ">=22 <23" },
   "scripts": { "start": "node src/server.js", "job": "node src/job.js", "fixture": "node src/fixture-cli.js", "local": "node --env-file-if-exists=.env src/local.js", "test": "node --test test/*.test.js", "check": "node --check src/server.js && node --check src/job.js && node --check src/fixture-cli.js && node --check src/local.js && node --check src/http.js && node --check src/service.js && node --check src/snapshot.js && node --check src/broadcast.js && node --check src/devices.js && node --check src/store.js && node --check src/runtime.js && node --check src/parser.js && node --check src/errors.js && node --check apns.js" },
-  "dependencies": { "@google-cloud/firestore": "9.1.0", "fast-xml-parser": "5.10.1" }
+  "dependencies": { "@google-cloud/firestore": "9.1.0", "fast-xml-parser": "5.10.1", "google-auth-library": "11.1.0" }
 }

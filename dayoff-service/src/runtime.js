@@ -34,8 +34,24 @@ export function integerSetting(env, name, fallback, min, max) {
   return Number(value);
 }
 
-export function createStoreFromEnv(env = process.env, { log } = {}) {
+// authClient is for laptop tools only. Cloud Run uses the service account's
+// metadata credentials and never passes one; see operatorAuthClient().
+export function createStoreFromEnv(env = process.env, { log, authClient } = {}) {
   const { projectId, databaseId, namespace, emulatorHost } = firestoreConfiguration(env);
-  const firestore = new Firestore({ projectId, databaseId, ...(emulatorHost ? { host: emulatorHost, ssl: false } : {}) });
+  const firestore = new Firestore({ projectId, databaseId, ...(emulatorHost ? { host: emulatorHost, ssl: false } : authClient ? { authClient } : {}) });
   return { store: createFirestoreStore({ firestore, namespace, log }), close: () => firestore.terminate() };
+}
+
+// An operator's short-lived OAuth token (`gcloud auth print-access-token`),
+// handed over by deploy/fixture.sh in DAYOFF_ACCESS_TOKEN. Application Default
+// Credentials on a developer Mac are often stale or belong to another
+// project; the gcloud login that runs every other deploy step is the one that
+// is known to work. Imported lazily so the services never load it.
+export async function operatorAuthClient(env = process.env) {
+  const token = env.DAYOFF_ACCESS_TOKEN?.trim();
+  if (!token || env.FIRESTORE_EMULATOR_HOST) return undefined;
+  const { OAuth2Client } = await import('google-auth-library');
+  const client = new OAuth2Client();
+  client.setCredentials({ access_token: token });
+  return client;
 }

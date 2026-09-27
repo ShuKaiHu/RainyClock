@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { ServiceError } from './errors.js';
-import { firestoreConfiguration, createStoreFromEnv } from './runtime.js';
+import { firestoreConfiguration, createStoreFromEnv, operatorAuthClient } from './runtime.js';
 import { FIXTURE_PATH, fixtureAllowed, fixtureFeed } from './service.js';
 
 // Operator CLI for the sandbox stack: writes the announcement the fixture
@@ -107,7 +107,8 @@ export async function runFixtureCli({ argv, env = process.env, now = Date.now, d
   // event carries nothing else): without them an expired ADC, a missing
   // datastore.user grant and a mistyped database id all read as the same
   // storage_unavailable.
-  const { store, close } = createStore(env, { log: (event) => stderr(JSON.stringify({ event: event.event, grpcCode: event.grpcCode ?? null }) + '\n') });
+  const authClient = await operatorAuthClient(env);
+  const { store, close } = createStore(env, { authClient, log: (event) => stderr(JSON.stringify({ event: event.event, grpcCode: event.grpcCode ?? null }) + '\n') });
   try {
     if (command === 'set') await store.set(FIXTURE_PATH, document);
     else if (command === 'clear') await store.delete(FIXTURE_PATH);
