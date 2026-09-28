@@ -69,7 +69,7 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
             content.body = result.body
             content.sound = .default
             content.interruptionLevel = .active
-        case .unrelated:
+        case .unrelated, .alreadyApplied:
             content.title = result.title
             content.body = result.body
             content.sound = nil

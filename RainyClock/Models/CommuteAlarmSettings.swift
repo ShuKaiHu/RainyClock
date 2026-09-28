@@ -469,6 +469,19 @@ struct ScheduledAlarmSummary: Codable, Equatable {
 }
 
 extension ScheduledAlarmSummary {
+    /// What the day-off notification extension needs about the schedule, read from what
+    /// was actually committed rather than recomputed: the next normal dates still in the
+    /// calendar plan plus the ones already skipped for a closure (the plan no longer holds
+    /// those), and the skipped ones on their own. Without a calendar plan (plain weekly
+    /// schedule) the single next normal date is all there is. An all-silent plan yields
+    /// none — its `normalAlarmDate` is only the coverage boundary, not an alarm.
+    func dayOffAlarmDates(after now: Date, limit: Int = DayOffSharedState.upcomingDateLimit) -> (upcoming: [Date], skipped: [Date]) {
+        let skipped = Array(Set((disasterSkips ?? []).map(\.normalDate).filter { $0 > now })).sorted()
+        let scheduled = calendarPlan.map { $0.occurrences.map(\.normalDate) } ?? [normalAlarmDate]
+        let upcoming = Array(Set(scheduled + skipped).filter { $0 > now }).sorted()
+        return (Array(upcoming.prefix(limit)), skipped)
+    }
+
     /// Returns the summary with past dates advanced to their next weekly occurrence,
     /// so a summary reloaded after relaunch still describes the upcoming ring.
     func rollingForward(

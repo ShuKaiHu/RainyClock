@@ -7,9 +7,14 @@ import Foundation
 /// notification can never claim more than the alarm would act on.
 enum DayOffPushContent {
     enum Urgency: String, Equatable, Sendable {
-        /// A current, matching suspension for one of the user's districts: sound,
-        /// time-sensitive. The alarm will (or already did) honour it when the app runs.
+        /// A current, matching suspension for one of the user's districts that the
+        /// app has not applied yet: sound, time-sensitive. The alarm will honour it
+        /// when the app runs.
         case matched
+        /// The announcement concerns a day the app has already skipped. True, but
+        /// not news: silent and passive, so a typhoon night's stream of other
+        /// counties' updates does not ring this phone once per revision.
+        case alreadyApplied
         /// The user's district has a new announcement that does not silence the
         /// alarm (partial area, unrecognised wording, contradictory data): sound,
         /// normal urgency, with the reason.
@@ -56,26 +61,61 @@ enum DayOffPushContent {
         return chinese ? "\(credit)，更新 \(time)" : "\(credit), updated \(time)"
     }
 
+    /// The day an announcement concerns, in Taipei time like the announcements themselves.
+    static func dayLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = DisasterNoticeParser.taipeiCalendar.timeZone
+        formatter.dateFormat = "M/d"
+        return formatter.string(from: date)
+    }
+
     static func evaluate(state: DayOffSharedState?, feed: DisasterFeed?, now: Date, chinese: Bool) -> Result {
         let generic = Result(urgency: .unknown,
                              title: chinese ? "停班停課公告已更新" : "Work/school closure update",
                              body: chinese ? "打開雨天鬧鐘確認下一次鬧鐘。" : "Open Rainy Clock to check your next alarm.")
         guard let state, state.enabled, state.observesWork || state.observesSchool,
               state.home?.isValid == true || state.destination?.isValid == true,
-              let alarmDate = state.normalAlarmDate, alarmDate > now,
               let feed else { return generic }
-        let decision = DisasterSuspensionEvaluator.decision(
-            feed: feed, normalAlarmDate: alarmDate, now: now,
-            home: state.home, destination: state.destination,
-            observesWork: state.observesWork, observesSchool: state.observesSchool)
-        if decision.shouldSkip {
-            let area = decision.area ?? ""
-            return Result(urgency: .matched,
-                          title: chinese ? decision.reason : "\(area): closure announced",
-                          body: (chinese ? "下一次鬧鐘會依你的設定處理，打開 App 確認。\n"
-                                         : "Your next alarm will follow your settings. Open the app to confirm.\n")
-                              + sourceLine(updatedAt: feed.sourceUpdatedAt ?? decision.sourceUpdatedAt, chinese: chinese))
+        // Every upcoming normal date, including ones the app already skipped: a repeat
+        // announcement for a day that is already off must still read as a match.
+        let dates = state.candidateAlarmDates(after: now)
+        guard let nearest = dates.first else { return generic }
+        func decide(_ date: Date) -> DisasterDecision {
+            DisasterSuspensionEvaluator.decision(
+                feed: feed, normalAlarmDate: date, now: now,
+                home: state.home, destination: state.destination,
+                observesWork: state.observesWork, observesSchool: state.observesSchool)
         }
+        let suppressing = dates.compactMap { date -> (Date, DisasterDecision)? in
+            let decision = decide(date)
+            return decision.shouldSkip ? (date, decision) : nil
+        }
+        func matched(_ date: Date, _ decision: DisasterDecision, urgency: Urgency, action: String) -> Result {
+            Result(urgency: urgency,
+                   title: chinese ? decision.reason : "\(decision.area ?? ""): closure announced",
+                   body: action + "\n" + sourceLine(updatedAt: feed.sourceUpdatedAt ?? decision.sourceUpdatedAt, chinese: chinese))
+        }
+        // News first: a closure the app has not applied yet outranks a day that is
+        // already off, even when the already-off day comes earlier.
+        if let (date, decision) = suppressing.first(where: { !state.isAlreadySkipped($0.0) }) {
+            let day = dayLabel(date)
+            let action = date == nearest
+                ? (chinese ? "下一次鬧鐘會依你的設定處理，打開 App 確認。" : "Your next alarm will follow your settings. Open the app to confirm.")
+                : (chinese ? "\(day) 的鬧鐘會依你的設定處理，打開 App 確認。" : "\(day): that day's alarm will follow your settings. Open the app to confirm.")
+            return matched(date, decision, urgency: .matched, action: action)
+        }
+        if let (date, decision) = suppressing.first {
+            let day = dayLabel(date)
+            return matched(date, decision, urgency: .alreadyApplied,
+                           action: chinese ? "\(day) 當天的鬧鐘已略過。" : "\(day): that day's alarm has already been skipped.")
+        }
+        // Nothing suppresses any more, yet the nearest day is one the app skipped:
+        // the phone and the announcements disagree until the app runs again, and
+        // "the alarm rings as usual" would name a day that is not armed. Say nothing
+        // specific; the generic text asks the user to open the app.
+        if state.isAlreadySkipped(nearest) { return generic }
+        let decision = decide(nearest)
         switch decision.status {
         case "noAnnouncement":
             return Result(urgency: .unrelated, title: generic.title,

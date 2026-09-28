@@ -108,7 +108,9 @@ final class DayOffPushContentTests: XCTestCase {
         let suite = "DayOffSharedStateTests-\(UUID())"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let original = state()
+        var original = state()
+        original.upcomingNormalAlarmDates = [tomorrowAlarm(), tomorrowAlarm().addingTimeInterval(86_400)]
+        original.skippedNormalAlarmDates = [tomorrowAlarm()]
         original.save(to: defaults)
         XCTAssertEqual(DayOffSharedState.load(from: defaults), original)
         let json = try XCTUnwrap(String(data: JSONEncoder().encode(original), encoding: .utf8))
@@ -117,5 +119,164 @@ final class DayOffPushContentTests: XCTestCase {
         }
         DayOffSharedState.clear(from: defaults)
         XCTAssertNil(DayOffSharedState.load(from: defaults))
+    }
+
+    // MARK: - Repeat announcement for a day already skipped (device report 2026-09-28)
+
+    private let tainan = DisasterRegion(county: "臺南市", district: "善化區")
+    private let anding = DisasterRegion(county: "臺南市", district: "安定區")
+
+    private func taipei(_ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour, minute: minute))!
+    }
+
+    private func tainanFeed(sentAt: Date, checkedAt: Date) -> DisasterFeed {
+        DisasterFeed(checkedAt: checkedAt, notices: [
+            DisasterNotice(id: "tainan-0929", sentAt: sentAt,
+                           description: "[停班停課通知]臺南市:明天停止上班、停止上課。行政院人事行政總處。",
+                           severity: "Extreme", geocodes: ["67000"]),
+        ])
+    }
+
+    /// What the app committed at 18:47 after verifying the 9/29 closure: weekdays 07:20,
+    /// 9/29 filtered out of the plan and recorded as a disaster skip, 9/30 the next ring.
+    private func summaryAfterSkippingTomorrow() -> ScheduledAlarmSummary {
+        let ringing = [taipei(9, 30, 7, 20), taipei(10, 1, 7, 20), taipei(10, 2, 7, 20),
+                       taipei(10, 5, 7, 20), taipei(10, 6, 7, 20), taipei(10, 7, 7, 20),
+                       taipei(10, 8, 7, 20), taipei(10, 9, 7, 20)]
+        let plan = CalendarAlarmPlan(occurrences: ringing.map { .init(normalDate: $0, ringDate: $0) },
+                                     coveredUntil: taipei(10, 12, 0, 0), timeZoneID: "Asia/Taipei")
+        var summary = ScheduledAlarmSummary(
+            normalAlarmDate: ringing[0], scheduledAlarmDate: ringing[0],
+            weatherRefreshDate: ringing[0].addingTimeInterval(-3_600), exceedsRainThreshold: false,
+            leadTimeMinutes: 0, rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0,
+            calendarPlan: plan)
+        summary.disasterSkips = [AppliedDisasterSkip(normalDate: taipei(9, 29, 7, 20), noticeIDs: ["tainan-0929"],
+                                                     appliedAt: taipei(9, 28, 18, 47))]
+        return summary
+    }
+
+    private func mirroredState(from summary: ScheduledAlarmSummary, at time: Date) -> DayOffSharedState {
+        let dates = summary.dayOffAlarmDates(after: time)
+        return DayOffSharedState(enabled: true, observesWork: true, observesSchool: true, home: tainan, destination: anding,
+                                 normalAlarmDate: summary.normalAlarmDate, serviceURL: URL(string: "https://example.invalid"),
+                                 updatedAt: time, upcomingNormalAlarmDates: dates.upcoming, skippedNormalAlarmDates: dates.skipped)
+    }
+
+    func testMirroredDatesIncludeTheSkippedDayAndStopAtTheLimit() {
+        let dates = summaryAfterSkippingTomorrow().dayOffAlarmDates(after: taipei(9, 28, 18, 47))
+        XCTAssertEqual(dates.skipped, [taipei(9, 29, 7, 20)])
+        XCTAssertEqual(dates.upcoming.count, DayOffSharedState.upcomingDateLimit)
+        XCTAssertEqual(Array(dates.upcoming.prefix(2)), [taipei(9, 29, 7, 20), taipei(9, 30, 7, 20)])
+        XCTAssertEqual(dates.upcoming, dates.upcoming.sorted())
+    }
+
+    func testWeeklyScheduleWithoutAPlanMirrorsItsSingleNextDate() {
+        let next = taipei(9, 29, 7, 20)
+        let summary = ScheduledAlarmSummary(normalAlarmDate: next, scheduledAlarmDate: next, weatherRefreshDate: next,
+                                            exceedsRainThreshold: false, leadTimeMinutes: 0, rainProbabilityThreshold: 0.5,
+                                            maximumPrecipitationProbability: 0)
+        let dates = summary.dayOffAlarmDates(after: taipei(9, 28, 18, 47))
+        XCTAssertEqual(dates.upcoming, [next])
+        XCTAssertEqual(dates.skipped, [])
+    }
+
+    func testRepeatAnnouncementForAnAlreadySkippedDayIsRecognisedQuietly() {
+        let secondPush = taipei(9, 28, 23, 26)
+        let state = mirroredState(from: summaryAfterSkippingTomorrow(), at: taipei(9, 28, 18, 47))
+        // The bug: normalAlarmDate alone is 9/30, which the 9/29 announcement never matches.
+        XCTAssertEqual(state.normalAlarmDate, taipei(9, 30, 7, 20))
+        let feed = tainanFeed(sentAt: secondPush, checkedAt: secondPush.addingTimeInterval(30))
+        let now = secondPush.addingTimeInterval(60)
+        let zh = DayOffPushContent.evaluate(state: state, feed: feed, now: now, chinese: true)
+        // Recognised as the user's closure, but not news: no sound at 23:26.
+        XCTAssertEqual(zh.urgency, .alreadyApplied)
+        XCTAssertEqual(zh.title, "臺南市已公告停班停課")
+        XCTAssertEqual(zh.body, "9/29 當天的鬧鐘已略過。\n資料來源：行政院人事行政總處（經 NCDR 發布），更新 9/28 23:26")
+        let en = DayOffPushContent.evaluate(state: state, feed: feed, now: now, chinese: false)
+        XCTAssertEqual(en.urgency, .alreadyApplied)
+        XCTAssertEqual(en.body, "9/29: that day's alarm has already been skipped.\nSource: DGPA via NCDR, updated 9/28 23:26")
+        XCTAssertFalse(en.body.contains("rings as usual"))
+    }
+
+    func testFirstAnnouncementBeforeTheSkipKeepsTheFollowYourSettingsWording() {
+        let firstPush = taipei(9, 28, 18, 43)
+        var summary = summaryAfterSkippingTomorrow()
+        summary.disasterSkips = nil
+        summary.calendarPlan?.occurrences.insert(.init(normalDate: taipei(9, 29, 7, 20), ringDate: taipei(9, 29, 7, 20)), at: 0)
+        summary.normalAlarmDate = taipei(9, 29, 7, 20)
+        let state = mirroredState(from: summary, at: taipei(9, 28, 12, 0))
+        let result = DayOffPushContent.evaluate(state: state, feed: tainanFeed(sentAt: firstPush, checkedAt: firstPush),
+                                                now: firstPush.addingTimeInterval(60), chinese: true)
+        XCTAssertEqual(result.urgency, .matched)
+        XCTAssertTrue(result.body.hasPrefix("下一次鬧鐘會依你的設定處理，打開 App 確認。\n"), result.body)
+    }
+
+    func testAnnouncementForADayWithoutAnAlarmDoesNotMatch() {
+        // Friday evening: "明天" is Saturday, and the weekday alarm next rings on Monday.
+        let push = taipei(10, 2, 20, 0)
+        let summary = summaryAfterSkippingTomorrow()
+        let state = mirroredState(from: summary, at: taipei(10, 2, 8, 0))
+        XCTAssertFalse(state.upcomingNormalAlarmDates!.contains { calendar.isDate($0, inSameDayAs: taipei(10, 3, 0, 0)) })
+        let result = DayOffPushContent.evaluate(state: state, feed: tainanFeed(sentAt: push, checkedAt: push),
+                                                now: push.addingTimeInterval(60), chinese: false)
+        XCTAssertNotEqual(result.urgency, .matched)
+        XCTAssertEqual(result.urgency, .unrelated)
+    }
+
+    func testStateWrittenBeforeTheNewFieldsStillDecodesAndUsesTheNextAlarmOnly() throws {
+        let alarm = tomorrowAlarm()
+        let old = #"{"enabled":true,"observesWork":true,"observesSchool":true,"home":{"county":"新竹縣","district":"尖石鄉"},"#
+            + #""normalAlarmDate":\#(alarm.timeIntervalSinceReferenceDate),"serviceURL":"https:\/\/example.invalid","#
+            + #""updatedAt":\#(now.timeIntervalSinceReferenceDate)}"#
+        let decoded = try JSONDecoder().decode(DayOffSharedState.self, from: Data(old.utf8))
+        XCTAssertNil(decoded.upcomingNormalAlarmDates)
+        XCTAssertNil(decoded.skippedNormalAlarmDates)
+        XCTAssertEqual(decoded, state())
+        let announcement = feed("[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。")
+        let result = DayOffPushContent.evaluate(state: decoded, feed: announcement, now: now, chinese: true)
+        XCTAssertEqual(result.urgency, .matched)
+        XCTAssertTrue(result.body.hasPrefix("下一次鬧鐘會依你的設定處理"), result.body)
+        XCTAssertEqual(DayOffPushContent.evaluate(
+            state: decoded, feed: feed("[停班停課通知]宜蘭縣:明天停止上班、停止上課。行政院人事行政總處。", geocodes: ["10002"]),
+            now: now, chinese: true).urgency, .unrelated)
+    }
+
+    func testANewClosureOutranksADayAlreadySkippedAndNamesItsDay() {
+        let push = taipei(9, 28, 23, 26)
+        let state = mirroredState(from: summaryAfterSkippingTomorrow(), at: taipei(9, 28, 18, 47))
+        var feed = tainanFeed(sentAt: taipei(9, 28, 18, 43), checkedAt: push.addingTimeInterval(30))
+        feed.notices.append(DisasterNotice(id: "tainan-0930", sentAt: push,
+                                           description: "[停班停課通知]臺南市:9/30停止上班、停止上課。行政院人事行政總處。",
+                                           severity: "Extreme", geocodes: ["67000"]))
+        let zh = DayOffPushContent.evaluate(state: state, feed: feed, now: push.addingTimeInterval(60), chinese: true)
+        XCTAssertEqual(zh.urgency, .matched, "9/30 is new; it must ring even though 9/29 is already off")
+        XCTAssertTrue(zh.body.hasPrefix("9/30 的鬧鐘會依你的設定處理"), zh.body)
+        let en = DayOffPushContent.evaluate(state: state, feed: feed, now: push.addingTimeInterval(60), chinese: false)
+        XCTAssertTrue(en.body.hasPrefix("9/30: that day's alarm will follow your settings"), en.body)
+    }
+
+    func testAnotherCountysUpdateOnASkippedNightStaysQuiet() {
+        let push = taipei(9, 29, 2, 10)
+        let state = mirroredState(from: summaryAfterSkippingTomorrow(), at: taipei(9, 28, 18, 47))
+        var feed = tainanFeed(sentAt: taipei(9, 28, 18, 43), checkedAt: push.addingTimeInterval(30))
+        feed.notices.append(DisasterNotice(id: "yilan-0929", sentAt: push,
+                                           description: "[停班停課通知]宜蘭縣:今天停止上班、停止上課。行政院人事行政總處。",
+                                           severity: "Extreme", geocodes: ["10002"]))
+        let result = DayOffPushContent.evaluate(state: state, feed: feed, now: push.addingTimeInterval(60), chinese: true)
+        XCTAssertEqual(result.urgency, .alreadyApplied, "Yilan's update must not wake a Tainan user whose day is already off")
+    }
+
+    func testASkippedNearestDayWithNothingSuppressingSaysNothingSpecific() {
+        let push = taipei(9, 28, 23, 26)
+        let state = mirroredState(from: summaryAfterSkippingTomorrow(), at: taipei(9, 28, 18, 47))
+        // The Tainan notice is gone and only another county remains.
+        let feed = DisasterFeed(checkedAt: push.addingTimeInterval(30), notices: [
+            DisasterNotice(id: "yilan-0929", sentAt: push, description: "[停班停課通知]宜蘭縣:明天停止上班、停止上課。行政院人事行政總處。",
+                           severity: "Extreme", geocodes: ["10002"]),
+        ])
+        let result = DayOffPushContent.evaluate(state: state, feed: feed, now: push.addingTimeInterval(60), chinese: true)
+        XCTAssertEqual(result.urgency, .unknown)
+        XCTAssertFalse(result.body.contains("鬧鐘照常"), "9/29 is not armed; never say it rings")
     }
 }

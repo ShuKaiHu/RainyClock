@@ -52,8 +52,15 @@ iOS 不保證靜默推播或背景更新會執行；一支整晚沒被碰過的�
 
 - 伺服器一有新公告，就對**所有**登記的裝置送同一則可見推播（`APNS_PUSH_MODE=alert`），內容只有本地化的通用文字與公告版本號。伺服器不知道、也不保存任何人的縣市或行政區。
 - App 把使用者在設定裡確認過的住家／目的地行政區、停班／停課開關、下一次鬧鐘的原定日期與服務網址，鏡射到 App Group（`group.com.shukaihu.RainyClock`，`DayOffSharedState`）。只有這些；沒有地址、路線、推播 token 或 credential。鏡射用的是**有效**設定，所以 1.7.0 的 release gate 和會員閘門在擴充功能裡同樣生效。
+  - 欄位：`enabled`、`observesWork`、`observesSchool`、`home`、`destination`（縣市＋區）、`normalAlarmDate`（下一次**會響**的鬧鐘原定時間，為相容保留）、`serviceURL`、`updatedAt`，以及 1.8.0 (38) 起的兩個選填欄位：
+    - `upcomingNormalAlarmDates`：排程視窗內接下來最多 7 個原定鬧鐘時間（由早到晚），**包含**已因停班停課略過的日子。取自 App 實際送出的 `ScheduledAlarmSummary`（`calendarPlan` 的 occurrences 加上 `disasterSkips`），不另行重算；沒有日曆計畫的每週排程就只有 `normalAlarmDate` 一筆。
+    - `skippedNormalAlarmDates`：其中已經套用停班停課略過（`AppliedDisasterSkip`）的日子。
+  - 為何需要：2026-09-28 真機測試時，App 18:47 已略過 9/29，`normalAlarmDate` 隨即變成 9/30；23:26 第二則同樣針對 9/29 的公告被擴充功能拿去和 9/30 比對，誤寫成「與你設定的地區無關，鬧鐘照常」。重複公告正好出現在已略過之後，所以擴充功能必須看得到已略過的日子。
+  - 舊版 App 寫入、沒有這兩個欄位的資料仍可解碼，擴充功能退回只用 `normalAlarmDate` 判斷。
 - `RainyClockDayOffNotification`（Notification Service Extension）在推播到達時由系統喚醒，App 不必在跑。它讀 App Group、自行 GET `/v1/suspensions`，用**和鬧鐘同一個** `DisasterSuspensionEvaluator` 判斷，再改寫通知（`DayOffPushContent`）：
-  - 符合：標題「新竹縣尖石鄉已公告停班停課」，有聲音、時效性等級，鎖定畫面直接看到。
+  - 依序（由早到晚）拿每個 `upcomingNormalAlarmDates` 去判斷，第一個會略過的日子即為符合。
+  - 符合：標題「新竹縣尖石鄉已公告停班停課」，有聲音、時效性等級，鎖定畫面直接看到。若該日已在 `skippedNormalAlarmDates` 裡，正文為「9/29 當天的鬧鐘已略過。」（英文 "9/29: that day's alarm has already been skipped."）；否則仍是「下一次鬧鐘會依你的設定處理」。兩者都附資料來源行。
+  - 沒有任何日子符合時，以下的相關／無關／判斷不了，都以最近一個原定鬧鐘日判斷。
   - 相關但不略過（村里層級、句型未知、資料矛盾）：通用標題，正文是判斷理由，有聲音。
   - 無關：通用標題，「與你設定的地區無關，鬧鐘照常」，無聲、被動等級，只留在通知中心。
   - 判斷不了（功能關閉、沒設行政區、沒有下一次鬧鐘、拉不到公告）：不改寫，系統顯示伺服器的通用文字。

@@ -1658,10 +1658,14 @@ final class AlarmViewModel: ObservableObject {
 
     /// What the notification service extension may read while the app is closed:
     /// the *effective* disaster rules (so the release gate and membership
-    /// gates apply there too) and the next alarm's normal date. Never addresses.
+    /// gates apply there too), the next alarm's normal date, and the next few
+    /// scheduled normal dates including those already skipped for a closure — a
+    /// repeat announcement for a skipped day must still be recognised. Never addresses.
     private func mirrorDayOffSharedState() {
         guard !AppEnvironment.isRunningTests else { return }
         let effective = effectiveSchedulingSettings
+        let now = Date()
+        let dates = scheduledAlarmSummary?.dayOffAlarmDates(after: now)
         DayOffSharedState(enabled: effective.isDisasterSuspensionEnabled,
                           observesWork: effective.observesWorkSuspensions,
                           observesSchool: effective.observesSchoolSuspensions,
@@ -1669,7 +1673,9 @@ final class AlarmViewModel: ObservableObject {
                           destination: effective.workSuspensionRegion,
                           normalAlarmDate: scheduledAlarmSummary?.normalAlarmDate,
                           serviceURL: AppEnvironment.dayOffServiceURL,
-                          updatedAt: Date()).save()
+                          updatedAt: now,
+                          upcomingNormalAlarmDates: dates?.upcoming,
+                          skippedNormalAlarmDates: dates?.skipped).save()
     }
 
     private static func loadScheduledAlarmSummary(from storage: UserDefaults) -> ScheduledAlarmSummary? {

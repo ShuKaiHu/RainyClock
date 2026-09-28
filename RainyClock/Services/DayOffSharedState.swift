@@ -20,6 +20,29 @@ struct DayOffSharedState: Codable, Equatable, Sendable {
     var normalAlarmDate: Date?
     var serviceURL: URL?
     var updatedAt: Date
+    /// The next few normal ring dates the app scheduled (earliest first), *including*
+    /// dates it has already skipped for a closure. A repeat announcement usually arrives
+    /// after the skip, when `normalAlarmDate` has already moved on to the following
+    /// ringing day. Absent in state written before 1.8.0 (38); the extension then falls
+    /// back to `normalAlarmDate` alone.
+    var upcomingNormalAlarmDates: [Date]? = nil
+    /// The normal dates among those that the app already skipped for a closure
+    /// (committed `AppliedDisasterSkip`s). Absent in older state.
+    var skippedNormalAlarmDates: [Date]? = nil
+
+    /// How many upcoming dates the app mirrors. Announcements target today or tomorrow;
+    /// a week covers any skip plus the next ringing day with room to spare.
+    static let upcomingDateLimit = 7
+
+    /// The dates an announcement is checked against, earliest first, still in the future.
+    func candidateAlarmDates(after now: Date) -> [Date] {
+        let dates = upcomingNormalAlarmDates ?? normalAlarmDate.map { [$0] } ?? []
+        return Array(Set(dates.filter { $0 > now })).sorted()
+    }
+
+    func isAlreadySkipped(_ date: Date) -> Bool {
+        (skippedNormalAlarmDates ?? []).contains { abs($0.timeIntervalSince(date)) < 60 }
+    }
 
     static func sharedDefaults() -> UserDefaults? {
         UserDefaults(suiteName: appGroupIdentifier)
