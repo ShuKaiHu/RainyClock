@@ -75,6 +75,7 @@ final class MembershipStoreKitTests: XCTestCase {
         }
         XCTAssertTrue(purchased.owns(.monthly))
         XCTAssertFalse(purchased.owns(.yearly))
+        XCTAssertTrue(purchased.temporaryClosures, "the monthly subscription includes the day-off rule")
         let transactions = await entitlements()
         let transaction = try XCTUnwrap(transactions.first { $0.productID == monthly.id })
         let expiry = try XCTUnwrap(purchased.subscriptionExpiresAt)
@@ -99,6 +100,7 @@ final class MembershipStoreKitTests: XCTestCase {
         }
         XCTAssertFalse(expired.owns(.monthly))
         XCTAssertFalse(expired.calendar)
+        XCTAssertFalse(expired.temporaryClosures)
     }
 
     func testLocalProductsPurchaseRestoreRenewExpireAndRefund() async throws {
@@ -136,6 +138,7 @@ final class MembershipStoreKitTests: XCTestCase {
             $0.preferredPlan == .lifetime && $0.subscriptionActive && $0.subscriptionAutoRenews == true
         }
         XCTAssertTrue(upgraded.calendar)
+        XCTAssertTrue(upgraded.temporaryClosures)
         XCTAssertTrue(upgraded.removeBanner)
         XCTAssertTrue(upgraded.dailyAI)
         XCTAssertFalse(upgraded.canPurchase(.monthly))
@@ -155,6 +158,7 @@ final class MembershipStoreKitTests: XCTestCase {
             $0.lifetimeActive && !$0.subscriptionActive
         }
         XCTAssertTrue(lifetimeOnly.calendar)
+        XCTAssertTrue(lifetimeOnly.temporaryClosures, "the one-time purchase alone includes the day-off rule")
         XCTAssertTrue(lifetimeOnly.removeBanner)
         XCTAssertTrue(lifetimeOnly.dailyAI)
         XCTAssertEqual(lifetimeOnly.preferredPlan, .lifetime)
@@ -169,6 +173,7 @@ final class MembershipStoreKitTests: XCTestCase {
             !$0.lifetimeActive && !$0.subscriptionActive
         }
         XCTAssertFalse(free.calendar)
+        XCTAssertFalse(free.temporaryClosures)
         XCTAssertFalse(free.removeBanner)
         XCTAssertFalse(free.dailyAI)
         XCTAssertTrue(free.canPurchase(.monthly))
@@ -230,6 +235,7 @@ final class MembershipStoreKitTests: XCTestCase {
             !$0.lifetimeActive && $0.preferredPlan == .monthly && $0.subscriptionAutoRenews == true
         }
         XCTAssertTrue(fallback.calendar)
+        XCTAssertTrue(fallback.temporaryClosures)
         XCTAssertTrue(fallback.removeBanner)
         XCTAssertTrue(fallback.dailyAI)
         XCTAssertTrue(fallback.canPurchase(.lifetime))

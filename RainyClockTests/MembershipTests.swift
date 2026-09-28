@@ -829,7 +829,7 @@ final class MembershipTests: XCTestCase {
         XCTAssertTrue(expired.calendar)
         XCTAssertEqual(expired.preferredPlan, .lifetime)
         XCTAssertFalse(expired.canPurchase(.monthly))
-        XCTAssertFalse(expired.temporaryClosures)
+        XCTAssertTrue(expired.temporaryClosures, "the one-time purchase includes the day-off rule (2026-09-28)")
     }
 
     func testLifetimeTakesPriorityWithoutHidingOrCancellingAnExistingSubscription() {
@@ -847,13 +847,14 @@ final class MembershipTests: XCTestCase {
     }
 
     func testLifetimeOwnerCannotPurchaseASubscriptionAfterItExpires() {
-        let lifetime = MembershipEntitlements(removeBanner: true, calendar: true, temporaryClosures: false,
+        let lifetime = MembershipEntitlements(removeBanner: true, calendar: true, temporaryClosures: true,
             dailyAI: true, subscriptionActive: false, lifetimeActive: true)
         XCTAssertEqual(lifetime.preferredPlan, .lifetime)
         XCTAssertNil(lifetime.currentSubscriptionPlan)
         XCTAssertFalse(lifetime.canPurchase(.monthly))
         XCTAssertFalse(lifetime.canPurchase(.yearly))
         XCTAssertTrue(lifetime.valid(at: Date.distantFuture).calendar)
+        XCTAssertTrue(lifetime.valid(at: Date.distantFuture).temporaryClosures)
     }
 
     func testSubscriberCanUpgradeToLifetimeWhileFreeCanChooseEitherOfferedPlan() {
@@ -1106,7 +1107,7 @@ final class MembershipSchedulingTests: XCTestCase {
         XCTAssertEqual(effective.alarmTime, saved.alarmTime)
     }
 
-    func testLifetimeCalendarStillAppliesAfterSubscriptionExpiry() {
+    func testLifetimeCalendarAndClosuresStillApplyAfterSubscriptionExpiry() {
         let saved = savedSettings()
         let both = MembershipEntitlements(removeBanner: true, calendar: true, temporaryClosures: true,
             dailyAI: true, subscriptionActive: true, lifetimeActive: true, subscriptionExpiresAt: 1)
@@ -1114,7 +1115,20 @@ final class MembershipSchedulingTests: XCTestCase {
             entitlements: both.valid(at: Date(timeIntervalSince1970: 2)))
         XCTAssertTrue(effective.calendarSettings.isEnabled)
         XCTAssertEqual(effective.calendarSettings, saved.calendarSettings)
+        // 2026-09-28: the one-time purchase includes the day-off rule, so a lapsed
+        // subscription on top of it takes nothing away.
+        XCTAssertTrue(effective.isDisasterSuspensionEnabled)
+    }
+
+    func testAnExpiredSubscriptionAloneDropsTheClosureRule() {
+        let saved = savedSettings()
+        let subscription = MembershipEntitlements(removeBanner: true, calendar: true, temporaryClosures: true,
+            dailyAI: true, subscriptionActive: true, lifetimeActive: false, subscriptionExpiresAt: 1)
+        let effective = MembershipSchedulingAccess.effectiveSettings(saved,
+            entitlements: subscription.valid(at: Date(timeIntervalSince1970: 2)))
+        XCTAssertFalse(effective.calendarSettings.isEnabled)
         XCTAssertFalse(effective.isDisasterSuspensionEnabled)
+        XCTAssertTrue(saved.isDisasterSuspensionEnabled, "the saved preference is kept for when access returns")
     }
 
     func testConfirmedRevocationKeepsArmedAlarmUntilSuccessfulBasicReplacement() async throws {
@@ -1277,6 +1291,9 @@ final class TemporaryClosureControlStateTests: XCTestCase {
         XCTAssertTrue(state.offersPlans)
     }
 
+    /// Both paid plans include the rule, so a locked lifetime owner holds a stale or
+    /// not-yet-redeployed server snapshot: no plans screen, and (in the view) the
+    /// unconfirmed-plan line rather than the line naming the plans.
     func testLifetimeOwnerIsNotSentToThePlansScreen() {
         let state = resolve(snapshot: Self.calendarOnly, saved: true).state
         XCTAssertEqual(state.access, .locked)

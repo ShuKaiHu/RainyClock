@@ -786,7 +786,7 @@ enum MembershipStoreKitEntitlements {
         }
         let subscription = subscriptionTransaction != nil
         return MembershipEntitlements(removeBanner: lifetime || subscription, calendar: lifetime || subscription,
-            temporaryClosures: subscription, dailyAI: lifetime || subscription, subscriptionActive: subscription,
+            temporaryClosures: lifetime || subscription, dailyAI: lifetime || subscription, subscriptionActive: subscription,
             lifetimeActive: lifetime,
             subscriptionExpiresAt: subscriptionTransaction?.expirationDate.map { $0.timeIntervalSince1970 * 1_000 },
             subscriptionProductId: subscriptionTransaction?.productID,

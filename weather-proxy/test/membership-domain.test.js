@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 const { randomUUID, createHash } = require('node:crypto')
 const { createMemoryStore, createFirestoreStore } = require('../membership/store')
 const { createPolicy, nextMidnight } = require('../membership/policy')
-const { createMembershipService } = require('../membership/service')
+const { createMembershipService, deriveEntitlements } = require('../membership/service')
 const { createGenerationService } = require('../membership/generation')
 
 const products = { monthly: 'com.shukaihu.RainyClock.plus.monthly', yearly: 'com.shukaihu.RainyClock.plus.yearly', lifetime: 'com.shukaihu.RainyClock.banner.lifetime' }
@@ -263,7 +263,7 @@ test('lifetime and subscription share one daily generation; lifetime calendar su
   assert.equal(state.entitlements.calendar, true)
   assert.equal(state.entitlements.subscriptionActive, false)
   assert.equal(state.entitlements.lifetimeActive, true)
-  assert.equal(state.entitlements.temporaryClosures, false)
+  assert.equal(state.entitlements.temporaryClosures, true, 'the one-time purchase keeps the day-off rule after the subscription lapses')
   assert.equal(state.entitlements.removeBanner, true)
   assert.equal(state.entitlements.dailyAI, true)
 })
@@ -273,6 +273,7 @@ test('lifetime alone grants calendar until a verified refund and delayed restore
   const lifetime = f.purchase({ productId: products.lifetime, expiresDate: null })
   let state = await f.membership.applyVerifiedPurchase(f.memberId, lifetime)
   assert.equal(state.entitlements.calendar, true)
+  assert.equal(state.entitlements.temporaryClosures, true, 'the one-time purchase alone includes the day-off rule')
   assert.equal(state.entitlements.subscriptionActive, false)
   assert.equal(state.entitlements.removeBanner, true)
   assert.equal(state.quota.dailyRemaining, 1)
@@ -281,6 +282,7 @@ test('lifetime alone grants calendar until a verified refund and delayed restore
   state = await f.membership.applyVerifiedPurchase(f.memberId, lifetime)
   assert.equal(state.entitlements.lifetimeActive, false)
   assert.equal(state.entitlements.calendar, false)
+  assert.equal(state.entitlements.temporaryClosures, false, 'a refunded one-time purchase loses the day-off rule')
   assert.equal(state.entitlements.removeBanner, false)
   assert.equal(state.entitlements.dailyAI, false)
 })
@@ -297,12 +299,25 @@ test('refunding either plan keeps calendar from the other verified paid plan', a
       ...(refundLifetime ? lifetime : monthly), signedDate: initialTime + 1000, revocationDate: initialTime + 1000 } })
     const state = await f.membership.status(f.memberId)
     assert.equal(state.entitlements.calendar, true)
+    assert.equal(state.entitlements.temporaryClosures, true)
     assert.equal(state.entitlements.removeBanner, true)
     assert.equal(state.entitlements.dailyAI, true)
     assert.equal(state.entitlements.lifetimeActive, !refundLifetime)
     assert.equal(state.entitlements.subscriptionActive, refundLifetime)
     assert.equal(state.quota.dailyRemaining, 1)
   }
+})
+
+test('the day-off rule comes with either paid plan and never with the free tier', async () => {
+  const f = await fixture()
+  assert.equal((await f.membership.status(f.memberId)).entitlements.temporaryClosures, false, 'free members do not get the day-off rule')
+  const derive = (purchases) => deriveEntitlements(purchases, initialTime, products).temporaryClosures
+  assert.equal(derive([]), false)
+  assert.equal(derive([f.purchase()]), true, 'monthly subscription')
+  assert.equal(derive([f.purchase({ productId: products.yearly })]), true, 'yearly subscription')
+  assert.equal(derive([f.purchase({ productId: products.lifetime, expiresDate: null })]), true, 'one-time purchase')
+  assert.equal(derive([f.purchase({ expiresDate: initialTime - 1 })]), false, 'expired subscription')
+  assert.equal(derive([f.purchase({ productId: products.lifetime, expiresDate: null, revocationDate: initialTime - 1 })]), false, 'refunded one-time purchase')
 })
 
 test('duplicate notifications, delayed renewals, refunds and reconciliation preserve latest chain state', async () => {

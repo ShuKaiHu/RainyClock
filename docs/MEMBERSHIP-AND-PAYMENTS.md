@@ -15,6 +15,11 @@ AI 完整生成／下載、S2S 廣告與其他驗收請依最新
 
 > 1.7.0 不公開颱風／天災臨時放假：設定、狀態、方案文案及排程均不使用此功能。
 > 功能原始碼與歷史紀錄留待 1.8.0；其買斷資格尚未定案，不列入 1.7.0 售價權益。
+>
+> **2026-09-28 擁有者決定：1.8.0 起臨時放假規則月訂閱與買斷都包含，免費不含**
+> （[產品決策](PRODUCT_DECISIONS.md)）。伺服器 `deriveEntitlements` 的 `temporaryClosures` 改為
+> 買斷或訂閱任一有效，買斷在訂閱到期後仍保有此規則，與日曆相同。正式會員服務
+> `rainyclock-membership` 須在 1.8.0 發布前重新部署，目前仍對買斷回 `false`。
 
 ## 最新方案目錄 — 2026-09-21
 
@@ -27,7 +32,8 @@ AI 完整生成／下載、S2S 廣告與其他驗收請依最新
 與每日一次免看廣告 AI 生成**。買斷永久持有目前這些權益、會員顯示優先於月訂閱，
 已有有效買斷時不再提供重複月訂閱購買。同時持有的 Apple 訂閱仍呈現真實狀態與管理
 入口，不代為取消；訂閱到期而買斷仍有效時，日曆繼續可用。每日 AI 共用一次、額外
-一次廣告換一次生成、免費初始一次均未改。1.8.0 臨時放假是否包含於買斷未於本次決定。
+一次廣告換一次生成、免費初始一次均未改。1.8.0 臨時放假是否包含於買斷未於本次決定
+（2026-09-28 已決定：月訂閱與買斷都包含，見上方）。
 台灣價格獨立指定，其他地區價格未定；App 使用 StoreKit 當地價格，不自行換匯。
 會員頁、回前景及 Apple 付款／恢復購買返回時重載商品，抓取前後商店與商品幣別需一致；
 價格不可用時只提供價格重試，不清除會員權益。21:19 的 TestFlight 實機曾出現卡片 USD、
@@ -78,7 +84,8 @@ build 34 增加已驗證 Sandbox／本機測試限定的「檢查測試商店價
   舊快取仍可讀取，未知續訂狀態顯示待確認，不推測為關閉。伺服器只採已驗證 Apple
   資料，續訂簽章時間獨立合併，避免舊通知或只有交易資訊的更新覆蓋新偏好。
 - UI 及排程使用權益；移除 banner 不等於移除獎勵廣告。依 9/21 最新規則，日曆由有效
-  訂閱或有效買斷解鎖；臨時放假維持 1.8.0 延後，其未來買斷資格本次不決定。
+  訂閱或有效買斷解鎖；臨時放假（1.8.0 起）依 2026-09-28 決定同樣由有效訂閱或有效買斷解鎖，
+  免費不含。
   使用 effective settings 副本，保留原設定；離線不清鬧鐘、失敗不刪既有排程。
 - 刪會員會先停止存取，再清資料；中斷留待刪標記，由維護工作重試。Apple 訂閱仍需
   自行從「管理訂閱」取消。手機完成音檔與鬧鐘設定保留，待完成生成紀錄會清除。
@@ -376,7 +383,9 @@ TestFlight, production purchases, refunds, AI delivery or live rewarded-ad verif
 Current products: US$1/month or US$10 lifetime; NT$10/month or NT$100 lifetime in Taiwan.
 Both include banner removal, calendar and one shared daily AI generation. Additional generations
 require a verified rewarded ad. Annual is off sale, historical valid transactions remain supported,
-and temporary disaster closures are not public in 1.7.0. Lifetime outranks monthly in the displayed
+and temporary disaster closures are not public in 1.7.0. From 1.8.0 the closure rule is included
+with both monthly and lifetime and not with free (owner decision 2026-09-28); the production
+membership service must be redeployed before 1.8.0 ships. Lifetime outranks monthly in the displayed
 plan without silently cancelling an Apple subscription. Free membership receives one initial
 allowance, and each eligible legacy identity receives a fixed migration allowance of one only once;
 unverified client ad-balance claims stay quarantined rather than increasing server credit.

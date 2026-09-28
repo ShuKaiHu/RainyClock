@@ -288,10 +288,13 @@ rain alarm,weather alarm,commute alarm,smart alarm,rain,weather,alarm clock,comm
 
 Local draft written 2026-09-28, before any archive or upload; 1.7.1 (37) is the live build.
 One new feature leads — the typhoon / disaster closure rule — because it is the whole
-release. The plan question (free, subscription-only, or included in the one-time purchase)
-is **not decided**, so this copy names no plan and no price: it says the rule follows your
-plan settings and stops there. Do not add a benefit line to the description or the paid
-copy until the owner decides. Nothing here claims background delivery is guaranteed.
+release. The plan was decided on 2026-09-28 ([PRODUCT_DECISIONS](PRODUCT_DECISIONS.md)): the
+rule is included with **both** the monthly subscription and the one-time purchase, and not with
+the free plan. The copy states that and names no price. (The earlier draft said only
+"Availability follows your plan settings" while the decision was open.) Nothing here claims
+background delivery is guaranteed. The public description's OPTIONAL MEMBERSHIP list and the
+ASC product descriptions still list only banner removal, calendar and the daily AI generation;
+adding the closure rule there is an owner edit (see the StoreKit products section below).
 
 ### English
 
@@ -299,7 +302,7 @@ copy until the owner decides. Nothing here claims background delivery is guarant
 Sleep in when the government calls a day off.
 
 • Typhoon and disaster closures: when a city or county government suspends work or school for the district of your home or workplace, Rainy Clock skips that day's alarm. Announcements come from the Directorate-General of Personnel Administration's open data, and the app shows the source and its update time next to any closure it reports.
-• Choose whether work closures, school closures, or both count, and confirm your home and workplace districts in Settings → Calendar. Availability follows your plan settings.
+• Choose whether work closures, school closures, or both count, and confirm your home and workplace districts in Settings → Calendar. Closure rules are included with a monthly subscription or a one-time purchase.
 • An optional notification can tell you when an announcement changes. It is checked against your districts on your phone — nothing about where you live is uploaded — and the alarm is only ever silenced after the app has verified the announcement.
 • A township map shows today's and tomorrow's announcements for all 22 cities and counties and 368 townships and districts.
 • If no announcement can be confirmed, or the network is down, the alarm rings as usual.
@@ -311,7 +314,7 @@ Sleep in when the government calls a day off.
 政府宣布放假，就讓你多睡一會。
 
 ・颱風與天災停班停課：當縣市政府宣布你住家或公司所在行政區停止上班或上課，雨天鬧鐘會略過當天的鬧鐘。公告來自行政院人事行政總處的開放資料，App 顯示任何停班停課結果時都會標示資料來源與更新時間。
-・可選擇只看停班、只看停課或兩者皆算，並在「設定 → 日曆」確認住家與公司所在行政區。是否可使用依你的方案設定而定。
+・可選擇只看停班、只看停課或兩者皆算，並在「設定 → 日曆」確認住家與公司所在行政區。月訂閱或買斷可使用臨時放假規則。
 ・選用的通知可以在公告更新時提醒你。比對行政區在你的手機上完成，不會上傳你的所在地；鬧鐘只會在 App 確認公告後才靜音。
 ・鄉鎮市區地圖可查看今天與明天的公告，涵蓋 22 縣市、368 鄉鎮市區。
 ・無法確認公告或網路異常時，鬧鐘照常響鈴。
@@ -580,18 +583,20 @@ AdMob and `npa=1`, which `1.6.7` replaced with Unity LevelPlay.
 ### Version-specific note for 1.8.0 (38) — LOCAL DRAFT
 
 Drafted 2026-09-28. Paste it on top of the 1.7.1 (37) note that was actually sent
-(`docs/appstore-review-notes-1.7.1-37.txt`), with the build number changed, after the
-checks in the bracketed lines below are done. The bracketed lines are internal and must be
-removed before pasting. Whether the feature is free, subscription-only or part of the
-one-time purchase is undecided. The note must not point at PURCHASES (that section says both
-plans "unlock calendar features", which is not what this build does for closures); it states
-what the current build does, and that sentence has to be rewritten to match the owner's
-decision before pasting. The PURCHASES section of the 1.7.1 note must not be edited to name it.
+(`docs/appstore-review-notes-1.7.1-37.txt`), with the build number changed. The plan sentence
+is final: on 2026-09-28 the owner decided the rule comes with both the monthly subscription and
+the one-time purchase, not the free plan ([PRODUCT_DECISIONS](PRODUCT_DECISIONS.md)), and the
+bracketed internal notes that stood in for that decision have been removed. The PURCHASES
+section of the 1.7.1 note ("Both remove banner ads, unlock calendar features … the one-time plan
+provides these benefits permanently") is now consistent with this build; it may be left as is,
+or its benefit list may add temporary disaster closures when the note is pasted. Requires the
+production membership service to be redeployed first — until then it returns
+`temporaryClosures=false` for one-time-purchase owners, and a reviewer testing with the
+one-time purchase would see the switch locked.
 
 ```
 TEMPORARY DISASTER CLOSURES (new in 1.8.0)
-[BEFORE PASTING: rewrite the next sentence to match the owner's plan decision. As of this draft the code applies the rule only with an active subscription (MembershipEntitlements.temporaryClosures); the free tier and the one-time purchase do not have it. On a confirmed plan without it the switch cannot be turned on (it can always be turned off), a lock line under it reads "Your current plan doesn't include temporary closure rules" (it opens the membership screen, except for a one-time-purchase owner, where it is plain text), and the "Closure preferences" / "Closure map" rows are not shown. If the switch had been turned on earlier, the saved value is kept (the switch still shows it) and a second line says it isn't applied to the alarm or closure notifications. While the plan has not been confirmed (no membership sync yet, or a subscription past its expiry by the phone clock before the server refresh) the line reads "Your plan hasn't been confirmed yet" and, if the switch is on, says the setting is still applied. None of this names a plan, so the screen stays correct whatever is decided; only the next sentence has to change. "View map demo" stays available on every plan.]
-Settings → Calendar has a new "Use temporary closure rules" switch, off by default. In this build the rule takes effect only while a Rainy Clock Plus subscription is active; the one-time purchase does not include it. When it is on, two rows appear below it: "Closure preferences" and "Closure map". "Closure preferences" lets the user choose work closures, school closures or both, and shows the township/district the app derived from the home and workplace addresses entered in the Route settings; to change a district, the user changes the address there. Location is not used.
+Settings → Calendar has a new "Use temporary closure rules" switch, off by default. The rule is included with both paid plans: an active Rainy Clock Plus monthly subscription or the one-time purchase. On the free plan the switch cannot be turned on, and a lock line under it reads "Temporary closure rules are included with a subscription or one-time purchase" (tapping it opens the membership screen); "View map demo", described below, works on every plan. When it is on, two rows appear below it: "Closure preferences" and "Closure map". "Closure preferences" lets the user choose work closures, school closures or both, and shows the township/district the app derived from the home and workplace addresses entered in the Route settings; to change a district, the user changes the address there. Location is not used.
 
 The rule depends on live government announcements. Taiwan's Directorate-General of Personnel Administration (DGPA) publishes work and school closures through the National Science and Technology Center for Disaster Reduction (NCDR); the app reads the data.gov.tw open-data copy of that feed (dataset 20457, Open Government Data License v1.0) through our own Cloud Run service, which holds one verified cache so phones do not scrape the government site. Outside a typhoon or other disaster there is normally no active closure, so during review you will most likely see "no announcement" states and an alarm that behaves exactly as before. The app shows the source and the source's own update time next to any closure it reports. A "fetch failed" state is visibly different from "no closure announced"; neither changes the alarm, only a verified announcement that matches the home or workplace district does.
 
@@ -602,12 +607,11 @@ Notifications: when the feature is on, the app registers for push. Our service s
 Data: the phone sends our service a random installation identifier, the APNs token and a hash of a device-held credential, and after processing an announcement it reports the announcement revision, timestamps and an applied / no-alarm result. Home and workplace addresses, districts, routes, alarm times and skipped dates are never uploaded. There is no location permission request for this feature. Details are in the "Temporary disaster closures" section of the privacy policy.
 ```
 
-繁體中文（同一段的中文版，供繁中審查說明使用；括號內為內部備註，貼上前刪除）：
+繁體中文（同一段的中文版，供繁中審查說明使用）：
 
 ```
 天災臨時放假（1.8.0 新增）
-［貼上前：依擁有者的方案決定改寫下一句。本草稿撰寫時，程式只在訂閱有效時套用此規則（MembershipEntitlements.temporaryClosures），免費與買斷都沒有。已確認的方案不含此規則時，開關無法打開（但一律可以關閉），下方有鎖頭一行「目前方案不含臨時放假規則」（點了進入會員畫面；買斷使用者則只是文字、不可點），「停班停課偏好」「停班停課地圖」兩列不顯示；若先前已打開，保留原設定（開關仍顯示開啟），並多一行說明目前不會套用到鬧鐘或停班停課通知。方案尚未確認時（尚未同步會員資料，或依手機時間訂閱已過期但伺服器尚未更新），該行改為「尚未確認你的方案」，開關若已打開則說明設定仍會套用。這些文字都不點名方案，所以不論怎麼決定畫面都正確，只需改寫下一句。「查看地圖示範」在任何方案都可使用。］
-「設定 → 日曆」新增「使用臨時放假規則」開關，預設關閉；本版中此規則只在 Rainy Clock Plus 訂閱有效時生效，買斷不包含。開啟後下方出現兩列：「停班停課偏好」與「停班停課地圖」。「停班停課偏好」可選擇看停班、停課或兩者，並顯示 App 依「路線」設定中住家與公司地址判斷出的鄉鎮市區；要更改行政區，請到該處修改地址。此功能不使用定位。
+「設定 → 日曆」新增「使用臨時放假規則」開關，預設關閉。此規則包含在兩種付費方案中：有效的 Rainy Clock Plus 月訂閱或買斷。免費方案無法打開開關，下方有鎖頭一行「訂閱或買斷可使用臨時放假規則」（點了進入會員畫面）；下方說明的「查看地圖示範」在任何方案都可使用。開啟後下方出現兩列：「停班停課偏好」與「停班停課地圖」。「停班停課偏好」可選擇看停班、停課或兩者，並顯示 App 依「路線」設定中住家與公司地址判斷出的鄉鎮市區；要更改行政區，請到該處修改地址。此功能不使用定位。
 
 此規則依賴政府即時公告。行政院人事行政總處經國家災害防救科技中心（NCDR）發布停班停課公告；App 透過我們自己的 Cloud Run 服務讀取 data.gov.tw 的開放資料版本（資料集 20457，政府資料開放授權條款第 1 版），服務只保存一份已驗證快取，手機不會抓取政府網站。非颱風或災害期間通常沒有生效中的公告，因此審查時多半只會看到「沒有公告」的狀態，鬧鐘行為與先前相同。App 顯示任何停班停課結果時都會標示資料來源與來源本身的更新時間；「取得失敗」與「沒有公告」是不同的顯示狀態，兩者都不會改變鬧鐘；只有經確認、且符合住家或公司行政區的公告才會。
 
@@ -909,6 +913,14 @@ that it follows the plan settings, the review-note draft states what the current
 is flagged to be rewritten once the owner decides, and neither adds a line to the paid copy or
 the product descriptions.)
 
+**Superseded 2026-09-28 — owner decision:** from 1.8.0 the temporary disaster closure rule is
+included with **both** plans. Lifetime (`com.shukaihu.RainyClock.banner.lifetime`) now grants
+banner removal, calendar, one shared daily AI generation **and the temporary closure rule**,
+permanently, like the calendar; monthly grants the same while active; free does not include it.
+The 1.8.0 What's New and review-note drafts above state this. The production membership service
+(`rainyclock-membership`) must be redeployed before 1.8.0 is released; until then it returns
+`temporaryClosures=false` for lifetime owners.
+
 Current lifetime descriptions — saved and read back in ASC on 2026-09-21 (not submitted):
 
 | Locale | Display name | Description |
@@ -919,6 +931,13 @@ Current lifetime descriptions — saved and read back in ASC on 2026-09-21 (not 
 These saved descriptions replace the historical wording that excluded calendar. The matching
 calendar entitlement change is deployed only to the isolated Sandbox revision 00004-kkd; no
 production rollout or review submission occurred. Full verification details are in staging.
+
+**2026-09-28 — owner action:** these descriptions enumerate the benefits and do not mention the
+temporary closure rule that lifetime includes from 1.8.0 (the monthly product's description, if
+it enumerates benefits too, has the same gap). They are not wrong about what they list, but if
+they should name the closure rule, the owner edits them in App Store Connect; this repo cannot.
+The ASC description field is short and the current English text already uses most of it, so
+adding the rule likely means rewording, not appending. Nothing in ASC has been changed for this decision.
 
 ## Screenshots Still Needed
 

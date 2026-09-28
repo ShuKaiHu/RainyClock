@@ -40,7 +40,9 @@ function deriveEntitlements(purchases, now, products) {
   }
   const subscriptionActive = subscriptionExpiresAt !== null
   return { removeBanner: lifetimeActive || subscriptionActive, calendar: lifetimeActive || subscriptionActive,
-    temporaryClosures: subscriptionActive, dailyAI: lifetimeActive || subscriptionActive,
+    // Owner decision 2026-09-28: the typhoon day-off rule (iOS 1.8.0) comes with both
+    // paid plans, like the calendar it lives in.
+    temporaryClosures: lifetimeActive || subscriptionActive, dailyAI: lifetimeActive || subscriptionActive,
     lifetimeActive, subscriptionActive, subscriptionExpiresAt,
     subscriptionProductId: subscription?.productId ?? null,
     subscriptionAutoRenews: subscription && safeDate(subscription.renewalSignedAt) && [0, 1].includes(subscription.autoRenewStatus)

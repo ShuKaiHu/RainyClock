@@ -226,23 +226,33 @@ Last updated: 2026-09-26.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-09-28：權益已決定——月訂閱與買斷都包含臨時放假規則，免費不含**（[產品決策](PRODUCT_DECISIONS.md)）。
+  - 工作樹已改：伺服器 `deriveEntitlements` 與 iOS `MembershipEntitlements.valid(at:)`／本機 StoreKit 讀取的
+    `temporaryClosures` 改為買斷或訂閱任一有效；會員頁每張付費方案卡都列「颱風臨時放假」，「買斷已涵蓋其他權益」
+    按鈕文字拿掉；鎖頭一行（現在只有免費會看到）改為「訂閱或買斷可使用臨時放假規則」。測試同步更新。
+  - Sandbox 會員服務正隨此變更重新部署。**正式會員服務 `rainyclock-membership` 尚未重新部署，仍對買斷回
+    `temporaryClosures=false`；1.8.0 發布前必須部署**（權益以伺服器為準，不部署的話買斷使用者在 1.8.0 會看到
+    鎖住的開關）。1.7.1 的 gate 為 false、不讀這個欄位，可以先部署。
+  - `appstore-metadata.md` 的 1.8.0 What's New 與審查說明已改成定案的方案說法，方括號備註已刪除。
+    ASC 買斷／月訂閱的商品說明若要列出臨時放假，由擁有者在 ASC 修改。
+
 - **2026-09-28：1.8.0（38）開閘與送審準備已提交（`8031f51`），伺服器 sandbox 堆疊上線（`df5ec48`、`7c9b684`）。**
   - App：`supportsTemporaryClosures = true`；版本 1.8.0（38）；`DayOffServiceURL` 為正式網址，**所有 Debug build
     改走 `DayOffSandboxServiceURL`**（Debug 的推播 token 是 APNs 開發環境，不能登記到正式）。
   - 資料來源標示：設定、地圖、鬧鐘頁的停班停課說明與時效性通知都標人事行政總處／NCDR、政府資料開放授權與來源更新時間；
     示範地圖不標來源。
-  - 方案不含此規則時（目前是免費與買斷）不再靜默失效：開關鎖定並顯示不指名方案的說明；已存的設定保留、仍可關閉；
-    「未套用」提示依排程實際使用的權益判斷。**權益對應本身未改，仍待擁有者決定。**
+  - 方案不含此規則時（當時是免費與買斷；9/28 決定後只剩免費）不再靜默失效：開關鎖定並顯示說明；已存的設定保留、仍可關閉；
+    「未套用」提示依排程實際使用的權益判斷。權益對應本身未改，仍待擁有者決定（已被上方 9/28 決定取代）。
   - 「查看地圖示範」在所有 build 都可進入、不需購買，給審查人員看停班停課長什麼樣子。
   - 隱私政策新增「天災臨時放假」一節（中英）；`appstore-metadata.md` 有 1.8.0 What's New 與審查說明草稿，
-    兩者都不指名方案，審查說明裡的方括號備註要在擁有者決定權益後改寫再貼。
+    兩者都不指名方案，審查說明裡的方括號備註要在擁有者決定權益後改寫再貼。（9/28 已改寫，見上。）
   - 伺服器：`NCDR_SOURCE=fixture` 只允許 sandbox namespace；`deploy/fixture.sh set --county … --district …`
     寫一則測試公告並立即推播。已實跑一次板橋區公告並清除。
   - 測試：iPhone 17 Pro 上 408 項全過（除 `MembershipStoreKitTests`）；**`MembershipStoreKitTests` 在這台模擬器的
     StoreKit 測試環境初始化失敗（`SKInternalErrorDomain 3`，App 程式執行前），送審 archive 前要在 Xcode 裡重跑。**
     dayoff-service 120 項（Emulator 全過）。
-  - 還沒做：**真機驗證**（見 `dayoff-service/DEPLOYMENT.md` 的 sandbox 手機步驟）、擁有者的權益決定、
-    ASC 隱私問卷與截圖、archive／上傳。
+  - 還沒做：**真機驗證**（見 `dayoff-service/DEPLOYMENT.md` 的 sandbox 手機步驟）、擁有者的權益決定（9/28 已完成）、
+    **正式會員服務重新部署**、ASC 隱私問卷與截圖、archive／上傳。
 
 - **工作樹已全部提交到 `ios/main`**（四個 commit：App 與測試、weather-proxy 會員後端、
   dayoff-service 與天災文件、其餘文件與素材）。1.7.0（34）送審的原始碼從此有 git 紀錄；
@@ -273,7 +283,7 @@ Last updated: 2026-09-26.
   真機驗證（晚間公告、重啟、低耗電、關背景更新、強制結束、撤銷、關閉後恢復、
   **可見推播在 App 關閉時被擴充功能改寫**）、
   恢復設定入口與方案文案、發布 [1.8.0 備忘](1.8.0-DEFERRED-DISASTER.md) 的隱私條款、
-  決定買斷是否包含此功能。
+  決定買斷是否包含此功能（2026-09-28 已決定：包含）。
 - 本輪驗證：Debug 建置 0 警告；dayoff-service 52 過；weather-proxy 186 過 3 略過（無
   Emulator）；iOS 全套約 339 項，用 `RainyClock Membership Local` scheme 且**簽章**跑才
   全過 —— `CODE_SIGNING_ALLOWED=NO` 會讓 3 項 Keychain 路由測試失敗，一般 `RainyClock`

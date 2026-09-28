@@ -414,7 +414,7 @@
 
 /* Tomorrow alarm overview and route-linked closure settings */
 "ux_use_closure_rules" = "使用臨時放假規則";
-"ux_closure_plan_locked" = "目前方案不含臨時放假規則";
+"ux_closure_plan_locked" = "訂閱或買斷可使用臨時放假規則";
 "ux_closure_saved_not_applied" = "你的設定已保留，但目前不會套用到鬧鐘或停班停課通知。";
 "ux_closure_plan_unconfirmed" = "尚未確認你的方案";
 "ux_closure_saved_still_applied" = "你的設定目前仍會套用到鬧鐘和停班停課通知，可在這裡關閉。";

@@ -414,7 +414,7 @@
 
 /* Tomorrow alarm overview and route-linked closure settings */
 "ux_use_closure_rules" = "Use temporary closure rules";
-"ux_closure_plan_locked" = "Your current plan doesn't include temporary closure rules";
+"ux_closure_plan_locked" = "Temporary closure rules are included with a subscription or one-time purchase";
 "ux_closure_saved_not_applied" = "Your setting is kept, but it isn't applied to your alarm or closure notifications right now.";
 "ux_closure_plan_unconfirmed" = "Your plan hasn't been confirmed yet";
 "ux_closure_saved_still_applied" = "Your setting is still applied to your alarm and closure notifications. You can turn it off here.";

@@ -202,7 +202,7 @@ struct MembershipView: View {
             Label(text("移除 banner", "Remove banner ads"), systemImage: "checkmark")
             Label(text("每天一次免看廣告的 AI 鈴聲生成", "One daily AI generation without an ad"), systemImage: "checkmark")
             Label(text("日曆功能", "Calendar features"), systemImage: "checkmark")
-            if plan.isSubscription && AppEnvironment.supportsTemporaryClosures {
+            if AppEnvironment.supportsTemporaryClosures {
                 Label(text("颱風臨時放假", "Temporary disaster closures"), systemImage: "checkmark")
             }
             if plan == .lifetime {
@@ -256,12 +256,6 @@ struct MembershipView: View {
 
     private func planButtonTitle(_ plan: MembershipPlan) -> String {
         if plan.isSubscription, manager.entitlements.lifetimeActive {
-            // The subscription card lists temporary closures, which lifetime does not
-            // carry today (`MembershipEntitlements.temporaryClosures`); the button must
-            // not read as saying the one-time purchase includes that line.
-            if AppEnvironment.supportsTemporaryClosures && !manager.entitlements.temporaryClosures {
-                return text("買斷已涵蓋其他權益", "Your one-time purchase covers the other benefits")
-            }
             return text("已由買斷涵蓋", "Included in your one-time purchase")
         }
         if manager.entitlements.owns(plan) {

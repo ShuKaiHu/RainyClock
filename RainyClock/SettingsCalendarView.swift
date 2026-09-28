@@ -136,9 +136,11 @@ struct SettingsTabView: View {
     @State private var settingsVisible = false
     private enum Detail: Hashable { case privacy, about, weekdays, calendarEditor, disaster, disasterMap, disasterMapDemo, membership }
     private var advancedRulesAllowed: Bool { !membership.isConfigured || membership.canUseAdvancedRules }
-    /// The closure rule has its own entitlement, so it cannot ride on the calendar lock:
-    /// a plan can include calendar rules and still lack this one. Whether the saved rule
-    /// is applied comes from what scheduling actually uses, not from the lock.
+    /// The closure rule has its own server entitlement, so it cannot ride on the calendar
+    /// lock: every paid plan includes both (owner decision 2026-09-28), but a stale or
+    /// not-yet-redeployed server snapshot can still report temporaryClosures=false next to
+    /// calendar=true. Whether the saved rule is applied comes from what scheduling
+    /// actually uses, not from the lock.
     private var closureControl: TemporaryClosureControlState {
         .resolve(membershipConfigured: membership.isConfigured, entitlements: membership.entitlements,
                  schedulingEntitlements: membership.schedulingEntitlements,
@@ -252,8 +254,9 @@ struct SettingsTabView: View {
                     .padding(17).background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 22))
                 if !advancedRulesAllowed {
                     Button { path.append(.membership) } label: {
-                        // Calendar only: the closure rule carries its own, plan-neutral lock
-                        // line below, because which plans include it is not decided here.
+                        // Calendar only: the closure rule has its own lock line below
+                        // (`ux_closure_plan_locked`), which names the same two plans as this
+                        // one (owner decision 2026-09-28).
                         Label(MembershipText.value("訂閱或買斷可使用日曆規則", "Calendar rules are included with a subscription or one-time purchase"), systemImage: "lock")
                             .font(.subheadline)
                     }
@@ -319,7 +322,10 @@ struct SettingsTabView: View {
                                 Label("ux_closure_plan_locked", systemImage: "lock").font(.subheadline)
                             }
                         } else {
-                            Label("ux_closure_plan_locked", systemImage: "lock")
+                            // A lifetime owner already has a plan that includes the rule; it
+                            // is locked only until the server grants it, so don't tell them
+                            // their purchase includes something that is locked for them.
+                            Label("ux_closure_plan_unconfirmed", systemImage: "clock")
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
                     case .unconfirmed:

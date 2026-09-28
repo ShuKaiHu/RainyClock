@@ -155,7 +155,7 @@ struct MembershipEntitlements: Codable, Equatable, Sendable {
     func valid(at now: Date) -> Self {
         guard subscriptionActive, let subscriptionExpiresAt,
               now.timeIntervalSince1970 * 1_000 >= subscriptionExpiresAt else { return self }
-        return .init(removeBanner: lifetimeActive, calendar: lifetimeActive, temporaryClosures: false,
+        return .init(removeBanner: lifetimeActive, calendar: lifetimeActive, temporaryClosures: lifetimeActive,
                      dailyAI: lifetimeActive, subscriptionActive: false, lifetimeActive: lifetimeActive,
                      subscriptionExpiresAt: subscriptionExpiresAt,
                      subscriptionProductId: subscriptionProductId,
@@ -568,9 +568,14 @@ struct TemporaryClosureControlState: Equatable, Sendable {
     let access: Access
     let savedEnabled: Bool
     let appliedEnabled: Bool
-    /// Only a plan that could still buy the rule is sent to the plans screen. A lifetime
-    /// owner is not: the plan mapping for lifetime is undecided, and that screen's
-    /// subscription cards would read as saying the purchase includes it.
+    /// Only a plan that could still buy the rule is sent to the plans screen, and only
+    /// that plan is shown the lock line naming the plans that include it. A lifetime
+    /// owner is not: both paid plans include the rule (owner decision 2026-09-28), so a
+    /// lifetime owner is locked only while the server has not granted it yet (a snapshot
+    /// from before the membership service was redeployed, or a stale cached one), and
+    /// the plans screen has nothing they can buy (`canPurchase` blocks subscriptions for
+    /// lifetime owners). The screen shows them the unconfirmed-plan line instead, so it
+    /// never tells them their own purchase includes a rule that is locked for them.
     let offersPlans: Bool
 
     static func resolve(membershipConfigured: Bool, entitlements: MembershipEntitlements,
