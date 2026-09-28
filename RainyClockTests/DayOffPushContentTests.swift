@@ -290,4 +290,106 @@ final class DayOffPushContentTests: XCTestCase {
         XCTAssertEqual(DayOffPushMarker.lastReceivedAt(from: defaults), when)
         XCTAssertNil(DayOffSharedState.load(from: defaults), "The marker must not touch the app-written state")
     }
+
+    // MARK: - Adversarial review of the device-test fixes
+
+    func testQuietResultsAreActuallySilentAndPassive() {
+        for urgency in [DayOffPushContent.Urgency.unrelated, .alreadyApplied, .keptByUser] {
+            XCTAssertEqual(DayOffPushContent.presentation(for: urgency),
+                           .init(playsSound: false, interruptionLevel: .passive), "\(urgency)")
+        }
+        XCTAssertEqual(DayOffPushContent.presentation(for: .matched), .init(playsSound: true, interruptionLevel: .timeSensitive))
+        XCTAssertEqual(DayOffPushContent.presentation(for: .related), .init(playsSound: true, interruptionLevel: .active))
+        XCTAssertNil(DayOffPushContent.presentation(for: .unknown), "Unknown leaves the server's generic text untouched")
+    }
+
+    /// A day the user set to ring anyway (a manual "ring" outranks a closure) is already
+    /// decided. Every revision of a typhoon night must not break through Sleep Focus for it.
+    func testADayTheUserKeptRingingStaysQuiet() {
+        let push = taipei(9, 28, 23, 26)
+        let state = DayOffSharedState(enabled: true, observesWork: true, observesSchool: true, home: tainan, destination: anding,
+                                      normalAlarmDate: taipei(9, 29, 7, 20), serviceURL: URL(string: "https://example.invalid"),
+                                      updatedAt: taipei(9, 28, 20, 0),
+                                      upcomingNormalAlarmDates: [taipei(9, 29, 7, 20), taipei(9, 30, 7, 20)],
+                                      skippedNormalAlarmDates: [], keptNormalAlarmDates: [taipei(9, 29, 7, 20)])
+        let feed = tainanFeed(sentAt: push, checkedAt: push.addingTimeInterval(30))
+        let zh = DayOffPushContent.evaluate(state: state, feed: feed, now: push.addingTimeInterval(60), chinese: true)
+        XCTAssertEqual(zh.urgency, .keptByUser)
+        XCTAssertEqual(zh.title, "臺南市已公告停班停課")
+        XCTAssertEqual(zh.body, "9/29 依你的設定照響。\n資料來源：行政院人事行政總處（經 NCDR 發布），更新 9/28 23:26")
+        let en = DayOffPushContent.evaluate(state: state, feed: feed, now: push.addingTimeInterval(60), chinese: false)
+        XCTAssertTrue(en.body.hasPrefix("9/29: your alarm rings as you set it."), en.body)
+    }
+
+    /// A night-shift alarm: 9/16 19:00 is already skipped for a full closure, and at 18:30 a
+    /// village-level announcement arrives for 9/17. The day that will ring is the news.
+    func testAPartialClosureForTheNextRingingDayOutranksARepeatForASkippedDay() {
+        let skipped = taipei(9, 16, 19, 0), next = taipei(9, 17, 19, 0), push = taipei(9, 16, 18, 30)
+        let state = DayOffSharedState(enabled: true, observesWork: true, observesSchool: true,
+                                      home: DisasterRegion(county: "新竹縣", district: "尖石鄉"), destination: nil,
+                                      normalAlarmDate: next, serviceURL: URL(string: "https://example.invalid"),
+                                      updatedAt: taipei(9, 15, 20, 30),
+                                      upcomingNormalAlarmDates: [skipped, next], skippedNormalAlarmDates: [skipped])
+        let feed = DisasterFeed(checkedAt: push.addingTimeInterval(-30), notices: [
+            DisasterNotice(id: "full-0916", sentAt: taipei(9, 15, 20, 19),
+                           description: "[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。",
+                           severity: "Extreme", geocodes: ["1000412"]),
+            DisasterNotice(id: "partial-0917", sentAt: push.addingTimeInterval(-60),
+                           description: "[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。",
+                           severity: "Extreme", geocodes: ["1000412-001"]),
+        ])
+        let result = DayOffPushContent.evaluate(state: state, feed: feed, now: push, chinese: true)
+        XCTAssertEqual(result.urgency, .related, result.body)
+        XCTAssertEqual(result.body, "僅部分地區停班停課，維持原鬧鐘")
+    }
+
+    func testStateWithoutKeptDatesDecodesAsNothingKept() throws {
+        let json = #"{"enabled":true,"observesWork":true,"observesSchool":false,"updatedAt":0}"#
+        let state = try JSONDecoder().decode(DayOffSharedState.self, from: Data(json.utf8))
+        XCTAssertNil(state.keptNormalAlarmDates)
+        XCTAssertFalse(state.isKeptRinging(Date(timeIntervalSinceReferenceDate: 0)))
+    }
+
+    // The service caches each snapshot for five seconds per instance, so the extension's
+    // first read right after a broadcast can still be the previous revision.
+    private func revisioned(_ revision: String?) -> DisasterFeed {
+        var feed = DisasterFeed(checkedAt: now, notices: [])
+        feed.revision = revision
+        return feed
+    }
+
+    func testFeedMatchingThePushIsUsedWithoutWaiting() async {
+        var fetches = 0, sleeps: [Duration] = []
+        let feed = await DayOffPushContent.fetchFeed(matching: "new", fetch: { fetches += 1; return self.revisioned("new") },
+                                                     sleep: { sleeps.append($0) })
+        XCTAssertEqual(feed?.revision, "new")
+        XCTAssertEqual(fetches, 1)
+        XCTAssertTrue(sleeps.isEmpty)
+    }
+
+    func testAnOlderRevisionIsRetriedOnceAfterTheCacheExpires() async {
+        var fetches = 0, sleeps: [Duration] = []
+        let feed = await DayOffPushContent.fetchFeed(matching: "new", fetch: {
+            fetches += 1
+            return self.revisioned(fetches == 1 ? "old" : "new")
+        }, sleep: { sleeps.append($0) })
+        XCTAssertEqual(feed?.revision, "new")
+        XCTAssertEqual(fetches, 2)
+        XCTAssertEqual(sleeps, [.seconds(6)])
+    }
+
+    func testARevisionThatNeverMatchesFallsBackToTheGenericText() async {
+        var fetches = 0
+        let feed = await DayOffPushContent.fetchFeed(matching: "new", fetch: { fetches += 1; return self.revisioned("old") },
+                                                     sleep: { _ in })
+        XCTAssertNil(feed, "Evaluating the old revision could say 'not for your districts' about this very closure")
+        XCTAssertEqual(fetches, 2)
+    }
+
+    func testAPushWithoutARevisionOrAFailedFetch() async {
+        let taken = await DayOffPushContent.fetchFeed(matching: nil, fetch: { self.revisioned("any") }, sleep: { _ in })
+        XCTAssertEqual(taken?.revision, "any")
+        let failed = await DayOffPushContent.fetchFeed(matching: "new", fetch: { throw URLError(.timedOut) }, sleep: { _ in })
+        XCTAssertNil(failed)
+    }
 }

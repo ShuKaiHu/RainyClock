@@ -50,6 +50,11 @@ struct AlarmCalendarSettings: Codable, Equatable, Sendable {
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
+    /// A manual "ring" for this day. It outranks a temporary closure: the alarm rings anyway.
+    func forcesRing(on date: Date, calendar: Calendar = AlarmCalendarSettings.calendar) -> Bool {
+        isEnabled && overrides[Self.key(for: date, calendar: calendar)] == .ring
+    }
+
     func decision(on date: Date, weekdays: Set<Int>, holidays: HolidayCalendar, calendar: Calendar = AlarmCalendarSettings.calendar) -> DayDecision {
         let key = Self.key(for: date, calendar: calendar)
         if isEnabled, let override = overrides[key] {

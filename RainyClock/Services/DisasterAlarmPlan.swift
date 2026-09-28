@@ -22,8 +22,7 @@ enum DisasterAlarmPlan {
         var result = plan
         var skips: [AppliedDisasterSkip] = []
         result.occurrences = plan.occurrences.filter { occurrence in
-            let key = AlarmCalendarSettings.key(for: occurrence.normalDate)
-            if settings.calendarSettings.isEnabled, settings.calendarSettings.overrides[key] == .ring { return true }
+            if settings.calendarSettings.forcesRing(on: occurrence.normalDate) { return true }
             let decision = DisasterSuspensionEvaluator.decision(feed: feed, normalAlarmDate: occurrence.normalDate,
                 now: now, home: settings.homeSuspensionRegion, destination: settings.workSuspensionRegion,
                 observesWork: settings.observesWorkSuspensions, observesSchool: settings.observesSchoolSuspensions)

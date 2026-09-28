@@ -24,6 +24,8 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
         }
         // Before anything that can fail: the app forces its next refresh on this.
         DayOffPushMarker.record()
+        // Read before the task: the request itself is not Sendable.
+        let pushedRevision = request.content.userInfo["revision"] as? String
         lock.lock()
         handler = contentHandler
         pending = content
@@ -32,7 +34,9 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
             let state = DayOffSharedState.load()
             var feed: DisasterFeed?
             if let url = state?.serviceURL {
-                feed = try? await DisasterFeedClient(endpoint: url.appendingPathComponent("v1/suspensions")).fetch()
+                let client = DisasterFeedClient(endpoint: url.appendingPathComponent("v1/suspensions"))
+                feed = await DayOffPushContent.fetchFeed(matching: pushedRevision,
+                                                         fetch: { try await client.fetch() })
             }
             let chinese = Locale.preferredLanguages.first?.lowercased().hasPrefix("zh") == true
             let result = DayOffPushContent.evaluate(state: state, feed: feed, now: Date(), chinese: chinese)
@@ -58,24 +62,10 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
     }
 
     static func apply(_ result: DayOffPushContent.Result, to content: UNMutableNotificationContent) {
-        switch result.urgency {
-        case .unknown:
-            return
-        case .matched:
-            content.title = result.title
-            content.body = result.body
-            content.sound = .default
-            content.interruptionLevel = .timeSensitive
-        case .related:
-            content.title = result.title
-            content.body = result.body
-            content.sound = .default
-            content.interruptionLevel = .active
-        case .unrelated, .alreadyApplied:
-            content.title = result.title
-            content.body = result.body
-            content.sound = nil
-            content.interruptionLevel = .passive
-        }
+        guard let presentation = DayOffPushContent.presentation(for: result.urgency) else { return }
+        content.title = result.title
+        content.body = result.body
+        content.sound = presentation.playsSound ? .default : nil
+        content.interruptionLevel = presentation.interruptionLevel
     }
 }

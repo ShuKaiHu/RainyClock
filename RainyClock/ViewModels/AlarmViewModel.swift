@@ -1303,9 +1303,19 @@ final class AlarmViewModel: ObservableObject {
             var shouldForce = force
             repeat {
                 pendingForcedDisasterRefresh = false
+                let attemptBefore = disasterLastAttemptAt
                 let update = await performDisasterRefresh(force: shouldForce)
                 changed = changed || update
                 shouldForce = true
+                // A push that landed while this fetch was in flight (the app was opened,
+                // then locked on a slow network) is news the fetch may predate. The alert
+                // push does not wake the app, so a caller joining this task on the next
+                // open would otherwise settle for the older result. Only after a real
+                // attempt, so a run that fetched nothing cannot loop.
+                if let attempt = disasterLastAttemptAt, attempt != attemptBefore,
+                   let pushedAt = dayOffPushReceivedAt(), pushedAt > attempt {
+                    pendingForcedDisasterRefresh = true
+                }
             } while pendingForcedDisasterRefresh && !Task.isCancelled
             disasterRefreshTask = nil
             return changed
@@ -1685,7 +1695,8 @@ final class AlarmViewModel: ObservableObject {
                           serviceURL: AppEnvironment.dayOffServiceURL,
                           updatedAt: now,
                           upcomingNormalAlarmDates: dates?.upcoming,
-                          skippedNormalAlarmDates: dates?.skipped).save()
+                          skippedNormalAlarmDates: dates?.skipped,
+                          keptNormalAlarmDates: dates?.upcoming.filter { effective.calendarSettings.forcesRing(on: $0) }).save()
     }
 
     private static func loadScheduledAlarmSummary(from storage: UserDefaults) -> ScheduledAlarmSummary? {

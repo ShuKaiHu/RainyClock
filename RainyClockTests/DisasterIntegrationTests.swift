@@ -96,6 +96,46 @@ final class DisasterIntegrationTests: XCTestCase {
 
     /// Found on device at 00:12: 9/29 was skipped, but the Alarm page's card had moved on
     /// to 9/30 at midnight and nothing on the page said today's alarm was off.
+    /// A push that lands while a fetch is in flight — the app was opened, then locked on
+    /// a slow network — must still be fetched before a later open's join completes. The
+    /// alert push does not wake the app, so nothing else will ask. (Adversarial review of
+    /// the throttle fix: the join path never reached the marker check.)
+    func testPushDuringAnInFlightFetchTriggersOneMoreFetch() async throws {
+        let suite = "DisasterPushInFlight-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        try storage.set(JSONEncoder().encode(settings()), forKey: "commuteAlarmSettings")
+        let gate = DisasterTestGate()
+        let firstFeed = feed(now: Date())
+        var secondFeed = feed(now: Date().addingTimeInterval(1))
+        secondFeed.revision = String(repeating: "b", count: 64)
+        let provider = GatedFeedStub(first: firstFeed, second: secondFeed, gate: gate)
+        final class PushBox { var receivedAt: Date? }
+        let push = PushBox()
+        let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+            disasterFeedProvider: provider, disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true,
+            dayOffPushReceivedAt: { push.receivedAt })
+        let opened = Task { await model.refreshDisasterSuspensions() }
+        await gate.waitUntilEntered()
+        push.receivedAt = Date()
+        let joined = expectation(description: "The reopen joined the in-flight refresh")
+        let reopened = Task {
+            joined.fulfill()
+            return await model.refreshDisasterSuspensions()
+        }
+        await fulfillment(of: [joined], timeout: 2)
+        await gate.open()
+        _ = await opened.value
+        _ = await reopened.value
+        var calls = await provider.calls
+        XCTAssertEqual(calls, 2, "The push postdates the in-flight fetch, so one more fetch must follow")
+        XCTAssertEqual(model.disasterFeed?.revision, secondFeed.revision)
+        _ = await model.refreshDisasterSuspensions()
+        calls = await provider.calls
+        XCTAssertEqual(calls, 2, "Once fetched after the push, the throttle holds again")
+    }
+
     func testTodaysClosureSkipIsFoundOnlyForLaterToday() {
         func summary(_ skips: [AppliedDisasterSkip]?) -> ScheduledAlarmSummary {
             ScheduledAlarmSummary(normalAlarmDate: date(30), scheduledAlarmDate: date(30),

@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 
 /// Turns the server's one-size-fits-all day-off push into what this phone should
 /// actually show. Runs inside the notification service extension with the app
@@ -15,6 +16,10 @@ enum DayOffPushContent {
         /// not news: silent and passive, so a typhoon night's stream of other
         /// counties' updates does not ring this phone once per revision.
         case alreadyApplied
+        /// The announcement concerns a day the user set to ring regardless (a manual
+        /// "ring" outranks a closure). Already decided: silent and passive, like
+        /// `alreadyApplied`, so every revision of a typhoon night does not ring.
+        case keptByUser
         /// The user's district has a new announcement that does not silence the
         /// alarm (partial area, unrecognised wording, contradictory data): sound,
         /// normal urgency, with the reason.
@@ -24,6 +29,38 @@ enum DayOffPushContent {
         /// Cannot tell (feature off, no districts, no next alarm, feed unreachable):
         /// leave the server's generic fallback untouched.
         case unknown
+    }
+
+    /// How each urgency is presented. Shared with the extension so the tests pin what
+    /// the phone actually does: nil leaves the server's generic content untouched.
+    struct Presentation: Equatable, Sendable {
+        var playsSound: Bool
+        var interruptionLevel: UNNotificationInterruptionLevel
+    }
+
+    static func presentation(for urgency: Urgency) -> Presentation? {
+        switch urgency {
+        case .unknown: nil
+        case .matched: Presentation(playsSound: true, interruptionLevel: .timeSensitive)
+        case .related: Presentation(playsSound: true, interruptionLevel: .active)
+        case .unrelated, .alreadyApplied, .keptByUser: Presentation(playsSound: false, interruptionLevel: .passive)
+        }
+    }
+
+    /// Each server instance caches the snapshot for a few seconds, so a fetch right after
+    /// a broadcast can still return the previous revision — and evaluating that would
+    /// describe the old announcements, possibly "not for your districts" for the very
+    /// closure this push is about. Wait out the cache once; if the revision still differs,
+    /// return nil so the server's generic text is shown. A push without a revision is
+    /// taken as it comes.
+    static func fetchFeed(matching pushedRevision: String?, retryAfter delay: Duration = .seconds(6),
+                          fetch: () async throws -> DisasterFeed,
+                          sleep: (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) async -> DisasterFeed? {
+        guard let first = try? await fetch() else { return nil }
+        guard let pushedRevision, first.revision != pushedRevision else { return first }
+        do { try await sleep(delay) } catch { return nil }
+        guard let second = try? await fetch(), second.revision == pushedRevision else { return nil }
+        return second
     }
 
     struct Result: Equatable, Sendable {
@@ -96,37 +133,49 @@ enum DayOffPushContent {
                    title: chinese ? decision.reason : "\(decision.area ?? ""): closure announced",
                    body: action + "\n" + sourceLine(updatedAt: feed.sourceUpdatedAt ?? decision.sourceUpdatedAt, chinese: chinese))
         }
-        // News first: a closure the app has not applied yet outranks a day that is
-        // already off, even when the already-off day comes earlier.
-        if let (date, decision) = suppressing.first(where: { !state.isAlreadySkipped($0.0) }) {
+        func related(_ decision: DisasterDecision) -> Result? {
+            switch decision.status {
+            case "noAnnouncement", "disabled", "missingRegion": return nil
+            default:
+                if decision.shouldSkip || feedProblemReasons.contains(decision.reason) { return nil }
+                return Result(urgency: .related, title: generic.title,
+                              body: chinese ? decision.reason
+                                            : englishRelatedReasons[decision.reason] ?? englishRelatedFallback)
+            }
+        }
+        // 1. News: a closure the app has not applied and the user has not overridden.
+        //    It outranks a day that is already off, even when that day comes earlier.
+        if let (date, decision) = suppressing.first(where: { !state.isAlreadySkipped($0.0) && !state.isKeptRinging($0.0) }) {
             let day = dayLabel(date)
             let action = date == nearest
                 ? (chinese ? "下一次鬧鐘會依你的設定處理，打開 App 確認。" : "Your next alarm will follow your settings. Open the app to confirm.")
                 : (chinese ? "\(day) 的鬧鐘會依你的設定處理，打開 App 確認。" : "\(day): that day's alarm will follow your settings. Open the app to confirm.")
             return matched(date, decision, urgency: .matched, action: action)
         }
-        if let (date, decision) = suppressing.first {
-            let day = dayLabel(date)
+        // 2. The next day that will actually ring has an announcement that does not
+        //    silence it (partial area, unclear wording): that is worth a sound, and it
+        //    outranks a repeat for a day that is already off.
+        if let armed = dates.first(where: { !state.isAlreadySkipped($0) }), let result = related(decide(armed)) {
+            return result
+        }
+        // 3. Already decided: skipped by the app, or kept ringing by the user's own setting.
+        if let (date, decision) = suppressing.first(where: { state.isAlreadySkipped($0.0) }) {
             return matched(date, decision, urgency: .alreadyApplied,
-                           action: chinese ? "\(day) 當天的鬧鐘已略過。" : "\(day): that day's alarm has already been skipped.")
+                           action: chinese ? "\(dayLabel(date)) 當天的鬧鐘已略過。" : "\(dayLabel(date)): that day's alarm has already been skipped.")
+        }
+        if let (date, decision) = suppressing.first {
+            return matched(date, decision, urgency: .keptByUser,
+                           action: chinese ? "\(dayLabel(date)) 依你的設定照響。" : "\(dayLabel(date)): your alarm rings as you set it.")
         }
         // Nothing suppresses any more, yet the nearest day is one the app skipped:
         // the phone and the announcements disagree until the app runs again, and
         // "the alarm rings as usual" would name a day that is not armed. Say nothing
         // specific; the generic text asks the user to open the app.
         if state.isAlreadySkipped(nearest) { return generic }
-        let decision = decide(nearest)
-        switch decision.status {
-        case "noAnnouncement":
+        if decide(nearest).status == "noAnnouncement" {
             return Result(urgency: .unrelated, title: generic.title,
                           body: chinese ? "與你設定的地區無關，鬧鐘照常。" : "Not for your districts; the alarm rings as usual.")
-        case "disabled", "missingRegion":
-            return generic
-        default:
-            if feedProblemReasons.contains(decision.reason) { return generic }
-            return Result(urgency: .related, title: generic.title,
-                          body: chinese ? decision.reason
-                                        : englishRelatedReasons[decision.reason] ?? englishRelatedFallback)
         }
+        return generic
     }
 }

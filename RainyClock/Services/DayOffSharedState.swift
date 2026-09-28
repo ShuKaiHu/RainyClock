@@ -29,6 +29,10 @@ struct DayOffSharedState: Codable, Equatable, Sendable {
     /// The normal dates among those that the app already skipped for a closure
     /// (committed `AppliedDisasterSkip`s). Absent in older state.
     var skippedNormalAlarmDates: [Date]? = nil
+    /// The upcoming normal dates the user set to ring regardless (a manual "ring" day
+    /// outranks a closure). A closure for one of these is already decided, not news.
+    /// Dates only, like the fields above. Absent in older state.
+    var keptNormalAlarmDates: [Date]? = nil
 
     /// How many upcoming dates the app mirrors. Announcements target today or tomorrow;
     /// a week covers any skip plus the next ringing day with room to spare.
@@ -42,6 +46,10 @@ struct DayOffSharedState: Codable, Equatable, Sendable {
 
     func isAlreadySkipped(_ date: Date) -> Bool {
         (skippedNormalAlarmDates ?? []).contains { abs($0.timeIntervalSince(date)) < 60 }
+    }
+
+    func isKeptRinging(_ date: Date) -> Bool {
+        (keptNormalAlarmDates ?? []).contains { abs($0.timeIntervalSince(date)) < 60 }
     }
 
     static func sharedDefaults() -> UserDefaults? {
