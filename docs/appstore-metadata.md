@@ -284,6 +284,39 @@ rain alarm,weather alarm,commute alarm,smart alarm,rain,weather,alarm clock,comm
 
 雨天鬧鐘,天氣鬧鐘,通勤鬧鐘,智慧鬧鐘,降雨,天氣,鬧鐘,通勤
 
+## Version 1.8.0 (38) “What’s New” — LOCAL DRAFT
+
+Local draft written 2026-09-28, before any archive or upload; 1.7.1 (37) is the live build.
+One new feature leads — the typhoon / disaster closure rule — because it is the whole
+release. The plan question (free, subscription-only, or included in the one-time purchase)
+is **not decided**, so this copy names no plan and no price: it says the rule follows your
+plan settings and stops there. Do not add a benefit line to the description or the paid
+copy until the owner decides. Nothing here claims background delivery is guaranteed.
+
+### English
+
+```
+Sleep in when the government calls a day off.
+
+• Typhoon and disaster closures: when a city or county government suspends work or school for the district of your home or workplace, Rainy Clock skips that day's alarm. Announcements come from the Directorate-General of Personnel Administration's open data, and the app shows the source and its update time next to any closure it reports.
+• Choose whether work closures, school closures, or both count, and confirm your home and workplace districts in Settings → Calendar. Availability follows your plan settings.
+• An optional notification can tell you when an announcement changes. It is checked against your districts on your phone — nothing about where you live is uploaded — and the alarm is only ever silenced after the app has verified the announcement.
+• A township map shows today's and tomorrow's announcements for all 22 cities and counties and 368 townships and districts.
+• If no announcement can be confirmed, or the network is down, the alarm rings as usual.
+```
+
+### 繁體中文
+
+```
+政府宣布放假，就讓你多睡一會。
+
+・颱風與天災停班停課：當縣市政府宣布你住家或公司所在行政區停止上班或上課，雨天鬧鐘會略過當天的鬧鐘。公告來自行政院人事行政總處的開放資料，App 顯示任何停班停課結果時都會標示資料來源與更新時間。
+・可選擇只看停班、只看停課或兩者皆算，並在「設定 → 日曆」確認住家與公司所在行政區。是否可使用依你的方案設定而定。
+・選用的通知可以在公告更新時提醒你。比對行政區在你的手機上完成，不會上傳你的所在地；鬧鐘只會在 App 確認公告後才靜音。
+・鄉鎮市區地圖可查看今天與明天的公告，涵蓋 22 縣市、368 鄉鎮市區。
+・無法確認公告或網路異常時，鬧鐘照常響鈴。
+```
+
 ## Version 1.7.0 (29) “What’s New” — LOCAL DRAFT
 
 Build 1.7.0 (29) uploaded to App Store Connect on 2026-09-16 at 22:19:55 Asia/Taipei; Apple acknowledged the upload and began processing. Not submitted for review; the copy below remains a local draft. Version 1.7.0 includes the native UI and Taiwan / United States holiday calendars. Temporary disaster closures are deferred to 1.7.1, hidden and disabled in this build; implementation is retained in the development archive. Membership is implemented locally but its backend and paid products are not yet enabled.
@@ -544,6 +577,47 @@ uses local notifications only (untrue since `1.6.3` adopted AlarmKit — and it 
 not track (untrue since `1.6.5` added ATT), while everything up to `1.6.6` describes Google
 AdMob and `npa=1`, which `1.6.7` replaced with Unity LevelPlay.
 
+### Version-specific note for 1.8.0 (38) — LOCAL DRAFT
+
+Drafted 2026-09-28. Paste it on top of the 1.7.1 (37) note that was actually sent
+(`docs/appstore-review-notes-1.7.1-37.txt`), with the build number changed, after the
+checks in the bracketed lines below are done. The bracketed lines are internal and must be
+removed before pasting. Whether the feature is free, subscription-only or part of the
+one-time purchase is undecided. The note must not point at PURCHASES (that section says both
+plans "unlock calendar features", which is not what this build does for closures); it states
+what the current build does, and that sentence has to be rewritten to match the owner's
+decision before pasting. The PURCHASES section of the 1.7.1 note must not be edited to name it.
+
+```
+TEMPORARY DISASTER CLOSURES (new in 1.8.0)
+[BEFORE PASTING: rewrite the next sentence to match the owner's plan decision. As of this draft the code applies the rule only with an active subscription (MembershipEntitlements.temporaryClosures); the free tier and the one-time purchase do not have it. On a confirmed plan without it the switch cannot be turned on (it can always be turned off), a lock line under it reads "Your current plan doesn't include temporary closure rules" (it opens the membership screen, except for a one-time-purchase owner, where it is plain text), and the "Closure preferences" / "Closure map" rows are not shown. If the switch had been turned on earlier, the saved value is kept (the switch still shows it) and a second line says it isn't applied to the alarm or closure notifications. While the plan has not been confirmed (no membership sync yet, or a subscription past its expiry by the phone clock before the server refresh) the line reads "Your plan hasn't been confirmed yet" and, if the switch is on, says the setting is still applied. None of this names a plan, so the screen stays correct whatever is decided; only the next sentence has to change. "View map demo" stays available on every plan.]
+Settings → Calendar has a new "Use temporary closure rules" switch, off by default. In this build the rule takes effect only while a Rainy Clock Plus subscription is active; the one-time purchase does not include it. When it is on, two rows appear below it: "Closure preferences" and "Closure map". "Closure preferences" lets the user choose work closures, school closures or both, and shows the township/district the app derived from the home and workplace addresses entered in the Route settings; to change a district, the user changes the address there. Location is not used.
+
+The rule depends on live government announcements. Taiwan's Directorate-General of Personnel Administration (DGPA) publishes work and school closures through the National Science and Technology Center for Disaster Reduction (NCDR); the app reads the data.gov.tw open-data copy of that feed (dataset 20457, Open Government Data License v1.0) through our own Cloud Run service, which holds one verified cache so phones do not scrape the government site. Outside a typhoon or other disaster there is normally no active closure, so during review you will most likely see "no announcement" states and an alarm that behaves exactly as before. The app shows the source and the source's own update time next to any closure it reports. A "fetch failed" state is visibly different from "no closure announced"; neither changes the alarm, only a verified announcement that matches the home or workplace district does.
+
+To see what a closure looks like without waiting for a typhoon, open the Settings tab, choose "Calendar" at the top, and tap "View map demo" in the card below the "Use temporary closure rules" switch. The row is there whether or not the switch is on, and it needs no subscription or purchase. The demo is labelled "Demo data · Not live" at the top and shows fictional sample announcements (for example Taipei City closed city-wide, and Xindian District of New Taipei City closed at district level); it carries no government source credit or source update time, since the announcements are made up. It does not fetch or store announcements and never changes the alarm or push registration.
+
+Notifications: when the feature is on, the app registers for push. Our service sends the same short, location-free notification to every registered device when the announcements change; the bundled Notification Service Extension (com.shukaihu.RainyClock.DayOffNotification) then reads the home and workplace districts, which are stored only in the app's App Group on the device, fetches the announcements and rewrites the notification locally: with sound when the user's district has a new announcement, silently when the announcements do not concern them. If the extension cannot decide (for example no upcoming alarm, no district for the addresses, or its own fetch fails), the generic notification is shown as sent, with sound. The push is informational. The alarm is silenced only by the app itself, after it has fetched and verified a matching announcement and successfully rescheduled; a notification alone never cancels anything. If the announcement cannot be verified or the network is unavailable, the alarm rings as usual.
+
+Data: the phone sends our service a random installation identifier, the APNs token and a hash of a device-held credential, and after processing an announcement it reports the announcement revision, timestamps and an applied / no-alarm result. Home and workplace addresses, districts, routes, alarm times and skipped dates are never uploaded. There is no location permission request for this feature. Details are in the "Temporary disaster closures" section of the privacy policy.
+```
+
+繁體中文（同一段的中文版，供繁中審查說明使用；括號內為內部備註，貼上前刪除）：
+
+```
+天災臨時放假（1.8.0 新增）
+［貼上前：依擁有者的方案決定改寫下一句。本草稿撰寫時，程式只在訂閱有效時套用此規則（MembershipEntitlements.temporaryClosures），免費與買斷都沒有。已確認的方案不含此規則時，開關無法打開（但一律可以關閉），下方有鎖頭一行「目前方案不含臨時放假規則」（點了進入會員畫面；買斷使用者則只是文字、不可點），「停班停課偏好」「停班停課地圖」兩列不顯示；若先前已打開，保留原設定（開關仍顯示開啟），並多一行說明目前不會套用到鬧鐘或停班停課通知。方案尚未確認時（尚未同步會員資料，或依手機時間訂閱已過期但伺服器尚未更新），該行改為「尚未確認你的方案」，開關若已打開則說明設定仍會套用。這些文字都不點名方案，所以不論怎麼決定畫面都正確，只需改寫下一句。「查看地圖示範」在任何方案都可使用。］
+「設定 → 日曆」新增「使用臨時放假規則」開關，預設關閉；本版中此規則只在 Rainy Clock Plus 訂閱有效時生效，買斷不包含。開啟後下方出現兩列：「停班停課偏好」與「停班停課地圖」。「停班停課偏好」可選擇看停班、停課或兩者，並顯示 App 依「路線」設定中住家與公司地址判斷出的鄉鎮市區；要更改行政區，請到該處修改地址。此功能不使用定位。
+
+此規則依賴政府即時公告。行政院人事行政總處經國家災害防救科技中心（NCDR）發布停班停課公告；App 透過我們自己的 Cloud Run 服務讀取 data.gov.tw 的開放資料版本（資料集 20457，政府資料開放授權條款第 1 版），服務只保存一份已驗證快取，手機不會抓取政府網站。非颱風或災害期間通常沒有生效中的公告，因此審查時多半只會看到「沒有公告」的狀態，鬧鐘行為與先前相同。App 顯示任何停班停課結果時都會標示資料來源與來源本身的更新時間；「取得失敗」與「沒有公告」是不同的顯示狀態，兩者都不會改變鬧鐘；只有經確認、且符合住家或公司行政區的公告才會。
+
+不必等颱風也能看到停班停課的樣子：打開「設定」分頁，上方選「日曆」，點「使用臨時放假規則」開關下方卡片裡的「查看地圖示範」。不論開關是否打開都有這一列，也不需要訂閱或購買。示範畫面頂端標示「示範資料・非即時公告」，顯示虛構的範例公告（例如臺北市全市停班停課、新北市新店區停班停課），因為是虛構內容，不標示政府資料來源或來源更新時間；不會抓取或儲存公告，也不會改變鬧鐘或推播註冊。
+
+通知：功能開啟時 App 會註冊推播。公告變更時，我們的服務對所有已註冊裝置送出同一則簡短、不含位置的通知；隨附的通知擴充功能（com.shukaihu.RainyClock.DayOffNotification）讀取只存在手機 App Group 的住家與公司行政區，自行取得公告後在本機改寫通知：使用者的行政區有新公告時有聲，公告與其無關時靜音；擴充功能無法判斷時（例如沒有即將響的鬧鐘、地址沒有對應的行政區或自己的抓取失敗），會照原樣顯示有聲的通用通知。推播只是資訊。鬧鐘只會由 App 本身在取得並確認相符公告、成功重新排程後才靜音；通知本身不會取消任何鬧鐘。無法確認公告或網路異常時，鬧鐘照常響鈴。
+
+資料：手機傳給服務的是隨機安裝識別碼、APNs token 與裝置持有 credential 的雜湊；處理完公告後回報公告版本、時間戳與「已處理／未設鬧鐘」結果。住家與公司地址、行政區、路線、鬧鐘時間與略過日期都不會上傳。此功能不要求定位權限。詳見隱私政策「天災臨時放假」一節。
+```
+
 ### Version-specific note for 1.7.0 (29) — LOCAL DRAFT
 
 The app adds a Settings tab. The general ad-report route and GDPR privacy options are now
@@ -778,12 +852,13 @@ that mode. We kindly ask that this functionality be reviewed on an iPhone runnin
 | --- | --- |
 | Membership | Automatically recognized with verified Apple app/purchase data; no RainyClock email/password. In-app deletion, separate from Apple subscription cancellation |
 | User ID | Internal member, Apple app/purchase identity mapping and reward identity; App Functionality; linked to identity; first-party use is not tracking |
-| Device ID | App Attest key/device-verification binding and session security; App Functionality; linked; first-party use is not tracking |
+| Device ID | App Attest key/device-verification binding and session security; **plus (1.8.0) closure updates:** a random installation identifier generated on the device, the APNs push token and a hash of a device-held credential, registered only while temporary closure rules are on (expires after 90 days without renewal; turning the rule off deletes it). App Functionality; **linked** (one answer per data type, and the membership use is linked, so the stricter answer covers both); first-party use is not tracking |
 | Purchase History | Verified transactions, subscription state and refunds; App Functionality; linked; not used for first-party tracking |
 | Other User Content / Audio Data | AI script sent to Google and generated audio temporarily saved for retry; App Functionality; linked to member; not used for first-party tracking |
 | Product Interaction | Daily usage, reservations and generation outcomes; App Functionality; linked; not used for first-party tracking |
 | Advertising Data | Verified reward events and credits; App Functionality; linked; first-party reward accounting is not tracking |
-| Location | Route/weather location use remains unchanged. Membership uses IANA time zone, not home/work addresses; assess Apple service and SDK collection separately |
+| Location | Route/weather location use remains unchanged. Membership uses IANA time zone, not home/work addresses; assess Apple service and SDK collection separately. Closure districts (1.8.0) stay on the device and in the App Group; nothing about them is uploaded |
+| Diagnostics (Other Diagnostic Data) | Existing declaration stays as it is in `PrivacyInfo.xcprivacy` (linked); **plus (1.8.0) closure receipts:** per-device latest processing report (announcement revision, check/processing timestamps and an applied / no-alarm result). App Functionality; **linked** (same one-answer-per-type rule); not used for tracking. No districts, addresses, alarm times or skipped dates |
 | Contact info | No email, name, password or payment-card form required for membership |
 | Advertising partner | Unity LevelPlay banner + optional rewarded ads; no AdMob. Keep partner Device ID / advertising / usage data tracking declarations according to actual SDK behavior and ATT |
 | Backend | Existing Cloud Run with Google speech services; new Firestore membership storage, backend-only access |
@@ -794,6 +869,16 @@ that mode. We kindly ask that this functionality be reviewed on an iPhone runnin
 
 以上表格包含內部規劃欄位，App Store Connect 實際表單只填資料類型、目的、是否與身分
 連結、是否追蹤。歷史 Review Notes 的「not linked」敘述不適用新會員生成流程。
+
+1.8.0 的停班停課用途併入既有的 Device ID 與 Diagnostics 兩列，維持「linked」：App Store
+Connect 每種資料類型只能填一個「是否與身分連結」答案，而 `PrivacyInfo.xcprivacy` 已為會員／
+App Attest 宣告 `NSPrivacyCollectedDataTypeDeviceID` 與 `OtherDiagnosticData` 為 Linked = true，
+不要為停班停課另填「not linked」或改動 manifest。停班停課紀錄本身仍與會員資料分開：dayoff-service
+用獨立的 Firestore 命名空間，`devices/<installationId>` 只有隨機安裝識別碼、token、credential
+雜湊與最新回報，沒有任何會員或 Apple 識別碼；投遞失敗的 token 另在
+`broadcasts/<revision>/retries/<token>` 保留最多 7 天。送表單前對照封存的 Privacy Report，並確認
+`RainyClock/PrivacyInfo.xcprivacy` 有為 App Group `UserDefaults` 加上 1C8F.1 理由（目前只有
+CA92.1），通知擴充功能目標尚無自己的 PrivacyInfo.xcprivacy。
 
 ### StoreKit products — approved catalog, 2026-09-21
 
@@ -818,7 +903,11 @@ lifetime banner removal, calendar and one shared daily AI generation. Lifetime p
 these current benefits and is the displayed plan when both are owned; it prevents redundant monthly
 purchase. Existing Apple subscriptions remain visible and manageable, never silently cancelled.
 Free users still have one initial generation. Temporary closures are deferred to 1.8.0 and must not
-appear in 1.7.0 paid copy; future lifetime eligibility for them is not decided.
+appear in 1.7.0 paid copy; future lifetime eligibility for them is not decided. (2026-09-28: 1.8.0
+ships the feature, but the plan decision is still open, so the 1.8.0 What's New draft says only
+that it follows the plan settings, the review-note draft states what the current build does and
+is flagged to be rewritten once the owner decides, and neither adds a line to the paid copy or
+the product descriptions.)
 
 Current lifetime descriptions — saved and read back in ASC on 2026-09-21 (not submitted):
 

@@ -172,3 +172,66 @@ final class DisasterSuspensionTests: XCTestCase {
         }
     }
 }
+
+/// The day-off service follows how APNs is signed: every DEBUG build carries an APNs
+/// development token and so uses the sandbox stack; Release uses production. The membership
+/// sandbox rule (launch arguments, the Debug Sandbox build) plays no part.
+final class DayOffServiceConfigurationTests: XCTestCase {
+    private let production = "https://rainyclock-dayoff-510427696731.asia-east1.run.app"
+    private let sandbox = "https://rainyclock-dayoff-sandbox-510427696731.asia-east1.run.app"
+
+    func testAPNsProductionBuildUsesTheProductionOrigin() {
+        XCTAssertEqual(AppEnvironment.resolvedDayOffServiceURL(productionValue: production, sandboxValue: sandbox,
+            apnsSandbox: false)?.absoluteString, production)
+    }
+
+    func testAPNsSandboxBuildUsesTheSandboxOrigin() {
+        XCTAssertEqual(AppEnvironment.resolvedDayOffServiceURL(productionValue: production, sandboxValue: sandbox,
+            apnsSandbox: true)?.absoluteString, sandbox)
+    }
+
+    func testBlankOrUnsafeProductionValueLeavesTheFeatureUnconfigured() {
+        for raw in [nil, "", "http://rainyclock-dayoff.example.com", "https://user:secret@rainyclock-dayoff.example.com",
+                    "https://rainyclock-dayoff.example.com/v1/suspensions", "https://rainyclock-dayoff.example.com?x=1"] {
+            XCTAssertNil(AppEnvironment.resolvedDayOffServiceURL(productionValue: raw, sandboxValue: sandbox,
+                apnsSandbox: false), raw ?? "nil")
+        }
+    }
+
+    func testMissingOrMalformedSandboxValueCannotFallBackToProduction() {
+        for raw in [nil, "", "http://sandbox.example.com", "https://sandbox.example.com/path"] {
+            XCTAssertNil(AppEnvironment.resolvedDayOffServiceURL(productionValue: production, sandboxValue: raw,
+                apnsSandbox: true), raw ?? "nil")
+        }
+    }
+
+    func testBundleOriginsAreBareHTTPSOriginsTheExtensionCanAppendTo() throws {
+        for (apnsSandbox, origin) in [(false, production), (true, sandbox)] {
+            let url = try XCTUnwrap(AppEnvironment.resolvedDayOffServiceURL(productionValue: production,
+                sandboxValue: sandbox, apnsSandbox: apnsSandbox))
+            XCTAssertEqual(url.appendingPathComponent("v1/suspensions").absoluteString, origin + "/v1/suspensions")
+        }
+    }
+
+    func testXCTestHostNeverReceivesAServiceURL() {
+        XCTAssertTrue(AppEnvironment.isRunningTests)
+        XCTAssertNil(AppEnvironment.dayOffServiceURL)
+    }
+
+    #if DEBUG
+    /// Plain Debug, Membership Local, the sandbox launch argument and the installed Debug
+    /// Sandbox build are all signed `aps-environment = development`: none may reach production.
+    func testEveryDebugBuildUsesTheSandboxOrigin() {
+        XCTAssertTrue(AppEnvironment.usesAPNsSandbox)
+        XCTAssertEqual(AppEnvironment.resolvedDayOffServiceURL(productionValue: production,
+            sandboxValue: sandbox)?.absoluteString, sandbox)
+        XCTAssertNil(AppEnvironment.resolvedDayOffServiceURL(productionValue: production, sandboxValue: nil))
+    }
+    #else
+    func testReleaseUsesTheProductionOrigin() {
+        XCTAssertFalse(AppEnvironment.usesAPNsSandbox)
+        XCTAssertEqual(AppEnvironment.resolvedDayOffServiceURL(productionValue: production,
+            sandboxValue: sandbox)?.absoluteString, production)
+    }
+    #endif
+}

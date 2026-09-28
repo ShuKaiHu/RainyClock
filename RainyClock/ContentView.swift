@@ -311,10 +311,27 @@ private struct AlarmHomeView: View {
                         Text(reason).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                     }.font(.subheadline).frame(maxWidth: .infinity)
                 }.buttonStyle(.plain)
+                if tomorrow.reason == .disaster { closureSourceCredit }
             }
         }.padding(compact ? 15 : 18)
             .frame(maxWidth: .infinity)
             .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+    }
+
+    /// docs/DAYOFF-SPEC.md §7: a surface that reports a closure names the source (the OGDL
+    /// credit is a licence condition) and the source's own update time. caption2 and
+    /// secondary, so it never out-ranks the Apple Weather mark in the weather card.
+    private var closureSourceCredit: some View {
+        VStack(spacing: 2) {
+            if let updated = viewModel.disasterFeed?.sourceUpdatedAt {
+                Text(String.localizedStringWithFormat(String(localized: "disaster_source_updated"),
+                    viewModel.settings.timeFormat.dateTime(updated)))
+            }
+            Text("disaster_source")
+        }
+        .font(.caption2).foregroundStyle(.secondary)
+        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity)
     }
 
     private func weatherCard(compact: Bool) -> some View {

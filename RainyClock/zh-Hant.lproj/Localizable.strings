@@ -283,13 +283,15 @@
 "disaster_both_rule" = "停班或停課任一公告即略過鬧鐘。";
 "disaster_choose_rule" = "請至少選擇停班或停課。";
 "dayoff_push_title" = "停班停課公告已更新";
-"dayoff_push_body" = "打開雨天鬧鐘確認明天的鬧鐘。";
+"dayoff_push_body" = "打開雨天鬧鐘確認下一次鬧鐘。";
 "disaster_region_rule" = "住家或目的地符合公告，就略過該日鬧鐘。路途中途地區不列入。";
 "disaster_choose_region" = "選擇行政區";
 "disaster_refresh" = "檢查最新公告";
 "disaster_official" = "查看人事行政總處公告";
-"disaster_source" = "資料來源：行政院人事行政總處（經國家災害防救科技中心 NCDR 發布）。";
-"disaster_limits" = "實際停止上班上課以各縣市政府公告為準；個別學校與村里公告可能未包含。iOS 不保證背景更新；未取得有效公告時照常響鈴。民間事業單位請依雇主及勞動部相關規定辦理。";
+"disaster_source" = "資料來源：行政院人事行政總處（經國家災害防救科技中心 NCDR 發布），依政府資料開放授權條款第 1 版使用。";
+"disaster_source_credit" = "資料來源：政府資料開放平臺 data.gov.tw／行政院人事行政總處";
+"disaster_source_updated" = "來源更新時間：%@";
+"disaster_limits" = "本資訊擷取自行政院人事行政總處公開資料，僅供參考，實際停止上班上課以各縣市政府公告為準。民間事業單位請依勞動部「天然災害發生事業單位勞工出勤管理及工資給付要點」辦理。網路異常時本 App 將照常響鈴。iOS 不保證背景更新或通知送達；未取得有效公告時照常響鈴。";
 "disaster_applied" = "%@ 鬧鐘已略過";
 "disaster_no_alarm" = "尚未設定鬧鐘";
 "disaster_no_applied_skip" = "目前沒有因天災略過的鬧鐘";
@@ -412,6 +414,10 @@
 
 /* Tomorrow alarm overview and route-linked closure settings */
 "ux_use_closure_rules" = "使用臨時放假規則";
+"ux_closure_plan_locked" = "目前方案不含臨時放假規則";
+"ux_closure_saved_not_applied" = "你的設定已保留，但目前不會套用到鬧鐘或停班停課通知。";
+"ux_closure_plan_unconfirmed" = "尚未確認你的方案";
+"ux_closure_saved_still_applied" = "你的設定目前仍會套用到鬧鐘和停班停課通知，可在這裡關閉。";
 "ux_tomorrow" = "明天";
 "ux_expected_ring" = "預計響鈴";
 "ux_tomorrow_skipped" = "略過鬧鐘";

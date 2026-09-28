@@ -180,7 +180,7 @@ final class DisasterSyncReceiptTests: XCTestCase {
         XCTAssertNotNil(store.data(forKey: "disasterPendingSyncReceipt.v1"))
     }
 
-    func testDeferredReleaseRemovesOldRegistrationAndCannotUploadOrReenable() async throws {
+    func testClosedGateRemovesOldRegistrationAndCannotUploadOrReenable() async throws {
         let store = defaults()
         store.set(true, forKey: "disasterPushEnabled")
         store.set(token, forKey: "disasterPushToken")
@@ -188,6 +188,7 @@ final class DisasterSyncReceiptTests: XCTestCase {
         let stub = ReceiptTransportStub()
         var registrationChanges: [Bool] = []
         let service = DisasterPushRegistration(serviceURL: URL(string: "https://receipt.invalid")!, defaults: store,
+            supportsTemporaryClosures: false,
             transport: { try await stub.send($0) },
             identityProvider: { .init(installationId: "test-installation", credential: String(repeating: "c", count: 64)) },
             registrationChanged: { registrationChanges.append($0) })

@@ -1209,3 +1209,127 @@ private struct MembershipPreviewStub: EveningPreviewScheduling {
     func showSample(_ preview: EveningPreview) async {}
     func notifyDecisionChange(_ change: AlarmDecisionChange) async {}
 }
+
+/// The closure switch's lock is decided apart from the calendar lock and never
+/// rewrites the saved preference or the plan mapping. What it says about the rule
+/// being applied must agree with `MembershipSchedulingAccess.effectiveSettings` fed
+/// the scheduling entitlements, which can differ from the ones the lock reads.
+final class TemporaryClosureControlStateTests: XCTestCase {
+    private static let calendarOnly = MembershipEntitlements(removeBanner: true, calendar: true, temporaryClosures: false,
+        dailyAI: true, subscriptionActive: false, lifetimeActive: true)
+    private static let withClosures = MembershipEntitlements(removeBanner: true, calendar: true, temporaryClosures: true,
+        dailyAI: true, subscriptionActive: true, lifetimeActive: false, subscriptionExpiresAt: 10_000,
+        subscriptionProductId: MembershipPlan.monthly.rawValue)
+
+    /// Mirrors `SettingsTabView.closureControl`: the lock reads the clock-validated
+    /// entitlements (`.free` without a snapshot), scheduling the raw snapshot or nil.
+    private func resolve(configured: Bool = true, snapshot: MembershipEntitlements?, now: Date = Date(timeIntervalSince1970: 1),
+                         saved: Bool) -> (state: TemporaryClosureControlState, applied: Bool) {
+        var settings = CommuteAlarmSettings()
+        settings.isDisasterSuspensionEnabled = saved
+        let scheduling = configured ? snapshot : nil
+        let applied = MembershipSchedulingAccess.effectiveSettings(settings, entitlements: scheduling).isDisasterSuspensionEnabled
+        let state = TemporaryClosureControlState.resolve(membershipConfigured: configured,
+            entitlements: snapshot?.valid(at: now) ?? .free, schedulingEntitlements: scheduling,
+            savedEnabled: saved, appliedEnabled: applied)
+        return (state, applied)
+    }
+
+    private func assertCaptionMatchesScheduling(_ result: (state: TemporaryClosureControlState, applied: Bool),
+                                                file: StaticString = #filePath, line: UInt = #line) {
+        let state = result.state
+        if state.keepsSavedRuleUnapplied { XCTAssertFalse(result.applied, file: file, line: line) }
+        if state.savedRuleStillApplied { XCTAssertTrue(result.applied, file: file, line: line) }
+        XCTAssertFalse(state.keepsSavedRuleUnapplied && state.savedRuleStillApplied, file: file, line: line)
+    }
+
+    func testUnconfiguredMembershipLocksNothing() {
+        for saved in [false, true] {
+            let result = resolve(configured: false, snapshot: nil, saved: saved)
+            XCTAssertEqual(result.state.access, .available)
+            XCTAssertTrue(result.state.allowsEditing)
+            XCTAssertFalse(result.state.keepsSavedRuleUnapplied)
+            XCTAssertFalse(result.state.savedRuleStillApplied)
+            assertCaptionMatchesScheduling(result)
+        }
+    }
+
+    func testEntitlementWithTheRuleIsAvailable() {
+        for saved in [false, true] {
+            let result = resolve(snapshot: Self.withClosures, saved: saved)
+            XCTAssertEqual(result.state.access, .available)
+            XCTAssertEqual(result.applied, saved)
+            assertCaptionMatchesScheduling(result)
+        }
+    }
+
+    func testCalendarAccessAloneDoesNotUnlockTheClosureRule() {
+        let state = resolve(snapshot: Self.calendarOnly, saved: false).state
+        XCTAssertEqual(state.access, .locked)
+        XCTAssertFalse(state.allowsEditing)
+        XCTAssertFalse(state.allowsToggle)
+        XCTAssertFalse(state.keepsSavedRuleUnapplied)
+    }
+
+    func testFreePlanIsLockedAndOffersPlans() {
+        let state = resolve(snapshot: .free, saved: false).state
+        XCTAssertEqual(state.access, .locked)
+        XCTAssertTrue(state.offersPlans)
+    }
+
+    func testLifetimeOwnerIsNotSentToThePlansScreen() {
+        let state = resolve(snapshot: Self.calendarOnly, saved: true).state
+        XCTAssertEqual(state.access, .locked)
+        XCTAssertFalse(state.offersPlans)
+    }
+
+    func testSavedRuleOnALockedPlanIsKeptAndReportedAsNotApplied() {
+        let result = resolve(snapshot: Self.calendarOnly, saved: true)
+        XCTAssertEqual(result.state.access, .locked)
+        XCTAssertFalse(result.applied)
+        XCTAssertTrue(result.state.keepsSavedRuleUnapplied)
+        XCTAssertFalse(result.state.savedRuleStillApplied)
+        XCTAssertTrue(result.state.savedEnabled)
+        assertCaptionMatchesScheduling(result)
+    }
+
+    func testALockedSwitchThatIsOnCanStillBeTurnedOff() {
+        XCTAssertTrue(resolve(snapshot: Self.calendarOnly, saved: true).state.allowsToggle)
+        XCTAssertTrue(resolve(snapshot: nil, saved: true).state.allowsToggle)
+        XCTAssertFalse(resolve(snapshot: nil, saved: false).state.allowsToggle)
+    }
+
+    /// Offline past the expiry: the UI's clock-validated view has lapsed, but scheduling
+    /// still holds the server-confirmed plan and keeps applying the rule.
+    func testAClockExpiredSubscriptionIsUnconfirmedAndStillApplied() {
+        let result = resolve(snapshot: Self.withClosures, now: Date(timeIntervalSince1970: 11), saved: true)
+        XCTAssertEqual(result.state.access, .unconfirmed)
+        XCTAssertTrue(result.applied)
+        XCTAssertFalse(result.state.keepsSavedRuleUnapplied)
+        XCTAssertTrue(result.state.savedRuleStillApplied)
+        XCTAssertFalse(result.state.allowsEditing)
+        XCTAssertFalse(result.state.offersPlans)
+        assertCaptionMatchesScheduling(result)
+    }
+
+    /// Configured service with no snapshot (before the first sync, after membership data
+    /// deletion, App Attest failing): scheduling passes the saved rule through.
+    func testAMissingSnapshotIsUnconfirmedAndStillApplied() {
+        let result = resolve(snapshot: nil, saved: true)
+        XCTAssertEqual(result.state.access, .unconfirmed)
+        XCTAssertTrue(result.applied)
+        XCTAssertFalse(result.state.keepsSavedRuleUnapplied)
+        XCTAssertTrue(result.state.savedRuleStillApplied)
+        XCTAssertFalse(result.state.offersPlans)
+        assertCaptionMatchesScheduling(result)
+    }
+
+    func testAServerConfirmedLapseIsLockedAndNotApplied() {
+        let lapsed = Self.withClosures.valid(at: Date(timeIntervalSince1970: 11))
+        let result = resolve(snapshot: lapsed, now: Date(timeIntervalSince1970: 11), saved: true)
+        XCTAssertEqual(result.state.access, .locked)
+        XCTAssertFalse(result.applied)
+        XCTAssertTrue(result.state.keepsSavedRuleUnapplied)
+        assertCaptionMatchesScheduling(result)
+    }
+}

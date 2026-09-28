@@ -42,6 +42,43 @@ final class DayOffPushContentTests: XCTestCase {
         XCTAssertEqual(result.title, "新竹縣尖石鄉: closure announced")
     }
 
+    /// Spec §7: the time-sensitive "your district is closed" notification names the source
+    /// and the source's own update time (Taipei), in both languages.
+    func testMatchedNotificationCreditsTheSourceAndItsUpdateTime() {
+        var announcement = feed("[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。")
+        announcement.sourceUpdatedAt = now.addingTimeInterval(-120) // 2026-09-15 18:58 Asia/Taipei
+        let zh = DayOffPushContent.evaluate(state: state(), feed: announcement, now: now, chinese: true)
+        XCTAssertEqual(zh.urgency, .matched)
+        XCTAssertEqual(zh.body, "下一次鬧鐘會依你的設定處理，打開 App 確認。\n資料來源：行政院人事行政總處（經 NCDR 發布），更新 9/15 18:58")
+        let en = DayOffPushContent.evaluate(state: state(), feed: announcement, now: now, chinese: false)
+        XCTAssertEqual(en.body, "Your next alarm will follow your settings. Open the app to confirm.\nSource: DGPA via NCDR, updated 9/15 18:58")
+    }
+
+    func testMatchedNotificationFallsBackToTheNoticeTimeWithoutAFeedUpdateTime() {
+        let result = DayOffPushContent.evaluate(
+            state: state(), feed: feed("[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。"), now: now, chinese: false)
+        XCTAssertTrue(result.body.hasSuffix("Source: DGPA via NCDR, updated 9/15 18:59"), result.body)
+    }
+
+    func testEnglishRelatedNotificationContainsNoChineseReason() {
+        let result = DayOffPushContent.evaluate(
+            state: state(), feed: feed("[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。", geocodes: ["1000412-001"]),
+            now: now, chinese: false)
+        XCTAssertEqual(result.urgency, .related)
+        XCTAssertEqual(result.body, "Only part of your district is closed, so your alarm stays on.")
+        XCTAssertNil(result.body.range(of: #"\p{Han}"#, options: .regularExpression))
+    }
+
+    func testNoNotificationTextPromisesTomorrow() {
+        let announcement = feed("[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。")
+        for chinese in [true, false] {
+            for body in [DayOffPushContent.evaluate(state: state(), feed: announcement, now: now, chinese: chinese).body,
+                         DayOffPushContent.evaluate(state: nil, feed: announcement, now: now, chinese: chinese).body] {
+                XCTAssertFalse(body.contains("明天") || body.lowercased().contains("tomorrow"), body)
+            }
+        }
+    }
+
     func testAnnouncementForAnotherCountyIsSilent() {
         let result = DayOffPushContent.evaluate(
             state: state(), feed: feed("[停班停課通知]宜蘭縣:明天停止上班、停止上課。行政院人事行政總處。", geocodes: ["10002"]),

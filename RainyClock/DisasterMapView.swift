@@ -19,13 +19,11 @@ struct DisasterMapView: View {
 
     init(viewModel: AlarmViewModel, isDemo: Bool = false, initialCounty: String? = nil) {
         self.viewModel = viewModel
-#if DEBUG
+        // Demo mode ships in Release: it is the reviewer-visible example the spec (§7) and
+        // App Review 2.1(a) require. It shows only `DisasterMapDemo` and the orange
+        // "Demo data · Not live" banner, and it neither fetches nor stores anything.
         self.isDemo = isDemo
         _demoFeed = State(initialValue: isDemo ? DisasterMapDemo.feed(now: Date()) : nil)
-#else
-        self.isDemo = false
-        _demoFeed = State(initialValue: nil)
-#endif
         _feed = State(initialValue: viewModel.disasterFeed)
         _focusedCounty = State(initialValue: initialCounty)
     }
@@ -146,6 +144,13 @@ struct DisasterMapView: View {
                     Label("disaster_map_browse_regions", systemImage: "list.bullet")
                 }
             }.font(.caption2)
+            // Every surface that can say "suspended" names the source and its own update
+            // time (spec §7), not only the fetch time shown in `sourceLabel`. The demo's
+            // announcements are fictional, so it credits no agency and shows no update time.
+            if !isDemo {
+                DisasterSourceFooter(sourceUpdatedAt: activeFeed?.sourceUpdatedAt,
+                                     timeFormat: viewModel.settings.timeFormat, includesDisclaimer: false)
+            }
         }.padding(16).background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24))
     }
 
@@ -219,6 +224,12 @@ struct DisasterMapView: View {
                             .font(.caption).foregroundStyle(.secondary)
                     } else { Text("disaster_map_no_announcement").foregroundStyle(.secondary) }
                     Link("disaster_official", destination: URL(string: "https://www.dgpa.gov.tw/typh/daily/nds.html")!)
+                    if isDemo {
+                        Text("disaster_map_demo_source").font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        DisasterSourceFooter(sourceUpdatedAt: activeFeed?.sourceUpdatedAt,
+                                             timeFormat: viewModel.settings.timeFormat)
+                    }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(24)
             }.background(Color.appBackground)
                 .navigationTitle(String(localized: "disaster_map_announcement"))
@@ -229,9 +240,9 @@ struct DisasterMapView: View {
 
     private func refresh() async {
         guard !isLoading else { return }
-#if DEBUG
+        // Never reaches the network or `viewModel`, so a demo cannot overwrite the
+        // real announcement cache, the alarm plan or push registration.
         if isDemo { now = Date(); demoFeed = DisasterMapDemo.feed(now: now); return }
-#endif
         isLoading = true
         defer { isLoading = false }
         do {
@@ -289,8 +300,8 @@ extension DisasterMapState {
     }
 }
 
-/// Fictional examples, never written to the real feed cache or alarm model.
-#if DEBUG
+/// Fictional examples, never written to the real feed cache or alarm model. The notice
+/// text deliberately omits the agency sign-off real announcements end with.
 enum DisasterMapDemo {
     static func feed(now: Date) -> DisasterFeed {
         let sent = now
@@ -305,20 +316,21 @@ enum DisasterMapDemo {
                 else if county == "臺東縣" { text = "停止上班、照常上課"; severity = "Extreme" }
                 else if county == "花蓮縣" { text = "上午停止上班、停止上課"; severity = "Extreme" }
                 notices.append(.init(id: "example-\(offset)-\(index)", sentAt: sent,
-                    description: "[停班停課通知]\(county):\(token)\(text)。行政院人事行政總處。", severity: severity))
+                    description: "[停班停課通知]\(county):\(token)\(text)。", severity: severity))
             }
             for region in DisasterRegionCatalog.all where region.county == "新北市" {
                 let district = region.district
                 let closed = ["新店區", "烏來區", "坪林區", "石碇區", "三峽區"].contains(district)
                 let text = closed ? "停止上班、停止上課" : "照常上班、照常上課"
                 notices.append(.init(id: "example-local-\(offset)-\(district)", sentAt: sent,
-                    description: "[停班停課通知]新北市\(district):\(token)\(text)。行政院人事行政總處。", severity: closed ? "Extreme" : "Minor"))
+                    description: "[停班停課通知]新北市\(district):\(token)\(text)。", severity: closed ? "Extreme" : "Minor"))
             }
         }
         return .init(revision: String(repeating: "d", count: 64), checkedAt: now, sourceUpdatedAt: sent, notices: notices)
     }
 }
 
+#if DEBUG
 #Preview {
     NavigationStack {
         DisasterMapView(viewModel: AlarmViewModel(settingsStorage: UserDefaults(suiteName: "DisasterMapPreview")!), isDemo: true)

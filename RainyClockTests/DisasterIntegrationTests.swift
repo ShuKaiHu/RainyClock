@@ -281,8 +281,10 @@ final class DisasterIntegrationTests: XCTestCase {
         XCTAssertFalse(relaunched.isScheduleStale)
     }
 
-    func test170ReleaseExcludesClosureWithoutErasingSavedRulesOrFetching() async throws {
-        XCTAssertFalse(AppEnvironment.supportsTemporaryClosures)
+    /// 1.8.0 ships with the gate open; these tests inject it closed to keep proving
+    /// what a gated build does with saved closure rules.
+    func testClosedGateExcludesClosureWithoutErasingSavedRulesOrFetching() async throws {
+        XCTAssertTrue(AppEnvironment.supportsTemporaryClosures, "1.8.0 ships temporary closures")
         let suite = "DeferredClosures-\(UUID())"
         let storage = UserDefaults(suiteName: suite)!
         defer { storage.removePersistentDomain(forName: suite) }
@@ -291,7 +293,8 @@ final class DisasterIntegrationTests: XCTestCase {
         let provider = FeedStub(value: .success(feed(now: Date())))
         let reporter = DisasterReceiptSpy()
         let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
-            disasterFeedProvider: provider, disasterSyncReporter: reporter, membershipEntitlements: { nil })
+            disasterFeedProvider: provider, disasterSyncReporter: reporter, membershipEntitlements: { nil },
+            supportsTemporaryClosures: false)
         _ = await model.refreshDisasterSuspensions(force: true)
         XCTAssertTrue(model.settings.isDisasterSuspensionEnabled)
         XCTAssertFalse(model.effectiveSchedulingSettings.isDisasterSuspensionEnabled)
@@ -305,7 +308,7 @@ final class DisasterIntegrationTests: XCTestCase {
         XCTAssertTrue(persisted.isDisasterSuspensionEnabled)
     }
 
-    func test170ReleaseRetriesOldClosureScheduleWithoutCancellingExistingAlarm() async throws {
+    func testClosedGateRetriesOldClosureScheduleWithoutCancellingExistingAlarm() async throws {
         let suite = "DeferredClosuresUpgrade-\(UUID())"
         let storage = UserDefaults(suiteName: suite)!
         defer { storage.removePersistentDomain(forName: suite) }
@@ -323,7 +326,7 @@ final class DisasterIntegrationTests: XCTestCase {
         let scheduler = DisasterSchedulerSpy()
         scheduler.fail = true
         let model = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage,
-            disasterFeedProvider: provider, membershipEntitlements: { nil })
+            disasterFeedProvider: provider, membershipEntitlements: { nil }, supportsTemporaryClosures: false)
         let restored = model.scheduledAlarmSummary
         _ = await model.refreshDisasterSuspensions()
         XCTAssertEqual(model.scheduledAlarmSummary, restored)
@@ -358,7 +361,7 @@ final class DisasterIntegrationTests: XCTestCase {
         try storage.set(JSONEncoder().encode(old), forKey: "scheduledAlarmSummaryDisplay")
         let scheduler = DisasterSchedulerSpy()
         let model = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage,
-            membershipEntitlements: { nil })
+            membershipEntitlements: { nil }, supportsTemporaryClosures: false)
         await model.applyCalendarSettings()
         XCTAssertEqual(scheduler.calendarCalls, 1)
         XCTAssertEqual(scheduler.cancellations, 0)

@@ -540,3 +540,61 @@ enum MembershipSchedulingAccess {
         return effective
     }
 }
+
+/// What the "使用臨時放假規則" switch may offer on this plan. It never decides which plan
+/// includes the rule — that stays in `MembershipEntitlements.temporaryClosures` — and it
+/// never clears a saved preference: saved premium rules remain recoverable.
+///
+/// Two entitlement sources are involved and they can disagree. The lock follows the
+/// clock-validated `MembershipManager.entitlements` (what the plan screen shows), but
+/// whether the rule is *applied* is whatever scheduling does with
+/// `MembershipManager.schedulingEntitlements` — the raw server-confirmed snapshot, or
+/// nil (saved settings pass through) when there is none. So the caller passes
+/// `appliedEnabled` from `AlarmViewModel.effectiveSchedulingSettings`, and anything the
+/// screen says about the rule being applied comes from that, never from the lock.
+struct TemporaryClosureControlState: Equatable, Sendable {
+    enum Access: Equatable, Sendable {
+        /// The membership service is off, or the plan includes the rule.
+        case available
+        /// Scheduling has no server-confirmed plan (no snapshot yet, after membership
+        /// data deletion, or App Attest failing), or it still holds a confirmed plan
+        /// with the rule that the phone clock says has lapsed. Scheduling passes the
+        /// saved rule through in both, so the screen must not call the plan locked.
+        case unconfirmed
+        /// A confirmed plan without the rule.
+        case locked
+    }
+
+    let access: Access
+    let savedEnabled: Bool
+    let appliedEnabled: Bool
+    /// Only a plan that could still buy the rule is sent to the plans screen. A lifetime
+    /// owner is not: the plan mapping for lifetime is undecided, and that screen's
+    /// subscription cards would read as saying the purchase includes it.
+    let offersPlans: Bool
+
+    static func resolve(membershipConfigured: Bool, entitlements: MembershipEntitlements,
+                        schedulingEntitlements: MembershipEntitlements?,
+                        savedEnabled: Bool, appliedEnabled: Bool) -> Self {
+        let access: Access
+        if !membershipConfigured || entitlements.temporaryClosures {
+            access = .available
+        } else if schedulingEntitlements?.temporaryClosures ?? true {
+            access = .unconfirmed
+        } else {
+            access = .locked
+        }
+        return .init(access: access, savedEnabled: savedEnabled, appliedEnabled: appliedEnabled,
+                     offersPlans: access == .locked && !entitlements.lifetimeActive)
+    }
+
+    /// Turning the rule on, and opening its preferences and live map.
+    var allowsEditing: Bool { access == .available }
+    /// Turning it off is always allowed: keeping a saved preference never means
+    /// refusing to let the user stop push registration or closure-based skips.
+    var allowsToggle: Bool { allowsEditing || savedEnabled }
+    /// The saved preference is on, but scheduling drops it from the alarm and push.
+    var keepsSavedRuleUnapplied: Bool { access != .available && savedEnabled && !appliedEnabled }
+    /// The switch can't be turned on here, yet the saved rule is still being applied.
+    var savedRuleStillApplied: Bool { access != .available && savedEnabled && appliedEnabled }
+}

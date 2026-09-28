@@ -256,6 +256,12 @@ struct MembershipView: View {
 
     private func planButtonTitle(_ plan: MembershipPlan) -> String {
         if plan.isSubscription, manager.entitlements.lifetimeActive {
+            // The subscription card lists temporary closures, which lifetime does not
+            // carry today (`MembershipEntitlements.temporaryClosures`); the button must
+            // not read as saying the one-time purchase includes that line.
+            if AppEnvironment.supportsTemporaryClosures && !manager.entitlements.temporaryClosures {
+                return text("買斷已涵蓋其他權益", "Your one-time purchase covers the other benefits")
+            }
             return text("已由買斷涵蓋", "Included in your one-time purchase")
         }
         if manager.entitlements.owns(plan) {

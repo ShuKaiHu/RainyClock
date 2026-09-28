@@ -283,13 +283,15 @@
 "disaster_both_rule" = "Skip when either work or school is suspended.";
 "disaster_choose_rule" = "Choose work, school, or both.";
 "dayoff_push_title" = "Work/school closure update";
-"dayoff_push_body" = "Open Rainy Clock to check tomorrow's alarm.";
+"dayoff_push_body" = "Open Rainy Clock to check your next alarm.";
 "disaster_region_rule" = "A matching closure at home or your destination skips that day. Areas along the route are excluded.";
 "disaster_choose_region" = "Choose district";
 "disaster_refresh" = "Check for announcements";
 "disaster_official" = "View DGPA announcements";
-"disaster_source" = "Source: Directorate-General of Personnel Administration, distributed by NCDR.";
-"disaster_limits" = "Local government announcements prevail; individual schools and villages may not be covered. iOS does not guarantee background updates. Without valid information, alarms continue to ring. Private-sector workers should follow their employer and Ministry of Labor guidance.";
+"disaster_source" = "Source: Directorate-General of Personnel Administration, distributed by NCDR. Used under the Open Government Data License v1.0.";
+"disaster_source_credit" = "Source: data.gov.tw / DGPA";
+"disaster_source_updated" = "Source updated: %@";
+"disaster_limits" = "This information is taken from public data of the Directorate-General of Personnel Administration and is for reference only; the announcements of each city or county government prevail. Private-sector employers and workers should follow the Ministry of Labor guidelines on attendance and wages during natural disasters. When the network is unavailable, this app rings as usual. iOS does not guarantee background updates or notification delivery; without a verified announcement the alarm rings as usual.";
 "disaster_applied" = "Alarm skipped: %@";
 "disaster_no_alarm" = "No alarm is set";
 "disaster_no_applied_skip" = "No alarms skipped for disaster closures";
@@ -412,6 +414,10 @@
 
 /* Tomorrow alarm overview and route-linked closure settings */
 "ux_use_closure_rules" = "Use temporary closure rules";
+"ux_closure_plan_locked" = "Your current plan doesn't include temporary closure rules";
+"ux_closure_saved_not_applied" = "Your setting is kept, but it isn't applied to your alarm or closure notifications right now.";
+"ux_closure_plan_unconfirmed" = "Your plan hasn't been confirmed yet";
+"ux_closure_saved_still_applied" = "Your setting is still applied to your alarm and closure notifications. You can turn it off here.";
 "ux_tomorrow" = "Tomorrow";
 "ux_expected_ring" = "Expected alarm";
 "ux_tomorrow_skipped" = "Skipped";

@@ -2,7 +2,9 @@
 
 更新：2026-09-15。使用者先前要求的獨立預覽保留於 `RainyClock-dayoff-preview/`；現在已授權將這些功能整合回 **`RainyClock-iOS/` 的 1.7.0 (29)**，供模擬器檢視。App 使用原 bundle ID `com.shukaihu.RainyClock`，widget 為 `com.shukaihu.RainyClock.AlarmWidget`，不是另裝的 DayOffPreview 身分。合入前備份為 `/tmp/RainyClock-1.7.0-before-merge-20260915-220445.tar.gz`。
 
-**這是本機開發整合，尚未發布 App、部署天災伺服器或完成正式推播設定。** `DayOffServiceURL` 目前留白；NCDR key、APNs 憑證及真機流程仍待配置／驗證。正式廣告設定保留在原專案，模擬器的 Debug／Release 都由 `AppEnvironment.allowsAdvertising` 禁止廣告及追蹤授權流程，不需要額外啟動參數。畫面驗收見 [1.7.0 模擬器檢查表](1.7.0-SIMULATOR-CHECKLIST.md)。
+**2026-09-28 狀態：** 正式服務已部署（見下方「開發與啟用」），1.8.0 (38) 的工作樹已開啟 release gate 並填入 `DayOffServiceURL`；App 尚未封存，真機推播往返與權益歸屬仍待完成，見 [1.8.0 備忘](1.8.0-DEFERRED-DISASTER.md)。下段是 2026-09-15 合入時的原始說明。
+
+**這是本機開發整合，尚未發布 App、部署天災伺服器或完成正式推播設定。** `DayOffServiceURL` 當時留白；NCDR key、APNs 憑證及真機流程仍待配置／驗證。正式廣告設定保留在原專案，模擬器的 Debug／Release 都由 `AppEnvironment.allowsAdvertising` 禁止廣告及追蹤授權流程，不需要額外啟動參數。畫面驗收見 [1.7.0 模擬器檢查表](1.7.0-SIMULATOR-CHECKLIST.md)。
 
 ## 採用的架構
 
@@ -79,9 +81,10 @@ AlarmKit 更新重用未變動日期的 UUID，只新增／淘汰有變化的日
 
 1. 開啟 `RainyClock-iOS/RainyClock.xcodeproj`，選 RainyClock scheme。Debug／模擬器 build 無需連線天災後端即可檢視設定及明確標示的地圖範例。
 2. 部署 [dayoff-service/](../dayoff-service/)：2026-09-24 起它已是無狀態設計（做法一）——Cloud Scheduler 每 5 分鐘觸發 Cloud Run Job `rainyclock-dayoff-poll` 抓 NCDR、寫 Firestore `dayoff-production`、推播；request-only Cloud Run 服務 `rainyclock-dayoff` 只讀寫 Firestore。指令、環境變數、runbook 與實際執行紀錄在 [dayoff-service/DEPLOYMENT.md](../dayoff-service/DEPLOYMENT.md)；NCDR key 與 APNs 金鑰放 Secret Manager，權限授予由 `dayoff-service/deploy/iam.sh` 手動執行。
-3. 將公開的 HTTPS **服務根網址**填入 `RainyClock/Info.plist` 的 `DayOffServiceURL`。它不是機密；NCDR/APNs key 絕對不要放這裡。
-4. 要啟用推播，需替正式 App bundle ID `com.shukaihu.RainyClock` 核對 Apple Push Notifications capability、有效簽章與 provisioning profile；伺服器設定獨立 APNs key、team、key ID、topic 與 sandbox／production 環境。目前天災 entitlements 宣告 development；TestFlight/App Store 前須确认正式簽章環境。原獨立預覽的 APNs topic 不可直接沿用到本專案。
-5. 真機驗證晚公告、重啟、背景／低耗電、關閉背景更新、強制結束、取消權限、公告撤銷與關閉功能恢復。尚未做這些實測，不能稱已上線。
+3. **1.8.0 起 gate 已開：** `AppEnvironment.supportsTemporaryClosures = true`，設定 → 日曆的「使用臨時放假規則」開關、天災設定與地圖都隨之出現；規則是否生效仍由會員權益（`MembershipSchedulingAccess.effectiveSettings`）決定，而權益歸屬尚未決定（見 1.8.0 備忘）。
+4. **服務網址已填：** `RainyClock/Info.plist` 的 `DayOffServiceURL` = `https://rainyclock-dayoff-510427696731.asia-east1.run.app`（正式），另有 `DayOffSandboxServiceURL` = `https://rainyclock-dayoff-sandbox-510427696731.asia-east1.run.app`。兩者都是公開根網址，不是機密；NCDR/APNs key 絕對不要放這裡。`AppEnvironment.dayOffServiceURL` 依 APNs 簽章環境選擇，**不**沿用會員 sandbox 規則：所有 `#if DEBUG` 建置（日常的 `RainyClock` scheme／`Debug`、`RainyClock Membership Local`、Debug Sandbox）都簽 `aps-environment = development`，token 屬 APNs sandbox，正式堆疊會回 `BadDeviceToken` 且不會清掉，所以 Debug 一律走 sandbox 堆疊；Release 永遠正式；sandbox 值缺少或格式不對時得到 nil，不會退回正式。XCTest 下永遠 nil。同一個網址經 `DayOffSharedState.serviceURL` 鏡射到 App Group，所以通知擴充功能跟 App 連同一個堆疊。因此 DEPLOYMENT.md「手機端」第 1 步（手改 `Info.plist` 指向 sandbox）已不需要：用任何 Debug scheme 裝真機即可。若將來要從 Debug 讀正式公告，應加明確的啟動參數並同時關掉推播註冊，不能讓正式成為預設。
+5. 要啟用推播，需替正式 App bundle ID `com.shukaihu.RainyClock` 核對 Apple Push Notifications capability、有效簽章與 provisioning profile；伺服器設定獨立 APNs key、team、key ID、topic 與 sandbox／production 環境。目前天災 entitlements 宣告 development；TestFlight/App Store 前須確認正式簽章環境。Xcode Debug 裝置的 token 在 APNs sandbox，正式堆疊（`APNS_PRODUCTION=true`）會拒收，所以 Debug 真機一律走 sandbox 堆疊（`APNS_PRODUCTION=false`）。sandbox 堆疊的部署腳本 `dayoff-service/deploy/sandbox.sh` 截至 2026-09-28 尚未對專案執行，見 DEPLOYMENT.md「執行紀錄（sandbox）」。原獨立預覽的 APNs topic 不可直接沿用到本專案。
+6. 真機驗證晚公告、重啟、背景／低耗電、關閉背景更新、強制結束、取消權限、公告撤銷與關閉功能恢復。尚未做這些實測，不能稱已上線。
 
 本次沒有對外設定 NCDR 帳戶、Apple capability、付費訂閱或雲端帳務，也沒有發送真實 APNs。日曆與天災的付費方案／StoreKit 權益閘門**尚未實作**；本機整合不會啟用收費。
 

@@ -134,8 +134,17 @@ struct SettingsTabView: View {
     @State private var category: SettingsCategory = .time
     @State private var path: [Detail] = []
     @State private var settingsVisible = false
-    private enum Detail: Hashable { case privacy, about, weekdays, calendarEditor, disaster, disasterMap, membership }
+    private enum Detail: Hashable { case privacy, about, weekdays, calendarEditor, disaster, disasterMap, disasterMapDemo, membership }
     private var advancedRulesAllowed: Bool { !membership.isConfigured || membership.canUseAdvancedRules }
+    /// The closure rule has its own entitlement, so it cannot ride on the calendar lock:
+    /// a plan can include calendar rules and still lack this one. Whether the saved rule
+    /// is applied comes from what scheduling actually uses, not from the lock.
+    private var closureControl: TemporaryClosureControlState {
+        .resolve(membershipConfigured: membership.isConfigured, entitlements: membership.entitlements,
+                 schedulingEntitlements: membership.schedulingEntitlements,
+                 savedEnabled: viewModel.settings.isDisasterSuspensionEnabled,
+                 appliedEnabled: viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled)
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -174,14 +183,20 @@ struct SettingsTabView: View {
                         else { MembershipView(manager: membership) }
                     case .disaster:
                         if AppEnvironment.supportsTemporaryClosures {
-                            if advancedRulesAllowed { DisasterSettingsView(viewModel: viewModel) }
+                            if closureControl.allowsEditing { DisasterSettingsView(viewModel: viewModel) }
                             else { MembershipView(manager: membership) }
                         }
                     case .disasterMap:
                         if AppEnvironment.supportsTemporaryClosures {
-                            if advancedRulesAllowed { DisasterMapView(viewModel: viewModel) }
+                            if closureControl.allowsEditing { DisasterMapView(viewModel: viewModel) }
                             else { MembershipView(manager: membership) }
                         }
+                    case .disasterMapDemo:
+                        // Deliberately not behind any plan: App Review (2.1(a)) and people
+                        // deciding whether to pay must be able to see what the rule does.
+                        // Demo mode reads only the time format; it never touches the feed
+                        // cache, the saved regions, the alarm or push registration.
+                        if AppEnvironment.supportsTemporaryClosures { DisasterMapView(viewModel: viewModel, isDemo: true) }
                     }
                 }.toolbar(.visible, for: .navigationBar)
             }
@@ -237,9 +252,9 @@ struct SettingsTabView: View {
                     .padding(17).background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 22))
                 if !advancedRulesAllowed {
                     Button { path.append(.membership) } label: {
-                        Label(AppEnvironment.supportsTemporaryClosures
-                              ? MembershipText.value("訂閱可使用日曆與臨時放假規則", "Calendar and temporary closure rules are included with a subscription")
-                              : MembershipText.value("訂閱或買斷可使用日曆規則", "Calendar rules are included with a subscription or one-time purchase"), systemImage: "lock")
+                        // Calendar only: the closure rule carries its own, plan-neutral lock
+                        // line below, because which plans include it is not decided here.
+                        Label(MembershipText.value("訂閱或買斷可使用日曆規則", "Calendar rules are included with a subscription or one-time purchase"), systemImage: "lock")
                             .font(.subheadline)
                     }
                 }
@@ -290,10 +305,38 @@ struct SettingsTabView: View {
                     }
                 }
                 if AppEnvironment.supportsTemporaryClosures {
-                    Toggle("ux_use_closure_rules", isOn: advancedBinding(\.isDisasterSuspensionEnabled))
+                    // A locked switch keeps showing the saved value (it is never cleared).
+                    // It can always be turned off; turning it on needs the entitlement.
+                    Toggle("ux_use_closure_rules", isOn: closureBinding)
+                        .disabled(!closureControl.allowsToggle)
                         .padding(17).background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 22))
-                    if viewModel.settings.isDisasterSuspensionEnabled && advancedRulesAllowed {
-                        VStack(spacing: 0) {
+                    switch closureControl.access {
+                    case .available:
+                        EmptyView()
+                    case .locked:
+                        if closureControl.offersPlans {
+                            Button { path.append(.membership) } label: {
+                                Label("ux_closure_plan_locked", systemImage: "lock").font(.subheadline)
+                            }
+                        } else {
+                            Label("ux_closure_plan_locked", systemImage: "lock")
+                                .font(.subheadline).foregroundStyle(.secondary)
+                        }
+                    case .unconfirmed:
+                        Label("ux_closure_plan_unconfirmed", systemImage: "clock")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    if closureControl.keepsSavedRuleUnapplied {
+                        Text("ux_closure_saved_not_applied")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else if closureControl.savedRuleStillApplied {
+                        Text("ux_closure_saved_still_applied")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    VStack(spacing: 0) {
+                        if viewModel.settings.isDisasterSuspensionEnabled && closureControl.allowsEditing {
                             NavigationLink(value: Detail.disaster) {
                                 SettingsEntryRow(title: "ux_disaster_preferences", icon: "cloud.bolt.rain")
                             }.buttonStyle(.plain)
@@ -301,8 +344,14 @@ struct SettingsTabView: View {
                             NavigationLink(value: Detail.disasterMap) {
                                 SettingsEntryRow(title: "disaster_map_title", icon: "map")
                             }.buttonStyle(.plain)
-                        }.background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 22))
-                    }
+                            Divider().padding(.leading, 48)
+                        }
+                        // Always present, with or without a plan or the switch: sample
+                        // announcements, labelled "Demo data · Not live" on the map itself.
+                        NavigationLink(value: Detail.disasterMapDemo) {
+                            SettingsEntryRow(title: "disaster_map_show_demo", icon: "play.rectangle")
+                        }.buttonStyle(.plain)
+                    }.background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 22))
                 }
             }.padding(.horizontal, 20).padding(.bottom, 20)
         }.task(id: category) {
@@ -344,6 +393,18 @@ struct SettingsTabView: View {
               consumeRequest(request.id)
           }
         }
+    }
+
+    private var closureBinding: Binding<Bool> {
+        Binding(get: { viewModel.settings.isDisasterSuspensionEnabled }, set: { enabled in
+            // Turning it off never needs a plan. Turning it on without one only
+            // offers the plans, where there is something to buy.
+            guard enabled, !closureControl.allowsEditing else {
+                viewModel.settings.isDisasterSuspensionEnabled = enabled
+                return
+            }
+            if closureControl.offersPlans { path.append(.membership) }
+        })
     }
 
     private func advancedBinding(_ keyPath: WritableKeyPath<CommuteAlarmSettings, Bool>) -> Binding<Bool> {

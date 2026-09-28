@@ -63,8 +63,13 @@ struct DisasterSettingsView: View {
                     Button("disaster_retry_schedule") { Task { await viewModel.refreshDisasterSuspensions(force: true) } }
                         .disabled(viewModel.isRefreshingDisasters || viewModel.isScheduling)
                 }
+                // Spec §7: the OGDL credit and the disclaimer belong on the settings page, with
+                // the source's own update time. No forecast is shown here, so this never sits
+                // next to (let alone above) the Apple Weather mark on the alarm page.
                 card {
                     Link("disaster_official", destination: URL(string: "https://www.dgpa.gov.tw/typh/daily/nds.html")!)
+                    DisasterSourceFooter(sourceUpdatedAt: viewModel.disasterFeed?.sourceUpdatedAt,
+                                         timeFormat: viewModel.settings.timeFormat)
                 }
             }.padding(20)
         }
@@ -134,6 +139,11 @@ struct DisasterStatusView: View {
             } else if let checked = viewModel.disasterFeed?.checkedAt {
                 Text(String.localizedStringWithFormat(String(localized: "disaster_checked"),
                     viewModel.settings.timeFormat.dateTime(checked))).foregroundStyle(.secondary)
+                if let updated = viewModel.disasterFeed?.sourceUpdatedAt {
+                    Text(String.localizedStringWithFormat(String(localized: "disaster_source_updated"),
+                        viewModel.settings.timeFormat.dateTime(updated))).foregroundStyle(.secondary)
+                }
+                Text("disaster_source").font(.caption2).foregroundStyle(.secondary)
             }
             if let plan = viewModel.scheduledAlarmSummary?.calendarPlan {
                 Text(String.localizedStringWithFormat(String(localized: "calendar_coverage"),
@@ -149,3 +159,29 @@ struct DisasterStatusView: View {
     }
 }
 
+/// The Open Government Data License credit (a licence condition, not a courtesy), the
+/// announcements' own update time, the data.gov.tw dataset link and the disclaimer from
+/// docs/DAYOFF-SPEC.md §7. Caption-sized and secondary, matching `calendar_source_credit`.
+struct DisasterSourceFooter: View {
+    var sourceUpdatedAt: Date?
+    var timeFormat: ClockTimeFormat
+    var includesDisclaimer = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let sourceUpdatedAt {
+                Text(String.localizedStringWithFormat(String(localized: "disaster_source_updated"),
+                    timeFormat.dateTime(sourceUpdatedAt)))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Text("disaster_source").font(.caption2).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Link("disaster_source_credit", destination: URL(string: "https://data.gov.tw/dataset/20457")!)
+                .font(.caption2).foregroundStyle(.secondary)
+            if includesDisclaimer {
+                Text("disaster_limits").font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+}

@@ -1657,7 +1657,7 @@ final class AlarmViewModel: ObservableObject {
     }
 
     /// What the notification service extension may read while the app is closed:
-    /// the *effective* disaster rules (so the 1.7.0 release gate and membership
+    /// the *effective* disaster rules (so the release gate and membership
     /// gates apply there too) and the next alarm's normal date. Never addresses.
     private func mirrorDayOffSharedState() {
         guard !AppEnvironment.isRunningTests else { return }

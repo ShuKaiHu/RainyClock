@@ -17,7 +17,7 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.7.1</string>
+	<string>1.8.0</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.shukaihu.RainyClock.weatherRefresh</string>
@@ -25,7 +25,7 @@
 		<string>com.shukaihu.RainyClock.previewRefresh</string>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>37</string>
+	<string>38</string>
 	<key>LevelPlayAppKey</key>
 	<string>27d81ff8d</string>
 	<key>GooglePlacesAPIKey</key>
@@ -675,7 +675,9 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>DayOffServiceURL</key>
-	<string></string>
+	<string>https://rainyclock-dayoff-510427696731.asia-east1.run.app</string>
+	<key>DayOffSandboxServiceURL</key>
+	<string>https://rainyclock-dayoff-sandbox-510427696731.asia-east1.run.app</string>
 	<key>MembershipServiceURL</key>
 	<string>https://rainyclock-membership-510427696731.asia-east1.run.app</string>
 	<key>VoiceProxyURL</key>

@@ -23,15 +23,44 @@ enum MembershipAdvertisingGate {
 }
 
 enum AppEnvironment {
-    /// Deferred from 1.7.0 to 1.8.0 (1.7.1 is reserved for other work). Keep saved preferences and implementation,
-    /// but exclude the feature from this release's UI, scheduling and networking.
-    static let supportsTemporaryClosures = false
+    /// Temporary work/school closures ship in 1.8.0 (deferred from 1.7.0). This only opens
+    /// the UI, scheduling and networking; whether a saved rule takes effect is still decided
+    /// by the membership entitlement (`MembershipSchedulingAccess.effectiveSettings`).
+    static let supportsTemporaryClosures = true
 
-    /// Public HTTPS service base URL. NCDR and APNs credentials remain on the server.
+    /// Public HTTPS service origin. NCDR and APNs credentials remain on the server.
+    ///
+    /// The choice follows how APNs is signed, not the membership sandbox rule. Every DEBUG
+    /// build (the everyday `Debug` configuration, `RainyClock Membership Local`, the installed
+    /// Debug Sandbox build) is signed with `aps-environment = development`, so its device
+    /// token is an APNs sandbox token that the production stack (`APNS_PRODUCTION=true`)
+    /// rejects with `BadDeviceToken` and never prunes. DEBUG therefore always uses the
+    /// sandbox stack, and Release always uses production. XCTest never gets a URL, so no test
+    /// can reach either service through a default client.
     static var dayOffServiceURL: URL? {
-        guard let value = Bundle.main.object(forInfoDictionaryKey: "DayOffServiceURL") as? String,
-              let url = URL(string: value), url.scheme == "https", url.host != nil else { return nil }
-        return url
+        guard !isRunningTests else { return nil }
+        return resolvedDayOffServiceURL(
+            productionValue: Bundle.main.object(forInfoDictionaryKey: "DayOffServiceURL") as? String,
+            sandboxValue: Bundle.main.object(forInfoDictionaryKey: "DayOffSandboxServiceURL") as? String)
+    }
+
+    /// True for builds whose push token is an APNs development (sandbox) token.
+    static var usesAPNsSandbox: Bool {
+        #if DEBUG
+        true
+        #else
+        false
+        #endif
+    }
+
+    /// The sandbox origin for APNs-sandbox builds, the production origin otherwise. Both
+    /// values must be a bare HTTPS origin; a missing or malformed sandbox value resolves to
+    /// nil rather than falling through to production. If a production GET from a Debug build
+    /// is ever wanted, add an explicit opt-in that also turns off push registration instead
+    /// of making production the default.
+    static func resolvedDayOffServiceURL(productionValue: String?, sandboxValue: String?,
+                                         apnsSandbox: Bool = usesAPNsSandbox) -> URL? {
+        MembershipConfiguration.validatedServiceURL(apnsSandbox ? sandboxValue : productionValue)
     }
 
     /// The LevelPlay banner unit — created in the Unity LevelPlay dashboard,
