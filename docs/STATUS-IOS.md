@@ -226,6 +226,24 @@ Last updated: 2026-09-26.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-09-28：1.8.0（38）開閘與送審準備已提交（`8031f51`），伺服器 sandbox 堆疊上線（`df5ec48`、`7c9b684`）。**
+  - App：`supportsTemporaryClosures = true`；版本 1.8.0（38）；`DayOffServiceURL` 為正式網址，**所有 Debug build
+    改走 `DayOffSandboxServiceURL`**（Debug 的推播 token 是 APNs 開發環境，不能登記到正式）。
+  - 資料來源標示：設定、地圖、鬧鐘頁的停班停課說明與時效性通知都標人事行政總處／NCDR、政府資料開放授權與來源更新時間；
+    示範地圖不標來源。
+  - 方案不含此規則時（目前是免費與買斷）不再靜默失效：開關鎖定並顯示不指名方案的說明；已存的設定保留、仍可關閉；
+    「未套用」提示依排程實際使用的權益判斷。**權益對應本身未改，仍待擁有者決定。**
+  - 「查看地圖示範」在所有 build 都可進入、不需購買，給審查人員看停班停課長什麼樣子。
+  - 隱私政策新增「天災臨時放假」一節（中英）；`appstore-metadata.md` 有 1.8.0 What's New 與審查說明草稿，
+    兩者都不指名方案，審查說明裡的方括號備註要在擁有者決定權益後改寫再貼。
+  - 伺服器：`NCDR_SOURCE=fixture` 只允許 sandbox namespace；`deploy/fixture.sh set --county … --district …`
+    寫一則測試公告並立即推播。已實跑一次板橋區公告並清除。
+  - 測試：iPhone 17 Pro 上 408 項全過（除 `MembershipStoreKitTests`）；**`MembershipStoreKitTests` 在這台模擬器的
+    StoreKit 測試環境初始化失敗（`SKInternalErrorDomain 3`，App 程式執行前），送審 archive 前要在 Xcode 裡重跑。**
+    dayoff-service 120 項（Emulator 全過）。
+  - 還沒做：**真機驗證**（見 `dayoff-service/DEPLOYMENT.md` 的 sandbox 手機步驟）、擁有者的權益決定、
+    ASC 隱私問卷與截圖、archive／上傳。
+
 - **工作樹已全部提交到 `ios/main`**（四個 commit：App 與測試、weather-proxy 會員後端、
   dayoff-service 與天災文件、其餘文件與素材）。1.7.0（34）送審的原始碼從此有 git 紀錄；
   之前自 9/10 起 110 個檔案都只在本機。變體 PNG 的重複 `.zip` 已 gitignore，其餘 `docs/`
