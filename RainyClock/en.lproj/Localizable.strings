@@ -435,6 +435,17 @@
 "ux_tomorrow_unselected" = "Tomorrow is not a selected repeat day";
 "ux_tomorrow_closure" = "Tomorrow is a temporary work or school closure";
 "ux_today_closure_skipped" = "Today's %@ alarm is skipped for a temporary work or school closure";
+"ux_today" = "Today";
+"ux_today_weather" = "Today's weather";
+"ux_today_weather_loading" = "Loading today's forecast…";
+"ux_today_weather_failed" = "Today's weather could not be updated";
+"ux_today_holiday_named" = "Today is a holiday: %@";
+"ux_today_holiday" = "Today is a public holiday";
+"ux_today_manual_skip" = "Today was manually set to silent";
+"ux_today_manual_ring" = "Today was manually set to ring";
+"ux_today_weekend" = "Today is a weekend";
+"ux_today_unselected" = "Today is not a selected repeat day";
+"ux_rang_at" = "Rang at";
 "ux_schedule_update_needed" = "The alarm schedule has not finished updating";
 "disaster_route_address_missing" = "Set an address in Route first";
 "disaster_route_region_unavailable" = "District not available yet";

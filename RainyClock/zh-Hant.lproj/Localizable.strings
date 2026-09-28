@@ -435,6 +435,17 @@
 "ux_tomorrow_unselected" = "明天未列入重複星期";
 "ux_tomorrow_closure" = "明天因臨時停班／停課略過";
 "ux_today_closure_skipped" = "今天 %@ 的鬧鐘因臨時停班／停課略過";
+"ux_today" = "今天";
+"ux_today_weather" = "今天的天氣";
+"ux_today_weather_loading" = "正在取得今天天氣⋯";
+"ux_today_weather_failed" = "今天天氣更新失敗";
+"ux_today_holiday_named" = "今天放假：%@";
+"ux_today_holiday" = "今天是國定假日";
+"ux_today_manual_skip" = "今天已手動設為略過";
+"ux_today_manual_ring" = "今天已手動設為照常響鈴";
+"ux_today_weekend" = "今天是週末";
+"ux_today_unselected" = "今天未列入重複星期";
+"ux_rang_at" = "已響鈴";
 "ux_schedule_update_needed" = "鬧鐘設定尚未更新完成";
 "disaster_route_address_missing" = "請先在路線設定地址";
 "disaster_route_region_unavailable" = "尚未取得行政區";

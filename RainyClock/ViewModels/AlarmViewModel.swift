@@ -33,7 +33,10 @@ final class AlarmViewModel: ObservableObject {
                 }
             }
             synchronizeAutomaticSuspensionRegions()
-            if TomorrowWeatherRequest(settings: oldValue, now: Date()) != TomorrowWeatherRequest(settings: settings, now: Date()) {
+            // One instant for both: two Date() calls straddling the morning's switch would
+            // look like a settings change.
+            let requestNow = Date()
+            if TomorrowWeatherRequest(settings: oldValue, now: requestNow) != TomorrowWeatherRequest(settings: settings, now: requestNow) {
                 tomorrowWeatherGeneration += 1
                 activeTomorrowWeatherRequest = nil
                 isRefreshingTomorrowWeather = false
@@ -510,7 +513,8 @@ final class AlarmViewModel: ObservableObject {
             disasterFeed: disasterFeed, disasterSourceFailed: disasterRefreshFailed, now: now)
     }
 
-    /// Tomorrow is fetched even on a skipped day. This path never authorizes,
+    /// The coming morning's forecast (today's until its normal time, then tomorrow's) is
+    /// fetched even on a skipped day. This path never authorizes,
     /// registers, cancels, or persists a successful alarm schedule.
     func refreshTomorrowWeatherIfNeeded(now: Date = Date(), force: Bool = false) async {
         guard !Task.isCancelled else { return }
@@ -1547,8 +1551,10 @@ final class AlarmViewModel: ObservableObject {
         let now = Date()
         let previous = scheduledAlarmSummary
         var plan = CalendarAlarmPlan.make(settings: snapshot, holidays: holidayCalendar, rain: false, now: now, days: Self.calendarHorizonDays)
+        var firedEarlyRing = previous?.firedEarlyRing.flatMap { $0.normalDate > now ? $0 : nil }
         if let previous, previous.scheduledAlarmDate <= now, now < previous.normalAlarmDate {
             plan.occurrences.removeAll { $0.normalDate == previous.normalAlarmDate }
+            firedEarlyRing = .init(normalDate: previous.normalAlarmDate, ringDate: previous.scheduledAlarmDate)
         }
         let appliedFeed = disasterRefreshFailed ? nil : disasterFeed
         let filtered = DisasterAlarmPlan.filtering(plan, settings: snapshot,
@@ -1618,6 +1624,7 @@ final class AlarmViewModel: ObservableObject {
             maximumPrecipitationProbability: probability, wettestSegmentName: place, calendarPlan: plan, calendarForecastDate: forecastDate)
         var committedSummary = summary
         committedSummary.disasterSkips = filtered.skips
+        committedSummary.firedEarlyRing = firedEarlyRing
         scheduledAlarmSummary = committedSummary
         scheduledFingerprint = snapshot.scheduleFingerprint()
         if let checkedAt { lastWeatherEvaluationAt = checkedAt }

@@ -1,6 +1,10 @@
 import Foundation
 
-/// A forecast of tomorrow's configured behavior, separate from system registration.
+/// The coming morning's configured behavior — today's alarm until its normal time has
+/// passed, then tomorrow's — separate from system registration. "Tomorrow" in these type
+/// names predates that rule: until 2026-09-29 the card switched at midnight, and at 00:39
+/// it described Wednesday while the morning the user was about to sleep through (a skipped
+/// Tuesday) appeared nowhere.
 struct TomorrowAlarmStatus: Equatable {
     enum Reason: Equatable {
         case normal, rain, holiday, manual, weekend, unselectedWeekday, disaster, routeIncomplete
@@ -18,6 +22,21 @@ struct TomorrowAlarmStatus: Equatable {
     var registeredRingDate: Date?
     var isScheduleVerified: Bool
     var disasterNoticeIDs: [String]
+    /// The described morning is today's (after midnight, before its normal time).
+    var isToday: Bool
+    /// The described morning's alarm already went off (an early rain ring before the normal time).
+    var hasRung: Bool
+    /// The committed schedule skipped this morning for a closure — true even when the live
+    /// preview no longer supports it, which the page must then flag instead of hiding.
+    var hasCommittedClosureSkip: Bool
+    /// A current dated plan covers this morning but holds no ring for it, and nothing
+    /// (a closure skip, an early ring that already went off) explains why.
+    var isMissingFromPlan: Bool
+
+    /// The card expects a ring the committed schedule does not hold for this morning.
+    var ringIsNotRegistered: Bool {
+        expectedRingDate != nil && (hasCommittedClosureSkip || isMissingFromPlan)
+    }
 
     static let weatherLifetime: TimeInterval = 30 * 60
 
@@ -36,6 +55,8 @@ struct TomorrowAlarmStatus: Equatable {
         }
         let stale = weather.map { now.timeIntervalSince($0.checkedAt) > weatherLifetime } ?? false
         let freshWeather = stale ? nil : weather
+        // Past this morning's check point the scheduler no longer re-decides rain.
+        let decisionIsFinal = request.forecastDate <= now
         let key = AlarmCalendarSettings.key(for: day, calendar: calendar)
         let manualRing = settings.calendarSettings.isEnabled && settings.calendarSettings.overrides[key] == .ring
         var expected: Date? = decision.rings ? request.normalAlarmDate : nil
@@ -43,6 +64,51 @@ struct TomorrowAlarmStatus: Equatable {
         var holidayName: String?
         var lead = 0
         var noticeIDs: [String] = []
+
+        // What the system actually holds for this morning. Read first: once the morning's
+        // own ring has gone off, nothing announced or forecast afterwards may relabel it.
+        let fingerprintMatches = registeredFingerprint == settings.scheduleFingerprint(calendar: calendar)
+        var registered: Date?
+        var firedRing: Date?
+        var planCoversDay = false
+        var committedSkip = false
+        var missingFromPlan = false
+        if fingerprintMatches, let summary {
+            committedSkip = summary.disasterSkips?.contains { $0.normalDate == request.normalAlarmDate } ?? false
+            if let plan = summary.calendarPlan {
+                if plan.timeZoneID == calendar.timeZone.identifier, plan.coveredUntil > request.normalAlarmDate {
+                    planCoversDay = true
+                    if let occurrence = plan.occurrences.first(where: { $0.normalDate == request.normalAlarmDate }) {
+                        registered = occurrence.ringDate
+                    } else if let fired = summary.firedEarlyRing, fired.normalDate == request.normalAlarmDate {
+                        // Dropped by registerCalendar because its early ring already went off.
+                        // The recorded time, not one rebuilt from the current lead.
+                        registered = fired.ringDate
+                        firedRing = fired.ringDate
+                    } else if decision.rings, !committedSkip {
+                        missingFromPlan = true
+                    }
+                }
+            } else if settings.selectedWeekdays.contains(calendar.component(.weekday, from: day)) {
+                let clock = { (date: Date) in calendar.dateComponents([.hour, .minute], from: date) }
+                if summary.normalAlarmDate == request.normalAlarmDate {
+                    // Never roll another morning's summary or rain decision into this one. After a
+                    // relaunch past an early ring, rollingForward has already moved scheduledAlarmDate
+                    // to the next week's ring: read its clock time, not its day.
+                    let scheduled = clock(summary.scheduledAlarmDate)
+                    registered = scheduled == clock(request.normalAlarmDate) ? request.normalAlarmDate
+                        : scheduled == clock(request.forecastDate) ? request.forecastDate : summary.scheduledAlarmDate
+                } else if summary.normalAlarmDate > request.normalAlarmDate {
+                    // Re-registered inside this morning's window for a later morning. The weekly
+                    // repeating alarm's clock time now governs this morning too: if that ring is
+                    // still ahead it is this morning's ring; if it has passed, nothing is left, and
+                    // the later ring makes the page flag the mismatch instead of promising one.
+                    let ring = request.normalAlarmDate.addingTimeInterval(
+                        -summary.normalAlarmDate.timeIntervalSince(summary.scheduledAlarmDate))
+                    registered = ring > now ? ring : summary.scheduledAlarmDate
+                }
+            }
+        }
 
         if !decision.rings {
             switch decision.reason {
@@ -59,7 +125,9 @@ struct TomorrowAlarmStatus: Equatable {
             reason = .routeIncomplete
         } else {
             reason = manualRing ? .manual : .normal
-            if settings.isDisasterSuspensionEnabled && !manualRing {
+            // The same rule as DisasterAlarmPlan.filtering: a closure announced after this
+            // morning's ring went off must not relabel it.
+            if settings.isDisasterSuspensionEnabled && !manualRing && (registered ?? request.normalAlarmDate) > now {
                 let disaster = DisasterSuspensionEvaluator.decision(
                     feed: disasterSourceFailed ? nil : disasterFeed,
                     normalAlarmDate: request.normalAlarmDate, now: now,
@@ -83,12 +151,10 @@ struct TomorrowAlarmStatus: Equatable {
             }
         }
 
-        var registered: Date?
         var verified = false
-        if registeredFingerprint == settings.scheduleFingerprint(calendar: calendar), let summary {
-            if let plan = summary.calendarPlan {
-                if plan.timeZoneID == calendar.timeZone.identifier, plan.coveredUntil > request.normalAlarmDate {
-                    registered = plan.occurrences.first { $0.normalDate == request.normalAlarmDate }?.ringDate
+        if fingerprintMatches, let summary {
+            if summary.calendarPlan != nil {
+                if planCoversDay {
                     verified = registered == expected && reason != .routeIncomplete
                     if reason == .disaster {
                         let applied = summary.disasterSkips?.first { $0.normalDate == request.normalAlarmDate }
@@ -98,33 +164,42 @@ struct TomorrowAlarmStatus: Equatable {
             } else if !settings.selectedWeekdays.contains(calendar.component(.weekday, from: day)) {
                 verified = expected == nil
             } else if summary.normalAlarmDate == request.normalAlarmDate {
-                // Never roll today's summary or its rain decision into tomorrow.
-                registered = summary.scheduledAlarmDate
                 verified = registered == expected && freshWeather != nil && reason != .routeIncomplete
             }
         }
-        if expected != nil, freshWeather == nil, let registered {
+        if let firedRing, expected != nil {
+            // This morning already rang early. Final, whatever the lead or forecast say now.
+            expected = firedRing
+            lead = max(0, Int(request.normalAlarmDate.timeIntervalSince(firedRing) / 60))
+            reason = .rain
+            verified = true
+        } else if expected != nil, freshWeather == nil || decisionIsFinal, let registered {
             let offset = request.normalAlarmDate.timeIntervalSince(registered)
             if offset == 0 || offset == Double(settings.rainLeadTimeMinutes * 60) {
-                // Until tomorrow's forecast arrives, preserve the exact registered
-                // time instead of temporarily claiming a different normal time.
-                // This does not turn the old schedule's weather into new weather.
+                // Until the forecast arrives — and for good once the check point has passed —
+                // show the exact registered time instead of claiming a different one. This
+                // does not turn the old schedule's weather into new weather.
                 expected = registered
                 lead = max(0, Int(offset / 60))
                 reason = lead > 0 ? .rain : (manualRing ? .manual : .normal)
-                verified = summary?.calendarPlan != nil
+                verified = decisionIsFinal || summary?.calendarPlan != nil
             }
         }
 
         return Self(day: day, normalAlarmDate: request.normalAlarmDate, expectedRingDate: expected,
                     reason: reason, holidayName: holidayName, leadTimeMinutes: lead, weather: weather,
                     weatherIsStale: stale, weatherRefreshFailed: weatherRefreshFailed,
-                    registeredRingDate: registered, isScheduleVerified: verified, disasterNoticeIDs: noticeIDs)
+                    registeredRingDate: registered, isScheduleVerified: verified, disasterNoticeIDs: noticeIDs,
+                    isToday: calendar.isDate(day, inSameDayAs: now),
+                    hasRung: expected.map { $0 <= now } ?? false,
+                    hasCommittedClosureSkip: committedSkip, isMissingFromPlan: missingFromPlan)
     }
 }
 
 /// Provenance travels with the snapshot: equal text with different selected map
 /// coordinates, a mode change, and a new normal alarm day all require a new fetch.
+/// The day is the coming morning (see `TomorrowAlarmStatus`), so the request — and the
+/// cached forecast — carry across midnight unchanged and move on at the normal alarm time.
 struct TomorrowWeatherRequest: Codable, Equatable {
     var normalAlarmDate: Date
     var forecastDate: Date
@@ -136,10 +211,15 @@ struct TomorrowWeatherRequest: Codable, Equatable {
     var mode: CommuteAlarmSettings.CommuteMode
 
     init(settings: CommuteAlarmSettings, now: Date, calendar: Calendar = AlarmCalendarSettings.calendar) {
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))!
         let time = calendar.dateComponents([.hour, .minute], from: settings.alarmTime)
-        normalAlarmDate = calendar.date(bySettingHour: time.hour ?? 7, minute: time.minute ?? 30,
-                                       second: 0, of: tomorrow)!
+        func normal(daysFromToday offset: Int) -> Date {
+            let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now))!
+            return calendar.date(bySettingHour: time.hour ?? 7, minute: time.minute ?? 30, second: 0, of: day)!
+        }
+        // The coming morning: today's alarm until its normal time has passed (strict >, as in
+        // CalendarAlarmPlan.make and DisasterSuspensionEvaluator), then tomorrow's.
+        let today = normal(daysFromToday: 0)
+        normalAlarmDate = today > now ? today : normal(daysFromToday: 1)
         forecastDate = calendar.date(byAdding: .minute, value: -settings.rainLeadTimeMinutes, to: normalAlarmDate)!
         timeZoneID = calendar.timeZone.identifier
         homeAddress = settings.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines)

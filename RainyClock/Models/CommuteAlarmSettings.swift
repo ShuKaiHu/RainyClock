@@ -466,6 +466,11 @@ struct ScheduledAlarmSummary: Codable, Equatable {
     var calendarForecastDate: Date?
     /// Published only after the corresponding system schedule was committed.
     var disasterSkips: [AppliedDisasterSkip]? = nil
+    /// A morning whose early (rain) ring already went off, which the next calendar
+    /// registration therefore dropped from the plan. Kept until its normal time so the
+    /// Alarm page can say when it actually rang, instead of rebuilding that from a lead
+    /// time the user may have changed since. Absent in older summaries.
+    var firedEarlyRing: CalendarAlarmPlan.Occurrence? = nil
 }
 
 extension ScheduledAlarmSummary {
@@ -480,15 +485,6 @@ extension ScheduledAlarmSummary {
         let scheduled = calendarPlan.map { $0.occurrences.map(\.normalDate) } ?? [normalAlarmDate]
         let upcoming = Array(Set(scheduled + skipped).filter { $0 > now }).sorted()
         return (Array(upcoming.prefix(limit)), skipped)
-    }
-
-    /// A committed closure skip for an alarm later today. The Alarm page's card always
-    /// describes tomorrow, so after midnight — or when a "today" announcement lands before
-    /// dawn — the alarm that is actually off would otherwise appear nowhere on the page.
-    func disasterSkipLaterToday(now: Date, calendar: Calendar = AlarmCalendarSettings.calendar) -> AppliedDisasterSkip? {
-        (disasterSkips ?? [])
-            .filter { $0.normalDate > now && calendar.isDate($0.normalDate, inSameDayAs: now) }
-            .min { $0.normalDate < $1.normalDate }
     }
 
     /// Returns the summary with past dates advanced to their next weekly occurrence,

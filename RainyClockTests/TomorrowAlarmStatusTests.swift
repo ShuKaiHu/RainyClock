@@ -33,6 +33,29 @@ final class TomorrowAlarmStatusTests: XCTestCase {
             exceedsRainThreshold: ring < normal, leadTimeMinutes: ring < normal ? 30 : 0,
             rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: ring < normal ? 0.8 : 0.1)
     }
+    /// A dated (calendar) registration: (normal, ring) pairs plus the committed closure skips.
+    private func planSummary(_ occurrences: [(Date, Date)], skips: [AppliedDisasterSkip] = [],
+                             coveredUntil: Date) -> ScheduledAlarmSummary {
+        let first = occurrences.first ?? (coveredUntil, coveredUntil)
+        var value = summary(normal: first.0, ring: first.1)
+        value.calendarPlan = .init(occurrences: occurrences.map { .init(normalDate: $0.0, ringDate: $0.1) },
+            coveredUntil: coveredUntil, timeZoneID: calendar.timeZone.identifier)
+        value.disasterSkips = skips.isEmpty ? nil : skips
+        return value
+    }
+    private func closureSettings() -> CommuteAlarmSettings {
+        var value = settings()
+        value.isDisasterSuspensionEnabled = true
+        value.homeSuspensionRegion = .init(county: "臺北市", district: "信義區")
+        return value
+    }
+    private func taipeiClosure(id: String, sentAt: Date, checkedAt: Date, day: String) -> DisasterFeed {
+        DisasterFeed(checkedAt: checkedAt, notices: [.init(id: id, sentAt: sentAt,
+            description: "[停班停課通知]臺北市:\(day)停止上班、停止上課。行政院人事行政總處。", severity: "Extreme")])
+    }
+
+    // The tests above the "coming morning" section run at 18:00 or 20:00, past the 07:30
+    // normal time, so they also pin the card's tomorrow branch.
 
     func testTomorrowWeekendAndNamedHolidayRemainVisibleWithWeather() {
         var value = settings()
@@ -181,6 +204,255 @@ final class TomorrowAlarmStatusTests: XCTestCase {
         XCTAssertFalse(status(value, now: now, summary: registered).isScheduleVerified)
         XCTAssertNil(status(value, now: now, summary: registered).registeredRingDate)
     }
+
+    // MARK: - The coming morning (2026-09-29 device finding)
+
+    /// At 00:39 the card described Wednesday while Tuesday — the morning about to be slept
+    /// through, skipped for a closure — appeared nowhere. Midnight now changes only the word.
+    func testCardFollowsTheComingMorningAcrossMidnight() {
+        let value = settings()
+        let evening = status(value, now: date(28, 23, 59))
+        XCTAssertEqual(evening.normalAlarmDate, date(29, 7, 30))
+        XCTAssertFalse(evening.isToday)
+        let night = status(value, now: date(29, 0, 39))
+        XCTAssertEqual(night.normalAlarmDate, date(29, 7, 30))
+        XCTAssertTrue(night.isToday)
+        XCTAssertEqual(night.reason, .normal)
+        XCTAssertEqual(night.expectedRingDate, date(29, 7, 30))
+        XCTAssertEqual(TomorrowWeatherRequest(settings: value, now: date(28, 23, 50), calendar: calendar),
+                       TomorrowWeatherRequest(settings: value, now: date(29, 0, 10), calendar: calendar),
+                       "The same morning, the same request: the evening's forecast carries over")
+        let carried = status(value, now: date(29, 0, 10), weather: record(value, now: date(28, 23, 50)))
+        XCTAssertNotNil(carried.weather)
+        XCTAssertFalse(carried.weatherIsStale)
+        XCTAssertEqual(carried.reason, .rain)
+        XCTAssertEqual(carried.expectedRingDate, date(29, 7))
+        XCTAssertFalse(carried.hasRung)
+    }
+
+    func testCardMovesOnAtTheNormalTimeNotAtMidnightOrTheCheckPoint() {
+        let value = settings()
+        XCTAssertEqual(status(value, now: date(29, 6, 59)).normalAlarmDate, date(29, 7, 30))
+        XCTAssertEqual(status(value, now: date(29, 7, 0)).normalAlarmDate, date(29, 7, 30))
+        let last = status(value, now: date(29, 7, 29))
+        XCTAssertEqual(last.normalAlarmDate, date(29, 7, 30))
+        XCTAssertTrue(last.isToday)
+        let moved = status(value, now: date(29, 7, 30))
+        XCTAssertEqual(moved.normalAlarmDate, date(30, 7, 30), "Strictly after: at 07:30:00 the card moves on")
+        XCTAssertFalse(moved.isToday)
+    }
+
+    func testAlarmInsideTheLeadAcrossMidnight() {
+        var value = settings()
+        value.alarmTime = date(15, 0, 15)
+        let before = status(value, now: date(15, 23, 50))
+        XCTAssertEqual(before.normalAlarmDate, date(16, 0, 15))
+        XCTAssertFalse(before.isToday)
+        let after = status(value, now: date(16, 0, 5))
+        XCTAssertEqual(after.normalAlarmDate, date(16, 0, 15))
+        XCTAssertTrue(after.isToday)
+        XCTAssertEqual(status(value, now: date(16, 0, 15)).normalAlarmDate, date(17, 0, 15))
+    }
+
+    /// The device case: 9/29 07:30 skipped and committed; at 00:39 the card says so itself.
+    func testTodaysCommittedClosureSkipAfterMidnight() {
+        let feed = taipeiClosure(id: "notice", sentAt: date(28, 22), checkedAt: date(29, 0, 30), day: "明天")
+        let committed = planSummary([(date(30, 7, 30), date(30, 7, 30))],
+            skips: [.init(normalDate: date(29, 7, 30), noticeIDs: ["notice"], appliedAt: date(28, 22, 5))],
+            coveredUntil: date(30, 23))
+        let result = status(closureSettings(), now: date(29, 0, 39), summary: committed, feed: feed)
+        XCTAssertEqual(result.day, date(29, 0))
+        XCTAssertTrue(result.isToday)
+        XCTAssertEqual(result.reason, .disaster)
+        XCTAssertNil(result.expectedRingDate)
+        XCTAssertNil(result.registeredRingDate)
+        XCTAssertTrue(result.isScheduleVerified)
+        XCTAssertEqual(result.disasterNoticeIDs, ["notice"])
+        XCTAssertTrue(result.hasCommittedClosureSkip)
+        XCTAssertFalse(result.hasRung)
+    }
+
+    func testTodayAnnouncementBeforeDawnShowsSkipBeforeCommit() {
+        let feed = taipeiClosure(id: "dawn", sentAt: date(29, 5), checkedAt: date(29, 5, 1), day: "今天")
+        let plan = planSummary([(date(29, 7, 30), date(29, 7, 30)), (date(30, 7, 30), date(30, 7, 30))], coveredUntil: date(30, 23))
+        let result = status(closureSettings(), now: date(29, 5, 30), summary: plan, feed: feed)
+        XCTAssertTrue(result.isToday)
+        XCTAssertEqual(result.reason, .disaster)
+        XCTAssertNil(result.expectedRingDate)
+        XCTAssertEqual(result.registeredRingDate, date(29, 7, 30), "Still armed until the re-registration commits")
+        XCTAssertFalse(result.isScheduleVerified)
+        XCTAssertFalse(result.hasCommittedClosureSkip)
+    }
+
+    func testEarlyRingThatAlreadyRangStaysOnTodayWithoutMismatch() {
+        let value = settings()
+        let plan = planSummary([(date(29, 7, 30), date(29, 7)), (date(30, 7, 30), date(30, 7, 30))], coveredUntil: date(30, 23))
+        for probability in [0.8, 0.1] {
+            let result = status(value, now: date(29, 7, 10), weather: record(value, now: date(29, 6, 50), probability: probability),
+                                summary: plan)
+            XCTAssertEqual(result.expectedRingDate, date(29, 7), "\(probability)")
+            XCTAssertEqual(result.reason, .rain)
+            XCTAssertEqual(result.leadTimeMinutes, 30)
+            XCTAssertTrue(result.hasRung)
+            XCTAssertEqual(result.registeredRingDate, result.expectedRingDate)
+            XCTAssertTrue(result.isScheduleVerified)
+            XCTAssertTrue(result.isToday)
+        }
+    }
+
+    func testPostCheckForecastCannotMoveADryMorning() {
+        let value = settings()
+        let plan = planSummary([(date(29, 7, 30), date(29, 7, 30))], coveredUntil: date(30, 23))
+        let result = status(value, now: date(29, 7, 10), weather: record(value, now: date(29, 7, 5), probability: 0.8), summary: plan)
+        XCTAssertEqual(result.expectedRingDate, date(29, 7, 30))
+        XCTAssertEqual(result.reason, .normal)
+        XCTAssertFalse(result.hasRung)
+        XCTAssertEqual(result.registeredRingDate, date(29, 7, 30))
+        XCTAssertTrue(result.isScheduleVerified)
+    }
+
+    func testClosureAfterTheEarlyRingDoesNotRelabelIt() {
+        let feed = taipeiClosure(id: "late", sentAt: date(29, 7, 2), checkedAt: date(29, 7, 3), day: "今天")
+        let stillHeld = planSummary([(date(29, 7, 30), date(29, 7)), (date(30, 7, 30), date(30, 7, 30))], coveredUntil: date(30, 23))
+        var reRegistered = planSummary([(date(30, 7, 30), date(30, 7, 30))], coveredUntil: date(30, 23))
+        reRegistered.firedEarlyRing = .init(normalDate: date(29, 7, 30), ringDate: date(29, 7))
+        for (name, plan) in [("still held", stillHeld), ("re-registered", reRegistered)] {
+            let result = status(closureSettings(), now: date(29, 7, 5), summary: plan, feed: feed)
+            XCTAssertEqual(result.reason, .rain, name)
+            XCTAssertEqual(result.expectedRingDate, date(29, 7), name)
+            XCTAssertTrue(result.hasRung, name)
+            XCTAssertEqual(result.disasterNoticeIDs, [], name)
+            XCTAssertFalse(result.hasCommittedClosureSkip, name)
+        }
+    }
+
+    /// registerCalendar drops a morning whose early ring already went off and records when
+    /// it rang. The card reads that record — not the current lead, which the user may have
+    /// changed right after being woken (adversarial review of the first version).
+    func testRecordedEarlyRingIsReadWhateverTheLeadIsNow() {
+        var plan = planSummary([(date(30, 7, 30), date(30, 7, 30))], coveredUntil: date(30, 23))
+        plan.firedEarlyRing = .init(normalDate: date(29, 7, 30), ringDate: date(29, 7))
+        for (lead, now) in [(30, date(29, 7, 10)), (15, date(29, 7, 6)), (45, date(29, 7, 10))] {
+            var value = settings()
+            value.rainLeadTimeMinutes = lead
+            let result = status(value, now: now, weather: record(value, now: now, probability: 0.8), summary: plan)
+            XCTAssertEqual(result.registeredRingDate, date(29, 7), "lead \(lead)")
+            XCTAssertEqual(result.expectedRingDate, date(29, 7), "lead \(lead): it rang at 07:00, not at the new lead")
+            XCTAssertEqual(result.leadTimeMinutes, 30, "lead \(lead)")
+            XCTAssertEqual(result.reason, .rain, "lead \(lead)")
+            XCTAssertTrue(result.hasRung, "lead \(lead)")
+            XCTAssertFalse(result.ringIsNotRegistered, "lead \(lead)")
+        }
+    }
+
+    func testAPlanThatLostTheMorningIsFlaggedNotPromised() {
+        let value = settings()
+        let plan = planSummary([(date(30, 7, 30), date(30, 7, 30))], coveredUntil: date(30, 23))
+        for now in [date(29, 6, 30), date(29, 7, 10)] {
+            let result = status(value, now: now, summary: plan)
+            XCTAssertNil(result.registeredRingDate)
+            XCTAssertEqual(result.expectedRingDate, date(29, 7, 30))
+            XCTAssertTrue(result.ringIsNotRegistered, "The page must warn instead of promising an unarmed 07:30")
+            XCTAssertFalse(result.hasRung)
+        }
+        var silent = value
+        silent.calendarSettings = .init(isEnabled: true, source: .taiwan, overrides: ["2026-09-29": .silent])
+        let silentResult = status(silent, now: date(29, 7, 10), summary: plan)
+        XCTAssertEqual(silentResult.reason, .manual)
+        XCTAssertFalse(silentResult.ringIsNotRegistered, "A silent morning is supposed to be missing")
+        var skipped = plan
+        skipped.disasterSkips = [.init(normalDate: date(29, 7, 30), noticeIDs: ["n"], appliedAt: date(28, 22))]
+        let skipResult = status(value, now: date(29, 7, 10), summary: skipped)
+        XCTAssertNil(skipResult.registeredRingDate)
+        XCTAssertTrue(skipResult.hasCommittedClosureSkip)
+        XCTAssertFalse(skipResult.isMissingFromPlan, "A committed skip explains the gap")
+        XCTAssertTrue(skipResult.ringIsNotRegistered, "…but the live preview (feature off here) no longer supports it")
+    }
+
+    /// Weekly path: a foreground re-registration between today's check point and its normal
+    /// time decides tomorrow, and the repeating alarm's new clock time governs today too.
+    func testWeeklyReRegisteredInsideTheWindowIsJudgedByItsClockTime() {
+        let value = settings()
+        let rainyTomorrow = status(value, now: date(29, 7, 10), summary: summary(normal: date(30, 7, 30), ring: date(30, 7)))
+        XCTAssertEqual(rainyTomorrow.expectedRingDate, date(29, 7, 30))
+        XCTAssertEqual(rainyTomorrow.registeredRingDate, date(30, 7), "Today's 07:00 has passed: nothing is left today")
+        XCTAssertNotEqual(rainyTomorrow.registeredRingDate, rainyTomorrow.expectedRingDate, "So the page flags the mismatch")
+        let dryTomorrow = status(value, now: date(29, 7, 10), summary: summary(normal: date(30, 7, 30), ring: date(30, 7, 30)))
+        XCTAssertEqual(dryTomorrow.registeredRingDate, date(29, 7, 30), "The weekly 07:30 still rings today")
+        XCTAssertEqual(dryTomorrow.expectedRingDate, date(29, 7, 30))
+        XCTAssertTrue(dryTomorrow.isScheduleVerified)
+    }
+
+    func testSummaryStoredBeforeTheFiredRingFieldStillDecodes() throws {
+        let stored = summary(normal: date(29, 7, 30), ring: date(29, 7))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(stored)) as? [String: Any])
+        json.removeValue(forKey: "firedEarlyRing")
+        let decoded = try JSONDecoder().decode(ScheduledAlarmSummary.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertNil(decoded.firedEarlyRing)
+        XCTAssertEqual(decoded.normalAlarmDate, stored.normalAlarmDate)
+    }
+
+    func testRolledWeeklySummaryIsMatchedByClockTime() {
+        let value = settings()
+        var rolled = summary(normal: date(29, 7, 30), ring: date(29, 7))
+        rolled.scheduledAlarmDate = date(30, 7)
+        let result = status(value, now: date(29, 7, 10), summary: rolled)
+        XCTAssertEqual(result.registeredRingDate, date(29, 7))
+        XCTAssertEqual(result.expectedRingDate, date(29, 7))
+        XCTAssertEqual(result.reason, .rain)
+        XCTAssertTrue(result.hasRung)
+        var odd = rolled
+        odd.scheduledAlarmDate = date(30, 6, 45)
+        let oddResult = status(value, now: date(29, 7, 10), summary: odd)
+        XCTAssertEqual(oddResult.registeredRingDate, date(30, 6, 45), "An inconsistent registration still surfaces")
+        XCTAssertFalse(oddResult.isScheduleVerified)
+    }
+
+    func testWeeklySummaryForThisMorningIsUsedAfterMidnight() {
+        let result = status(settings(), now: date(29, 0, 39), summary: summary(normal: date(29, 7, 30), ring: date(29, 7)))
+        XCTAssertEqual(result.expectedRingDate, date(29, 7))
+        XCTAssertEqual(result.reason, .rain)
+        XCTAssertEqual(result.registeredRingDate, date(29, 7))
+        XCTAssertTrue(result.isToday)
+        let yesterdays = status(settings(), now: date(29, 0, 39), summary: summary(normal: date(28, 7, 30), ring: date(28, 7)))
+        XCTAssertNil(yesterdays.registeredRingDate)
+        XCTAssertEqual(yesterdays.expectedRingDate, date(29, 7, 30))
+    }
+
+    func testNoAlarmDayAfterMidnightStaysOnThatDay() {
+        var value = settings()
+        value.selectedWeekdays = Set(2...6)
+        let saturday = status(value, now: date(26, 0, 39))
+        XCTAssertEqual(saturday.day, date(26, 0))
+        XCTAssertEqual(saturday.reason, .weekend)
+        XCTAssertTrue(saturday.isToday)
+        let later = status(value, now: date(26, 7, 30))
+        XCTAssertEqual(later.day, date(27, 0))
+        XCTAssertEqual(later.reason, .weekend)
+        XCTAssertFalse(later.isToday)
+        let sunday = status(value, now: date(27, 7, 30))
+        XCTAssertEqual(sunday.day, date(28, 0))
+        XCTAssertEqual(sunday.reason, .normal)
+        XCTAssertEqual(sunday.expectedRingDate, date(28, 7, 30))
+    }
+
+    func testAlarmPageDayStringsExistInBothLocalizations() throws {
+        let keys = ["ux_today", "ux_today_weather", "ux_today_weather_loading", "ux_today_weather_failed",
+                    "ux_today_holiday_named", "ux_today_holiday", "ux_today_manual_skip", "ux_today_manual_ring",
+                    "ux_today_weekend", "ux_today_unselected", "ux_rang_at", "ux_today_closure_skipped",
+                    "ux_tomorrow", "ux_tomorrow_weather"]
+        let bundle = Bundle(for: AlarmViewModel.self)
+        for language in ["en", "zh-Hant"] {
+            let path = try XCTUnwrap(bundle.path(forResource: "Localizable", ofType: "strings", inDirectory: nil,
+                                                 forLocalization: language), language)
+            let table = try XCTUnwrap(NSDictionary(contentsOfFile: path) as? [String: String], language)
+            for key in keys {
+                let value = table[key] ?? ""
+                XCTAssertFalse(value.isEmpty, "\(language): \(key)")
+                XCTAssertNotEqual(value, key, "\(language): \(key)")
+            }
+        }
+    }
 }
 
 @MainActor
@@ -201,7 +473,40 @@ final class TomorrowWeatherRefreshTests: XCTestCase {
             settingsStorage: storage, calendarWeatherTimeout: .seconds(2))
         model.settings.homeAddress = "Home"
         model.settings.workAddress = "Work"
+        // Twelve hours from now: the card's morning switches at the alarm time, and
+        // Date()-based tests must never straddle that moment.
+        model.settings.alarmTime = Date().addingTimeInterval(12 * 3_600)
         return model
+    }
+    private func d(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        AlarmCalendarSettings.calendar.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+
+    func testEveningForecastIsReusedAfterMidnight() async {
+        let service = TomorrowWeatherStub(checkedAt: d(28, 23, 50))
+        let model = model(service: service, scheduler: TomorrowSchedulerSpy())
+        model.settings.alarmTime = d(28, 7, 30)
+        await model.refreshTomorrowWeatherIfNeeded(now: d(28, 23, 50))
+        var requests = await service.requests
+        XCTAssertEqual(requests.map(\.date), [d(29, 7)])
+        await model.refreshTomorrowWeatherIfNeeded(now: d(29, 0, 10))
+        requests = await service.requests
+        XCTAssertEqual(requests.count, 1, "Midnight changes only the day word; the same morning's forecast is reused")
+        let status = model.tomorrowStatus(now: d(29, 0, 10))
+        XCTAssertNotNil(status.weather)
+        XCTAssertTrue(status.isToday)
+        XCTAssertEqual(status.normalAlarmDate, d(29, 7, 30))
+    }
+
+    func testSwitchAtTheNormalTimeFetchesTheNextMorning() async {
+        let service = TomorrowWeatherStub(checkedAt: d(29, 7, 20))
+        let model = model(service: service, scheduler: TomorrowSchedulerSpy())
+        model.settings.alarmTime = d(28, 7, 30)
+        await model.refreshTomorrowWeatherIfNeeded(now: d(29, 7, 20))
+        await model.refreshTomorrowWeatherIfNeeded(now: d(29, 7, 30))
+        let requests = await service.requests
+        XCTAssertEqual(requests.map(\.date), [d(29, 7), d(30, 7)])
+        XCTAssertFalse(model.tomorrowStatus(now: d(29, 7, 30)).isToday)
     }
     func testSkippedTomorrowFetchesWeatherAndNeverWritesScheduleOrRouteWeather() async {
         let now = Date()
@@ -342,9 +647,10 @@ final class TomorrowWeatherRefreshTests: XCTestCase {
     }
 
     func testPersistentCachePreservesCrossMidnightForecastAndRejectsEveryChangedInput() {
-        let now = Date()
-        var settings = CommuteAlarmSettings()
         let calendar = AlarmCalendarSettings.calendar
+        // Noon: between 00:00 and the 00:15 alarm the card would describe today's alarm instead.
+        let now = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        var settings = CommuteAlarmSettings()
         settings.homeAddress = "Home"; settings.workAddress = "Work"
         settings.alarmTime = calendar.date(bySettingHour: 0, minute: 15, second: 0, of: now)!
         settings.rainLeadTimeMinutes = 30

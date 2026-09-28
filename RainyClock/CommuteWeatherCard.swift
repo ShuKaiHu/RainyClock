@@ -7,6 +7,8 @@ struct CommuteWeatherCard: View {
     let homeAddress: String
     let workAddress: String
     let mode: CommuteAlarmSettings.CommuteMode
+    /// The Alarm page passes today's title after midnight, until the morning's alarm time.
+    var title: LocalizedStringKey = "ux_tomorrow_weather"
     var compact = false
     var isActive = true
     var isLoading = false
@@ -28,7 +30,7 @@ struct CommuteWeatherCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(spacing: 0) {
-                Text("ux_tomorrow_weather").font(.subheadline.weight(.semibold))
+                Text(title).font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 HStack(alignment: .top, spacing: 22) {
                     place("ux_weather_home", address: homeAddress, alignment: .leading)

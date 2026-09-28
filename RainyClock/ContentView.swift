@@ -204,6 +204,11 @@ private struct AlarmHomeView: View {
            registered != tomorrow.expectedRingDate {
             return String(localized: "ux_schedule_update_needed")
         }
+        // The card expects a ring the committed schedule does not hold: a closure skip the
+        // live preview no longer supports, or a plan that lost the morning.
+        if !viewModel.isScheduling, tomorrow.ringIsNotRegistered {
+            return String(localized: "ux_schedule_update_needed")
+        }
         return nil
     }
 
@@ -223,6 +228,10 @@ private struct AlarmHomeView: View {
         .onChange(of: TomorrowWeatherRequest(settings: viewModel.settings, now: now)) { _, _ in
             if isVisible { refreshWeather() }
         }
+        // A new feed or committed schedule must be judged against the current instant, not the
+        // last 30 s tick: a feed newer than `now` fails the evaluator's clock check.
+        .onChange(of: viewModel.disasterFeed) { _, _ in now = Date() }
+        .onChange(of: viewModel.scheduledAlarmSummary) { _, _ in now = Date() }
         .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) {
             now = $0
             if isVisible && scenePhase == .active {
@@ -248,9 +257,6 @@ private struct AlarmHomeView: View {
     private func homeContent(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: compact ? 10 : 14) {
             Text("tab_alarm").font(compact ? .title.bold() : .largeTitle.bold())
-            if let skip = viewModel.scheduledAlarmSummary?.disasterSkipLaterToday(now: now) {
-                todayClosureNotice(skip)
-            }
             hero(compact: compact)
             if let message = scheduleIssue {
                 HStack(spacing: 10) {
@@ -275,7 +281,7 @@ private struct AlarmHomeView: View {
         VStack(spacing: compact ? 8 : 12) {
             Button { openSettings(.calendar, nil) } label: {
                 HStack {
-                    Text("ux_tomorrow")
+                    Text(tomorrow.isToday ? "ux_today" : "ux_tomorrow")
                     Spacer()
                     Text(tomorrow.day.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
                 }
@@ -286,7 +292,7 @@ private struct AlarmHomeView: View {
             if let ring = tomorrow.expectedRingDate {
                 Button { openSettings(.time, "wake") } label: {
                     VStack(spacing: 3) {
-                        Text("ux_expected_ring").font(.caption).foregroundStyle(.secondary)
+                        Text(tomorrow.hasRung ? "ux_rang_at" : "ux_expected_ring").font(.caption).foregroundStyle(.secondary)
                         Text(viewModel.settings.timeFormat.time(ring))
                             .font(.system(size: compact ? 50 : 62, weight: .regular, design: .rounded))
                             .lineLimit(1).minimumScaleFactor(0.65).monospacedDigit()
@@ -321,34 +327,11 @@ private struct AlarmHomeView: View {
             .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 
-    /// Today's alarm was skipped for a closure. The card below is about tomorrow, so
-    /// without this line the page shows nothing about the morning the user is asking about.
-    private func todayClosureNotice(_ skip: AppliedDisasterSkip) -> some View {
-        Button { openSettings(.calendar, nil) } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Image(systemName: "bell.slash.fill").foregroundStyle(Color.accentColor)
-                    Text(String.localizedStringWithFormat(String(localized: "ux_today_closure_skipped"),
-                                                          viewModel.settings.timeFormat.time(skip.normalDate)))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }.font(.subheadline.weight(.semibold))
-                closureSourceCredit(alignment: .leading)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 16))
-            .contentShape(Rectangle())
-        }.buttonStyle(.plain)
-    }
-
     /// docs/DAYOFF-SPEC.md §7: a surface that reports a closure names the source (the OGDL
     /// credit is a licence condition) and the source's own update time. caption2 and
     /// secondary, so it never out-ranks the Apple Weather mark in the weather card.
-    private var closureSourceCredit: some View { closureSourceCredit(alignment: .center) }
-
-    private func closureSourceCredit(alignment: HorizontalAlignment) -> some View {
-        VStack(alignment: alignment, spacing: 2) {
+    private var closureSourceCredit: some View {
+        VStack(spacing: 2) {
             if let updated = viewModel.disasterFeed?.sourceUpdatedAt {
                 Text(String.localizedStringWithFormat(String(localized: "disaster_source_updated"),
                     viewModel.settings.timeFormat.dateTime(updated)))
@@ -356,8 +339,8 @@ private struct AlarmHomeView: View {
             Text("disaster_source")
         }
         .font(.caption2).foregroundStyle(.secondary)
-        .multilineTextAlignment(alignment == .leading ? .leading : .center).fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .center)
+        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity)
     }
 
     private func weatherCard(compact: Bool) -> some View {
@@ -366,6 +349,7 @@ private struct AlarmHomeView: View {
             homeAddress: viewModel.settings.homeAddress,
             workAddress: viewModel.settings.workAddress,
             mode: viewModel.settings.commuteMode,
+            title: tomorrow.isToday ? "ux_today_weather" : "ux_tomorrow_weather",
             compact: compact,
             isActive: isVisible,
             isLoading: viewModel.isRefreshingTomorrowWeather || isWaitingForFirstForecast,
@@ -378,11 +362,13 @@ private struct AlarmHomeView: View {
     }
 
     private var weatherNotice: String? {
-        if tomorrow.weatherRefreshFailed { return String(localized: "ux_tomorrow_weather_failed") }
+        if tomorrow.weatherRefreshFailed {
+            return String(localized: tomorrow.isToday ? "ux_today_weather_failed" : "ux_tomorrow_weather_failed")
+        }
         if tomorrow.weatherIsStale { return String(localized: "ux_tomorrow_weather_stale") }
         if tomorrow.weather == nil {
             if routeIncomplete { return String(localized: "ux_route_needed") }
-            return String(localized: "ux_tomorrow_weather_loading")
+            return String(localized: tomorrow.isToday ? "ux_today_weather_loading" : "ux_tomorrow_weather_loading")
         }
         return nil
     }
@@ -395,20 +381,31 @@ private struct AlarmHomeView: View {
         switch tomorrow.reason {
         case .normal: return nil
         case .rain:
-            if let weather = tomorrow.weather, !tomorrow.weatherIsStale {
+            // After the ring a newer forecast must not print a percentage that contradicts it.
+            if !tomorrow.hasRung, let weather = tomorrow.weather, !tomorrow.weatherIsStale {
                 return String.localizedStringWithFormat(String(localized: "ux_rain_applied_forecast"),
                                                         Int((weather.maximumPrecipitationProbability * 100).rounded()), tomorrow.leadTimeMinutes)
             }
             return String.localizedStringWithFormat(String(localized: "ux_rain_applied"), tomorrow.leadTimeMinutes)
         case .holiday:
             if let name = tomorrow.holidayName, !name.isEmpty {
-                return String.localizedStringWithFormat(String(localized: "ux_tomorrow_holiday_named"), name)
+                return String.localizedStringWithFormat(
+                    String(localized: tomorrow.isToday ? "ux_today_holiday_named" : "ux_tomorrow_holiday_named"), name)
             }
-            return String(localized: "ux_tomorrow_holiday")
-        case .manual: return String(localized: tomorrow.expectedRingDate == nil ? "ux_tomorrow_manual_skip" : "ux_tomorrow_manual_ring")
-        case .weekend: return String(localized: "ux_tomorrow_weekend")
-        case .unselectedWeekday: return String(localized: "ux_tomorrow_unselected")
-        case .disaster: return String(localized: "ux_tomorrow_closure")
+            return String(localized: tomorrow.isToday ? "ux_today_holiday" : "ux_tomorrow_holiday")
+        case .manual:
+            if tomorrow.expectedRingDate == nil {
+                return String(localized: tomorrow.isToday ? "ux_today_manual_skip" : "ux_tomorrow_manual_skip")
+            }
+            return String(localized: tomorrow.isToday ? "ux_today_manual_ring" : "ux_tomorrow_manual_ring")
+        case .weekend: return String(localized: tomorrow.isToday ? "ux_today_weekend" : "ux_tomorrow_weekend")
+        case .unselectedWeekday: return String(localized: tomorrow.isToday ? "ux_today_unselected" : "ux_tomorrow_unselected")
+        case .disaster:
+            if tomorrow.isToday {
+                return String.localizedStringWithFormat(String(localized: "ux_today_closure_skipped"),
+                                                        viewModel.settings.timeFormat.time(tomorrow.normalAlarmDate))
+            }
+            return String(localized: "ux_tomorrow_closure")
         case .routeIncomplete: return String(localized: "ux_route_needed")
         }
     }
