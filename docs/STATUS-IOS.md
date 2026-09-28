@@ -226,6 +226,12 @@ Last updated: 2026-09-26.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-09-29：買斷調價決定——US$15／NT$150（原 US$10／NT$100），月訂閱不變**；同時再次確認臨時放假給月訂閱與買斷
+  （[產品決策](PRODUCT_DECISIONS.md)）。App 用 StoreKit 當地價格，不改程式；本機 `RainyClockMembership.storekit` 已改 15.00。
+  **擁有者待辦（ASC → 買斷 `6812814810` → 價格）**：美國基準價改 US$15（Apple 重算其他自動地區）→ 台灣手動設 NT$150 →
+  讀回「目前定價」；供應維持美國＋台灣。生效日若要跟 1.8.0 一起，設成上架日。改好後更新
+  `MEMBERSHIP-AND-PAYMENTS.md`、`appstore-metadata.md` 兩張價格表。
+
 - **2026-09-28／29：真機驗證（iPhone 16 Pro，Debug Sandbox build，sandbox 堆疊＋`fixture.sh`）。**
   - 通過：臺南市「明天」公告推播到手機，擴充功能在 App 關閉時改寫成時效性、有聲的通知（睡眠專注模式下仍送達）；
     地圖顯示臺南市 37 區，框出所選行政區；打開 App 後 9/29 鬧鐘被略過，sync receipt 回報 `applied`。

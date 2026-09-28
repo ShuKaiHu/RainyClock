@@ -14,6 +14,8 @@ TestFlight 群組；不代表已提交 App Review、公開發布或完成所有�
 | Monthly subscription / 月訂閱 | Auto-renewable, one month | US$1 per month | NT$10 per month |
 | One-time purchase / 買斷 | Non-consumable, one payment | US$10 once | NT$100 once |
 
+2026-09-29 決定買斷調高為 **US$15／NT$150**（月訂閱不變）；上表是 ASC 目前售價，擁有者在 ASC 改好並讀回後再更新。
+
 兩方案均移除 banner、解鎖日曆，並共用每日一次免看廣告的 AI 生成；買斷優先顯示，不
 自動取消既有 Apple 訂閱。新購不提供年方案。商品供應目前僅美國與台灣，未來地區自動
 供應關閉。以下公開描述不硬寫售價，付款畫面以 StoreKit 當地價格為準。1.7.0 不公開
@@ -898,6 +900,8 @@ These prices were saved and read back in ASC on September 21. Monthly and lifeti
 in the US and Taiwan only (2 territories); annual is off sale (0 territories). Future-territory
 auto-expansion is off. The lifetime US base was changed to US$10, then Taiwan was fixed manually
 at NT$100. Apple-generated prices for other unavailable territories are not approved product prices.
+On 2026-09-29 the owner decided to raise lifetime to US$15 / NT$150 (monthly unchanged); the table
+above stays the ASC price until the owner changes and reads it back there.
 No review submission or release has occurred. Evidence is in [MEMBERSHIP-STAGING.md](MEMBERSHIP-STAGING.md).
 Sandbox readiness: the user's September 21 confirmation and screenshot establish both Taiwan and
 US testers are created. Device sign-in and purchase end-to-end verification remain pending.

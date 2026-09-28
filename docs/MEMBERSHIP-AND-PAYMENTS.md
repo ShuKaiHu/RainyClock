@@ -28,6 +28,9 @@ AI 完整生成／下載、S2S 廣告與其他驗收請依最新
 | 美國 | US$1／月 | US$10 一次 |
 | 台灣 | NT$10／月 | NT$100 一次 |
 
+> **2026-09-29 調價決定：買斷改為 US$15／NT$150，月訂閱不變**（[產品決策](PRODUCT_DECISIONS.md)）。
+> 上表是 ASC 目前實際售價；擁有者在 ASC 改好並讀回「目前定價」後再更新此表。
+
 不再提供年訂閱優惠方案。9/21 後續最新權益：**月訂閱與買斷都包含移除 banner、日曆
 與每日一次免看廣告 AI 生成**。買斷永久持有目前這些權益、會員顯示優先於月訂閱，
 已有有效買斷時不再提供重複月訂閱購買。同時持有的 Apple 訂閱仍呈現真實狀態與管理
@@ -381,6 +384,8 @@ Device Sandbox lifetime and Taiwan monthly purchases have been confirmed; this d
 TestFlight, production purchases, refunds, AI delivery or live rewarded-ad verification.
 
 Current products: US$1/month or US$10 lifetime; NT$10/month or NT$100 lifetime in Taiwan.
+On 2026-09-29 the owner decided to raise lifetime to US$15 / NT$150 (monthly unchanged); ASC still
+charges the old lifetime price until the owner changes it there.
 Both include banner removal, calendar and one shared daily AI generation. Additional generations
 require a verified rewarded ad. Annual is off sale, historical valid transactions remain supported,
 and temporary disaster closures are not public in 1.7.0. From 1.8.0 the closure rule is included
