@@ -248,6 +248,9 @@ private struct AlarmHomeView: View {
     private func homeContent(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: compact ? 10 : 14) {
             Text("tab_alarm").font(compact ? .title.bold() : .largeTitle.bold())
+            if let skip = viewModel.scheduledAlarmSummary?.disasterSkipLaterToday(now: now) {
+                todayClosureNotice(skip)
+            }
             hero(compact: compact)
             if let message = scheduleIssue {
                 HStack(spacing: 10) {
@@ -318,11 +321,34 @@ private struct AlarmHomeView: View {
             .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 
+    /// Today's alarm was skipped for a closure. The card below is about tomorrow, so
+    /// without this line the page shows nothing about the morning the user is asking about.
+    private func todayClosureNotice(_ skip: AppliedDisasterSkip) -> some View {
+        Button { openSettings(.calendar, nil) } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Image(systemName: "bell.slash.fill").foregroundStyle(Color.accentColor)
+                    Text(String.localizedStringWithFormat(String(localized: "ux_today_closure_skipped"),
+                                                          viewModel.settings.timeFormat.time(skip.normalDate)))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }.font(.subheadline.weight(.semibold))
+                closureSourceCredit(alignment: .leading)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 16))
+            .contentShape(Rectangle())
+        }.buttonStyle(.plain)
+    }
+
     /// docs/DAYOFF-SPEC.md §7: a surface that reports a closure names the source (the OGDL
     /// credit is a licence condition) and the source's own update time. caption2 and
     /// secondary, so it never out-ranks the Apple Weather mark in the weather card.
-    private var closureSourceCredit: some View {
-        VStack(spacing: 2) {
+    private var closureSourceCredit: some View { closureSourceCredit(alignment: .center) }
+
+    private func closureSourceCredit(alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: 2) {
             if let updated = viewModel.disasterFeed?.sourceUpdatedAt {
                 Text(String.localizedStringWithFormat(String(localized: "disaster_source_updated"),
                     viewModel.settings.timeFormat.dateTime(updated)))
@@ -330,8 +356,8 @@ private struct AlarmHomeView: View {
             Text("disaster_source")
         }
         .font(.caption2).foregroundStyle(.secondary)
-        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity)
+        .multilineTextAlignment(alignment == .leading ? .leading : .center).fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .center)
     }
 
     private func weatherCard(compact: Bool) -> some View {

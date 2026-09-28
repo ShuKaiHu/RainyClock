@@ -434,6 +434,7 @@
 "ux_tomorrow_weekend" = "Tomorrow is a weekend";
 "ux_tomorrow_unselected" = "Tomorrow is not a selected repeat day";
 "ux_tomorrow_closure" = "Tomorrow is a temporary work or school closure";
+"ux_today_closure_skipped" = "Today's %@ alarm is skipped for a temporary work or school closure";
 "ux_schedule_update_needed" = "The alarm schedule has not finished updating";
 "disaster_route_address_missing" = "Set an address in Route first";
 "disaster_route_region_unavailable" = "District not available yet";

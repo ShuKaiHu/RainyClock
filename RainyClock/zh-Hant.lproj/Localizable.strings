@@ -434,6 +434,7 @@
 "ux_tomorrow_weekend" = "明天是週末";
 "ux_tomorrow_unselected" = "明天未列入重複星期";
 "ux_tomorrow_closure" = "明天因臨時停班／停課略過";
+"ux_today_closure_skipped" = "今天 %@ 的鬧鐘因臨時停班／停課略過";
 "ux_schedule_update_needed" = "鬧鐘設定尚未更新完成";
 "disaster_route_address_missing" = "請先在路線設定地址";
 "disaster_route_region_unavailable" = "尚未取得行政區";

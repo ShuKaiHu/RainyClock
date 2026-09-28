@@ -94,6 +94,25 @@ final class DisasterIntegrationTests: XCTestCase {
         XCTAssertTrue(previews.contains { if case .dayOff(let day) = $0.kind { return day == date(16) }; return false })
     }
 
+    /// Found on device at 00:12: 9/29 was skipped, but the Alarm page's card had moved on
+    /// to 9/30 at midnight and nothing on the page said today's alarm was off.
+    func testTodaysClosureSkipIsFoundOnlyForLaterToday() {
+        func summary(_ skips: [AppliedDisasterSkip]?) -> ScheduledAlarmSummary {
+            ScheduledAlarmSummary(normalAlarmDate: date(30), scheduledAlarmDate: date(30),
+                weatherRefreshDate: date(30, 7), exceedsRainThreshold: false, leadTimeMinutes: 0,
+                rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0, disasterSkips: skips)
+        }
+        let both = summary([.init(normalDate: date(30), noticeIDs: ["b"], appliedAt: date(28, 23, 58)),
+                            .init(normalDate: date(29), noticeIDs: ["a"], appliedAt: date(28, 23, 58))])
+        XCTAssertEqual(both.disasterSkipLaterToday(now: date(29, 0, 12), calendar: calendar)?.normalDate, date(29),
+                       "After midnight and before the ring, today's skip is the one the card cannot show")
+        XCTAssertNil(both.disasterSkipLaterToday(now: date(28, 23), calendar: calendar),
+                     "The evening before, the card itself already says tomorrow is skipped")
+        XCTAssertNil(both.disasterSkipLaterToday(now: date(29, 7, 31), calendar: calendar),
+                     "Once the normal time has passed there is nothing left to skip today")
+        XCTAssertNil(summary(nil).disasterSkipLaterToday(now: date(29, 0, 12), calendar: calendar))
+    }
+
     func testFetchAppliesOnlyAfterSchedulingAndFailurePreservesSummary() async throws {
         let suite = "DisasterIntegration-\(UUID())"
         let storage = UserDefaults(suiteName: suite)!

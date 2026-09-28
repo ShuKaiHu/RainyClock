@@ -482,6 +482,15 @@ extension ScheduledAlarmSummary {
         return (Array(upcoming.prefix(limit)), skipped)
     }
 
+    /// A committed closure skip for an alarm later today. The Alarm page's card always
+    /// describes tomorrow, so after midnight — or when a "today" announcement lands before
+    /// dawn — the alarm that is actually off would otherwise appear nowhere on the page.
+    func disasterSkipLaterToday(now: Date, calendar: Calendar = AlarmCalendarSettings.calendar) -> AppliedDisasterSkip? {
+        (disasterSkips ?? [])
+            .filter { $0.normalDate > now && calendar.isDate($0.normalDate, inSameDayAs: now) }
+            .min { $0.normalDate < $1.normalDate }
+    }
+
     /// Returns the summary with past dates advanced to their next weekly occurrence,
     /// so a summary reloaded after relaunch still describes the upcoming ring.
     func rollingForward(
