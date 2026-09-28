@@ -59,13 +59,16 @@ iOS 不保證靜默推播或背景更新會執行；一支整晚沒被碰過的�
   - 舊版 App 寫入、沒有這兩個欄位的資料仍可解碼，擴充功能退回只用 `normalAlarmDate` 判斷。
 - `RainyClockDayOffNotification`（Notification Service Extension）在推播到達時由系統喚醒，App 不必在跑。它讀 App Group、自行 GET `/v1/suspensions`，用**和鬧鐘同一個** `DisasterSuspensionEvaluator` 判斷，再改寫通知（`DayOffPushContent`）：
   - 依序（由早到晚）拿每個 `upcomingNormalAlarmDates` 去判斷，第一個會略過的日子即為符合。
-  - 符合：標題「新竹縣尖石鄉已公告停班停課」，有聲音、時效性等級，鎖定畫面直接看到。若該日已在 `skippedNormalAlarmDates` 裡，正文為「9/29 當天的鬧鐘已略過。」（英文 "9/29: that day's alarm has already been skipped."）；否則仍是「下一次鬧鐘會依你的設定處理」。兩者都附資料來源行。
+  - 符合、App 尚未套用：標題「新竹縣尖石鄉已公告停班停課」，有聲音、時效性等級，鎖定畫面直接看到。正文「下一次鬧鐘會依你的設定處理」（不是最近那天時寫「9/30 的鬧鐘會依你的設定處理」）。新的日子優先於已略過的日子。
+  - 符合、該日已在 `skippedNormalAlarmDates` 裡：同樣的標題，正文「9/29 當天的鬧鐘已略過。」（英文 "9/29: that day's alarm has already been skipped."），**無聲、被動等級**——是事實但不是新消息，颱風夜其他縣市每更新一次，已放假的手機就不會跟著響一次。
+  - 兩者都附資料來源行。
   - 沒有任何日子符合時，以下的相關／無關／判斷不了，都以最近一個原定鬧鐘日判斷。
   - 相關但不略過（村里層級、句型未知、資料矛盾）：通用標題，正文是判斷理由，有聲音。
   - 無關：通用標題，「與你設定的地區無關，鬧鐘照常」，無聲、被動等級，只留在通知中心。
   - 判斷不了（功能關閉、沒設行政區、沒有下一次鬧鐘、拉不到公告）：不改寫，系統顯示伺服器的通用文字。
 - `apns-collapse-id` 讓每台裝置永遠只有一則，新版本取代舊的；颱風夜不會堆一排。
 - 擴充功能**不碰鬧鐘**。略過仍然只由 App 在自己成功比對、成功改排程後決定；通知說「會依設定處理」，不說「已取消」。
+- 擴充功能收到推播時在 App Group 記下時間（`DayOffPushMarker`）。可見推播不會喚醒 App，通知卻請使用者打開 App 確認；App 的公告更新平常有 5 分鐘節流，推播時間晚於上次嘗試時就不節流，打開 App 一定重抓。2026-09-28 真機：23:50 抓取失敗、23:51 推播、23:53 打開 App，因節流沒有重抓而一直顯示「無法更新」，因此加上。
 - 需要 App 的 App Group 與 Time Sensitive Notifications entitlement；擴充功能 bundle 為 `com.shukaihu.RainyClock.DayOffNotification`。Xcode 自動簽章會在開發者網站補上 App Group capability，首次真機安裝時留意。
 
 ## 伺服器確認的範圍

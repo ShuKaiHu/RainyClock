@@ -22,6 +22,8 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
             contentHandler(request.content)
             return
         }
+        // Before anything that can fail: the app forces its next refresh on this.
+        DayOffPushMarker.record()
         lock.lock()
         handler = contentHandler
         pending = content

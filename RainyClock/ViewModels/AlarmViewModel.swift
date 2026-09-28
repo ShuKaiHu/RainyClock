@@ -168,6 +168,8 @@ final class AlarmViewModel: ObservableObject {
     /// or flag addresses the user typed correctly.
     private var isRunningUnattended = false
     private let autoRefreshDebounce: Duration
+    /// When the notification extension last saw a day-off push (see `DayOffPushMarker`).
+    private let dayOffPushReceivedAt: () -> Date?
     private let calendarWeatherTimeout: Duration
     private static let addressValidationTimeout: Duration = .seconds(4)
     private static let settingsStorageKey = "commuteAlarmSettings"
@@ -192,7 +194,10 @@ final class AlarmViewModel: ObservableObject {
         disasterFeedProvider: (any DisasterFeedProviding)? = nil,
         disasterSyncReporter: (any DisasterSyncReporting)? = nil,
         membershipEntitlements: @escaping @MainActor () -> MembershipEntitlements? = { MembershipManager.shared.schedulingEntitlements },
-        supportsTemporaryClosures: Bool = AppEnvironment.supportsTemporaryClosures
+        supportsTemporaryClosures: Bool = AppEnvironment.supportsTemporaryClosures,
+        dayOffPushReceivedAt: @escaping () -> Date? = {
+            AppEnvironment.isRunningTests ? nil : DayOffPushMarker.lastReceivedAt()
+        }
     ) {
         // Assigning the published summary also clears the success/error state;
         // capture the persisted flag before restoring that summary.
@@ -215,6 +220,7 @@ final class AlarmViewModel: ObservableObject {
         self.settingsStorage = settingsStorage
         self.membershipEntitlements = membershipEntitlements
         self.supportsTemporaryClosures = supportsTemporaryClosures
+        self.dayOffPushReceivedAt = dayOffPushReceivedAt
 
         // Restore state that survives relaunches, so a scheduled alarm and confirmed
         // addresses do not look reset every time the app reopens.
@@ -1326,7 +1332,11 @@ final class AlarmViewModel: ObservableObject {
             await applyCalendarSettings()
             return before != scheduledAlarmSummary
         }
-        if !force, let last = disasterLastAttemptAt, Date().timeIntervalSince(last) < 5 * 60 { return false }
+        if !force, let last = disasterLastAttemptAt, Date().timeIntervalSince(last) < 5 * 60 {
+            // The alert push does not wake the app, and its text asks the user to
+            // open it. A push since the last attempt means there is news to fetch.
+            guard let pushedAt = dayOffPushReceivedAt(), pushedAt > last else { return false }
+        }
         isRefreshingDisasters = true
         disasterLastAttemptAt = Date()
         defer { isRefreshingDisasters = false }

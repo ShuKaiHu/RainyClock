@@ -357,12 +357,25 @@ curl -sS "$SANDBOX_URL/v1/suspensions"   # 手機的通知擴充功能讀到的�
    腳本印出這次 execution 名稱與它自己的摘要（`skipped changed broadcast.state broadcast.accepted`，
    依 execution 名稱過濾，不會拿到上一次的），應為 `changed:true`、`broadcast.accepted:1`；`skipped` 非空
    （`lease_held`／`backoff`）就是這次沒輪詢。手機在幾秒內收到橫幅，內容由通知擴充功能改寫成
-   符合本機行政區的文字。
+   符合本機行政區的文字。鬧鐘要等 App 打開才會跟著改；**距上一次 Job 超過 15 分鐘就先重跑一次 Job**
+   （`gcloud run jobs execute rainyclock-dayoff-poll-sandbox --region=asia-east1 --wait`，內容不變不會推播），
+   否則 App 拿到 503 會照規則恢復鬧鐘，看起來像沒有套用。
 4. 換 `--scope`／`--when`／`--day-part` 各跑一次，最後 `clear`，確認每次都是新的 revision、都收到一則、
    而且鬧鐘判斷符合 `docs/dayoff-fixtures.json` 的預期。
 5. 結束後不必還原任何設定；TestFlight／App Store（Release）build 一直走正式 URL 與 production APNs。
 
 ### 執行紀錄（sandbox）
+
+### 2026-09-28 18:43 – 09-29 00:07（真機：iPhone 16 Pro，Debug Sandbox build）
+
+- `fixture.sh set --county 臺南市`（18:43，明天＝9/29）→ `accepted=1`；擴充功能 `GET /v1/suspensions` 200，
+  通知改寫成時效性、有聲，睡眠專注模式下仍送達。打開 App 後 9/29 略過，receipt `applied`。
+- 再發一次時，擴充功能拿下一個會響的 9/30 比對，說「與你設定的地區無關」：App 端錯誤，`7954488` 修正。
+- 23:50 App 拿到 503（上一次 Job 已超過 15 分鐘），照規則恢復 9/29；23:51 重發 → 有聲通知（正確，當時 9/29 未略過）。
+  23:53 打開 App 沒有重抓：5 分鐘節流擋住了推播後的更新，App 端錯誤，本次修正（推播時間晚於上次嘗試就不節流）。
+- 23:58 App 抓到 200，receipt `applied`（revision `ef03b536c0`）。00:05 重跑 Job：`changed=false`、未推播。
+- 00:07 `fixture.sh set --county 臺南市 --when today`（今天＝9/29，已略過）→ `accepted=1`，擴充功能 200；
+  手機顯示安靜的「9/29: that day's alarm has already been skipped.」。00:12 App 抓到 revision `5b94fa0e15`，receipt `applied`。
 
 ### 2026-09-28 01:54–02:05（Claude 執行，讀回值）
 

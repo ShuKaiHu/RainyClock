@@ -62,3 +62,23 @@ struct DayOffSharedState: Codable, Equatable, Sendable {
         defaults?.removeObject(forKey: storageKey)
     }
 }
+
+/// When the last day-off push reached this phone. The notification service
+/// extension writes it; the app reads it. It is kept apart from
+/// `DayOffSharedState`, which only the app writes, so the two never race.
+///
+/// The alert push does not wake the app, and its text tells the user to open the
+/// app to confirm. So an open that follows a push must fetch the announcements
+/// even inside the app's usual five-minute refresh throttle — otherwise a user
+/// who looked at the app shortly before the announcement sees the old state.
+enum DayOffPushMarker {
+    static let storageKey = "dayOffPushReceivedAt.v1"
+
+    static func record(_ date: Date = Date(), to defaults: UserDefaults? = DayOffSharedState.sharedDefaults()) {
+        defaults?.set(date, forKey: storageKey)
+    }
+
+    static func lastReceivedAt(from defaults: UserDefaults? = DayOffSharedState.sharedDefaults()) -> Date? {
+        defaults?.object(forKey: storageKey) as? Date
+    }
+}

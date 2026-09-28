@@ -279,4 +279,15 @@ final class DayOffPushContentTests: XCTestCase {
         XCTAssertEqual(result.urgency, .unknown)
         XCTAssertFalse(result.body.contains("鬧鐘照常"), "9/29 is not armed; never say it rings")
     }
+
+    func testPushMarkerRoundTripsThroughTheAppGroupDefaults() throws {
+        let suite = "DayOffPushMarker-\(UUID())"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertNil(DayOffPushMarker.lastReceivedAt(from: defaults))
+        let when = Date(timeIntervalSince1970: 1_790_000_000)
+        DayOffPushMarker.record(when, to: defaults)
+        XCTAssertEqual(DayOffPushMarker.lastReceivedAt(from: defaults), when)
+        XCTAssertNil(DayOffSharedState.load(from: defaults), "The marker must not touch the app-written state")
+    }
 }

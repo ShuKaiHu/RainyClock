@@ -226,6 +226,24 @@ Last updated: 2026-09-26.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-09-28／29：真機驗證（iPhone 16 Pro，Debug Sandbox build，sandbox 堆疊＋`fixture.sh`）。**
+  - 通過：臺南市「明天」公告推播到手機，擴充功能在 App 關閉時改寫成時效性、有聲的通知（睡眠專注模式下仍送達）；
+    地圖顯示臺南市 37 區，框出所選行政區；打開 App 後 9/29 鬧鐘被略過，sync receipt 回報 `applied`。
+  - 抓到並修正兩個錯誤：
+    1. 重複公告時，擴充功能拿「下一個會響的鬧鐘」（9/30）比對，顯示「與你設定的地區無關」。
+       改為鏡射未來幾天的日期與已略過的日期，已略過那天的重複公告改成安靜的「9/29 當天的鬧鐘已略過」（`7954488`）。
+    2. App 的公告更新有 5 分鐘節流，連失敗後也一樣；可見推播不會喚醒 App，通知卻請使用者「打開 App 確認」。
+       23:50 抓取失敗、23:51 推播、23:53 打開 App → 沒有重抓，仍顯示「無法更新」。改為擴充功能收到推播時在
+       App Group 記下時間，推播晚於上次嘗試就略過節流（本次提交）。
+  - Sandbox 沒有 Scheduler，Job 跑完 15 分鐘後 `/v1/suspensions` 回 503；App 照規則 fail-open 恢復鬧鐘，
+    所以每一步真機測試前先重跑一次 Job（`gcloud run jobs execute rainyclock-dayoff-poll-sandbox --region=asia-east1 --wait`；
+    公告內容不變就不會推播）。
+  - 通過：9/29 00:07 對已略過的 9/29 再發一次公告（`--when today`），通知是安靜的「9/29: that day's alarm has
+    already been skipped.」＋資料來源行，只進睡眠專注模式的通知群組，不響不亮；00:12 打開 App 抓到新 revision，
+    receipt `applied`。
+  - 測試：iPhone 17 Pro 上 422 項全過（略過 `MembershipStoreKitTests`：在這台模擬器上第一項就卡住，同上方的
+    StoreKit 環境問題，送審前在 Xcode 裡重跑）。
+
 - **2026-09-28：權益已決定——月訂閱與買斷都包含臨時放假規則，免費不含**（[產品決策](PRODUCT_DECISIONS.md)）。
   - 工作樹已改：伺服器 `deriveEntitlements` 與 iOS `MembershipEntitlements.valid(at:)`／本機 StoreKit 讀取的
     `temporaryClosures` 改為買斷或訂閱任一有效；會員頁每張付費方案卡都列「颱風臨時放假」，「買斷已涵蓋其他權益」

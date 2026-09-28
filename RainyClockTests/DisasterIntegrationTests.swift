@@ -281,6 +281,44 @@ final class DisasterIntegrationTests: XCTestCase {
         XCTAssertFalse(relaunched.isScheduleStale)
     }
 
+    /// The day-off alert push does not wake the app, and its text says "open the app to
+    /// confirm". Found on device: a fetch failed at 23:50, the push arrived at 23:51, the
+    /// user opened the app at 23:53 — inside the five-minute throttle — and the app kept
+    /// showing the failure instead of applying the closure.
+    func testPushSinceLastAttemptBypassesRefreshThrottle() async throws {
+        let suite = "DisasterPushThrottle-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        try storage.set(JSONEncoder().encode(settings()), forKey: "commuteAlarmSettings")
+        let provider = FeedStub(value: .failure(URLError(.badServerResponse)))
+        final class PushBox { var receivedAt: Date? }
+        let push = PushBox()
+        let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+            disasterFeedProvider: provider, disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true,
+            dayOffPushReceivedAt: { push.receivedAt })
+        _ = await model.refreshDisasterSuspensions()
+        XCTAssertTrue(model.disasterRefreshFailed)
+        var calls = await provider.calls
+        XCTAssertEqual(calls, 1)
+
+        push.receivedAt = try XCTUnwrap(model.disasterLastAttemptAt).addingTimeInterval(-1)
+        _ = await model.refreshDisasterSuspensions()
+        calls = await provider.calls
+        XCTAssertEqual(calls, 1, "A push older than the last attempt was already covered by it")
+
+        await provider.set(.success(feed(now: Date())))
+        push.receivedAt = Date()
+        _ = await model.refreshDisasterSuspensions()
+        calls = await provider.calls
+        XCTAssertEqual(calls, 2, "Opening the app after a push must fetch despite the throttle")
+        XCTAssertFalse(model.disasterRefreshFailed)
+
+        _ = await model.refreshDisasterSuspensions()
+        calls = await provider.calls
+        XCTAssertEqual(calls, 2, "Without a newer push the throttle still holds")
+    }
+
     /// 1.8.0 ships with the gate open; these tests inject it closed to keep proving
     /// what a gated build does with saved closure rules.
     func testClosedGateExcludesClosureWithoutErasingSavedRulesOrFetching() async throws {
