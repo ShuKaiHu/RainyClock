@@ -588,7 +588,7 @@ Drafted 2026-09-28. Paste it on top of the 1.7.1 (37) note that was actually sen
 (`docs/appstore-review-notes-1.7.1-37.txt`), with the build number changed. **When pasting, change
 that note's "the Alarm tab shows tomorrow's alarm" to "the Alarm tab shows the next alarm: today's
 until its time has passed, then tomorrow's"** (2026-09-29 change; a reviewer's near-future test
-alarm now appears as Today). The plan sentence
+alarm now appears under "Next alarm"). The plan sentence
 is final: on 2026-09-28 the owner decided the rule comes with both the monthly subscription and
 the one-time purchase, not the free plan ([PRODUCT_DECISIONS](PRODUCT_DECISIONS.md)), and the
 bracketed internal notes that stood in for that decision have been removed. The PURCHASES

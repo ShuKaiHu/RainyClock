@@ -281,7 +281,8 @@ private struct AlarmHomeView: View {
         VStack(spacing: compact ? 8 : 12) {
             Button { openSettings(.calendar, nil) } label: {
                 HStack {
-                    Text(tomorrow.isToday ? "ux_today" : "ux_tomorrow")
+                    // After midnight the owner wants the morning named by what it is, not "today".
+                    Text(tomorrow.isToday ? "ux_next_alarm" : "ux_tomorrow")
                     Spacer()
                     Text(tomorrow.day.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
                 }

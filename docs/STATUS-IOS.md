@@ -226,10 +226,14 @@ Last updated: 2026-09-26.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-09-29：正式會員服務重新部署——擁有者已同意，映像已建好，等擁有者在自己的終端機執行部署**（auto mode 的
+  安全檢查不允許 Claude 部署正式環境）。映像 `rainyclock-membership@sha256:463da306…`（標籤
+  `lifetime-closures-20260929`，來源與 sandbox 已驗證的版本相同）；和線上版比對過，只多買斷也給臨時放假那一行。
+  回退：`gcloud run services update-traffic rainyclock-membership --region=asia-east1 --to-revisions=rainyclock-membership-00005-5pm=100`。
 - **2026-09-29：買斷調價決定——US$15／NT$150（原 US$10／NT$100），月訂閱不變**；同時再次確認臨時放假給月訂閱與買斷
   （[產品決策](PRODUCT_DECISIONS.md)）。App 用 StoreKit 當地價格，不改程式；本機 `RainyClockMembership.storekit` 已改 15.00。
   **擁有者待辦（ASC → 買斷 `6812814810` → 價格）**：美國基準價改 US$15（Apple 重算其他自動地區）→ 台灣手動設 NT$150 →
-  讀回「目前定價」；供應維持美國＋台灣。生效日若要跟 1.8.0 一起，設成上架日。改好後更新
+  讀回「目前定價」；供應維持美國＋台灣。**生效日：1.8.0 上架當天**（擁有者 9/29 決定）。改好後更新
   `MEMBERSHIP-AND-PAYMENTS.md`、`appstore-metadata.md` 兩張價格表。
 
 - **2026-09-28／29：真機驗證（iPhone 16 Pro，Debug Sandbox build，sandbox 堆疊＋`fixture.sh`）。**
@@ -258,7 +262,8 @@ Last updated: 2026-09-26.
     ③畫面時鐘在公告或排程更新時立刻刷新，避免最多 30 秒的假警示。同一審查找到三個既有的排程問題（每週排程在這段時間
     改設定會吃掉今天的鈴、冷啟動後可能響兩次、停班停課刷新在這段時間反覆重新登記），另開任務處理，不在 1.8.0 這次改。
   - 測試（主卡改為接下來的早上，含審查修正）：iPhone 17 Pro 上 449 項全過，略過 `MembershipStoreKitTests`（同下）。
-    手機待確認：凌晨打開 App 標題是「今天」、天氣卡「今天的天氣」；有停班停課時主卡寫「今天 7:30 的鬧鐘因臨時停班／停課略過」。
+    標題依擁有者決定改為「下次鬧鐘」＋日期（英文 Next alarm），不寫「今天」。
+    手機待確認：凌晨打開 App 標題是「下次鬧鐘」、天氣卡「今天的天氣」；有停班停課時主卡寫「今天 7:30 的鬧鐘因臨時停班／停課略過」。
   - 測試（`8e07321` 當時）：iPhone 17 Pro 上 423 項全過（含今天那一行的新測試；略過 `MembershipStoreKitTests`：在這台模擬器上第一項就卡住，同上方的
     StoreKit 環境問題，送審前在 Xcode 裡重跑）。
 

@@ -437,7 +437,7 @@ final class TomorrowAlarmStatusTests: XCTestCase {
     }
 
     func testAlarmPageDayStringsExistInBothLocalizations() throws {
-        let keys = ["ux_today", "ux_today_weather", "ux_today_weather_loading", "ux_today_weather_failed",
+        let keys = ["ux_next_alarm", "ux_today_weather", "ux_today_weather_loading", "ux_today_weather_failed",
                     "ux_today_holiday_named", "ux_today_holiday", "ux_today_manual_skip", "ux_today_manual_ring",
                     "ux_today_weekend", "ux_today_unselected", "ux_rang_at", "ux_today_closure_skipped",
                     "ux_tomorrow", "ux_tomorrow_weather"]

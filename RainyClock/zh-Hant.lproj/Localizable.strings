@@ -435,7 +435,7 @@
 "ux_tomorrow_unselected" = "明天未列入重複星期";
 "ux_tomorrow_closure" = "明天因臨時停班／停課略過";
 "ux_today_closure_skipped" = "今天 %@ 的鬧鐘因臨時停班／停課略過";
-"ux_today" = "今天";
+"ux_next_alarm" = "下次鬧鐘";
 "ux_today_weather" = "今天的天氣";
 "ux_today_weather_loading" = "正在取得今天天氣⋯";
 "ux_today_weather_failed" = "今天天氣更新失敗";

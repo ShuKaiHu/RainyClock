@@ -435,7 +435,7 @@
 "ux_tomorrow_unselected" = "Tomorrow is not a selected repeat day";
 "ux_tomorrow_closure" = "Tomorrow is a temporary work or school closure";
 "ux_today_closure_skipped" = "Today's %@ alarm is skipped for a temporary work or school closure";
-"ux_today" = "Today";
+"ux_next_alarm" = "Next alarm";
 "ux_today_weather" = "Today's weather";
 "ux_today_weather_loading" = "Loading today's forecast…";
 "ux_today_weather_failed" = "Today's weather could not be updated";
