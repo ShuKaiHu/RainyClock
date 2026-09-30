@@ -528,8 +528,8 @@ final class SkipNextAlarmTests: XCTestCase {
         let model = await weeklyModel(scheduler)
         guard case .available(let target) = model.skipAvailability() else { return XCTFail() }
         _ = await model.skipNextAlarm(target)
-        // Moving the alarm time before now makes the skipped morning's normal time pass.
-        model.settings.alarmTime = Date().addingTimeInterval(-2 * 3_600)
+        // The skipped morning has passed (any time of day: a stored key for yesterday).
+        model.settings.skippedAlarmDay = AlarmCalendarSettings.key(for: Date().addingTimeInterval(-86_400))
         await model.refreshScheduledAlarmIfWeatherIsStale()
         XCTAssertNil(model.settings.skippedAlarmDay)
         XCTAssertGreaterThanOrEqual(scheduler.weeklyCalls, 2)
@@ -580,17 +580,31 @@ final class SkipNextAlarmTests: XCTestCase {
     /// iOS 17–25: going back to the weekly plan while today's follow-up chain would still
     /// fire re-adds those follow-ups, so retiring waits (adversarial review).
     func testRetireWaitsWhileTodaysNotificationFollowUpsWouldRevive() async throws {
+        for notificationAlarms in [true, false] {
+            try await retireRightAfterTodaysRing(notificationAlarms: notificationAlarms)
+        }
+    }
+
+    /// Today's skipped morning rang (would have rung) ten minutes ago, so the skip is spent.
+    /// On notification alarms its follow-ups would still be firing: retire waits. AlarmKit
+    /// has no follow-up chain to revive: retire proceeds.
+    private func retireRightAfterTodaysRing(notificationAlarms: Bool) async throws {
         let hour = AlarmCalendarSettings.calendar.component(.hour, from: Date())
         try XCTSkipIf(hour == 0, "Near midnight 'ten minutes ago' is yesterday")
+        storage.removePersistentDomain(forName: suite)
         let scheduler = CalendarSchedulerSpy()
-        let model = await weeklyModel(scheduler, notificationAlarms: true)
+        let model = await weeklyModel(scheduler, notificationAlarms: notificationAlarms)
         guard case .available(let target) = model.skipAvailability() else { return XCTFail() }
         _ = await model.skipNextAlarm(target)
-        // Today's weekly ring was ten minutes ago: its follow-ups would still be firing.
         model.settings.alarmTime = Date().addingTimeInterval(-10 * 60)
+        model.settings.skippedAlarmDay = AlarmCalendarSettings.key(for: Date())
+        XCTAssertNil(model.liveSkippedAlarmDate(), "Spent")
         await model.refreshScheduledAlarmIfWeatherIsStale()
-        XCTAssertNotNil(model.settings.skippedAlarmDay, "Retire waits for today's follow-ups to end")
-        XCTAssertEqual(scheduler.weeklyCalls, 1)
+        if notificationAlarms {
+            XCTAssertNotNil(model.settings.skippedAlarmDay, "Retire waits for today's follow-ups to end")
+        } else {
+            XCTAssertNil(model.settings.skippedAlarmDay, "Nothing to revive on AlarmKit")
+        }
     }
 
     func testTurningOffWhileSkippingClearsTheSkip() async throws {

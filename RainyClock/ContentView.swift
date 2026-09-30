@@ -252,32 +252,21 @@ private struct AlarmHomeView: View {
     }
 
     var body: some View {
-        GeometryReader { _ in
-            ViewThatFits(in: .vertical) {
-                homeContent(compact: false)
-                homeContent(compact: true)
-                ScrollView { homeContent(compact: true) }
+        VStack(alignment: .leading, spacing: 12) {
+            // One title row outside ViewThatFits, so the off-choice dialog has a single
+            // anchor: it rises from the switch in the top-right corner.
+            titleRow
+            GeometryReader { _ in
+                ViewThatFits(in: .vertical) {
+                    homeContent(compact: false)
+                    homeContent(compact: true)
+                    ScrollView { homeContent(compact: true) }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .padding(.horizontal, 20).padding(.top, 8)
         .background(Color.appBackground)
-        .confirmationDialog("ux_alarm_off_title",
-                            isPresented: Binding(get: { offChoice != nil }, set: { if !$0 { offChoice = nil } }),
-                            titleVisibility: .visible, presenting: offChoice) { choice in
-            if case .available(let target) = choice {
-                Button("ux_alarm_skip_next") {
-                    Task {
-                        // The next alarm changed while the dialog was open: ask again.
-                        if !(await viewModel.skipNextAlarm(target)) { offChoice = viewModel.skipAvailability(now: Date()) }
-                    }
-                }
-            }
-            Button("ux_alarm_turn_off", role: .destructive) { Task { await viewModel.turnAlarmOff() } }
-            Button("cancel", role: .cancel) {}
-        } message: { choice in
-            Text(offMessage(choice))
-        }
         .onAppear { now = Date(); isVisible = true; refreshWeather() }
         .onDisappear { isVisible = false }
         .onChange(of: TomorrowWeatherRequest(settings: viewModel.settings, now: now)) { _, _ in
@@ -309,16 +298,35 @@ private struct AlarmHomeView: View {
         Task { await model.refreshTomorrowWeatherIfNeeded(now: date, force: force) }
     }
 
+    private var titleRow: some View {
+        HStack(alignment: .center) {
+            Text("tab_alarm").font(.largeTitle.bold())
+            Spacer(minLength: 12)
+            Toggle("tab_alarm", isOn: alarmSwitch)
+                .labelsHidden()
+                .modifier(OptionalAccessibilityValue(value: switchAccessibilityValue))
+                .accessibilityIdentifier("alarmMasterSwitch")
+                .confirmationDialog("ux_alarm_off_title",
+                                    isPresented: Binding(get: { offChoice != nil }, set: { if !$0 { offChoice = nil } }),
+                                    titleVisibility: .visible, presenting: offChoice) { choice in
+                    if case .available(let target) = choice {
+                        Button("ux_alarm_skip_next") {
+                            Task {
+                                // The next alarm changed while the dialog was open: ask again.
+                                if !(await viewModel.skipNextAlarm(target)) { offChoice = viewModel.skipAvailability(now: Date()) }
+                            }
+                        }
+                    }
+                    Button("ux_alarm_turn_off", role: .destructive) { Task { await viewModel.turnAlarmOff() } }
+                    Button("cancel", role: .cancel) {}
+                } message: { choice in
+                    Text(offMessage(choice))
+                }
+        }
+    }
+
     private func homeContent(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: compact ? 10 : 14) {
-            HStack(alignment: .center) {
-                Text("tab_alarm").font(compact ? .title.bold() : .largeTitle.bold())
-                Spacer(minLength: 12)
-                Toggle("tab_alarm", isOn: alarmSwitch)
-                    .labelsHidden()
-                    .modifier(OptionalAccessibilityValue(value: switchAccessibilityValue))
-                    .accessibilityIdentifier("alarmMasterSwitch")
-            }
             hero(compact: compact)
             if let message = scheduleIssue {
                 HStack(spacing: 10) {
