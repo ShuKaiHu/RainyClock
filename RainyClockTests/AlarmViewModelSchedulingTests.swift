@@ -633,6 +633,52 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         XCTAssertEqual(spy.scheduleCalls.last?.date, early, "A morning that rang early never rings again")
     }
 
+    /// The same edit, read back (adversarial review, 2026-10-01): woken at 07:00 for a 07:30
+    /// alarm, the user shortens the lead. The weekly alarm stays on 07:00 and records it; the
+    /// card must say 已響鈴 07:00, and tomorrow — which the weekly repeat rings at 07:00 again —
+    /// must show that time waiting for its own forecast (D-D), not 07:30 with a
+    /// 鬧鐘設定尚未更新完成 that no retry can clear before this morning's normal time.
+    func testChangingTheLeadAfterThisMorningsEarlyRingKeepsWhatAlarmKitRings() async throws {
+        let spy = SchedulerSpy()
+        let (model, normal) = try relaunchInsideThisMorningsWindow(spy: spy, home: "Clear Street", rangEarly: true)
+        let calendar = AlarmCalendarSettings.calendar
+        let early = normal.addingTimeInterval(-30 * 60)
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: normal))
+        let tomorrowEarly = tomorrow.addingTimeInterval(-30 * 60)
+
+        model.settings.rainLeadTimeMinutes = 5
+        try await waitUntil("the edit re-registered") { spy.scheduleCalls.count == 1 && !model.isScheduling }
+        XCTAssertEqual(spy.scheduleCalls.last?.date, early, "The weekly clock stays on the ring that already went off")
+        XCTAssertEqual(model.scheduledAlarmSummary?.firedEarlyRing, .init(normalDate: normal, ringDate: early))
+        XCTAssertFalse(model.isScheduleStale)
+        XCTAssertNil(model.scheduleErrorMessage)
+
+        // The card: this morning rang at the recorded 07:00, whatever the lead is now.
+        let now = Date()
+        let card = model.tomorrowStatus(now: now)
+        XCTAssertEqual(card.normalAlarmDate, normal)
+        XCTAssertTrue(card.hasRung)
+        XCTAssertEqual(card.expectedRingDate, early)
+        XCTAssertEqual(card.leadTimeMinutes, 30)
+        XCTAssertNil(TomorrowWidgetSnapshotBuilder.scheduleIssue(for: card, flags: .init()))
+
+        // The widget: today ended at that ring; tomorrow shows the 07:00 AlarmKit will ring.
+        XCTAssertEqual(model.todayStatus(now: now).passedRingDate, early)
+        let entry = try XCTUnwrap(TomorrowWidgetSnapshotBuilder.snapshot(for: model, now: now).entries.first)
+        XCTAssertFalse(entry.isToday)
+        XCTAssertEqual(entry.day, calendar.startOfDay(for: tomorrow))
+        XCTAssertEqual(entry.expectedRingDate, tomorrowEarly, "The weekly repeat carries the 07:00 to tomorrow")
+        XCTAssertEqual(entry.reasonLine, .awaitingForecast)
+        XCTAssertNotEqual(entry.scheduleIssue, .updateNeeded, "Nothing a retry could change before the normal time")
+
+        // Past this morning's normal time the card moves on to tomorrow and says the same.
+        let next = model.tomorrowStatus(now: normal.addingTimeInterval(60))
+        XCTAssertEqual(next.normalAlarmDate, tomorrow)
+        XCTAssertEqual(next.expectedRingDate, tomorrowEarly)
+        XCTAssertTrue(next.rainLeadIsCarriedOver)
+        XCTAssertNil(TomorrowWidgetSnapshotBuilder.scheduleIssue(for: next, flags: .init()))
+    }
+
     private func waitUntil(
         _ what: String,
         timeout: TimeInterval = 5,

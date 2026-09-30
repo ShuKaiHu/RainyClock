@@ -259,6 +259,12 @@ struct TomorrowAlarmStatus: Equatable {
                   let decided = summary.decisionNormalAlarmDate else { return false }
             return decided != request.normalAlarmDate
         }
+        // A weekly registration made after a morning's early ring keeps its one repeating clock
+        // time on that ring (`restoreWeeklySchedule` records it as `firedEarlyRing`), even when
+        // the lead has changed since. The mornings after it carry that ring's lead: what
+        // AlarmKit rings (D-D), not an update a retry could make before that normal time.
+        let keptLead = summary.flatMap { $0.calendarPlan == nil ? $0.firedEarlyRing : nil }
+            .map { $0.normalDate.timeIntervalSince($0.ringDate) }
         var carriedOver = false
         if let firedRing, expected != nil {
             // This morning already rang. Final, whatever the lead or forecast say now.
@@ -269,7 +275,7 @@ struct TomorrowAlarmStatus: Equatable {
             carriedOver = isCarriedOver(lead: lead)
         } else if expected != nil, freshWeather == nil || decisionIsFinal, let registered {
             let offset = request.normalAlarmDate.timeIntervalSince(registered)
-            if offset == 0 || offset == Double(settings.rainLeadTimeMinutes * 60) {
+            if offset == 0 || offset == Double(settings.rainLeadTimeMinutes * 60) || offset == keptLead {
                 // Until the forecast arrives — and for good once the check point has passed —
                 // show the exact registered time instead of claiming a different one. This
                 // does not turn the old schedule's weather into new weather.
