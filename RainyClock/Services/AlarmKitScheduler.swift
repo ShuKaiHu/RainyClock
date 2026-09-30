@@ -73,6 +73,9 @@ protocol AlarmKitManaging: Sendable {
     func alarms() throws -> [AlarmSnapshot]
     func schedule(id: UUID, request: AlarmRequest) async throws
     func cancel(id: UUID) throws
+    /// Yields each time the system's list of our alarms changes: one rings, is snoozed, is
+    /// stopped, is added or cancelled. Ends when the caller stops iterating.
+    func changes() -> AsyncStream<Void>
 }
 
 @available(iOS 26.0, *)
@@ -80,6 +83,16 @@ struct SystemAlarmManager: AlarmKitManaging {
     func alarms() throws -> [AlarmSnapshot] {
         try AlarmManager.shared.alarms.map {
             AlarmSnapshot(id: $0.id, state: $0.state, schedule: $0.schedule, countdownDuration: $0.countdownDuration)
+        }
+    }
+
+    func changes() -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            let relay = Task {
+                for await _ in AlarmManager.shared.alarmUpdates { continuation.yield() }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in relay.cancel() }
         }
     }
 
@@ -315,7 +328,8 @@ struct AlarmKitScheduler: NotificationScheduling {
     /// cancelled is remembered until it is, and `retireSupersededAlarms` cancels it once
     /// it is merely scheduled again — a weekly one would otherwise ring at its old time
     /// on its next weekday. Replaces the whole record: every alarm it still covers is in
-    /// `superseded`.
+    /// `superseded`. A cancel that throws stays in the record too (the write is deferred),
+    /// so the next pass tries it again.
     private func retire(_ superseded: [AlarmSnapshot]) throws {
         var remaining = Set(superseded.map(\.id))
         defer { defaults.set(remaining.map(\.uuidString), forKey: Self.supersededAlarmsKey) }
@@ -326,14 +340,40 @@ struct AlarmKitScheduler: NotificationScheduling {
     }
 
     /// Cancels what `retire` had to leave once it has finished ringing and snoozing.
-    /// Called on activation and from background refresh; every registration does the
-    /// same for all the alarms it replaces.
+    /// Called on activation, from background refresh and the day-off push, and on every
+    /// change the system reports while the process lives (`retireSupersededAlarmsAsTheyStop`);
+    /// every registration does the same for all the alarms it replaces.
     func retireSupersededAlarms() async {
         try? await Self.registrationQueue.run {
             let superseded = Set((defaults.stringArray(forKey: Self.supersededAlarmsKey) ?? []).compactMap(UUID.init(uuidString:)))
             guard !superseded.isEmpty else { return }
             // A list that cannot be read keeps the record for the next pass.
             try retire(manager.alarms().filter { superseded.contains($0.id) })
+        }
+    }
+
+    /// Retires a replaced alarm the moment it is merely scheduled again, for as long as this
+    /// process lives. A snooze stopped from the Lock Screen or the Dynamic Island while the
+    /// app stays in front brings no activation, and a weekly alarm left behind would ring
+    /// again at its old time on its next weekday next to its replacement. Activation,
+    /// background refresh and the day-off push still sweep what a suspended process missed.
+    func retireSupersededAlarmsAsTheyStop() async {
+        for await _ in manager.changes() {
+            await retireSupersededAlarms()
+        }
+    }
+
+    /// Removes the registration without arming a replacement while the alarm itself stays on:
+    /// an address edit that invalidates the route, the last repeat day cleared. Like a
+    /// re-registration, it cancels what is merely scheduled and leaves a ringing or snoozing
+    /// alarm to finish (then `retireSupersededAlarms` cancels it). Only turning the alarm off
+    /// (`cancelScheduledAlarms`) ends a snooze.
+    func retireScheduledAlarms() async {
+        try? await Self.registrationQueue.run {
+            try Task.checkCancellation()
+            // A list that cannot be read leaves everything as it was, bookkeeping included.
+            try retire(manager.alarms())
+            defaults.removeObject(forKey: Self.calendarRegistrationsKey)
         }
     }
 

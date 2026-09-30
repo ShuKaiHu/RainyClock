@@ -35,8 +35,11 @@ final class MembershipManager: ObservableObject {
     private var productLoadTask: Task<Void, Never>?
     private var localRefreshVersion = 0
     private var started = false
-    /// The restore `restoreSchedulingEntitlements()` has in flight; `start()` joins it.
-    private var schedulingRestore: Task<Void, Never>?
+    /// The restore `restoreSchedulingEntitlements()` runs: one at a time, joined by every
+    /// caller while it runs (`start()` included), tried again by the next caller once it ends.
+    private lazy var schedulingRestore = SharedRestore { [weak self] in
+        _ = try? await self?.prepareCurrentContext()
+    }
     private var accountIdentity: String?
     private var latestDiagnostic: MembershipDiagnostic?
     private var storefrontCountryCode: String?
@@ -58,6 +61,17 @@ final class MembershipManager: ObservableObject {
     /// scheduling restores one first (`restoreSchedulingEntitlements()`).
     var schedulingEntitlements: MembershipEntitlements? {
         isConfigured ? snapshot?.entitlements : nil
+    }
+    /// Each later change to `schedulingEntitlements`, once per distinct value, without the
+    /// current one. `$snapshot` fires before the new value is stored, so the value is read
+    /// from the event; a subscriber that reads `schedulingEntitlements` must do so later
+    /// (`AlarmViewModel` does, in a task).
+    var schedulingEntitlementChanges: AnyPublisher<MembershipEntitlements?, Never> {
+        let configured = isConfigured
+        return $snapshot.map { configured ? $0?.entitlements : nil }
+            .removeDuplicates()
+            .dropFirst()
+            .eraseToAnyPublisher()
     }
     var remaining: Int {
         guard let quota = snapshot?.quota else { return 0 }
@@ -113,9 +127,9 @@ final class MembershipManager: ObservableObject {
         if isLocalStoreKitTesting { await refreshLocalStoreKitState() }
         else {
             do {
-                // Join a restore scheduling began: two first activations racing expire
-                // each other's identity generation, and this one would fail as expired.
-                await restoreSchedulingEntitlements()
+                // Join a restore scheduling began, however long it takes: two first activations
+                // racing expire each other's identity generation, and this one would fail as expired.
+                await restoreSchedulingEntitlements(waitingAtMost: nil)
                 guard let current = try await prepareCurrentContext() else { throw MembershipError.sessionExpired }
                 retryPendingJournalDeletion()
                 if !dataDeleted {
@@ -146,16 +160,15 @@ final class MembershipManager: ObservableObject {
     /// sync and no sign-in sheet. Scheduling needs them before it decides anything: a
     /// background task or push launch never reaches `start()`, and the foreground launch
     /// schedules while `start()` is still loading products. A failure leaves them unknown.
-    func restoreSchedulingEntitlements() async {
+    ///
+    /// Scheduling waits `timeout` at most, and not at all once cancelled (a background task's
+    /// expiry): StoreKit may have to fetch the App Transaction over a poor connection, and an
+    /// alarm must not wait on that. Unknown rings (the closure rule is not applied); the
+    /// restore goes on, and whatever it confirms reaches scheduling through
+    /// `schedulingEntitlementChanges`. nil waits for the restore to end.
+    func restoreSchedulingEntitlements(waitingAtMost timeout: Duration? = .seconds(5)) async {
         guard isConfigured, !isLocalStoreKitTesting, routing == nil else { return }
-        if let schedulingRestore {
-            await schedulingRestore.value
-            return
-        }
-        let restore = Task { _ = try? await self.prepareCurrentContext() }
-        schedulingRestore = restore
-        await restore.value
-        schedulingRestore = nil
+        await schedulingRestore.run(waitingAtMost: timeout)
     }
 
     func refresh() async {
@@ -815,5 +828,84 @@ enum MembershipStoreKitEntitlements {
             subscriptionExpiresAt: subscriptionTransaction?.expirationDate.map { $0.timeIntervalSince1970 * 1_000 },
             subscriptionProductId: subscriptionTransaction?.productID,
             subscriptionAutoRenews: autoRenews, subscriptionRenewalProductId: renewalProductId)
+    }
+}
+
+/// One restore at a time (`MembershipManager.restoreSchedulingEntitlements`). Every caller
+/// that asks while it runs joins it; once it has ended, restored or failed, the next caller
+/// starts another, so a failed read is retried rather than remembered. A waiter can stop
+/// waiting, past its deadline or cancelled, without cancelling the restore the others share.
+@MainActor
+final class SharedRestore {
+    private let operation: @MainActor @Sendable () async -> Void
+    private var inFlight: Task<Void, Never>?
+
+    init(_ operation: @escaping @MainActor @Sendable () async -> Void) {
+        self.operation = operation
+    }
+
+    /// A restore is running.
+    var isRunning: Bool { inFlight != nil }
+
+    /// Starts the restore, or joins the one running, and waits for it to end, `timeout` at
+    /// most (nil: however long it takes) and not at all once the caller is cancelled.
+    func run(waitingAtMost timeout: Duration?) async {
+        let restore: Task<Void, Never>
+        if let inFlight {
+            restore = inFlight
+        } else {
+            let operation = self.operation
+            restore = Task { [weak self] in
+                await operation()
+                self?.inFlight = nil
+            }
+            inFlight = restore
+        }
+        await Self.wait(for: restore, atMost: timeout)
+    }
+
+    private static func wait(for restore: Task<Void, Never>, atMost timeout: Duration?) async {
+        let gate = ResumeOnce()
+        var timer: Task<Void, Never>?
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                gate.install(continuation)
+                Task { await restore.value; gate.resume() }
+                if let timeout {
+                    timer = Task { try? await Task.sleep(for: timeout); gate.resume() }
+                }
+            }
+        } onCancel: {
+            gate.resume()
+        }
+        timer?.cancel()
+    }
+}
+
+/// A continuation resumed exactly once, by whichever comes first; a resume before the
+/// continuation is installed resumes it as soon as it is.
+private final class ResumeOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var resumed = false
+
+    func install(_ continuation: CheckedContinuation<Void, Never>) {
+        let resumeNow = lock.withLock { () -> Bool in
+            if resumed { return true }
+            self.continuation = continuation
+            return false
+        }
+        if resumeNow { continuation.resume() }
+    }
+
+    func resume() {
+        let pending = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            guard !resumed else { return nil }
+            resumed = true
+            let pending = continuation
+            continuation = nil
+            return pending
+        }
+        pending?.resume()
     }
 }

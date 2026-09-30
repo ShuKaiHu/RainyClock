@@ -419,6 +419,8 @@
 "ux_closure_saved_not_applied" = "Your setting is kept, but it isn't applied to your alarm or closure notifications right now.";
 "ux_closure_plan_unconfirmed" = "Your plan hasn't been confirmed yet";
 "ux_closure_saved_still_applied" = "Your setting is still applied to your alarm and closure notifications. You can turn it off here.";
+"ux_closure_notifications_denied" = "Notifications are off for Rainy Clock, so closure announcements can't appear. Your alarm still follows the announcements the app fetches.";
+"ux_closure_notifications_open_settings" = "Turn On Notifications";
 "ux_tomorrow" = "Tomorrow";
 "ux_expected_ring" = "Expected alarm";
 "ux_tomorrow_skipped" = "Skipped";

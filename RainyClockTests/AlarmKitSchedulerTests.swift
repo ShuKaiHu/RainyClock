@@ -8,16 +8,20 @@ import AlarmKit
 /// The iOS 26 AlarmKit alarm, run against a fake alarm list the test moves the way the
 /// system would: an alarm rings, is snoozed, is stopped. A re-registration — a stale
 /// decision refreshed on opening the app, the closure rule turned off, a skip undone —
-/// must leave a ringing or snoozing alarm to finish, and must not leave it behind
-/// afterwards as a second weekly alarm at the old time. Only turning the alarm off ends
-/// a snooze.
+/// or a removal while the alarm stays on (a new address, no repeat day left) must leave a
+/// ringing or snoozing alarm to finish, and must not leave it behind afterwards as a second
+/// weekly alarm at the old time. Only turning the alarm off ends a snooze.
 final class AlarmKitSchedulerTests: XCTestCase {
     @available(iOS 26.0, *)
     private final class FakeAlarms: AlarmKitManaging, @unchecked Sendable {
+        private struct CancelRefused: Error {}
+
         private let lock = NSLock()
         private var list: [AlarmSnapshot] = []
         private var readable = true
         private var onSchedule: (@Sendable () -> Void)?
+        private var refusedCancel: UUID?
+        private var observers: [AsyncStream<Void>.Continuation] = []
 
         func alarms() throws -> [AlarmSnapshot] {
             try lock.withLock {
@@ -37,16 +41,33 @@ final class AlarmKitSchedulerTests: XCTestCase {
         }
 
         func cancel(id: UUID) throws {
-            lock.withLock { list.removeAll { $0.id == id } }
-        }
-
-        /// The system moving an alarm on: it rings, is snoozed, is stopped.
-        func move(_ id: UUID, to state: Alarm.State) {
-            lock.withLock {
-                guard let index = list.firstIndex(where: { $0.id == id }) else { return }
-                list[index].state = state
+            try lock.withLock {
+                if refusedCancel == id { throw CancelRefused() }
+                list.removeAll { $0.id == id }
             }
         }
+
+        func changes() -> AsyncStream<Void> {
+            let (stream, continuation) = AsyncStream<Void>.makeStream()
+            lock.withLock { observers.append(continuation) }
+            return stream
+        }
+
+        /// The system moving an alarm on: it rings, is snoozed, is stopped. Observers hear of it.
+        func move(_ id: UUID, to state: Alarm.State) {
+            let observers = lock.withLock {
+                if let index = list.firstIndex(where: { $0.id == id }) { list[index].state = state }
+                return self.observers
+            }
+            observers.forEach { $0.yield() }
+        }
+
+        /// `cancel(id:)` throws for this alarm until set back to nil.
+        func refuseCancel(of id: UUID?) {
+            lock.withLock { refusedCancel = id }
+        }
+
+        var isObserved: Bool { lock.withLock { !observers.isEmpty } }
 
         /// A stopped one-time alarm, which the system drops.
         func drop(_ id: UUID) {
@@ -212,6 +233,109 @@ final class AlarmKitSchedulerTests: XCTestCase {
         XCTAssertEqual(alarms.identifiers, [replacement])
     }
 
+    /// The process stays alive and in front while the snooze is stopped from the Lock Screen:
+    /// no activation follows, so the replaced weekly alarm is retired the moment the system
+    /// reports it scheduled again, not at its old time next weekday (adversarial review,
+    /// 2026-10-01).
+    func testAReplacedAlarmIsRetiredTheMomentItIsStoppedWhileTheProcessLives() async throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        let (scheduler, alarms) = makeScheduler()
+        let snoozed = try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30)
+        alarms.move(snoozed, to: .countdown)
+        let replacement = try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 0)
+
+        let watching = Task { await scheduler.retireSupersededAlarmsAsTheyStop() }
+        defer { watching.cancel() }
+        try await waitUntil("the scheduler observes the alarm list") { alarms.isObserved }
+        alarms.move(snoozed, to: .alerting)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(alarms.state(of: snoozed), .alerting, "Still ringing: left to finish")
+
+        alarms.move(snoozed, to: .scheduled)
+        try await waitUntil("the stopped alarm is retired") { alarms.identifiers == [replacement] }
+    }
+
+    // MARK: The post-registration read, the rollback and the record (adversarial review, 2026-10-01)
+
+    /// The dated path decides from the list it reads after registering, not the one it read
+    /// before: a weekly alarm that starts ringing while the dated alarms are being registered
+    /// is left to ring.
+    func testAnAlarmThatStartsRingingDuringADatedRegistrationIsLeftToRing() async throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        let (scheduler, alarms) = makeScheduler()
+        let weekly = try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30)
+        alarms.whileScheduling { alarms.move(weekly, to: .alerting) }
+
+        try await scheduleDated(scheduler, ringingAt: [Date().addingTimeInterval(86_400)])
+
+        XCTAssertEqual(alarms.state(of: weekly), .alerting)
+        XCTAssertEqual(alarms.identifiers.count, 2)
+    }
+
+    /// The weekly path cannot read what it would replace: the new alarm is withdrawn and the
+    /// old one stays, rather than two weekly alarms ringing side by side.
+    func testAWeeklyRegistrationThatCannotReadTheListKeepsOnlyTheOldAlarm() async throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        let (scheduler, alarms) = makeScheduler()
+        let old = try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30)
+        alarms.whileScheduling { alarms.setReadable(false) }
+
+        let ring = try XCTUnwrap(Calendar.current.date(bySettingHour: 7, minute: 0, second: 0, of: Date()))
+        do {
+            try await scheduler.scheduleAlarm(at: ring, normalAlarmDate: ring, weekdays: [2, 3, 4, 5, 6],
+                sound: .rainyClock, soundFileNameOverride: nil, snoozeMinutes: 5, title: "Alarm", body: "Wake up")
+            XCTFail("An unreadable list must fail the registration")
+        } catch {}
+        alarms.whileScheduling(nil)
+        alarms.setReadable(true)
+
+        XCTAssertEqual(alarms.identifiers, [old])
+    }
+
+    /// A cancel that throws is recorded and tried again by the next pass.
+    func testAReplacedAlarmWhoseCancelFailedIsCancelledByTheNextPass() async throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        let (scheduler, alarms) = makeScheduler()
+        let old = try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30)
+        alarms.refuseCancel(of: old)
+        let before = alarms.identifiers
+
+        let ring = try XCTUnwrap(Calendar.current.date(bySettingHour: 7, minute: 0, second: 0, of: Date()))
+        do {
+            try await scheduler.scheduleAlarm(at: ring, normalAlarmDate: ring, weekdays: [2, 3, 4, 5, 6],
+                sound: .rainyClock, soundFileNameOverride: nil, snoozeMinutes: 5, title: "Alarm", body: "Wake up")
+            XCTFail("A failed cancel is reported")
+        } catch {}
+        let replacement = try XCTUnwrap(alarms.identifiers.subtracting(before).first)
+        XCTAssertEqual(alarms.identifiers, [old, replacement])
+
+        alarms.refuseCancel(of: nil)
+        await scheduler.retireSupersededAlarms()
+        XCTAssertEqual(alarms.identifiers, [replacement])
+    }
+
+    // MARK: Removing the registration while the alarm stays on (adversarial review, 2026-10-01)
+
+    /// A new address or no repeat day left removes the registration, but the alarm is still
+    /// on: a snooze in progress rings; everything merely scheduled goes; the snoozing alarm
+    /// goes once it is stopped.
+    func testRemovingTheRegistrationLeavesASnoozeToFinish() async throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        let (scheduler, alarms) = makeScheduler()
+        let snoozed = try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30)
+        alarms.move(snoozed, to: .countdown)
+        try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 0)
+        try await scheduleDated(scheduler, ringingAt: [Date().addingTimeInterval(86_400)])
+
+        await scheduler.retireScheduledAlarms()
+        XCTAssertEqual(alarms.identifiers, [snoozed])
+        XCTAssertEqual(alarms.state(of: snoozed), .countdown)
+
+        alarms.move(snoozed, to: .scheduled)
+        await scheduler.retireSupersededAlarms()
+        XCTAssertTrue(alarms.identifiers.isEmpty)
+    }
+
     // MARK: Turning the alarm off ends a snooze
 
     func testTurningTheAlarmOffEndsASnooze() async throws {
@@ -225,6 +349,16 @@ final class AlarmKitSchedulerTests: XCTestCase {
         await scheduler.cancelScheduledAlarms()
 
         XCTAssertTrue(alarms.identifiers.isEmpty)
+    }
+
+    private func waitUntil(_ what: String, timeout: TimeInterval = 5, file: StaticString = #filePath, line: UInt = #line,
+                           _ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTFail("Timed out waiting until \(what)", file: file, line: line)
     }
 }
 #endif

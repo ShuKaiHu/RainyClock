@@ -252,7 +252,7 @@ enum EveningPreviewText {
             // The same source lines the alarm card shows under a closure: the update time
             // when the feed has one, then the OGDL credit, which is a licence condition.
             let updated: String? = sourceUpdatedAt.map {
-                String.localizedStringWithFormat(String(localized: "disaster_source_updated"), format.dateTime($0))
+                String.localizedStringWithFormat(String(localized: "disaster_source_updated"), sourceTime($0, format: format))
             }
             let lines: [String?] = [String(localized: "evening_preview_closure"), updated, String(localized: "disaster_source")]
             return lines.compactMap { $0 }.joined(separator: "\n")
@@ -296,6 +296,14 @@ enum EveningPreviewText {
     /// "2026年9月7日 晚上7:58" in a two-line banner spent most of it on the year.
     private static func checked(_ date: Date, format: ClockTimeFormat) -> String {
         date.formatted(.dateTime.weekday(.abbreviated)) + " " + format.time(date)
+    }
+
+    /// A closure source's update time: month, day and time, no year, for the same reason as
+    /// `checked` — the source time is always within the preview's week, and a line spent on
+    /// the year pushes the licence credit under it further past a collapsed banner's cut-off.
+    /// The card keeps its own, longer form.
+    static func sourceTime(_ date: Date, format: ClockTimeFormat) -> String {
+        date.formatted(.dateTime.month(.defaultDigits).day()) + " " + format.time(date)
     }
 }
 

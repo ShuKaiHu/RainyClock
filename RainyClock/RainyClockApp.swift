@@ -18,6 +18,12 @@ struct RainyClockApp: App {
         LocalNotificationScheduler.registerNotificationCategories()
         // Has to happen before launch finishes, or the system refuses the handlers.
         BackgroundWeatherRefresh.registerHandlers()
+        // For the life of the process, whatever launched it: an AlarmKit alarm a registration
+        // replaced while it rang or snoozed is cancelled the moment it is stopped, even when
+        // that brings no activation (stopped from the Lock Screen with the app in front).
+        if !AppEnvironment.isRunningTests {
+            Task { await SystemAlarmScheduler.retireSupersededAlarmsAsTheyStop() }
+        }
     }
 
     var body: some Scene {

@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import UIKit
 
@@ -51,7 +52,7 @@ final class AlarmViewModel: ObservableObject {
                 isRefreshingTomorrowWeather = false
             }
             if oldValue.isDisasterSuspensionEnabled != settings.isDisasterSuspensionEnabled {
-                Task { await DisasterPushRegistration.shared.update(enabled: effectiveSchedulingSettings.isDisasterSuspensionEnabled) }
+                Task { await updateDisasterPushRegistration(effectiveSchedulingSettings.isDisasterSuspensionEnabled) }
                 Task { await refreshDisasterSuspensions(force: true) }
                 if settings.isDisasterSuspensionEnabled {
                     Task { await requestClosureNotificationAuthorizationIfNeeded() }
@@ -145,6 +146,14 @@ final class AlarmViewModel: ObservableObject {
     private let membershipEntitlements: @MainActor () -> MembershipEntitlements?
     private let membershipConfigured: @MainActor () -> Bool
     private let restoreMembershipEntitlements: @MainActor () async -> Void
+    /// Registers for, or withdraws from, the day-off push (`DisasterPushRegistration`).
+    private let updateDisasterPushRegistration: @MainActor (Bool) async -> Void
+    /// The reminder a dated plan gets before it runs out (`CalendarCoverageReminder.replace`).
+    private let replaceCoverageReminder: @MainActor (_ coveredUntil: Date, _ keepsWeeklyAlarm: Bool) async -> Void
+    private var membershipPlanSubscription: AnyCancellable?
+    /// The launch's (or this run's) plan restore has been tried, whatever it found
+    /// (`loadMembershipEntitlements`). Published: the widget waits for it.
+    @Published private(set) var hasAttemptedMembershipRestore = false
     private let supportsTemporaryClosures: Bool
 
     /// Rights constrain a scheduling copy only; saved premium rules remain recoverable.
@@ -222,6 +231,15 @@ final class AlarmViewModel: ObservableObject {
         restoreMembershipEntitlements: @escaping @MainActor () async -> Void = {
             await MembershipManager.shared.restoreSchedulingEntitlements()
         },
+        /// Each later change to what `membershipEntitlements` returns. nil: the membership
+        /// service's own (`MembershipManager.schedulingEntitlementChanges`), none under tests.
+        membershipPlanChanges: AnyPublisher<MembershipEntitlements?, Never>? = nil,
+        updateDisasterPushRegistration: @escaping @MainActor (Bool) async -> Void = {
+            await DisasterPushRegistration.shared.update(enabled: $0)
+        },
+        replaceCoverageReminder: @escaping @MainActor (Date, Bool) async -> Void = {
+            await CalendarCoverageReminder.replace(coveredUntil: $0, keepsWeeklyAlarm: $1)
+        },
         supportsTemporaryClosures: Bool = AppEnvironment.supportsTemporaryClosures,
         dayOffPushReceivedAt: @escaping () -> Date? = {
             AppEnvironment.isRunningTests ? nil : DayOffPushMarker.lastReceivedAt()
@@ -256,6 +274,8 @@ final class AlarmViewModel: ObservableObject {
         self.membershipEntitlements = membershipEntitlements
         self.membershipConfigured = membershipConfigured
         self.restoreMembershipEntitlements = restoreMembershipEntitlements
+        self.updateDisasterPushRegistration = updateDisasterPushRegistration
+        self.replaceCoverageReminder = replaceCoverageReminder
         self.supportsTemporaryClosures = supportsTemporaryClosures
         self.dayOffPushReceivedAt = dayOffPushReceivedAt
         self.alarmInProgress = alarmInProgress
@@ -302,16 +322,59 @@ final class AlarmViewModel: ObservableObject {
         lastWeatherEvaluationAt = settingsStorage.object(forKey: Self.lastEvaluationStorageKey) as? Date
         updateScheduleStaleness()
         updateAlarmKitRescheduleNotice()
+        let planChanges = membershipPlanChanges
+            ?? (AppEnvironment.isRunningTests ? nil : MembershipManager.shared.schedulingEntitlementChanges)
+        membershipPlanSubscription = planChanges?.sink { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.membershipPlanDidChange() }
+        }
     }
 
     /// Restores the plan this install last had confirmed, for a launch, background task or
     /// push to call before it decides anything with it: without one the closure rule is not
     /// applied. The model is built before that (the app's first body, or an earlier run),
     /// so what was judged against no plan is judged again here.
+    ///
+    /// Only a saved paid rule depends on the plan, so without one nothing waits for StoreKit.
+    /// The restore itself gives up waiting after a few seconds and when the caller is
+    /// cancelled (`MembershipManager.restoreSchedulingEntitlements`); a plan it confirms later
+    /// is acted on then (`membershipPlanDidChange`).
     func loadMembershipEntitlements() async {
-        await restoreMembershipEntitlements()
+        if settings.isDisasterSuspensionEnabled || settings.calendarSettings.isEnabled {
+            await restoreMembershipEntitlements()
+        }
+        if !hasAttemptedMembershipRestore { hasAttemptedMembershipRestore = true }
         updateScheduleStaleness()
         mirrorDayOffSharedState()
+    }
+
+    /// Whether what scheduling reads of the plan can be shown: the alarm is off or the closure
+    /// rule is not saved on, a plan is known, the membership service is not configured, or the
+    /// restore has been tried. Before that a cold background or push launch would read the saved
+    /// closure rule as dropped (no plan applies no closure) and the widget would show a skipped
+    /// morning as ringing; `TomorrowWidgetPublisher` waits for this.
+    var membershipPlanIsSettled: Bool {
+        !settings.isAlarmEnabled || !settings.isDisasterSuspensionEnabled || hasAttemptedMembershipRestore
+            || membershipEntitlements() != nil || !membershipConfigured()
+    }
+
+    /// The confirmed plan changed after the launch decided with the one it had: `start()`'s
+    /// sync, a restore that finished after its caller stopped waiting, a purchase, a restore
+    /// of purchases, a lapse, deleted membership data. Everything decided with the old plan
+    /// is decided again, as a settings edit would be: the stale flag, the App Group mirror,
+    /// the day-off push registration, and the registered alarm — the closure rule through
+    /// the closure refresh (which re-registers when the rule the registration was made with
+    /// differs), the calendar through reconcile.
+    func membershipPlanDidChange() async {
+        updateScheduleStaleness()
+        mirrorDayOffSharedState()
+        let closures = effectiveSchedulingSettings.isDisasterSuspensionEnabled
+        await updateDisasterPushRegistration(closures)
+        if closures || scheduledFingerprint?.disasterSettings != nil || scheduledAlarmSummary?.disasterSkips?.isEmpty == false {
+            // Forced: a plan that newly includes the rule needs announcements fetched now, not
+            // after the five-minute throttle a fetch earlier in this launch started.
+            await refreshDisasterSuspensions(force: closures)
+        }
+        reconcileScheduledAlarmWithSettings()
     }
 
     /// Re-decides the armed alarm against current weather when the stored decision has
@@ -379,6 +442,15 @@ final class AlarmViewModel: ObservableObject {
             if now >= checkPoint, now < summary.normalAlarmDate {
                 return disasterChanged
             }
+        }
+        // A registration leaves a ringing or snoozing alarm to finish (AlarmKitScheduler.retire).
+        // A weekly one returns to its old time once stopped, next to its replacement, until
+        // something retires it — and nothing may: the snooze is stopped from the Lock Screen
+        // while the app stays in front, or the app is not reopened and no background task
+        // runs. Nobody asked for this run (a stale launch, a background task, a push), so let
+        // the alarm finish; the next run re-decides, and until then it rings on the last decision.
+        if alarmInProgress() {
+            return disasterChanged
         }
 
         let evaluationsBefore = lastWeatherEvaluationAt
@@ -564,7 +636,15 @@ final class AlarmViewModel: ObservableObject {
 
     private func removeScheduledAlarm(statusKey: String.LocalizationValue = "status_alarm_removed_address_changed") async {
         autoRefreshTask?.cancel()
-        await notificationScheduler.cancelScheduledAlarms()
+        if settings.isAlarmEnabled {
+            // A settings change (a new address, no repeat day left) removes the registration
+            // but not the alarm: a ringing or snoozing one, or a follow-up chain nobody
+            // stopped, finishes as it would through a re-registration. Only turning the alarm
+            // off ends a snooze.
+            await notificationScheduler.retireScheduledAlarms()
+        } else {
+            await notificationScheduler.cancelScheduledAlarms()
+        }
         await previewScheduler.cancelPreviews()
         await CalendarCoverageReminder.cancel()
         scheduledAlarmSummary = nil
@@ -1397,14 +1477,45 @@ final class AlarmViewModel: ObservableObject {
             return
         }
 
-        _ = await previewScheduler.requestAuthorization()
+        guard await previewScheduler.requestAuthorization() else { return }
+        // The rule made the plan dated, and its registration usually finished while the prompt
+        // was still up: the renewal reminder it tried to set needed this permission, and with
+        // the previews off nothing re-registers once the prompt closes. Set it now.
+        if let plan = scheduledAlarmSummary?.calendarPlan {
+            let effective = effectiveSchedulingSettings
+            await replaceCoverageReminder(plan.coveredUntil,
+                                          !effective.calendarSettings.isActive && !effective.isDisasterSuspensionEnabled)
+        }
+    }
+
+    /// The closure switch's warning: the rule is saved on, the alarm is AlarmKit's (whose
+    /// permission is not notification permission), and notifications were refused, so every
+    /// announcement push is dropped unseen. iOS 17–25 needs no caption: the alarm there is
+    /// itself a notification and says so when it is scheduled.
+    func closureAnnouncementsAreBlocked(notifications status: EveningPreviewAuthorization) -> Bool {
+        supportsTemporaryClosures && !usesNotificationAlarms && settings.isDisasterSuspensionEnabled && status == .denied
+    }
+
+    /// Notification permission as the closure switch's warning reads it.
+    func notificationAuthorizationStatus() async -> EveningPreviewAuthorization {
+        await previewScheduler.authorizationStatus()
     }
 
     /// Re-plans the previews from the stored summary — the toggle flipping, or
     /// permission arriving after the alarm was registered.
+    ///
+    /// The summary is read as the card and the widget read it (`rollingForwardAsPair`), so
+    /// between an early ring and its normal time the next morning is the armed ring and its
+    /// preview names the time AlarmKit's weekly repeat carries onto it (D-D), not the normal time.
     private func replanEveningPreviews(requestingAuthorization: Bool) async {
         let settings = effectiveSchedulingSettings
-        guard let summary = scheduledAlarmSummary else {
+        guard let summary = displaySummary,
+              // A re-registration that failed after the announcements changed keeps the old
+              // summary, closure skips included, and cancelled the previews on purpose: a skip
+              // the current announcements no longer support must not be previewed as a
+              // closure crediting the very feed that withdrew it. The next successful
+              // registration plans them again.
+              !disasterScheduleNeedsAttention else {
             await previewScheduler.cancelPreviews()
             return
         }
@@ -1412,7 +1523,8 @@ final class AlarmViewModel: ObservableObject {
         let now = Date()
         await replanEveningPreviews(
             requestingAuthorization: requestingAuthorization,
-            summary: summary.rollingForward(selectedWeekdays: settings.selectedWeekdays, now: now),
+            summary: summary.rollingForwardAsPair(selectedWeekdays: scheduledFingerprint?.selectedWeekdays ?? settings.selectedWeekdays,
+                                                  now: now, calendar: AlarmCalendarSettings.calendar),
             settings: settings,
             now: now
         )
@@ -2123,8 +2235,7 @@ final class AlarmViewModel: ObservableObject {
         let nextRefresh = min(summary.weatherRefreshDate, now.addingTimeInterval(24 * 3_600))
         BackgroundWeatherRefresh.scheduleNextRun(before: nextRefresh, now: now)
         await replanEveningPreviews(requestingAuthorization: !isRunningUnattended, summary: committedSummary, settings: snapshot, now: now)
-        await CalendarCoverageReminder.replace(coveredUntil: plan.coveredUntil,
-            keepsWeeklyAlarm: !snapshot.calendarSettings.isActive && !snapshot.isDisasterSuspensionEnabled)
+        await replaceCoverageReminder(plan.coveredUntil, !snapshot.calendarSettings.isActive && !snapshot.isDisasterSuspensionEnabled)
         if isRunningUnattended, snapshot.isEveningPreviewEnabled, let previous,
            Calendar.current.isDate(previous.normalAlarmDate, equalTo: normal, toGranularity: .minute),
            abs(previous.scheduledAlarmDate.timeIntervalSince(summary.scheduledAlarmDate)) >= 60 {

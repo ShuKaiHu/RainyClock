@@ -29,8 +29,9 @@ enum DayOffPushContent {
         case related
         /// Nothing for the user's districts: silent, passive, kept in the centre.
         case unrelated
-        /// Cannot tell (feature off, no districts, no next alarm, feed unreachable):
-        /// leave the server's generic fallback untouched.
+        /// With the alarm on, cannot tell (feature off, no districts, no next alarm, feed
+        /// unreachable): leave the server's generic fallback untouched. With the alarm off
+        /// the same states are `alarmOff`, which is decided first.
         case unknown
     }
 
@@ -82,6 +83,7 @@ enum DayOffPushContent {
         "僅部分地區停班停課，維持原鬧鐘": "Only part of your district is closed, so your alarm stays on.",
         "公告內容有衝突，維持原鬧鐘": "The announcements for your district conflict, so your alarm stays on.",
         "公告已過期或時間異常，維持原鬧鐘": "The announcement for your district is out of date, so your alarm stays on.",
+        "公告日期超出可判斷範圍，維持原鬧鐘": "The announcement is for a day further ahead than the app acts on, so your alarm stays on.",
         "公告行政區格式不明，維持原鬧鐘": "The announcement's district is unclear, so your alarm stays on.",
         "公告尚未確認，維持原鬧鐘": "The announcement for your district is not confirmed yet, so your alarm stays on.",
         "公告資訊不一致，維持原鬧鐘": "The announcement for your district is inconsistent, so your alarm stays on.",

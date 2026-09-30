@@ -121,7 +121,10 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         try await waitUntil("old route removed") { !model.hasScheduledAlarm }
         try await Task.sleep(for: .milliseconds(200))
         XCTAssertEqual(spy.scheduleCalls.count, 1)
-        XCTAssertEqual(spy.cancelCount, 1)
+        // The alarm is still on: a ringing or snoozing one is left to finish (adversarial
+        // review, 2026-10-01). Only turning the alarm off cancels everything.
+        XCTAssertEqual(spy.retireCount, 1)
+        XCTAssertEqual(spy.cancelCount, 0)
 
         await model.previewRoute()
         model.confirmSuggestedAddress(.home)
@@ -303,13 +306,58 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         viewModel.settings.homeAddress = "Somewhere Completely Different 3"
 
         try await waitUntil("alarm removed after the address change") {
-            spy.cancelCount >= 1 && !viewModel.hasScheduledAlarm
+            spy.retireCount >= 1 && !viewModel.hasScheduledAlarm
         }
+        XCTAssertEqual(spy.cancelCount, 0, "A snooze in progress is not ended by an address change")
 
         // No sneaky auto-reschedule afterwards: the button is the only way back.
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertEqual(spy.scheduleCalls.count, 1)
         XCTAssertFalse(viewModel.isScheduleStale)
+    }
+
+    /// Clearing the last repeat day removes the registration the same way: the alarm is still
+    /// on, so a snooze in progress finishes. Turning it off then ends everything.
+    func testClearingTheLastRepeatDayLeavesAnAlarmInProgressToFinish() async throws {
+        let spy = SchedulerSpy()
+        let viewModel = makeViewModel(spy: spy)
+        await viewModel.evaluateRouteAndScheduleAlarm()
+        XCTAssertTrue(viewModel.hasScheduledAlarm)
+
+        viewModel.settings.selectedWeekdays = []
+        try await waitUntil("the registration is removed") { !viewModel.hasScheduledAlarm && spy.retireCount == 1 }
+        XCTAssertEqual(spy.cancelCount, 0)
+        XCTAssertEqual(viewModel.statusMessage, String(localized: "calendar_off_no_weekdays"))
+
+        await viewModel.turnAlarmOff()
+        XCTAssertGreaterThan(spy.cancelCount, 0, "Turning the alarm off ends a snooze")
+    }
+
+    /// Adversarial review, 2026-10-01: an unattended run (a launch that found the decision stale,
+    /// a background task, a push) re-registering the weekly alarm while it rang or snoozed left
+    /// the replaced repeating alarm to finish — and, once stopped with no activation after,
+    /// to ring again at its old time next weekday beside its replacement. It waits instead.
+    func testAnUnattendedRunLeavesARingingOrSnoozingAlarmAlone() async throws {
+        final class InProgress { var value = false }
+        let inProgress = InProgress()
+        let spy = SchedulerSpy()
+        let model = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: spy,
+                                   settingsStorage: storage, autoRefreshDebounce: .milliseconds(80),
+                                   alarmInProgress: { inProgress.value })
+        model.settings.homeAddress = "Clear Street"
+        model.settings.workAddress = "Work Street 2"
+        model.settings.alarmTime = Date().addingTimeInterval(3 * 3_600)
+        await model.evaluateRouteAndScheduleAlarm()
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
+
+        inProgress.value = true
+        let rescheduled = await model.refreshScheduledAlarmUnattended()
+        XCTAssertFalse(rescheduled)
+        XCTAssertEqual(spy.scheduleCalls.count, 1, "Nothing re-registered while an alarm rings or snoozes")
+
+        inProgress.value = false
+        _ = await model.refreshScheduledAlarmUnattended()
+        XCTAssertEqual(spy.scheduleCalls.count, 2, "The next run re-decides")
     }
 
     func testRevertingAChangeBeforeTheDebounceFiresDoesNothing() async throws {
@@ -569,14 +617,16 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
     /// Relaunches onto a weekly registration for a morning ~10 minutes away whose rain check
     /// point (30 minutes before it) has passed — the user opened the app inside the window.
     /// `rangEarly`: that morning was rainy and its early ring already went off.
-    private func relaunchInsideThisMorningsWindow(spy: SchedulerSpy, home: String,
-                                                   rangEarly: Bool) throws -> (model: AlarmViewModel, normal: Date) {
+    private func relaunchInsideThisMorningsWindow(spy: SchedulerSpy, home: String, rangEarly: Bool,
+                                                   previews: EveningPreviewScheduling = UserNotificationEveningPreviewScheduler(),
+                                                   previewTime: Date? = nil) throws -> (model: AlarmViewModel, normal: Date) {
         let now = Date()
         var settings = CommuteAlarmSettings()
         settings.homeAddress = home
         settings.workAddress = "Work Street 2"
         settings.alarmTime = now.addingTimeInterval(10 * 60)
         settings.rainLeadTimeMinutes = 30
+        if let previewTime { settings.eveningPreviewTime = previewTime }
         let normal = TomorrowWeatherRequest(settings: settings, now: now).normalAlarmDate
         let early = normal.addingTimeInterval(-30 * 60)
         try XCTSkipUnless(Calendar.current.isDate(early, inSameDayAs: normal) && Calendar.current.isDate(now, inSameDayAs: normal),
@@ -588,7 +638,7 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         storage.set(try JSONEncoder().encode(summary), forKey: "scheduledAlarmSummaryDisplay")
         storage.set(try JSONEncoder().encode(settings.scheduleFingerprint()), forKey: "scheduledAlarmFingerprint")
         let model = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: spy,
-                                   settingsStorage: storage, autoRefreshDebounce: .milliseconds(80))
+                                   previewScheduler: previews, settingsStorage: storage, autoRefreshDebounce: .milliseconds(80))
         return (model, normal)
     }
 
@@ -679,6 +729,74 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         XCTAssertNil(TomorrowWidgetSnapshotBuilder.scheduleIssue(for: next, flags: .init()))
     }
 
+    /// Adversarial review, 2026-10-01: the kept ring reads as carried over only until that
+    /// morning's own check point under the current lead. Raised from 30 to 60 minutes after the
+    /// 07:00 early ring, tomorrow's check point (06:30) comes before the kept 07:00. From then on
+    /// nothing re-decides tomorrow, a retry would register 07:30, and 07:00 is a registration the
+    /// settings no longer describe: flagged, not "waiting for tomorrow's forecast".
+    func testRaisingTheLeadAfterThisMorningsEarlyRingFlagsTheKeptRingOnceItsCheckPointPasses() async throws {
+        let spy = SchedulerSpy()
+        let (model, normal) = try relaunchInsideThisMorningsWindow(spy: spy, home: "Clear Street", rangEarly: true)
+        let calendar = AlarmCalendarSettings.calendar
+        let early = normal.addingTimeInterval(-30 * 60)
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: normal))
+        let tomorrowEarly = tomorrow.addingTimeInterval(-30 * 60)
+        let tomorrowCheckPoint = tomorrow.addingTimeInterval(-60 * 60)
+        try XCTSkipUnless(calendar.isDate(tomorrowCheckPoint, inSameDayAs: tomorrow),
+                          "Tomorrow's window must sit inside one calendar day")
+
+        model.settings.rainLeadTimeMinutes = 60
+        try await waitUntil("the edit re-registered") { spy.scheduleCalls.count == 1 && !model.isScheduling }
+        XCTAssertEqual(spy.scheduleCalls.last?.date, early, "The weekly clock stays on the ring that already went off")
+
+        // Until tomorrow's check point the kept 07:00 is what AlarmKit rings, awaiting its forecast.
+        let evening = model.tomorrowStatus(now: normal.addingTimeInterval(60))
+        XCTAssertEqual(evening.normalAlarmDate, tomorrow)
+        XCTAssertEqual(evening.expectedRingDate, tomorrowEarly)
+        XCTAssertTrue(evening.rainLeadIsCarriedOver)
+
+        // 06:35 tomorrow: its 06:30 check point has passed, the kept 07:00 has not.
+        let now = tomorrowCheckPoint.addingTimeInterval(5 * 60)
+        let card = model.tomorrowStatus(now: now)
+        XCTAssertEqual(card.normalAlarmDate, tomorrow)
+        XCTAssertEqual(card.expectedRingDate, tomorrow, "Past its check point the kept lead is not this morning's")
+        XCTAssertEqual(card.registeredRingDate, tomorrowEarly)
+        XCTAssertFalse(card.rainLeadIsCarriedOver)
+        XCTAssertNotEqual(TomorrowWidgetSnapshotBuilder.reasonLine(for: card), .awaitingForecast)
+        XCTAssertEqual(TomorrowWidgetSnapshotBuilder.scheduleIssue(for: card, flags: .init()), .updateNeeded)
+
+        // The widget's today entry shows the ring AlarmKit will fire, flagged, as it shows an
+        // outdated registration's.
+        let entry = try XCTUnwrap(TomorrowWidgetSnapshotBuilder.snapshot(for: model, now: now).entries.first)
+        XCTAssertTrue(entry.isToday)
+        XCTAssertEqual(entry.expectedRingDate, tomorrowEarly)
+        XCTAssertNotEqual(entry.reasonLine, .awaitingForecast)
+        XCTAssertEqual(entry.scheduleIssue, .updateNeeded)
+    }
+
+    /// Adversarial review, 2026-10-01: the previews that edit re-planned read the summary one
+    /// date at a time, so tomorrow was not the armed ring and its preview named 07:30 while the
+    /// card, the widget and AlarmKit said 07:00. They read it as the card does now (D-D).
+    func testThePreviewPlannedAfterTheEarlyRingNamesTheRingCarriedToTomorrow() async throws {
+        let spy = SchedulerSpy()
+        let previews = PreviewCapture()
+        let now = Date()
+        // Tomorrow's preview fires this evening; put it just after this morning's normal time.
+        let previewTime = now.addingTimeInterval(20 * 60)
+        try XCTSkipUnless(Calendar.current.isDate(previewTime, inSameDayAs: now), "The preview must fire today")
+        let (model, normal) = try relaunchInsideThisMorningsWindow(spy: spy, home: "Clear Street", rangEarly: true,
+                                                                  previews: previews, previewTime: previewTime)
+        let calendar = AlarmCalendarSettings.calendar
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: normal))
+
+        model.settings.rainLeadTimeMinutes = 5
+        try await waitUntil("the edit re-registered") { spy.scheduleCalls.count == 1 && !model.isScheduling }
+        let identifier = EveningPreviewPlanner.identifier(forAlarmOn: tomorrow, calendar: calendar)
+        let preview = try XCTUnwrap(previews.previews.first { $0.identifier == identifier })
+        XCTAssertEqual(preview.kind, .upcoming(normalAlarmDate: tomorrow.addingTimeInterval(-30 * 60)),
+                       "The preview names the 07:00 the weekly repeat rings, as the card and widget do")
+    }
+
     private func waitUntil(
         _ what: String,
         timeout: TimeInterval = 5,
@@ -714,6 +832,7 @@ private final class SchedulerSpy: NotificationScheduling, @unchecked Sendable {
     private let lock = NSLock()
     private var storedScheduleCalls: [ScheduleCall] = []
     private var storedCancelCount = 0
+    private var storedRetireCount = 0
     private var storedScheduleFailure: Error?
     private var storedAuthorizationCalls = 0
     private var storedIsAuthorized = true
@@ -737,6 +856,11 @@ private final class SchedulerSpy: NotificationScheduling, @unchecked Sendable {
 
     var cancelCount: Int {
         lock.withLock { storedCancelCount }
+    }
+
+    /// Removals that leave an alarm in progress to finish (the alarm stays on).
+    var retireCount: Int {
+        lock.withLock { storedRetireCount }
     }
 
     func requestAuthorization() async throws -> Bool {
@@ -779,6 +903,12 @@ private final class SchedulerSpy: NotificationScheduling, @unchecked Sendable {
             storedCancelCount += 1
         }
     }
+
+    func retireScheduledAlarms() async {
+        lock.withLock {
+            storedRetireCount += 1
+        }
+    }
 }
 
 @MainActor
@@ -803,6 +933,19 @@ private struct AutomaticRoutePreview: RoutePreviewService {
         return RoutePreview(homeCoordinate: home.coordinate, workCoordinate: work.coordinate,
             homeLocation: home, workLocation: work, route: nil)
     }
+}
+
+/// Authorized, and keeps the previews last planned.
+private final class PreviewCapture: EveningPreviewScheduling, @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [EveningPreview] = []
+    var previews: [EveningPreview] { lock.withLock { stored } }
+    func authorizationStatus() async -> EveningPreviewAuthorization { .authorized }
+    func requestAuthorization() async -> Bool { true }
+    func replacePreviews(_ previews: [EveningPreview]) async { lock.withLock { stored = previews } }
+    func cancelPreviews() async { lock.withLock { stored = [] } }
+    func showSample(_ preview: EveningPreview) async {}
+    func notifyDecisionChange(_ change: AlarmDecisionChange) async {}
 }
 
 private struct AutomaticPreviewScheduler: EveningPreviewScheduling {

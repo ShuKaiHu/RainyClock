@@ -1367,3 +1367,88 @@ final class TemporaryClosureControlStateTests: XCTestCase {
         assertCaptionMatchesScheduling(result)
     }
 }
+
+/// The plan restore scheduling waits on (`MembershipManager.restoreSchedulingEntitlements`),
+/// with the App Transaction read replaced by a gate the test opens. Adversarial review,
+/// 2026-10-01: the join, the retry after a failure and the waiter's deadline had no test.
+@MainActor
+final class SharedRestoreTests: XCTestCase {
+    @MainActor private final class Reads { var count = 0 }
+
+    private actor Gate {
+        private var held = false
+        private var holder: CheckedContinuation<Void, Never>?
+        private var watchers: [CheckedContinuation<Void, Never>] = []
+        func hold() async {
+            held = true
+            watchers.forEach { $0.resume() }
+            watchers = []
+            await withCheckedContinuation { holder = $0 }
+        }
+        func waitUntilHeld() async {
+            if held { return }
+            await withCheckedContinuation { watchers.append($0) }
+        }
+        func open() { holder?.resume(); holder = nil }
+    }
+
+    /// A second caller while the restore runs (two first activations, or `start()` after a
+    /// launch's restore began) joins it: one read, and it waits for that read to end.
+    func testCallersWhileARestoreRunsShareOneReadAndWaitForIt() async {
+        let reads = Reads()
+        let gate = Gate()
+        let restore = SharedRestore { reads.count += 1; await gate.hold() }
+        let first = Task { await restore.run(waitingAtMost: nil) }
+        await gate.waitUntilHeld()
+        final class Done: @unchecked Sendable { var value = false }
+        let secondDone = Done()
+        let second = Task { await restore.run(waitingAtMost: nil); secondDone.value = true }
+        try? await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(reads.count, 1)
+        XCTAssertTrue(restore.isRunning)
+        XCTAssertFalse(secondDone.value, "The joiner waits for the read it joined")
+
+        await gate.open()
+        await first.value
+        await second.value
+        XCTAssertEqual(reads.count, 1)
+        XCTAssertFalse(restore.isRunning)
+    }
+
+    /// A read that failed restores nothing, so the next caller reads again.
+    func testTheNextCallerReadsAgainOnceARestoreHasEnded() async {
+        let reads = Reads()
+        let restore = SharedRestore { reads.count += 1 }
+        await restore.run(waitingAtMost: nil)
+        XCTAssertFalse(restore.isRunning)
+        await restore.run(waitingAtMost: .seconds(5))
+        XCTAssertEqual(reads.count, 2)
+    }
+
+    /// Scheduling stops waiting at its deadline, or at once when cancelled (a background task's
+    /// expiry); the restore goes on for whoever else waits, and ends on its own.
+    func testAWaiterStopsWaitingWithoutEndingTheRestore() async {
+        let reads = Reads()
+        let gate = Gate()
+        let restore = SharedRestore { reads.count += 1; await gate.hold() }
+
+        let started = Date()
+        await restore.run(waitingAtMost: .milliseconds(100))
+        XCTAssertLessThan(Date().timeIntervalSince(started), 2, "Past its deadline the caller moves on")
+        XCTAssertTrue(restore.isRunning, "The restore itself goes on")
+
+        let cancelled = Task { await restore.run(waitingAtMost: nil) }
+        try? await Task.sleep(for: .milliseconds(50))
+        let cancelledAt = Date()
+        cancelled.cancel()
+        await cancelled.value
+        XCTAssertLessThan(Date().timeIntervalSince(cancelledAt), 2, "A cancelled caller stops waiting at once")
+        XCTAssertTrue(restore.isRunning)
+
+        let joined = Task { await restore.run(waitingAtMost: nil) }
+        await gate.open()
+        await joined.value
+        XCTAssertEqual(reads.count, 1, "Every waiter shared the one read")
+        XCTAssertFalse(restore.isRunning)
+    }
+}

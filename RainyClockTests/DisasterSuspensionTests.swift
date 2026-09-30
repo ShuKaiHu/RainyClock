@@ -30,6 +30,9 @@ final class DisasterSuspensionTests: XCTestCase {
         struct Decision: Decodable {
             var id: String; var home: String; var work: String; var mode: String; var alarmDate: String
             var feed: [Input]?; var expect: String; var expectArea: String?; var expectStatus: String?
+            /// Spec v4: when the decision is made and when the feed copy was fetched, Taipei local
+            /// time like `sentDate`. Absent: 06:00 on the alarm day, and the evaluation time.
+            var evaluatedAt: String?; var checkedAt: String?
         }
         var specVersion: Int; var parseCases: [Parse]; var decisionCases: [Decision]
     }
@@ -62,12 +65,13 @@ final class DisasterSuspensionTests: XCTestCase {
 
     func testEverySharedSpecTwoDecisionFixture() throws {
         let fixtures = try fixtures()
-        XCTAssertEqual(fixtures.decisionCases.count, 25)
+        XCTAssertEqual(fixtures.decisionCases.count, 33)
         for example in fixtures.decisionCases {
             let alarm = date(example.alarmDate + "T07:30:00+08:00")
-            let check = alarm.addingTimeInterval(-90 * 60)
+            let check = example.evaluatedAt.map { date($0 + "+08:00") } ?? alarm.addingTimeInterval(-90 * 60)
+            let fetched = example.checkedAt.map { date($0 + "+08:00") } ?? check
             let feed = example.feed.map { inputs in
-                DisasterFeed(checkedAt: check, notices: inputs.enumerated().map { $0.element.notice(id: "\(example.id)-\($0.offset)") })
+                DisasterFeed(checkedAt: fetched, notices: inputs.enumerated().map { $0.element.notice(id: "\(example.id)-\($0.offset)") })
             }
             let result = DisasterSuspensionEvaluator.decision(feed: feed, normalAlarmDate: alarm, now: check,
                 home: region(example.home), destination: region(example.work), observesWork: example.mode != "school", observesSchool: example.mode != "work")
@@ -112,17 +116,30 @@ final class DisasterSuspensionTests: XCTestCase {
         // its age at 06:00 (v3 rejected this one at 18 h 1 s). Two days ahead is the limit.
         XCTAssertTrue(decision([notice("9/15停止上班、停止上課", sent: "2026-09-14T11:59:59+08:00")]).shouldSkip)
         XCTAssertTrue(decision([notice("9/15停止上班、停止上課", sent: "2026-09-13T00:00:00+08:00")]).shouldSkip)
-        XCTAssertFalse(decision([notice("9/15停止上班、停止上課", sent: "2026-09-12T23:59:59+08:00")]).shouldSkip)
+        // Three days ahead is further than the app acts on (P5) — said as such, not as "out of
+        // date": the push relays the reason, and the notice may be a minute old.
+        let threeDaysAhead = decision([notice("9/15停止上班、停止上課", sent: "2026-09-12T23:59:59+08:00")])
+        XCTAssertFalse(threeDaysAhead.shouldSkip)
+        XCTAssertEqual(threeDaysAhead.reason, "公告日期超出可判斷範圍，維持原鬧鐘")
         // A frozen archive's year-rolled date: "9/15" sent in October resolves to next year's 9/15.
         let archived = notice("9/15停止上班、停止上課", sent: "2025-10-01T20:00:00+08:00")
         XCTAssertEqual(DisasterNoticeParser.parse(archived)?.targetDate, date("2026-09-15T00:00:00+08:00"))
         XCTAssertFalse(decision([archived]).shouldSkip)
         XCTAssertFalse(decision([notice("今天停止上班、停止上課")]).shouldSkip)
         // A notice naming no day never suppresses and still ages out after 18 h, so an old
-        // "尚未宣布消息" cannot keep the district reading as undeclared.
+        // "尚未宣布消息" cannot keep the district reading as undeclared. Aged out it is no
+        // announcement at all (adversarial review, 2026-10-01): the NCDR feed never empties,
+        // and read as "expired" it made every later push about any county sound for this user.
         let undeclared = notice("尚未宣布消息", sent: "2026-09-14T12:00:00+08:00", severity: "Minor")
         XCTAssertEqual(decision([undeclared]).status, "undeclared")
-        XCTAssertEqual(decision([undeclared], at: date("2026-09-15T06:00:01+08:00")).reason, "公告已過期或時間異常，維持原鬧鐘")
+        let agedOut = decision([undeclared], at: date("2026-09-15T06:00:01+08:00"))
+        XCTAssertFalse(agedOut.shouldSkip)
+        XCTAssertEqual(agedOut.status, "noAnnouncement")
+        // With an older dated notice for this day behind it, it still hides that one (P5).
+        let dated = notice(id: "dated", sent: "2026-09-14T11:00:00+08:00")
+        let hidden = decision([dated, undeclared], at: date("2026-09-15T06:00:01+08:00"))
+        XCTAssertFalse(hidden.shouldSkip)
+        XCTAssertEqual(hidden.reason, "公告已過期或時間異常，維持原鬧鐘")
     }
 
     /// Adversarial review, 2026-10-01: a 12:00 "明天" skipped tomorrow 07:30, and from 06:00 —

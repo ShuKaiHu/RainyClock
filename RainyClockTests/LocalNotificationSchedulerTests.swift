@@ -264,4 +264,46 @@ final class LocalNotificationSchedulerTests: XCTestCase {
         XCTAssertEqual(center.fires(within: 2 * 86_400), [tomorrow, tomorrow.addingTimeInterval(5 * 60)],
                        "tomorrow keeps its ring and follow-up")
     }
+
+    /// Adversarial review, 2026-10-01: an acknowledgement is kept for good and only ever moves
+    /// later, so a delivery stamped by a clock set a day ahead (then corrected) used to take the
+    /// follow-up from tomorrow's ring on every later registration. Only a ring that has already
+    /// happened can have been stopped.
+    func testAnAcknowledgementStampedAheadDoesNotStopARingStillToCome() async throws {
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: ring)!
+        try await scheduleDated([ring, tomorrow])
+        await scheduler.acknowledgeAlarm(notificationDeliveredAt: tomorrow)
+
+        // The clock is back at 06:50 today; the next registration arms both mornings in full.
+        try await scheduleDated([ring, tomorrow])
+        XCTAssertEqual(center.fires(within: 2 * 86_400),
+                       [ring, at(5), tomorrow, tomorrow.addingTimeInterval(5 * 60)])
+    }
+
+    // MARK: Removing the registration while the alarm stays on (adversarial review, 2026-10-01)
+
+    /// A new address or no repeat day left removes the plan, not the alarm: this morning's
+    /// chain, rung and not stopped, follows up until stopped. Nothing else stays, and there is
+    /// no plan left to rearm.
+    func testRemovingTheRegistrationKeepsAnUnstoppedChainUntilItIsStopped() async throws {
+        try await ringThisMorning()
+
+        await scheduler.retireScheduledAlarms()
+        XCTAssertEqual(center.fires(within: 3_600), restOfTheChain)
+        XCTAssertTrue(center.identifiers.allSatisfy { $0.contains("-carry-") }, "\(center.identifiers)")
+
+        move(to: 11)
+        await scheduler.acknowledgeAlarm(notificationDeliveredAt: at(10))
+        XCTAssertTrue(center.identifiers.isEmpty, "Stopping a ring of the chain stops the chain")
+
+        move(to: 40)
+        await scheduler.rearmAlarmsIfNeeded()
+        XCTAssertTrue(center.identifiers.isEmpty, "No plan is left to rearm")
+    }
+
+    func testTurningTheAlarmOffEndsAnUnstoppedChain() async throws {
+        try await ringThisMorning()
+        await scheduler.cancelScheduledAlarms()
+        XCTAssertTrue(center.identifiers.isEmpty)
+    }
 }

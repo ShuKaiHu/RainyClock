@@ -225,21 +225,27 @@ enum CommuteAlarmRefresher {
     }
 
     static func refreshArmedAlarm() async -> Outcome {
-        let viewModel = currentModel()
+        await refreshArmedAlarm(model: currentModel(), retireSupersededAlarms: SystemAlarmScheduler.retireSupersededAlarms)
+    }
+
+    /// `refreshArmedAlarm()` on a given model, for tests.
+    static func refreshArmedAlarm(model viewModel: AlarmViewModel,
+                                  retireSupersededAlarms: () async -> Void) async -> Outcome {
         // An alarm replaced while it rang or snoozed, finished since: cancel it before it
         // rings again at its old time, whatever the rest of this run does.
-        await SystemAlarmScheduler.retireSupersededAlarms()
-
-        // A background launch never reaches `MembershipManager.start()`: without this the
-        // closure rule would be decided on no plan at all.
-        await viewModel.loadMembershipEntitlements()
+        await retireSupersededAlarms()
 
         // Turned off, but a removal never finished (the app was suspended mid-cancel):
-        // finish it here rather than leave an alarm the user turned off.
+        // finish it here rather than leave an alarm the user turned off. Before the plan
+        // restore: turning off depends on no plan, and must not wait on StoreKit.
         if !viewModel.settings.isAlarmEnabled {
             await viewModel.finishTurningOffIfNeeded()
             return Outcome(didReschedule: false, nextWeatherRefreshDate: nil)
         }
+
+        // A background launch never reaches `MembershipManager.start()`: without this the
+        // closure rule would be decided on no plan at all.
+        await viewModel.loadMembershipEntitlements()
 
         guard viewModel.hasScheduledAlarm else {
             // Nothing armed: stop the chain instead of waking up forever.

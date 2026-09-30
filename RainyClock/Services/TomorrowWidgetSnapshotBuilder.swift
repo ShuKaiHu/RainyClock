@@ -223,9 +223,10 @@ enum TomorrowWidgetSnapshotBuilder {
     static func entry(for status: TomorrowAlarmStatus, context: Context, validFrom: Date,
                       isToday: Bool = false) -> TomorrowWidgetSnapshot.Entry {
         var entry = cardEntry(for: status, context: context, validFrom: validFrom, isToday: isToday)
-        if isToday, let outdated = status.outdatedRegistrationRingDate {
+        if isToday, let outdated = status.outdatedRegistrationRingDate ?? status.keptRingDate {
             // AlarmKit still holds the old registration and rings at its time today; the new
             // settings' decision is not registered. Show the ring that will happen, flagged.
+            // The same for a kept early ring past today's check point under a raised lead.
             entry.expectedRingDate = outdated
             entry.ringIsOnAnotherDay = !context.calendar.isDate(outdated, inSameDayAs: status.day)
             entry.reason = .normal

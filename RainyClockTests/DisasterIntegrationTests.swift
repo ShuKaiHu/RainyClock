@@ -1,3 +1,5 @@
+import Combine
+import UIKit
 import XCTest
 @testable import RainyClock
 
@@ -133,8 +135,13 @@ final class DisasterIntegrationTests: XCTestCase {
         XCTAssertFalse(body.contains(String(localized: "evening_preview_day_off")), body)
         XCTAssertEqual(body, [String(localized: "evening_preview_closure"),
                               String.localizedStringWithFormat(String(localized: "disaster_source_updated"),
-                                                               closure.timeFormat.dateTime(sourceUpdated)),
+                                                               EveningPreviewText.sourceTime(sourceUpdated, format: closure.timeFormat)),
                               String(localized: "disaster_source")].joined(separator: "\n"))
+        // Month and day, no year (adversarial review, 2026-10-01): the source time is always this
+        // week's, and a banner line spent on "2026" pushes the licence credit past the cut-off.
+        XCTAssertFalse(body.contains("2026"), body)
+        XCTAssertTrue(body.contains(sourceUpdated.formatted(.dateTime.month(.defaultDigits).day())), body)
+        XCTAssertTrue(body.contains(closure.timeFormat.time(sourceUpdated)), body)
 
         // A feed without its own update time still credits the source; the time is left out, never faked.
         let undated = EveningPreview(identifier: closure.identifier, fireDate: closure.fireDate,
@@ -422,17 +429,21 @@ final class DisasterIntegrationTests: XCTestCase {
 
     /// The model the closure switch drives, with the evening previews off so nothing but
     /// the switch can ask for notification permission.
-    private func closureSwitchModel(storage: UserDefaults, permission: ClosurePermissionSpy,
-                                    usesNotificationAlarms: Bool) throws -> AlarmViewModel {
+    private func closureSwitchModel(storage: UserDefaults, permission: EveningPreviewScheduling,
+                                    usesNotificationAlarms: Bool, savedOn: Bool = false,
+                                    scheduler: DisasterSchedulerSpy = DisasterSchedulerSpy(),
+                                    entitlements: MembershipEntitlements? = DisasterIntegrationTests.closureEntitlements,
+                                    reminder: @escaping @MainActor (Date, Bool) async -> Void = { _, _ in }) throws -> AlarmViewModel {
         var saved = settings()
-        saved.isDisasterSuspensionEnabled = false
+        saved.isDisasterSuspensionEnabled = savedOn
         saved.isEveningPreviewEnabled = false
         try storage.set(JSONEncoder().encode(saved), forKey: "commuteAlarmSettings")
-        return AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), previewScheduler: permission,
+        return AlarmViewModel(notificationScheduler: scheduler, previewScheduler: permission,
             settingsStorage: storage, autoRefreshDebounce: .seconds(60),
             disasterFeedProvider: FeedStub(value: .success(.init(checkedAt: Date(), notices: []))),
             disasterSyncReporter: DisasterReceiptSpy(),
-            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true,
+            membershipEntitlements: { entitlements }, membershipConfigured: { true }, restoreMembershipEntitlements: {},
+            updateDisasterPushRegistration: { _ in }, replaceCoverageReminder: reminder, supportsTemporaryClosures: true,
             usesNotificationAlarms: usesNotificationAlarms)
     }
 
@@ -451,8 +462,16 @@ final class DisasterIntegrationTests: XCTestCase {
         model.settings.isDisasterSuspensionEnabled = true
         await fulfillment(of: [asked], timeout: 2)
         XCTAssertEqual(permission.requests, 1)
+        // The spy answers before the model's task resumes from the prompt: let that task finish
+        // before judging what a refusal did.
+        let settled = expectation(description: "The prompt's task has finished")
+        settled.isInverted = true
+        await fulfillment(of: [settled], timeout: 0.3)
         XCTAssertTrue(model.settings.isDisasterSuspensionEnabled, "A refusal must not turn the rule back off")
         XCTAssertTrue(model.effectiveSchedulingSettings.isDisasterSuspensionEnabled)
+        let status = await model.notificationAuthorizationStatus()
+        XCTAssertTrue(model.closureAnnouncementsAreBlocked(notifications: status),
+                      "Refused, the switch says announcements cannot appear")
 
         let askedAgain = expectation(description: "An answered prompt is not shown again")
         askedAgain.isInverted = true
@@ -478,6 +497,187 @@ final class DisasterIntegrationTests: XCTestCase {
         await fulfillment(of: [asked], timeout: 0.5)
         XCTAssertEqual(permission.requests, 0)
         XCTAssertTrue(model.settings.isDisasterSuspensionEnabled)
+    }
+
+    /// The prompt belongs to the switch, in front of the person who turned it on: never to a
+    /// background task, a push or a closure refresh, which have no screen to show it on, even
+    /// with the rule saved on and permission undecided.
+    func testNothingButTheSwitchAsksForNotificationPermission() async throws {
+        let suite = "DisasterPermissionUnattended-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        let permission = ClosurePermissionSpy(grants: true)
+        let model = try closureSwitchModel(storage: storage, permission: permission, usesNotificationAlarms: false, savedOn: true)
+        await model.evaluateRouteAndScheduleAlarm()
+        XCTAssertTrue(model.hasScheduledAlarm)
+        _ = await model.refreshScheduledAlarmUnattended()
+        _ = await model.refreshDisasterSuspensions(force: true)
+        await model.loadMembershipEntitlements()
+        await model.membershipPlanDidChange()
+        XCTAssertEqual(permission.requests, 0)
+    }
+
+    /// The same gate push registration uses: a plan that does not include the rule, or no
+    /// confirmed plan at all, applies no closure and so asks for nothing.
+    func testTurningClosuresOnWithoutAPlanThatIncludesThemAsksForNothing() async throws {
+        let without = MembershipEntitlements(removeBanner: true, calendar: true, temporaryClosures: false,
+            dailyAI: true, subscriptionActive: true, lifetimeActive: false)
+        for plan in [without, nil] as [MembershipEntitlements?] {
+            let suite = "DisasterPermissionNoPlan-\(UUID())"
+            let storage = UserDefaults(suiteName: suite)!
+            defer { storage.removePersistentDomain(forName: suite) }
+            let permission = ClosurePermissionSpy(grants: true)
+            let model = try closureSwitchModel(storage: storage, permission: permission, usesNotificationAlarms: false,
+                                               entitlements: plan)
+            let asked = expectation(description: "No plan with the rule, no prompt")
+            asked.isInverted = true
+            permission.onRequest(asked)
+            model.settings.isDisasterSuspensionEnabled = true
+            await fulfillment(of: [asked], timeout: 0.5)
+            XCTAssertEqual(permission.requests, 0, String(describing: plan))
+        }
+    }
+
+    /// Adversarial review, 2026-10-01: the rule makes the plan dated, and that registration
+    /// usually finishes while the prompt is still up, so the renewal reminder it tries to set
+    /// is refused for want of permission. Allowing it must set the reminder: with the previews
+    /// off nothing re-registers once the prompt closes, and a plan could run out unannounced.
+    func testAllowingNotificationsFromTheClosurePromptSetsTheRenewalReminder() async throws {
+        let suite = "DisasterPermissionReminder-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        let permission = GatedPermission()
+        final class Reminders { var set: [(coveredUntil: Date, authorized: Bool)] = [] }
+        let reminders = Reminders()
+        let scheduler = DisasterSchedulerSpy()
+        let model = try closureSwitchModel(storage: storage, permission: permission, usesNotificationAlarms: false,
+                                           scheduler: scheduler, reminder: { coveredUntil, _ in
+            let authorized = await permission.authorizationStatus() == .authorized
+            reminders.set.append((coveredUntil, authorized))
+        })
+        await model.evaluateRouteAndScheduleAlarm()
+        XCTAssertEqual(scheduler.weeklyCalls, 1)
+
+        model.settings.isDisasterSuspensionEnabled = true
+        await permission.gate.waitUntilEntered()
+        // The prompt is up; the closure refresh re-registers the plan as a dated one meanwhile.
+        let deadline = Date().addingTimeInterval(5)
+        while (scheduler.calendarCalls == 0 || model.isScheduling), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let plan = try XCTUnwrap(model.scheduledAlarmSummary?.calendarPlan)
+        XCTAssertFalse(reminders.set.contains { $0.authorized }, "Undecided: the reminder could not be set")
+
+        await permission.gate.open()
+        while !reminders.set.contains(where: { $0.authorized }), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertEqual(reminders.set.last?.coveredUntil, plan.coveredUntil)
+        XCTAssertEqual(reminders.set.last?.authorized, true)
+    }
+
+    /// iOS 26: refused notifications drop every announcement push unseen, and the switch says
+    /// so. Not while the rule is off, and not on iOS 17–25, where the alarm itself says so.
+    func testTheClosureSwitchWarnsOnlyWhenAnnouncementsCannotAppear() throws {
+        for (usesNotificationAlarms, savedOn, status, warns) in [
+            (false, true, EveningPreviewAuthorization.denied, true),
+            (false, true, .authorized, false),
+            (false, true, .notDetermined, false),
+            (false, false, .denied, false),
+            (true, true, .denied, false),
+        ] {
+            let suite = "DisasterPermissionCaption-\(UUID())"
+            let storage = UserDefaults(suiteName: suite)!
+            defer { storage.removePersistentDomain(forName: suite) }
+            let model = try closureSwitchModel(storage: storage, permission: ClosurePermissionSpy(grants: false),
+                                               usesNotificationAlarms: usesNotificationAlarms, savedOn: savedOn)
+            XCTAssertEqual(model.closureAnnouncementsAreBlocked(notifications: status), warns,
+                           "\(usesNotificationAlarms) \(savedOn) \(status)")
+        }
+    }
+
+    // MARK: - Closure previews against the current feed (adversarial review, 2026-10-01)
+
+    private func previewModel(storage: UserDefaults, previews: PreviewRecorder, provider: FeedStub,
+                              scheduler: DisasterSchedulerSpy, previewTime: Date? = nil) throws -> AlarmViewModel {
+        var value = settings()
+        // Local 07:30: the plan, the previews and `inTwoDays` below all read the local calendar.
+        let local = AlarmCalendarSettings.calendar
+        value.alarmTime = local.date(bySettingHour: 7, minute: 30, second: 0, of: local.date(byAdding: .day, value: 1, to: Date())!)!
+        if let previewTime { value.eveningPreviewTime = previewTime }
+        try storage.set(JSONEncoder().encode(value), forKey: "commuteAlarmSettings")
+        return AlarmViewModel(notificationScheduler: scheduler, previewScheduler: previews, settingsStorage: storage,
+            autoRefreshDebounce: .seconds(60), disasterFeedProvider: provider, disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { Self.closureEntitlements }, updateDisasterPushRegistration: { _ in },
+            supportsTemporaryClosures: true)
+    }
+
+    /// The preview names the feed's own update time, the one the card shows under a closure
+    /// (DAYOFF-SPEC §7) — not the time the app fetched it. A date two Taipei days ahead (spec v4)
+    /// puts the closure's preview on tomorrow evening whatever the time of day.
+    func testTheClosurePreviewCarriesTheFeedsOwnUpdateTime() async throws {
+        let suite = "DisasterPreviewSource-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        let local = AlarmCalendarSettings.calendar
+        let inTwoDays = try XCTUnwrap(local.date(bySettingHour: 7, minute: 30, second: 0,
+            of: local.date(byAdding: .day, value: 2, to: Date())!))
+        let now = Date()
+        let sourceUpdated = now.addingTimeInterval(-25 * 60)
+        var announced = DisasterFeed(checkedAt: now, sourceUpdatedAt: sourceUpdated, notices: [.init(id: "ahead", sentAt: now,
+            description: "[停班停課通知]臺北市:\(DayOffPushContent.dayLabel(inTwoDays))停止上班、停止上課。行政院人事行政總處。",
+            severity: "Extreme")])
+        announced.revision = String(repeating: "c", count: 64)
+        let previews = PreviewRecorder()
+        let scheduler = DisasterSchedulerSpy()
+        let model = try previewModel(storage: storage, previews: previews, provider: FeedStub(value: .success(announced)),
+                                     scheduler: scheduler)
+        _ = await model.refreshDisasterSuspensions(force: true)
+        await model.evaluateRouteAndScheduleAlarm()
+        XCTAssertEqual(model.nextAppliedDisasterSkip?.normalDate, inTwoDays)
+
+        let closure = try XCTUnwrap(previews.current.first {
+            if case .closure(let day, _) = $0.kind { return day == inTwoDays }
+            return false
+        }, "\(previews.current.map(\.kind))")
+        XCTAssertEqual(closure.kind, .closure(normalAlarmDate: inTwoDays, sourceUpdatedAt: sourceUpdated))
+    }
+
+    /// A re-registration that fails after the announcement was withdrawn keeps the old summary,
+    /// skip included, and cancels the previews on purpose. A later re-plan from that summary (a
+    /// new preview time, the 12/24-hour switch) must not bring back a closure preview crediting
+    /// the very feed revision that withdrew it.
+    func testAWithdrawnClosureIsNotPreviewedAfterAFailedReRegistration() async throws {
+        let suite = "DisasterPreviewWithdrawn-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        let now = Date()
+        let previewTime = now.addingTimeInterval(30 * 60)
+        try XCTSkipUnless(Calendar.current.isDate(previewTime, inSameDayAs: now), "Tonight's preview must still be ahead")
+        let provider = FeedStub(value: .success(feed(now: now)))
+        let previews = PreviewRecorder()
+        let scheduler = DisasterSchedulerSpy()
+        let model = try previewModel(storage: storage, previews: previews, provider: provider, scheduler: scheduler,
+                                     previewTime: previewTime)
+        _ = await model.refreshDisasterSuspensions(force: true)
+        await model.evaluateRouteAndScheduleAlarm()
+        XCTAssertNotNil(model.nextAppliedDisasterSkip)
+        XCTAssertTrue(previews.current.contains { if case .closure = $0.kind { return true }; return false },
+                      "Committed and supported: previewed as a closure")
+
+        var withdrawn = DisasterFeed(checkedAt: Date(), sourceUpdatedAt: Date(), notices: [])
+        withdrawn.revision = String(repeating: "d", count: 64)
+        await provider.set(.success(withdrawn))
+        scheduler.fail = true
+        _ = await model.refreshDisasterSuspensions(force: true)
+        XCTAssertTrue(model.disasterScheduleNeedsAttention)
+        XCTAssertNotNil(model.nextAppliedDisasterSkip, "The failed registration kept the old skip")
+        XCTAssertTrue(previews.current.isEmpty, "The failure cancelled the previews")
+
+        model.settings.timeFormat = model.settings.timeFormat == .twelveHour ? .twentyFourHour : .twelveHour
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertFalse(previews.current.contains { if case .closure = $0.kind { return true }; return false },
+                       "\(previews.current.map(\.kind))")
     }
 
     /// 1.8.0 ships with the gate open; these tests inject it closed to keep proving
@@ -616,6 +816,161 @@ final class DisasterIntegrationTests: XCTestCase {
             XCTAssertTrue(model.hasScheduledAlarm)
             XCTAssertTrue(model.settings.isDisasterSuspensionEnabled)
         }
+    }
+
+    /// Only a saved paid rule depends on the plan: without one nothing waits for StoreKit, which
+    /// may have to fetch the App Transaction over a poor connection at 06:40 (adversarial review,
+    /// 2026-10-01).
+    func testOnlyASavedPaidRuleWaitsForThePlan() async throws {
+        final class Restore { var count = 0 }
+        for (closures, calendarRule, waits) in [(false, false, false), (true, false, true), (false, true, true)] {
+            let suite = "DisasterRestoreGate-\(UUID())"
+            let storage = UserDefaults(suiteName: suite)!
+            defer { storage.removePersistentDomain(forName: suite) }
+            var value = settings()
+            value.isDisasterSuspensionEnabled = closures
+            value.calendarSettings.isEnabled = calendarRule
+            try storage.set(JSONEncoder().encode(value), forKey: "commuteAlarmSettings")
+            let restore = Restore()
+            let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+                membershipEntitlements: { nil }, membershipConfigured: { true },
+                restoreMembershipEntitlements: { restore.count += 1 }, supportsTemporaryClosures: true)
+            XCTAssertEqual(model.membershipPlanIsSettled, !closures, "Only a saved closure rule waits for the widget")
+            await model.loadMembershipEntitlements()
+            XCTAssertEqual(restore.count, waits ? 1 : 0, "closures \(closures), calendar \(calendarRule)")
+            XCTAssertTrue(model.membershipPlanIsSettled)
+        }
+    }
+
+    /// Adversarial review, 2026-10-01: the launch decided with no plan (a restored backup's
+    /// keychain holds none, so the closure rule was dropped and the push unregistered), and the
+    /// plan `start()` confirmed seconds later changed nothing until the next activation. A change
+    /// of plan now re-decides at once: the push registration, and the alarm's closure skip.
+    func testAPlanConfirmedAfterLaunchIsActedOnAtOnce() async throws {
+        let suite = "DisasterPlanChange-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        try await storeSubscriberRegistration(in: storage)
+        final class Plan { var value: MembershipEntitlements?; var pushes: [Bool] = [] }
+        let plan = Plan()
+        let changes = PassthroughSubject<MembershipEntitlements?, Never>()
+        let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+            autoRefreshDebounce: .seconds(60),
+            disasterFeedProvider: FeedStub(value: .success(feed(now: Date()))), disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { plan.value }, membershipConfigured: { true },
+            restoreMembershipEntitlements: {}, membershipPlanChanges: changes.eraseToAnyPublisher(),
+            updateDisasterPushRegistration: { plan.pushes.append($0) }, supportsTemporaryClosures: true)
+        await model.loadMembershipEntitlements()
+        XCTAssertTrue(model.isScheduleStale, "Decided with no plan: the closure rule is not applied")
+        XCTAssertNil(model.nextAppliedDisasterSkip)
+
+        plan.value = Self.closureEntitlements
+        changes.send(plan.value)
+        try await waitUntil("the confirmed plan applies the closure") { model.nextAppliedDisasterSkip != nil }
+        XCTAssertEqual(model.nextAppliedDisasterSkip?.noticeIDs, ["dgpa-test"])
+        XCTAssertEqual(plan.pushes, [true], "The push registration follows the plan without an activation")
+        XCTAssertFalse(model.isScheduleStale)
+
+        plan.value = nil
+        changes.send(nil)
+        try await waitUntil("the push registration follows the plan back") { plan.pushes == [true, false] }
+    }
+
+    // MARK: - Background and push entry points (adversarial review, 2026-10-01)
+
+    /// Stores a subscriber's registration with the closure skip for tomorrow committed, then
+    /// builds the model a cold background or push launch gets: no plan until it restores one.
+    private func coldLaunchAfterACommittedClosure(storage: UserDefaults, restoring restored: MembershipEntitlements?,
+                                                  provider: FeedStub) async throws -> AlarmViewModel {
+        try await storeSubscriberRegistration(in: storage)
+        let first = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+            autoRefreshDebounce: .seconds(60), disasterFeedProvider: FeedStub(value: .success(feed(now: Date()))),
+            disasterSyncReporter: DisasterReceiptSpy(), membershipEntitlements: { Self.closureEntitlements },
+            updateDisasterPushRegistration: { _ in }, supportsTemporaryClosures: true)
+        _ = await first.refreshDisasterSuspensions(force: true)
+        XCTAssertEqual(first.nextAppliedDisasterSkip?.noticeIDs, ["dgpa-test"])
+        final class Plan { var value: MembershipEntitlements? }
+        let plan = Plan()
+        return AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+            autoRefreshDebounce: .seconds(60), disasterFeedProvider: provider, disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { plan.value }, membershipConfigured: { true },
+            restoreMembershipEntitlements: { plan.value = restored },
+            updateDisasterPushRegistration: { _ in }, supportsTemporaryClosures: true)
+    }
+
+    /// A lapsed rule restored as lapsed rings; the restore has to come before this morning's
+    /// check window, which a test cannot move.
+    private func skipInsideTodaysRingWindow() throws {
+        let local = AlarmCalendarSettings.calendar
+        let now = Date()
+        let start = local.date(bySettingHour: 6, minute: 55, second: 0, of: now)!
+        let end = local.date(bySettingHour: 7, minute: 35, second: 0, of: now)!
+        try XCTSkipIf(now >= start && now < end, "Inside this morning's 07:00–07:30 window a lapsed plan is applied later")
+    }
+
+    /// The background task restores the plan before it decides: a subscriber keeps the closure
+    /// skip, and a plan that lapsed (or nothing to restore) rings.
+    func testTheBackgroundTaskDecidesWithTheRestoredPlan() async throws {
+        try skipInsideTodaysRingWindow()
+        for (restored, keepsSkip) in [(Self.closureEntitlements, true), (nil, false)] as [(MembershipEntitlements?, Bool)] {
+            let suite = "DisasterBackgroundPlan-\(UUID())"
+            let storage = UserDefaults(suiteName: suite)!
+            defer { storage.removePersistentDomain(forName: suite) }
+            let model = try await coldLaunchAfterACommittedClosure(storage: storage, restoring: restored,
+                                                                   provider: FeedStub(value: .success(feed(now: Date()))))
+            final class Retired { var count = 0 }
+            let retired = Retired()
+            _ = await CommuteAlarmRefresher.refreshArmedAlarm(model: model, retireSupersededAlarms: { retired.count += 1 })
+            XCTAssertEqual(retired.count, 1)
+            XCTAssertTrue(model.hasScheduledAlarm)
+            XCTAssertEqual(model.nextAppliedDisasterSkip?.noticeIDs, keepsSkip ? ["dgpa-test"] : nil, String(describing: restored))
+        }
+    }
+
+    /// The day-off push does the same, and cancels a replaced alarm that has been stopped.
+    func testTheDayOffPushDecidesWithTheRestoredPlan() async throws {
+        let suite = "DisasterPushPlan-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        try await storeSubscriberRegistration(in: storage)
+        final class Plan { var value: MembershipEntitlements?; var retired = 0 }
+        let plan = Plan()
+        let provider = FeedStub(value: .success(feed(now: Date())))
+        let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+            autoRefreshDebounce: .seconds(60), disasterFeedProvider: provider, disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { plan.value }, membershipConfigured: { true },
+            restoreMembershipEntitlements: { plan.value = Self.closureEntitlements },
+            updateDisasterPushRegistration: { _ in }, supportsTemporaryClosures: true)
+        let result = await DisasterPushDelegate.handleDayOffSync(model: model, retireSupersededAlarms: { plan.retired += 1 })
+        XCTAssertEqual(result, .newData)
+        XCTAssertEqual(plan.retired, 1)
+        XCTAssertEqual(model.nextAppliedDisasterSkip?.noticeIDs, ["dgpa-test"])
+
+        // Nothing to restore: no plan, no closure rule, no fetch.
+        let emptySuite = "DisasterPushNoPlan-\(UUID())"
+        let emptyStorage = UserDefaults(suiteName: emptySuite)!
+        defer { emptyStorage.removePersistentDomain(forName: emptySuite) }
+        try await storeSubscriberRegistration(in: emptyStorage)
+        let untouched = FeedStub(value: .success(feed(now: Date())))
+        let unplanned = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: emptyStorage,
+            disasterFeedProvider: untouched, disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { nil }, membershipConfigured: { true }, restoreMembershipEntitlements: {},
+            updateDisasterPushRegistration: { _ in }, supportsTemporaryClosures: true)
+        let unplannedResult = await DisasterPushDelegate.handleDayOffSync(model: unplanned, retireSupersededAlarms: {})
+        XCTAssertEqual(unplannedResult, .noData)
+        let calls = await untouched.calls
+        XCTAssertEqual(calls, 0)
+        XCTAssertNil(unplanned.nextAppliedDisasterSkip)
+    }
+
+    private func waitUntil(_ what: String, timeout: TimeInterval = 5, file: StaticString = #filePath, line: UInt = #line,
+                           _ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTFail("Timed out waiting until \(what)", file: file, line: line)
     }
 
     // MARK: - Between an early ring and the normal time (adversarial review, 2026-09-29)
@@ -787,6 +1142,37 @@ private final class ClosurePermissionSpy: EveningPreviewScheduling, @unchecked S
         }
         requested?.fulfill()
         return grants
+    }
+    func replacePreviews(_ previews: [EveningPreview]) async {}
+    func cancelPreviews() async {}
+    func showSample(_ preview: EveningPreview) async {}
+    func notifyDecisionChange(_ change: AlarmDecisionChange) async {}
+}
+
+/// Authorized previews, as the notification centre would hold them: what was last planned,
+/// emptied by a cancel.
+private final class PreviewRecorder: EveningPreviewScheduling, @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [EveningPreview] = []
+    var current: [EveningPreview] { lock.withLock { stored } }
+    func authorizationStatus() async -> EveningPreviewAuthorization { .authorized }
+    func requestAuthorization() async -> Bool { true }
+    func replacePreviews(_ previews: [EveningPreview]) async { lock.withLock { stored = previews } }
+    func cancelPreviews() async { lock.withLock { stored = [] } }
+    func showSample(_ preview: EveningPreview) async {}
+    func notifyDecisionChange(_ change: AlarmDecisionChange) async {}
+}
+
+/// Notification permission whose prompt stays up until the test answers it (Allow).
+private final class GatedPermission: EveningPreviewScheduling, @unchecked Sendable {
+    let gate = DisasterTestGate()
+    private let lock = NSLock()
+    private var status = EveningPreviewAuthorization.notDetermined
+    func authorizationStatus() async -> EveningPreviewAuthorization { lock.withLock { status } }
+    func requestAuthorization() async -> Bool {
+        await gate.hold()
+        lock.withLock { status = .authorized }
+        return true
     }
     func replacePreviews(_ previews: [EveningPreview]) async {}
     func cancelPreviews() async {}

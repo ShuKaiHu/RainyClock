@@ -134,6 +134,11 @@ struct SettingsTabView: View {
     @State private var category: SettingsCategory = .time
     @State private var path: [Detail] = []
     @State private var settingsVisible = false
+    /// Read when the closure switch appears or changes and on every return to the app, for
+    /// the caption that says announcements cannot appear (`closureAnnouncementsAreBlocked`).
+    @State private var notificationStatus: EveningPreviewAuthorization?
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     private enum Detail: Hashable { case privacy, about, weekdays, calendarEditor, disaster, disasterMap, disasterMapDemo, membership }
     private var advancedRulesAllowed: Bool { !membership.isConfigured || membership.canUseAdvancedRules }
     /// The closure rule has its own server entitlement, so it cannot ride on the calendar
@@ -313,6 +318,25 @@ struct SettingsTabView: View {
                     Toggle("ux_use_closure_rules", isOn: closureBinding)
                         .disabled(!closureControl.allowsToggle)
                         .padding(17).background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 22))
+                        .task(id: viewModel.settings.isDisasterSuspensionEnabled) {
+                            notificationStatus = await viewModel.notificationAuthorizationStatus()
+                        }
+                        .onChange(of: scenePhase) { _, phase in
+                            guard phase == .active else { return }
+                            Task { notificationStatus = await viewModel.notificationAuthorizationStatus() }
+                        }
+                    // iOS 26: a refusal (for the evening previews, or the prompt this switch shows)
+                    // drops every announcement push unseen, and nothing else would say so.
+                    if let notificationStatus, viewModel.closureAnnouncementsAreBlocked(notifications: notificationStatus) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("ux_closure_notifications_denied", systemImage: "bell.slash")
+                                .font(.caption).foregroundStyle(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("ux_closure_notifications_open_settings") {
+                                if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
+                            }.font(.caption)
+                        }
+                    }
                     switch closureControl.access {
                     case .available:
                         EmptyView()

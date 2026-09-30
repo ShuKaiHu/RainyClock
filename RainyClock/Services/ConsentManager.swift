@@ -355,13 +355,18 @@ final class ConsentManager: ObservableObject {
     }
     #endif
 
-    /// EEA members, the UK, and Switzerland — the regions the privacy policy
-    /// promises the consent sheet to. Switzerland is outside the EEA, so it is
-    /// listed on its own. Internal so tests can hold the list to the policy.
+    /// The EEA, the UK, and Switzerland — the regions the privacy policy promises the
+    /// consent sheet to. Switzerland is outside the EEA, so it is listed on its own. The
+    /// EEA is more than its members' codes: the EU's outermost regions and Åland are EU
+    /// territory with region codes of their own (Réunion, Guadeloupe, Martinique, French
+    /// Guiana, Mayotte, Saint-Martin, Åland, and CLDR's Canary Islands and Ceuta & Melilla),
+    /// and a phone set to one of them reports that code, not its member state's.
+    /// Internal so tests can hold the list to the policy.
     static let gdprRegions: Set<String> = [
         "AT", "BE", "BG", "HR", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR",
         "GB", "GR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "NL",
         "NO", "PL", "PT", "RO", "SE", "SI", "SK",
+        "RE", "GP", "MQ", "GF", "YT", "MF", "AX", "IC", "EA",
         "CH",
     ]
 }

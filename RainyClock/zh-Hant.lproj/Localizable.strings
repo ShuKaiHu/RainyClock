@@ -419,6 +419,8 @@
 "ux_closure_saved_not_applied" = "你的設定已保留，但目前不會套用到鬧鐘或停班停課通知。";
 "ux_closure_plan_unconfirmed" = "尚未確認你的方案";
 "ux_closure_saved_still_applied" = "你的設定目前仍會套用到鬧鐘和停班停課通知，可在這裡關閉。";
+"ux_closure_notifications_denied" = "雨天鬧鐘的通知已關閉，停班停課公告無法顯示；鬧鐘仍會依 App 取得的公告處理。";
+"ux_closure_notifications_open_settings" = "開啟通知";
 "ux_tomorrow" = "明天";
 "ux_expected_ring" = "預計響鈴";
 "ux_tomorrow_skipped" = "略過鬧鐘";

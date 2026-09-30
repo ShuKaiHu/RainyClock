@@ -14,16 +14,26 @@ final class DisasterPushDelegate: NSObject, UIApplicationDelegate {
         guard AppEnvironment.supportsTemporaryClosures,
               userInfo["type"] as? String == "dayoff-sync" else { completionHandler(.noData); return }
         Task { @MainActor in
-            let model = CommuteAlarmRefresher.currentModel()
-            // A push launch never reaches `MembershipManager.start()` either.
-            await model.loadMembershipEntitlements()
-            guard model.effectiveSchedulingSettings.isDisasterSuspensionEnabled else { completionHandler(.noData); return }
-            let changed = await model.refreshDisasterSuspensions(force: true)
+            let result = await Self.handleDayOffSync(model: CommuteAlarmRefresher.currentModel(),
+                                                     retireSupersededAlarms: SystemAlarmScheduler.retireSupersededAlarms)
             // Synchronously, as the BGTask path does: the publisher's debounce would
             // never fire before the app is suspended again.
             TomorrowWidgetPublisher.shared.publish()
-            completionHandler(model.disasterRefreshFailed ? .failed : (changed ? .newData : .noData))
+            completionHandler(result)
         }
+    }
+
+    /// The silent `dayoff-sync` push's work, on the model every path shares.
+    @MainActor
+    static func handleDayOffSync(model: AlarmViewModel, retireSupersededAlarms: () async -> Void) async -> UIBackgroundFetchResult {
+        // A push wakes the app on a typhoon night whatever else it is doing: an alarm replaced
+        // while it rang or snoozed, and stopped since, is cancelled before its old time.
+        await retireSupersededAlarms()
+        // A push launch never reaches `MembershipManager.start()` either.
+        await model.loadMembershipEntitlements()
+        guard model.effectiveSchedulingSettings.isDisasterSuspensionEnabled else { return .noData }
+        let changed = await model.refreshDisasterSuspensions(force: true)
+        return model.disasterRefreshFailed ? .failed : (changed ? .newData : .noData)
     }
 }
 

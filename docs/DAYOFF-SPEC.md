@@ -588,9 +588,15 @@ here — build on it and say so, and the owner can overrule cheaply.
      calendar days before that day** (`targetDate − date(sentDate) ≤ 2`). The date match already
      keeps a 今天/明天 off every other day; the lead limit is what keeps a year-rolled M/D out —
      a 「9/15」 sent in October resolves to next September, and the feed is a frozen archive
-     (§2.4). A notice announced further ahead rings (P5).
+     (§2.4). A notice announced further ahead rings (P5) — as "further ahead than the app acts
+     on", not as "out of date": it may be a minute old.
    - **A notice that names no day** never suppresses; it still ages out 18 h after it was sent,
-     so an old 尚未宣布消息 cannot keep the user's district reading as undeclared.
+     so an old 尚未宣布消息 cannot keep the user's district reading as undeclared. Aged out, it is
+     **no announcement** — the district reads as having none (`noAnnouncement`), because the feed
+     never empties (§2.4) and the last event's 「尚未列入警戒區」 would otherwise stand for this
+     district's news on every later alarm day. The one exception is P5's: when an older notice
+     naming this alarm's day sits behind it, the aged-out newer one still hides that older one,
+     and the answer is ring.
    Everything is still measured from the source's time; the fetch time only dates the copy.
    Measured on the full archive (`announcementLead` in `docs/dayoff-corpus-summary.json`): all
    1,233 dated modern announcements name the day they were sent (577) or the next day (656) —
@@ -726,11 +732,25 @@ writing a branch that suppresses an alarm on incomplete information, that branch
   `docs/dayoff-corpus-summary.json` gains `announcementLead`, the archive measurement behind the
   two-day limit and the four real announcements v3 would have expired. No fixture expectation
   changed — every `decisionCases` entry is still decided the same way — but the rule did, so
-  `specVersion` → 4. The new cases need an evaluation time the fixture schema does not carry, so
-  they live in iOS's `DisasterSuspensionTests` (noon 「明天」 read at 06:00:01 and 07:29, 「9/16」
+  `specVersion` → 4. The new cases needed an evaluation time the fixture schema did not carry, so
+  they went into iOS's `DisasterSuspensionTests` (noon 「明天」 read at 06:00:01 and 07:29, 「9/16」
   sent 9/14 read on 9/15 14:01 and 9/16 07:00, a 3-day lead and a year-rolled 「9/15」 sent in
-  October ringing). iOS implemented it the same day.
+  October ringing); the amendment below adds cases of each kind to the fixtures. iOS implemented it the same day.
   **Android: not yet implemented** — when it starts, build against v4, not v3.
+- **v4, amended** (2026-10-01, same day, before any platform shipped v4) — **the v4 rule is now in
+  the contract.** Adversarial review found the v4 entry above had changed the rule without
+  changing the fixtures, so another platform could pass every case on v3's rule. `decisionCases`
+  gain two optional fields, `evaluatedAt` and `checkedAt` (defaults: 06:00 on the alarm day, and
+  the evaluation time; see `fieldGuide`), and eight cases, `decide-26`…`decide-33`: the real
+  臺中市 7/11 notice sent 7/10 08:50 (suppress — v3 rings), a noon 「明天」 read at 07:29 and a
+  「9/16」 sent two days ahead read the afternoon before (suppress — v3 rings), a three-day lead
+  read 12 hours after it was sent (ring — v3 suppresses), a year-rolled 「9/15」 (ring), an aged-out
+  undated notice (ring, `expectStatus: noAnnouncement`), the same over an older dated suppression
+  (ring, P5), and a noon 「明天」 whose download is 18 h old (ring). The same review made §8 item 2
+  say what the v4 text implied for an aged-out undated notice — no announcement, not "expired" —
+  and gave a notice sent too far ahead its own reason. No suppress/ring outcome of v4 changed, so
+  `specVersion` stays 4; the new cases are what tells a v3 implementation apart. iOS implemented
+  it the same day. **Android: not yet implemented.**
 - **v3** (2026-09-22) — **`both` is an OR.** Owner ruled that ticking work and school means either
   suspension alone silences the alarm. §1 truth table and §8 item 1 updated; `decide-08` now
   expects `suppress`; `specVersion` → 3, so both platforms must re-run. iOS updated the same day

@@ -24,8 +24,8 @@ final class TomorrowWidgetPublisher {
     private weak var model: AlarmViewModel?
     private var subscription: AnyCancellable?
     private var observers: [NSObjectProtocol] = []
-    /// A foreground publish that arrived before the model did; the first publish after
-    /// `start` then reloads too.
+    /// A foreground publish that arrived before the model did, or before its plan was
+    /// settled; the first publish that goes through then reloads too.
     private var reloadWhenStarted = false
 
     init(store: TomorrowWidgetStore = .appGroup,
@@ -51,11 +51,9 @@ final class TomorrowWidgetPublisher {
             }
         }
         // Never during SwiftUI body evaluation, which is where currentModel() first runs.
+        // A forced reload asked for before the model arrived rides along (`publish`).
         Task { @MainActor [weak self] in
-            guard let self else { return }
-            let forceReload = reloadWhenStarted
-            reloadWhenStarted = false
-            _ = publish(forceReload: forceReload)
+            _ = self?.publish()
         }
     }
 
@@ -66,14 +64,23 @@ final class TomorrowWidgetPublisher {
     /// widget can be showing a face that only a reload clears ("open the app to refresh"
     /// after a time zone or clock change that has since been undone). The app passes it
     /// when it comes to the foreground, where reloads do not count against the budget.
+    ///
+    /// Nothing is written until the model has tried to restore the plan
+    /// (`AlarmViewModel.membershipPlanIsSettled`). A cold background or push launch attaches
+    /// this publisher before that restore, and a snapshot built then drops a saved closure
+    /// rule: the widget would show a closure-skipped morning ringing, and the corrective
+    /// reload that follows the restore may be throttled. The restore publishes the model's
+    /// change, which brings the first write; a forced reload asked for meanwhile waits for it.
     @discardableResult
     func publish(now: Date = Date(), forceReload: Bool = false) -> Bool {
         guard isEnabled else { return false }
-        guard let model else {
+        guard let model, model.membershipPlanIsSettled else {
             if forceReload { reloadWhenStarted = true }
             return false
         }
-        return write(TomorrowWidgetSnapshotBuilder.snapshot(for: model, now: now), now: now, forceReload: forceReload)
+        let force = forceReload || reloadWhenStarted
+        reloadWhenStarted = false
+        return write(TomorrowWidgetSnapshotBuilder.snapshot(for: model, now: now), now: now, forceReload: force)
     }
 
     /// Dedupe: skip when the stored snapshot already describes every moment from `now` on.

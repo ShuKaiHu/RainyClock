@@ -25,9 +25,14 @@ protocol NotificationScheduling: Sendable {
     ) async throws
     func scheduleCalendar(_ plan: CalendarAlarmPlan, sound: CommuteAlarmSettings.AlarmSound,
                           soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws
-    /// Removes every alarm this scheduler owns without arming a replacement. Used
-    /// when an address change invalidates the scheduled route.
+    /// Removes every alarm this scheduler owns without arming a replacement, a ringing or
+    /// snoozing one included. Turning the alarm off, and only that, ends a snooze.
     func cancelScheduledAlarms() async
+    /// Removes the registration without arming a replacement while the alarm stays on (an
+    /// address edit invalidated the route, the last repeat day was cleared). A ringing or
+    /// snoozing alarm, or a follow-up chain nobody stopped, is left to finish, as it is
+    /// through a re-registration.
+    func retireScheduledAlarms() async
 }
 
 enum CalendarSchedulingError: Error { case unsupported }
@@ -35,6 +40,11 @@ extension NotificationScheduling {
     func scheduleCalendar(_ plan: CalendarAlarmPlan, sound: CommuteAlarmSettings.AlarmSound,
                           soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws {
         throw CalendarSchedulingError.unsupported
+    }
+
+    /// A scheduler with nothing that can be in progress has nothing to leave behind.
+    func retireScheduledAlarms() async {
+        await cancelScheduledAlarms()
     }
 }
 
@@ -63,6 +73,12 @@ struct SystemAlarmScheduler: NotificationScheduling {
     /// notification path carries its chain over), so below iOS 26 it does nothing.
     static func retireSupersededAlarms() async {
         if #available(iOS 26.0, *) { await AlarmKitScheduler().retireSupersededAlarms() }
+    }
+
+    /// For the life of the process: cancels a replaced alarm as soon as it is stopped
+    /// (`AlarmKitScheduler.retireSupersededAlarmsAsTheyStop`). Started once, at launch.
+    static func retireSupersededAlarmsAsTheyStop() async {
+        if #available(iOS 26.0, *) { await AlarmKitScheduler().retireSupersededAlarmsAsTheyStop() }
     }
 
     func requestAuthorization() async throws -> Bool {
@@ -127,6 +143,13 @@ struct SystemAlarmScheduler: NotificationScheduling {
             await AlarmKitScheduler().cancelScheduledAlarms()
         }
         await LocalNotificationScheduler().cancelScheduledAlarms()
+    }
+
+    func retireScheduledAlarms() async {
+        if #available(iOS 26.0, *) {
+            await AlarmKitScheduler().retireScheduledAlarms()
+        }
+        await LocalNotificationScheduler().retireScheduledAlarms()
     }
 }
 
@@ -245,6 +268,21 @@ struct LocalNotificationScheduler: NotificationScheduling {
         }
     }
 
+    /// Removes the plan while the alarm stays on (an address edit, the last repeat day
+    /// cleared). A chain that rang and that nobody stopped keeps following up, as one-shot
+    /// requests exactly as across a re-registration, until it is stopped or the alarm is
+    /// turned off. Nothing else stays, and no plan is left to rearm.
+    func retireScheduledAlarms() async {
+        try? await Self.registrationQueue.run {
+            let previous = await center.pendingNotificationRequests().filter { $0.identifier.hasPrefix(Self.identifierPrefix) }
+            let carried = carriedChains(in: previous, now: now())
+            center.removePendingNotificationRequests(withIdentifiers: previous.map(\.identifier))
+            for alarm in carried { try? await center.add(alarm.request) }
+            defaults.removeObject(forKey: Self.storedPlanKey)
+            clearRearmFlag()
+        }
+    }
+
     /// True while this install is still relying on notification alarms. On iOS 26
     /// that means the user upgraded without rescheduling, so AlarmKit has not taken
     /// over yet and the alarm still cannot pierce silent mode.
@@ -315,8 +353,10 @@ struct LocalNotificationScheduler: NotificationScheduling {
             var offsets = [0]
             // The follow-up of a ring due by a stopped notification's delivery stays stopped (the
             // rule `carriedChains` keeps): the rearm that follows the tap re-registers this
-            // stored plan, this morning's occurrence included.
-            let stopped = acknowledged.map { occurrence.ringDate <= $0 } ?? false
+            // stored plan, this morning's occurrence included. Only a ring that has already
+            // happened can have been stopped: a delivery stamped by a clock set ahead (and
+            // corrected since) must not take the follow-up from a ring still to come.
+            let stopped = acknowledged.map { occurrence.ringDate <= min($0, now) } ?? false
             if let interval = plan.followUpIntervalMinutes, interval > 0, !stopped { offsets.append(interval * 60) }
             for offset in offsets {
                 let fire = occurrence.ringDate.addingTimeInterval(Double(offset))
@@ -362,6 +402,11 @@ struct LocalNotificationScheduler: NotificationScheduling {
             center.removeDeliveredNotifications(withIdentifiers: deliveredAlarmIdentifiers)
 
             guard let plan = loadPlan() else {
+                // A removal while the alarm stays on keeps a running chain and no plan
+                // (`retireScheduledAlarms`); stopping a ring of it stops that chain.
+                recordAcknowledgement(deliveredAt)
+                let pending = await center.pendingNotificationRequests()
+                center.removePendingNotificationRequests(withIdentifiers: Self.carriedChainIdentifiers(startedBy: deliveredAt, in: pending))
                 await silenceLegacyRequests(deliveredAt: deliveredAt)
                 return
             }
@@ -375,11 +420,7 @@ struct LocalNotificationScheduler: NotificationScheduling {
                 return
             }
             let pending = await center.pendingNotificationRequests()
-            var silenced = pending.filter { request in
-                guard request.identifier.hasPrefix(Self.carriedIdentifierPrefix),
-                      let start = request.content.userInfo[Self.chainStartKey] as? TimeInterval else { return false }
-                return start <= deliveredAt.timeIntervalSince1970
-            }.map(\.identifier)
+            var silenced = Self.carriedChainIdentifiers(startedBy: deliveredAt, in: pending)
             let interval = Double((plan.followUpIntervalMinutes ?? 0) * 60 + 60)
             if let occurrence = dated.occurrences.last(where: { $0.ringDate <= deliveredAt && deliveredAt < $0.ringDate.addingTimeInterval(interval) }) {
                 let prefix = "\(Self.identifierPrefix)-date-\(AlarmCalendarSettings.key(for: occurrence.normalDate))-"
@@ -522,6 +563,16 @@ struct LocalNotificationScheduler: NotificationScheduling {
                 fireDate: fire, isFollowUp: true)
         }
         return carried.values.sorted { $0.fireDate < $1.fireDate }
+    }
+
+    /// The carried requests of every chain that started by `deliveredAt`: what stopping the
+    /// notification delivered then silences.
+    private static func carriedChainIdentifiers(startedBy deliveredAt: Date, in pending: [UNNotificationRequest]) -> [String] {
+        pending.filter { request in
+            guard request.identifier.hasPrefix(carriedIdentifierPrefix),
+                  let start = request.content.userInfo[chainStartKey] as? TimeInterval else { return false }
+            return start <= deliveredAt.timeIntervalSince1970
+        }.map(\.identifier)
     }
 
     /// When the ring a pending request belongs to went off: kept on carried requests, and

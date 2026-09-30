@@ -993,6 +993,166 @@
     }
    ],
    "expect": "ring"
+  },
+  {
+   "id": "decide-26",
+   "note": "v4：真實紀錄（內文與 sentDate 取自語料 announcementLead；msgType、geocode 依同類紀錄）。7/10 08:50 公布 7/11 停班，7/11 06:00 時已超過 18 小時 → 仍靜音（v3 會在約 02:50 起把鬧鐘排回）",
+   "home": "臺中市西屯區",
+   "work": "臺中市西屯區",
+   "mode": "work",
+   "alarmDate": "2026-07-11",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺中市:7/11已達停止上班及上課標準。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "66",
+     "sentDate": "2026-07-10T08:50:58"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "臺中市"
+  },
+  {
+   "id": "decide-27",
+   "note": "v4（合成）：12:00 公布「明天」停班，隔天 07:29 已超過 18 小時 → 那一整天都有效，仍靜音",
+   "home": "新北市瑞芳區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2025-11-11",
+   "evaluatedAt": "2025-11-11T07:29:00",
+   "feed": [
+    {
+     "description": "[停班停課通知]新北市瑞芳區:明天停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "6501200",
+     "sentDate": "2025-11-10T12:00:00"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "新北市瑞芳區"
+  },
+  {
+   "id": "decide-28",
+   "note": "v4（合成）：9/14 晚上公布 9/16 停班（提前兩個台北日），9/15 14:01 判斷 → 仍靜音（v3 在公告滿 18 小時時失效）",
+   "home": "臺北市士林區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2026-09-16",
+   "evaluatedAt": "2026-09-15T14:01:00",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺北市:9/16停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "63",
+     "sentDate": "2026-09-14T20:00:00"
+    }
+   ],
+   "expect": "suppress",
+   "expectArea": "臺北市"
+  },
+  {
+   "id": "decide-29",
+   "note": "v4（合成）：提前三個台北日公布的日期，超出可判斷範圍 → 照響，即使公告才 12 小時（v3 會靜音）",
+   "home": "臺北市士林區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2026-09-15",
+   "evaluatedAt": "2026-09-13T08:00:00",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺北市:9/15停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "63",
+     "sentDate": "2026-09-12T20:00:00"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-30",
+   "note": "v4（合成）：凍結檔案裡去年 10 月的「9/15」會被解析成今年 9/15（年份往後滾）→ 照響",
+   "home": "臺北市士林區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2026-09-15",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺北市:9/15停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "63",
+     "sentDate": "2025-10-01T20:00:00"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-31",
+   "note": "v4（合成）：沒寫日期的公告滿 18 小時即失效，那個區視為沒有公告（NCDR feed 不會清空，上一次事件的舊公告不能一直被讀成這個區的消息）",
+   "home": "臺中市和平區",
+   "work": "臺中市西屯區",
+   "mode": "work",
+   "alarmDate": "2024-07-24",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺中市和平區:尚未宣布消息。行政院人事行政總處。",
+     "severity": "Minor",
+     "msgType": "Update",
+     "geocode": "6602900",
+     "sentDate": "2024-07-23T11:00:00"
+    }
+   ],
+   "expect": "ring",
+   "expectStatus": "noAnnouncement"
+  },
+  {
+   "id": "decide-32",
+   "note": "v4（合成）：失效的無日期公告後面還有同一天較早的有日期停班公告 → 照響（P5：較新的非停班公告不能讓較舊的停班重新生效）",
+   "home": "臺中市和平區",
+   "work": "臺中市西屯區",
+   "mode": "work",
+   "alarmDate": "2024-07-24",
+   "feed": [
+    {
+     "description": "[停班停課通知]臺中市和平區:明天停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "6602900",
+     "sentDate": "2024-07-23T10:00:00"
+    },
+    {
+     "description": "[停班停課通知]臺中市和平區:尚未宣布消息。行政院人事行政總處。",
+     "severity": "Minor",
+     "msgType": "Update",
+     "geocode": "6602900",
+     "sentDate": "2024-07-23T11:00:00"
+    }
+   ],
+   "expect": "ring"
+  },
+  {
+   "id": "decide-33",
+   "note": "v4（合成）：公告本身整天有效，但下載的資料是前一天 12:30 抓的，06:31 已超過 18 小時 → 照響（無法證明之後沒有新公告）",
+   "home": "新北市瑞芳區",
+   "work": "臺北市中正區",
+   "mode": "work",
+   "alarmDate": "2025-11-11",
+   "evaluatedAt": "2025-11-11T06:31:00",
+   "checkedAt": "2025-11-10T12:30:00",
+   "feed": [
+    {
+     "description": "[停班停課通知]新北市瑞芳區:明天停止上班、停止上課。行政院人事行政總處。",
+     "severity": "Extreme",
+     "msgType": "Alert",
+     "geocode": "6501200",
+     "sentDate": "2025-11-10T12:00:00"
+    }
+   ],
+   "expect": "ring"
   }
  ],
  "fieldGuide": {
@@ -1008,9 +1168,11 @@
   "decisionCases[].home / .work": "The user's stored (縣市, 區) pair, written as one string. Compare after 臺<->台 normalisation. Never key on the district name alone: 信義區 exists in both 臺北市 and 基隆市.",
   "decisionCases[].mode": "work | school | both. See spec section 1's truth table. 'both' is an OR — either suspension alone suppresses — decided by the owner on 2026-09-22 (spec v3).",
   "decisionCases[].alarmDate": "The local date the alarm would ring. The resolved target date must equal this or the answer is ring.",
+  "decisionCases[].evaluatedAt": "Optional (spec v4). When the decision is made, Asia/Taipei local time written like sentDate. Absent: 06:00 on alarmDate (90 minutes before a 07:30 alarm). v4 judges a notice that names the alarm's day by how far ahead of that day it was sent, not by its age, so some cases only differ from v3 at a stated time.",
+  "decisionCases[].checkedAt": "Optional (spec v4). When the feed copy was fetched, Asia/Taipei local time. Absent: the same as evaluatedAt. A copy fetched more than 18 h before evaluatedAt is treated as absent ⇒ ring.",
   "decisionCases[].feed": "The entries available to the decision. [] means a successful fetch that contained nothing matching. null with fetchFailed:true means the fetch failed.",
   "decisionCases[].expect": "suppress | ring. There is no third value: anything that is not a positive, current, matching suspension is ring.",
   "decisionCases[].expectArea": "On suppress, the area string the UI must attribute the decision to. Required — spec section 5 makes the suppress case unconstructible without it.",
-  "decisionCases[].expectStatus": "Optional. A UI distinction the decision must preserve even though the answer is ring: 'undeclared' (尚未宣布消息 — the user's area has not been ruled on yet) and 'partialDistrict' (only part of the user's district is suspended) must not be shown as 'no announcement'."
+  "decisionCases[].expectStatus": "Optional. A UI distinction the decision must preserve even though the answer is ring: 'undeclared' (尚未宣布消息 — the user's area has not been ruled on yet) and 'partialDistrict' (only part of the user's district is suspended) must not be shown as 'no announcement'. 'noAnnouncement' (spec v4): nothing current concerns the user's districts — including a notice that names no day once it is more than 18 h old, which must not keep reading as that district's news."
  }
 }

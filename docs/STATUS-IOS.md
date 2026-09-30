@@ -231,6 +231,87 @@ Last updated: 2026-10-01.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-10-01：1.8.0（38）修正系列（`f77a4ec`…`24cf509`，9 個 commit）與其審查修正（「Review fixes for the 1.8.0
+  fix series」）。** 合併 `ios/widget` 後的對抗式審查找到的 9 項各自一個 commit；再審一輪找到 27 項（1 項 major），全在審查修正
+  commit 處理。版本仍是 1.8.0（38），**尚未上傳**。
+  **`build/` 裡 10/1 00:33 的 1.8.0（38）archive 早於整個修正系列**，已改名為
+  `build/RainyClock-1.8.0-38-STALE-pre-review-fixes-do-not-upload.xcarchive`，**不可匯出上傳**：測試全過後從整合後的 HEAD 重新
+  archive，上傳前確認 archive 的 `CreationDate` 晚於最後一個 commit（38 一旦上傳就不能再用）。
+  1. **AlarmKit：正在響／賴床的鬧鐘撐過重新登記（`f77a4ec`）。** 原本每次重新登記每週鬧鐘都取消 App 所有 AlarmKit 鬧鐘，包括正在響
+     或賴床倒數的：7:30 響、按賴床，7:31 開 App（判斷已過期）重新登記，7:35 的賴床就不響。兩條登記路徑改成只取消「僅排定」的
+     舊鬧鐘，在新鬧鐘登記**之後**讀狀態；正在響／賴床的記下來，等它回到排定狀態再取消。`AlarmKitScheduler` 改注入
+     `AlarmManager`／`UserDefaults`，`AlarmKitSchedulerTests` 用假的鬧鐘清單。審查修正：
+     - **（major）被替換的每週鬧鐘賴床結束後回到排定狀態，會在下一個選定日的舊時間和新鬧鐘一起響**，而收掉它原本只靠下一次開 App
+       或背景更新——使用者在鎖定畫面按停止、App 一直在前景，或之後不開 App 又沒有背景更新，就不會發生。改為：①沒人要求的重新判斷
+       （過期的開 App、背景更新、推播；`refreshScheduledAlarmUnattended`）在有鬧鐘正在響／賴床時不重新登記，下一次再判斷，這之間
+       照上一次的判斷響；②程序存活期間監看 `AlarmManager.alarmUpdates`（`retireSupersededAlarmsAsTheyStop`，啟動時開始），被替換
+       的鬧鐘一回到排定就取消；③停班停課推播也收一次。使用者自己的操作（改設定、重試、總開關）照常登記。
+     - 改地址、清空重複星期（鬧鐘本身仍開著）移除登記時，仍會取消正在賴床的鬧鐘。改為和重新登記一樣留著響完：
+       `NotificationScheduling.retireScheduledAlarms`（AlarmKit：取消僅排定的、記下進行中的；iOS 17–25：拿掉排程但保留沒按停止的
+       補響鏈，按停止即停，關閉鬧鐘也停）。只有關閉鬧鐘（`cancelScheduledAlarms`）會結束賴床。
+     - 測試：`AlarmKitSchedulerTests` 8 → 13（逐日登記期間開始響的鬧鐘留著、讀不到清單時撤回新鬧鐘只留舊的、取消失敗會記下並由
+       下一次重試、移除登記留著賴床、程序存活時停止即取消）；`AlarmViewModelSchedulingTests` 改地址與清空星期改看 `retireCount`、
+       無人要求的重新判斷在響／賴床時不登記；`LocalNotificationSchedulerTests` 移除登記保留補響鏈、關閉鬧鐘結束補響鏈。
+  2. **主卡／widget：提早響過後改提前分鐘，沿用的鈴照 AlarmKit 真的會響的時間顯示（`3688000`）。** 審查修正：只在那個早上依現在的
+     提前分鐘算出的檢查點之前才算「等待預報」。提前分鐘調長（例 30 → 60）時隔天檢查點 6:30 早於沿用的 7:00，過了檢查點就沒有東西
+     會再判斷那個早上、按重試會登記 7:30：主卡顯示 7:30 並標「鬧鐘設定尚未更新完成」，widget 今天的項目顯示 AlarmKit 真的會響的
+     7:00 並標同一個警示（和「舊設定的登記」同一種顯示，`keptRingDate`）。晚上預覽改讀和主卡相同的成對捲動摘要
+     （`rollingForwardAsPair`）：提早響過到原定時間之間重新規劃時，隔天那則寫 7:00（D-D），不再寫 7:30。測試：
+     `AlarmViewModelSchedulingTests` 2 項（提前分鐘調長後 6:35 的主卡與 widget、改提前分鐘後隔天的預覽）。
+  3. **DAYOFF-SPEC v4（`032771c`，下一點）的審查補充。** 共用 fixture 補上 v4 規則：`decisionCases` 新增可省略的 `evaluatedAt`／
+     `checkedAt` 與 8 個案例（`decide-26`…`33`，含真實的臺中市 7/10 08:50 公布 7/11），`specVersion` 仍是 4（v4 尚未在任何平台上架，
+     suppress／ring 結果沒有改，見 spec 的「v4, amended」）；iOS 測試的 fixture 數 25 → 33。沒寫日期的公告超過 18 小時後視為沒有公告
+     （`noAnnouncement`），不再是「公告已過期或時間異常」——NCDR feed 不會清空，上一次事件留下的「尚未列入警戒區」原本讓之後每則
+     其他縣市的推播都對這支手機發出有聲的「公告已過期」；同一天後面還有較早的有日期公告時仍照響（P5）。提前超過兩天公布的日期有自己
+     的理由「公告日期超出可判斷範圍，維持原鬧鐘」（英文 “The announcement is for a day further ahead than the app acts on, so your
+     alarm stays on.”），不再說成過期。`DayOffPushContentTests` 2 項。
+  4. **iOS 17–25 逐日排程：按過停止的早上，rearm 後不再補響（`3652414`）。** 例：逐日排程 7:00 響、點通知停止並打開 App，啟動時
+     的 rearm 重新登記存下的計畫、今天那一筆也在內，7:05 的補響就回來了。改為：響鈴時間不晚於「被停止那則通知的送達時間」的那一筆，
+     不登記補響（和 `carriedChains` 同一條規則）；之後的早上與沒人按停止的鏈照常補響。審查修正：只有**已經發生**的鈴能被停止
+     （`min(送達時間, 現在)`），手動把時鐘調快一天時點的通知不會讓之後每次登記都拿掉明天的補響。`LocalNotificationSchedulerTests`
+     13 → 16 項（`testRearmingTheDatedPlanKeepsAStoppedMorningSilent` 修正前失敗；新增時鐘調快、移除登記保留補響鏈、關閉結束補響鏈）。
+  5. **鬧鐘關閉時的停班停課推播一律安靜（`34c5499`）**：見本節「2026-09-30：新增鬧鐘總開關」一點的子項。
+  6. **停班停課的晚上預覽與「僅部分地區」推播標示來源（`7ee37a7`）。** 因停班停課略過的早上，晚上預覽原本寫「明天的鬧鐘依你的日曆
+     關閉」，原因錯、也沒有來源；改為新的 `.closure`：「明天的鬧鐘因臨時停班／停課略過。」＋「來源更新時間：…」＋政府資料開放授權
+     一行（主卡同一組字）。「僅部分地區停班停課」等相關推播也加上來源行。審查修正：預覽的來源時間不寫年份（「9/15 下午5:05」，和
+     「檢查時間」同樣理由）；重新登記失敗（公告撤回後）保留舊摘要時，之後因改預覽時間／12・24 小時而重新規劃的預覽，不再把已不被
+     公告支持的略過寫成停班停課、還標上撤回它的那一版資料的時間（等下一次登記成功再規劃）；新增 view model 層的測試，確認預覽用
+     的是公告資料自己的更新時間（`sourceUpdatedAt`），不是 App 抓取的時間。
+  7. **iOS 26 打開停班停課規則時詢問通知權限（`5d5f390`）。** 公告是可見推播，但 iOS 26 的鬧鐘權限是 AlarmKit 的，晚上預覽關閉時
+     從來沒有人詢問通知權限，推播全被丟掉。打開規則時若尚未決定，詢問一次；拒絕仍保留規則；iOS 17–25 不變（鬧鐘本身在排程時詢問）。
+     這是 App 詢問通知權限的第四個地方（見 1.6.9 預覽一節）。審查修正：①允許後補設逐日排程的「即將到期」提醒（打開規則造成的逐日
+     登記通常在提示還開著時就完成，當時沒有權限設不了）；②拒絕過（例如為了晚上預覽）時，開關下方寫「雨天鬧鐘的通知已關閉，停班停課
+     公告無法顯示；鬧鐘仍會依 App 取得的公告處理。」＋「開啟通知」按鈕（`UIApplication.openNotificationSettingsURLString`）；
+     ③測試：只有開關會詢問（背景、推播、刷新不會）、方案不含規則或沒有方案時不詢問、拒絕後等提示的工作結束再確認規則仍開啟。
+     1.8.0 審查備註（`appstore-metadata.md`）的通知段落中英都補上這個提示。
+  8. **沒有確認的方案就不套用停班停課；決定前先還原方案（`95f09ff`）。** 背景工作與推播啟動不會跑到 `MembershipManager.start()`，
+     前景啟動也在 `start()` 驗證前就排程；沒有方案時原本照存的設定套用停班停課，伺服器已確認到期的訂閱者照樣被略過。改為：服務已設定
+     但沒有方案時不套用停班停課（日曆照舊）；背景、推播與前景啟動先還原快取的方案（`restoreSchedulingEntitlements`）。審查修正：
+     ①方案在啟動決定之後才確認（`start()` 的同步、稍後完成的還原、購買、恢復購買、到期、刪除會員資料）時立刻重新決定：過期旗標、
+     App Group、推播註冊與鬧鐘（`membershipPlanDidChange`，監看 `schedulingEntitlementChanges`）；②只有存了付費規則（停班停課或日曆）
+     才等還原，最多等 5 秒、被取消（背景工作到期）就不再等，還原本身繼續、結果之後再套用；`start()` 仍等到還原結束
+     （`SharedRestore`）；③背景更新先處理「鬧鐘已關閉」再還原方案；④widget 在還原嘗試之前不寫快照（冷啟動的背景／推播原本會先寫
+     一次「停班停課被丟掉」的快照，再用第二次、可能被節流的重載修正）。測試：還原的共用／重試／逾時／取消（`SharedRestoreTests` 3 項）、
+     背景更新與推播入口依還原的方案決定（`refreshArmedAlarm(model:)`、`handleDayOffSync(model:)`）、啟動後才確認的方案立即套用、
+     只有付費規則才等、widget 等還原。
+  9. **廣告同意也在瑞士詢問（`24cf509`）**，如隱私權政策所寫。審查修正：歐盟的海外領土與奧蘭群島有自己的地區代碼（RE、GP、MQ、GF、
+     YT、MF、AX，以及 CLDR 的 IC、EA），設成這些地區的手機原本不會看到同意畫面，已加入；測試改成 EU27 ＋ 這些地區 ＋ IS/LI/NO ＋
+     GB ＋ CH。**瑞士（與上述地區）的使用者更新到 38 後會看到一次同意畫面。** 審查備註的貼上說明補一句：1.7.1（37）備註的「In the
+     EEA/UK」改成「In the EEA, the UK and Switzerland」。
+  - **字串（待擁有者看過，已列入本節 ③）：** `evening_preview_closure`（中英）、預覽的來源兩行、相關推播的來源行、推播理由
+    「公告日期超出可判斷範圍，維持原鬧鐘」＋英文、`ux_closure_notifications_denied`／`ux_closure_notifications_open_settings`（中英）。
+  - **測試：Xcode 建置與 XCTest 尚未執行**——這台 Mac 的 Xcode 27 授權條款尚未同意（`xcodebuild` 回「You have not agreed to the
+    Xcode license agreements」，需擁有者在終端機執行 `sudo xcodebuild -license`）。已做的驗證：以 Xcode 27 的 `swiftc`（Swift 6、
+    iOS 17 模擬器 SDK）對 App、測試、widget 與通知擴充功能做型別檢查，0 錯誤；在 macOS 上單獨編譯 `DisasterSuspensionEvaluator` 與
+    `DayOffPushContent`，跑 33 組共用 fixture 與新增的斷言：0 失敗（同一組對 cf7c7c0 的 v3 評估器 13 項失敗、對審查前的 v4 5 項失敗）。
+    同意授權後照慣例跑（`RainyClock Membership Local`、簽章、`-parallel-testing-worker-count 1`、略過 `MembershipStoreKitTests`、
+    iPhone 17 Pro iOS 26.5 與 iPhone 16 Pro iOS 18.6）；預期 619 項（cf7c7c0 為 569），18.6 上 `AlarmKitSchedulerTests` 13 項會自行略過。
+  - 手機待確認（38 上傳前）：①iOS 26：7:30 響、賴床，7:31 開 App（判斷已過期），7:35 照響；在鎖定畫面按停止、App 留在前景，隔天
+    （選定日）舊時間不再多響一次。②賴床中改地址或清空重複星期，賴床照響完；關閉鬧鐘則立刻結束。③iOS 17–25（iPhone 16 Pro 18.6
+    模擬器）：逐日排程 7:00 響、點通知停止並打開 App（rearm），7:05 不再響；賴床中改地址，補響照常到按停止。④iOS 26、晚上預覽關閉：
+    打開停班停課規則會跳通知權限；允許後通知中心排定「日曆即將到期」提醒；拒絕後開關下方出現說明與「開啟通知」按鈕。⑤瑞士地區：
+    第一次開啟先出現廣告同意畫面，再出現追蹤詢問。
+
 - **2026-10-01：已套用的停班停課略過不再在公告滿 18 小時時被撤回（DAYOFF-SPEC v4，擁有者核准）。**
   對抗式審查找到：`DisasterSuspensionEvaluator` 以「現在 − 公告時間 ≤ 18 小時」判斷公告有效，12:00 公布的「明天
   停止上班」在隔天 06:00 後每次重新判斷都得到「公告已過期或時間異常」，把 07:30 排回確定放假的早上；提前兩天公布的日期
@@ -328,7 +409,11 @@ Last updated: 2026-10-01.
     **擁有者要決定：**①沿用的提早響過後主卡寫「因雨提早」（「仍刻意和主卡不同」那一項，與 D-D 不同）；②圓形／inline 不報停班停課，
     或記下 §7 例外讓圓形恢復「停班」（那時 What's New 與審查備註的「顯示任何停班停課結果時都會標示資料來源」要改成
     不含 widget）；③「字串」那一項與審查修正新增的文字（「來源：人事總處／NCDR」「來源更新 %@」「明天／今天只關閉這一次」、
-    三句改過的英文）。
+    三句改過的英文），以及修正系列新增、會出現在畫面或通知上的文字（見本節「1.8.0（38）修正系列」一點的「字串」）：
+    停班停課晚上預覽 `evening_preview_closure`（中英）與其下的「來源更新時間」＋政府資料開放授權兩行（預覽用完整授權文字，
+    推播用短的「資料來源：…（經 NCDR 發布），更新 M/d HH:mm」，§7 兩者都符合）；「僅部分地區停班停課」等相關推播的第二行來源；
+    推播理由「公告日期超出可判斷範圍，維持原鬧鐘」與英文；停班停課開關下的 `ux_closure_notifications_denied`／
+    `ux_closure_notifications_open_settings`（中英）。
 
 - **2026-10-01：iOS 17–25 通知鬧鐘——沒按停止的補響，重新登記後照常響完**（下一點列為「仍未處理」的既有問題）。
   例：7:00 鬧鐘、賴床 5 分鐘，使用者還在睡；7:07 背景更新判斷明天下雨、把每週鬧鐘改成 6:30。原本重新登記會刪掉今天
@@ -345,7 +430,7 @@ Last updated: 2026-10-01.
   AlarmViewModel 不改；`weeklyRestoreWouldReviveFollowUps` 擋的「沒響過的早上」現在排程本身也不會補響，保留無害。
   - 為了能測，`LocalNotificationScheduler` 另外注入時鐘，測試先在 6:50 登記、再把時間撥到 7:07:30；決定用的下一次
     響鈴時間改由 `nextFireDate(of:after:)` 以同一個時鐘計算（`nextTriggerDate()` 只看真實時間）。
-  - 測試：`LocalNotificationSchedulerTests` 改用固定時鐘，12 項。修正前 3 項失敗（改時間後舊鏈被換掉、改逐日後舊鏈
+  - 測試：`LocalNotificationSchedulerTests` 改用固定時鐘，12 項（之後 3652414 加 1 項、修正系列審查再加 3 項，現為 16 項，見本節「1.8.0（38）修正系列」一點）。修正前 3 項失敗（改時間後舊鏈被換掉、改逐日後舊鏈
     被刪、響鈴時間過後登記憑空補響）；另加「改到 7:20 時同一秒只響一次」。突變測試 6 種（不保留、不讓出額度、同一秒
     不合併、按過停止也保留、只擋按過停止的鏈、恢復時一律用每週登記）各有測試抓到。
     完整測試：iPhone 17 Pro（iOS 26.5）上 **501 項全過、0 失敗**，略過 `MembershipStoreKitTests`（同下）；00:16 那次完整
@@ -411,7 +496,13 @@ Last updated: 2026-10-01.
   **已知限制**（未修）：iOS 17–25 略過後到回復每週排程之前，每個早上只有 1 次補響（每週排程最多 10 次）；
   若略過後 27 天都沒開 App、背景更新也沒跑、又沒開通知權限，逐日排程會到期而沒有提醒。
   **降級注意**：裝回 1.8.0 以前的 TestFlight build 會丟掉「關閉」狀態並在啟動時重新排定。
-  手機待確認：關閉／略過在 AlarmKit 上真的不響、略過後的下一個早上照響、正在賴床時關閉會結束賴床、關閉時的停班停課推播是安靜的。
+  手機待確認：關閉／略過在 AlarmKit 上真的不響、略過後的下一個早上照響、正在賴床時關閉會結束賴床、關閉時的停班停課推播是安靜的
+  ——**包括沒開停班停課規則、沒設行政區（地址沒有對應的區）、或功能已關閉仍收到推播的手機**（34c5499）。
+  - 2026-10-01（34c5499）：鬧鐘關閉時，停班停課推播一律改寫成安靜的「你的鬧鐘目前關閉，這則公告不會改變鬧鐘。」，**在判斷停班停課
+    設定之前**。原本沒開規則或沒設行政區時擴充功能不改寫，顯示伺服器有聲的通用「打開雨天鬧鐘確認下一次鬧鐘」。行為改變：功能關閉後
+    仍收到的推播（取消註冊前送出的）也改成這則安靜通知，不再是伺服器的通用文字。測試：`DayOffPushContentTests`
+    `testAnAnnouncementWhileTheAlarmIsOffIsQuietEvenWithAnIncompleteSetup`。`DayOffPushContent.Urgency.unknown` 的註解與
+    `DISASTER-PREVIEW.md` 的改寫規則同步寫明「鬧鐘開啟時」（審查修正）。
 
 - **2026-09-30：正式會員服務已重新部署——`rainyclock-membership-00006-hnb`，100% 流量**（擁有者 9/29 同意；9/29 第一次被 auto mode
   安全檢查擋下，9/30 擁有者要求再跑一次後通過）。映像 `rainyclock-membership@sha256:463da306…`（標籤
@@ -1787,7 +1878,9 @@ can never run, it is the only place the app tells them so.
   the alarm's own prompt), the toggle turning on, and `ContentView`'s launch task after
   the stale-refresh — that last one is for the install that upgraded with an alarm armed
   and never taps Schedule again. Unattended runs only read the status. On iOS 17–25 the
-  alarm already asked, and the answer covers both.
+  alarm already asked, and the answer covers both. (1.8.0 adds a fourth place, on iOS 26 only:
+  turning the temporary-closure rule on asks once while undecided, because the closure
+  announcements are visible pushes; see "1.8.0 準備中".)
 - **The 64-request budget is shared** with the iOS 17–25 notification alarms:
   `LocalNotificationScheduler.pendingNotificationLimit` dropped 64 → 56 to leave seven
   for previews. With all seven weekdays selected the alarm gets 8 requests a day (7

@@ -65,6 +65,13 @@ struct TomorrowAlarmStatus: Equatable {
     var outdatedRegistrationRingDate: Date?
     /// The outdated registration's ring on this day has already fired: it will not ring again.
     var outdatedRegistrationHasRung = false
+    /// A weekly registration's kept early ring (`firedEarlyRing`'s lead, carried onto this
+    /// morning by the repeat) that is still ahead but no longer stands for this morning: its
+    /// check point under the current lead has passed (a lead raised after that early ring), so
+    /// `expectedRingDate` is the current settings' time and the mismatch reads "update needed".
+    /// AlarmKit still rings it, so the widget's today entry shows it, flagged, as it shows an
+    /// outdated registration's ring. Display only.
+    var keptRingDate: Date?
 
     /// The card expects a ring the committed schedule does not hold for this morning.
     var ringIsNotRegistered: Bool {
@@ -263,8 +270,14 @@ struct TomorrowAlarmStatus: Equatable {
         // time on that ring (`restoreWeeklySchedule` records it as `firedEarlyRing`), even when
         // the lead has changed since. The mornings after it carry that ring's lead: what
         // AlarmKit rings (D-D), not an update a retry could make before that normal time.
-        let keptLead = summary.flatMap { $0.calendarPlan == nil ? $0.firedEarlyRing : nil }
+        // Only until this morning's own check point under the current lead: past it the
+        // scheduler no longer re-decides this morning, a retry would register the current
+        // settings' time, and a kept ring still ahead — a lead raised after the early ring
+        // puts the new check point before it — is an outdated registration, flagged as one.
+        let firedLead = summary.flatMap { $0.calendarPlan == nil ? $0.firedEarlyRing : nil }
             .map { $0.normalDate.timeIntervalSince($0.ringDate) }
+        let keptLead = decisionIsFinal ? nil : firedLead
+        var keptRing: Date?
         var carriedOver = false
         if let firedRing, expected != nil {
             // This morning already rang. Final, whatever the lead or forecast say now.
@@ -284,6 +297,10 @@ struct TomorrowAlarmStatus: Equatable {
                 reason = lead > 0 ? .rain : (manualRing ? .manual : .normal)
                 verified = decisionIsFinal || summary?.calendarPlan != nil
                 carriedOver = isCarriedOver(lead: lead)
+            } else if registrationIsCurrent, offset == firedLead, registered >= now {
+                // The kept ring, past this morning's check point: expected stays the current
+                // settings' time, and the mismatch flags "update needed". AlarmKit still rings it.
+                keptRing = registered
             }
         }
 
@@ -296,7 +313,8 @@ struct TomorrowAlarmStatus: Equatable {
                     hasCommittedClosureSkip: committedSkip, isMissingFromPlan: missingFromPlan,
                     rainLeadIsCarriedOver: carriedOver, isRegistrationCurrent: registrationIsCurrent,
                     passedRingDate: passedRing,
-                    outdatedRegistrationRingDate: outdatedRing, outdatedRegistrationHasRung: outdatedHasRung)
+                    outdatedRegistrationRingDate: outdatedRing, outdatedRegistrationHasRung: outdatedHasRung,
+                    keptRingDate: keptRing)
     }
 }
 

@@ -251,7 +251,12 @@ final class ConsentManagerTests: XCTestCase {
             "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK",
         ]
         XCTAssertEqual(eu.count, 27)
-        XCTAssertEqual(ConsentManager.gdprRegions, eu.union(["IS", "LI", "NO", "GB", "CH"]))
+        // EU territory with its own region code (adversarial review, 2026-10-01): the
+        // outermost regions, Åland, and CLDR's Canary Islands and Ceuta & Melilla. A phone
+        // set to Réunion reports "RE", not "FR"; the GDPR applies there all the same.
+        let euTerritories: Set<String> = ["RE", "GP", "MQ", "GF", "YT", "MF", "AX", "IC", "EA"]
+        XCTAssertEqual(ConsentManager.gdprRegions, eu.union(euTerritories).union(["IS", "LI", "NO", "GB", "CH"]))
+        XCTAssertTrue(ConsentManager.gdprRegions.isDisjoint(with: ["TW", "US", "JP"]))
     }
 
     func testDisabledConsentEnvironmentNeverCallsPermissionOrSDK() async {

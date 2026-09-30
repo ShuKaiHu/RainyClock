@@ -267,17 +267,30 @@ enum DisasterSuspensionEvaluator {
             guard latest.count == 1, let (notice, parsed) = latest.first else {
                 fallback = .ring("公告內容有衝突，維持原鬧鐘"); continue
             }
+            guard notice.sentAt <= now, notice.sentAt <= feed.checkedAt else {
+                fallback = .ring("公告已過期或時間異常，維持原鬧鐘"); continue
+            }
             // Spec v4 (owner, 2026-10-01): a notice that names the alarm's day stays current
             // for that day however long ago it was sent — a 12:00 "明天" turned 18 h old at
             // 06:00 and undid its own skip. The fresh feed above is what proves nothing newer
             // replaced it; the lead limit keeps a year-rolled "M/D" in a frozen archive out.
-            // A notice naming no day never suppresses and still ages out after 18 h.
             let lead = parsed.targetDate.flatMap {
                 calendar.dateComponents([.day], from: calendar.startOfDay(for: notice.sentAt), to: $0).day
             }
-            let isCurrent = lead.map { $0 <= maximumLeadDays } ?? (now.timeIntervalSince(notice.sentAt) <= maximumAge)
-            guard notice.sentAt <= now, notice.sentAt <= feed.checkedAt, isCurrent else {
-                fallback = .ring("公告已過期或時間異常，維持原鬧鐘"); continue
+            if let lead, lead > maximumLeadDays {
+                // Not out of date: further ahead of its day than the app acts on (P5).
+                fallback = .ring("公告日期超出可判斷範圍，維持原鬧鐘"); continue
+            }
+            // A notice naming no day never suppresses and ages out 18 h after it was sent
+            // (§8.2). Aged out it is no announcement: the NCDR feed never empties, so the last
+            // event's 「尚未列入警戒區」 would otherwise read as this district's news on every
+            // later alarm day and sound every stranger's push. With an older dated notice for
+            // this day behind it, it still hides that one (P5).
+            if lead == nil, now.timeIntervalSince(notice.sentAt) > maximumAge {
+                if candidates.contains(where: { $0.1.targetDate != nil }) {
+                    fallback = .ring("公告已過期或時間異常，維持原鬧鐘")
+                }
+                continue
             }
             let area = DisasterRegion.normalize(parsed.area)
             guard area == county || area == district else {

@@ -948,6 +948,35 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(reloads.count, 3, "Without a model the forced reload waits for start(observing:)")
     }
 
+    /// Adversarial review, 2026-10-01: a cold background or push launch attaches the publisher
+    /// before the plan restore, and a snapshot built then drops a saved closure rule (no plan
+    /// applies no closure): a skipped morning shown ringing, corrected only by a second reload
+    /// that WidgetKit may throttle. Nothing is written until the restore has been tried; a forced
+    /// reload asked for meanwhile comes with the first write.
+    func testThePublisherWaitsForThePlanRestore() async throws {
+        var value = settings()
+        value.isDisasterSuspensionEnabled = true
+        storage.set(try JSONEncoder().encode(value), forKey: "commuteAlarmSettings")
+        let model = AlarmViewModel(notificationScheduler: SilentScheduler(), settingsStorage: storage,
+                                   membershipEntitlements: { nil }, membershipConfigured: { true },
+                                   restoreMembershipEntitlements: {}, supportsTemporaryClosures: true)
+        XCTAssertFalse(model.membershipPlanIsSettled)
+        let reloads = ReloadCounter()
+        let store = TomorrowWidgetStore(suiteName: suiteName)
+        let publisher = TomorrowWidgetPublisher(store: store, reload: { reloads.count += 1 }, isEnabled: true)
+        publisher.start(observing: model)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertFalse(publisher.publish(forceReload: true))
+        XCTAssertNil(store.load(), "No snapshot before the plan restore has been tried")
+        XCTAssertEqual(reloads.count, 0)
+
+        await model.loadMembershipEntitlements()
+        XCTAssertTrue(model.membershipPlanIsSettled)
+        XCTAssertTrue(publisher.publish())
+        XCTAssertNotNil(store.load())
+        XCTAssertEqual(reloads.count, 1)
+    }
+
     // MARK: D1 on the real model
 
     func testModelTomorrowStatusRollsWeeklySummaryAfterRing() throws {

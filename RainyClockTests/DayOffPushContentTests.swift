@@ -83,6 +83,37 @@ final class DayOffPushContentTests: XCTestCase {
         XCTAssertEqual(en.body, "Only part of your district is closed, so your alarm stays on.\nSource: DGPA via NCDR, updated 9/15 18:58")
     }
 
+    /// Adversarial review, 2026-10-01: the NCDR feed never empties, so an undated notice for the
+    /// user's county from a past event stays in it. Read as "out of date" it made every later
+    /// push about any other county a sounding "your district's announcement is out of date";
+    /// aged out, it is no announcement at all and the push stays quiet.
+    func testAnOldUndatedNoticeInTheArchiveLeavesAStrangersPushQuiet() {
+        let feed = DisasterFeed(checkedAt: now, notices: [
+            DisasterNotice(id: "archived", sentAt: now.addingTimeInterval(-24 * 86_400),
+                           description: "[停班停課通知]新竹縣:尚未列入警戒區。行政院人事行政總處。", severity: "Minor", geocodes: ["10004"]),
+            DisasterNotice(id: "elsewhere", sentAt: now.addingTimeInterval(-60),
+                           description: "[停班停課通知]宜蘭縣:明天停止上班、停止上課。行政院人事行政總處。", severity: "Extreme", geocodes: ["10002"]),
+        ])
+        for chinese in [true, false] {
+            let result = DayOffPushContent.evaluate(state: state(), feed: feed, now: now, chinese: chinese)
+            XCTAssertEqual(result.urgency, .unrelated, result.body)
+            XCTAssertEqual(DayOffPushContent.presentation(for: result.urgency)?.playsSound, false)
+        }
+    }
+
+    /// A notice sent a minute ago for a day three days ahead is further than the app acts on
+    /// (spec v4, P5). The alarm rings, and the push says why — not that the notice is out of date.
+    func testANoticeTooFarAheadIsNotCalledOutOfDate() {
+        let day = calendar.date(byAdding: .day, value: 3, to: calendar.startOfDay(for: now))!
+        let alarm = calendar.date(bySettingHour: 7, minute: 0, second: 0, of: day)!
+        let announcement = feed("[停班停課通知]新竹縣尖石鄉:\(DayOffPushContent.dayLabel(alarm))停止上班、停止上課。行政院人事行政總處。")
+        let en = DayOffPushContent.evaluate(state: state(alarm: alarm), feed: announcement, now: now, chinese: false)
+        XCTAssertEqual(en.urgency, .related)
+        XCTAssertEqual(en.body, "The announcement is for a day further ahead than the app acts on, so your alarm stays on.\nSource: DGPA via NCDR")
+        let zh = DayOffPushContent.evaluate(state: state(alarm: alarm), feed: announcement, now: now, chinese: true)
+        XCTAssertEqual(zh.body, "公告日期超出可判斷範圍，維持原鬧鐘\n資料來源：行政院人事行政總處（經 NCDR 發布）")
+    }
+
     func testNoNotificationTextPromisesTomorrow() {
         let announcement = feed("[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。")
         for chinese in [true, false] {
