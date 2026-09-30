@@ -226,6 +226,9 @@ enum CommuteAlarmRefresher {
 
     static func refreshArmedAlarm() async -> Outcome {
         let viewModel = currentModel()
+        // An alarm replaced while it rang or snoozed, finished since: cancel it before it
+        // rings again at its old time, whatever the rest of this run does.
+        await SystemAlarmScheduler.retireSupersededAlarms()
 
         // Turned off, but a removal never finished (the app was suspended mid-cancel):
         // finish it here rather than leave an alarm the user turned off.

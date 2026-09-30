@@ -58,6 +58,13 @@ struct SystemAlarmScheduler: NotificationScheduling {
         return LocalNotificationScheduler.hasScheduledAlarmPlan
     }
 
+    /// A re-registration leaves a ringing or snoozing alarm to finish; once it has, this
+    /// cancels it before it rings again at its old time. Only AlarmKit leaves one (the
+    /// notification path carries its chain over), so below iOS 26 it does nothing.
+    static func retireSupersededAlarms() async {
+        if #available(iOS 26.0, *) { await AlarmKitScheduler().retireSupersededAlarms() }
+    }
+
     func requestAuthorization() async throws -> Bool {
         if #available(iOS 26.0, *) {
             return try await AlarmKitScheduler().requestAuthorization()

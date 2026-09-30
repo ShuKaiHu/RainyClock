@@ -45,6 +45,55 @@ import ActivityKit
 import AlarmKit
 import SwiftUI
 
+/// What the scheduler reads of one of its system alarms. `Alarm` has no public
+/// initializer, so a fake alarm list is written in these instead.
+@available(iOS 26.0, *)
+struct AlarmSnapshot: Equatable, Sendable {
+    var id: UUID
+    var state: Alarm.State
+    var schedule: Alarm.Schedule?
+    var countdownDuration: Alarm.CountdownDuration?
+}
+
+/// An alarm to register. `AlarmManager.AlarmConfiguration` does not expose what it
+/// holds, so the scheduler hands over the parts and the system side assembles it.
+@available(iOS 26.0, *)
+struct AlarmRequest: Sendable {
+    var schedule: Alarm.Schedule
+    var countdownDuration: Alarm.CountdownDuration?
+    var attributes: AlarmAttributes<CommuteAlarmMetadata>
+    var sound: AlertConfiguration.AlertSound
+}
+
+/// The part of `AlarmManager` the scheduler uses, so tests can run `AlarmKitScheduler`
+/// against a fake alarm list instead of the system's.
+@available(iOS 26.0, *)
+protocol AlarmKitManaging: Sendable {
+    /// Throws when the list cannot be read, never an empty list in its place.
+    func alarms() throws -> [AlarmSnapshot]
+    func schedule(id: UUID, request: AlarmRequest) async throws
+    func cancel(id: UUID) throws
+}
+
+@available(iOS 26.0, *)
+struct SystemAlarmManager: AlarmKitManaging {
+    func alarms() throws -> [AlarmSnapshot] {
+        try AlarmManager.shared.alarms.map {
+            AlarmSnapshot(id: $0.id, state: $0.state, schedule: $0.schedule, countdownDuration: $0.countdownDuration)
+        }
+    }
+
+    func schedule(id: UUID, request: AlarmRequest) async throws {
+        _ = try await AlarmManager.shared.schedule(id: id, configuration: AlarmManager.AlarmConfiguration(
+            countdownDuration: request.countdownDuration, schedule: request.schedule,
+            attributes: request.attributes, sound: request.sound))
+    }
+
+    func cancel(id: UUID) throws {
+        try AlarmManager.shared.cancel(id: id)
+    }
+}
+
 /// Schedules the commute alarm through AlarmKit (iOS 26+).
 ///
 /// Unlike a `UNNotificationRequest`, an AlarmKit alarm overrides silent mode and
@@ -56,9 +105,25 @@ struct AlarmKitScheduler: NotificationScheduling {
     private static let registrationQueue = AlarmRegistrationQueue()
     private static let logger = Logger(subsystem: "com.shukaihu.RainyClock", category: "AlarmKit")
     private static let calendarRegistrationsKey = "alarmKitCalendarRegistrations.v1"
+    /// Replaced alarms not cancelled yet — ringing or snoozing when they were replaced,
+    /// or a cancel that failed. See `retire(_:)`.
+    private static let supersededAlarmsKey = "alarmKitSupersededAlarms.v1"
 
     private enum RegistrationError: Error {
         case systemStateChanged
+    }
+
+    private let manager: any AlarmKitManaging
+    /// UserDefaults is thread-safe but not marked Sendable.
+    nonisolated(unsafe) private let defaults: UserDefaults
+    /// Retires the pre-26 notification alarms once AlarmKit has taken over.
+    private let cancelNotificationAlarms: @Sendable () async -> Void
+
+    init(manager: any AlarmKitManaging = SystemAlarmManager(), defaults: UserDefaults = .standard,
+         cancelNotificationAlarms: @escaping @Sendable () async -> Void = { await LocalNotificationScheduler.cancelScheduledAlarms() }) {
+        self.manager = manager
+        self.defaults = defaults
+        self.cancelNotificationAlarms = cancelNotificationAlarms
     }
 
     func requestAuthorization() async throws -> Bool {
@@ -128,9 +193,9 @@ struct AlarmKitScheduler: NotificationScheduling {
                 repeats: .weekly(ringWeekdays.sorted().compactMap(Self.localeWeekday))
             )
         )
-        let configuration = AlarmManager.AlarmConfiguration(
-            countdownDuration: snoozeMinutes.map { Alarm.CountdownDuration(preAlert: nil, postAlert: TimeInterval($0 * 60)) },
+        let request = AlarmRequest(
             schedule: schedule,
+            countdownDuration: snoozeMinutes.map { Alarm.CountdownDuration(preAlert: nil, postAlert: TimeInterval($0 * 60)) },
             attributes: attributes,
             sound: Self.alertSound(fileNamed: soundFileNameOverride)
         )
@@ -138,26 +203,26 @@ struct AlarmKitScheduler: NotificationScheduling {
         // Register the replacement before retiring what is already armed: if
         // scheduling throws, the user keeps the alarm they had instead of silently
         // ending up with none.
-        let supersededIdentifiers = try AlarmManager.shared.alarms.map(\.id)
         let identifier = UUID()
         try Task.checkCancellation()
         var retiringOldAlarms = false
+        var superseded: [AlarmSnapshot] = []
         do {
-            _ = try await AlarmManager.shared.schedule(id: identifier, configuration: configuration)
+            try await manager.schedule(id: identifier, request: request)
             try Task.checkCancellation()
+            // Read after that await, during which an old alarm may have started ringing.
+            superseded = try manager.alarms().filter { $0.id != identifier }
             retiringOldAlarms = true
-            for supersededIdentifier in supersededIdentifiers where supersededIdentifier != identifier {
-                try AlarmManager.shared.cancel(id: supersededIdentifier)
-            }
+            try retire(superseded)
         } catch {
-            if !retiringOldAlarms { try? AlarmManager.shared.cancel(id: identifier) }
+            if !retiringOldAlarms { try? manager.cancel(id: identifier) }
             throw error
         }
-        UserDefaults.standard.removeObject(forKey: Self.calendarRegistrationsKey)
+        defaults.removeObject(forKey: Self.calendarRegistrationsKey)
         // An upgraded install can still hold pending notification requests from the
         // pre-26 path; leaving them armed would ring twice.
-        await LocalNotificationScheduler.cancelScheduledAlarms()
-        Self.logger.info("Scheduled AlarmKit alarm \(identifier.uuidString, privacy: .public) on \(ringWeekdays.count, privacy: .public) weekdays, superseding \(supersededIdentifiers.count, privacy: .public)")
+        await cancelNotificationAlarms()
+        Self.logger.info("Scheduled AlarmKit alarm \(identifier.uuidString, privacy: .public) on \(ringWeekdays.count, privacy: .public) weekdays, superseding \(superseded.count, privacy: .public)")
     }
 
     func scheduleCalendar(_ plan: CalendarAlarmPlan, sound: CommuteAlarmSettings.AlarmSound,
@@ -170,11 +235,10 @@ struct AlarmKitScheduler: NotificationScheduling {
 
     private func performCalendar(_ plan: CalendarAlarmPlan, sound: CommuteAlarmSettings.AlarmSound,
                           soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws {
-        let manager = AlarmManager.shared
         // A read failure must not be mistaken for an empty alarm set.
-        let liveAlarms = try manager.alarms
+        let liveAlarms = try manager.alarms()
         let liveByID = Dictionary(uniqueKeysWithValues: liveAlarms.map { ($0.id, $0) })
-        let previous = Self.loadCalendarRegistrations()
+        let previous = loadCalendarRegistrations()
         let now = Date()
         let reusable = Set(previous.compactMap { registration -> UUID? in
             guard let alarm = liveByID[registration.id],
@@ -207,19 +271,21 @@ struct AlarmKitScheduler: NotificationScheduling {
                     presentation: Self.presentation(adjustedForRain: adjusted, snoozeMinutes: snoozeMinutes),
                     metadata: CommuteAlarmMetadata(adjustedForRain: adjusted, normalAlarmHour: time.hour ?? 7, normalAlarmMinute: time.minute ?? 30),
                     tintColor: Color.accentColor)
-                let alarmConfiguration = AlarmManager.AlarmConfiguration(
+                let request = AlarmRequest(
+                    schedule: .fixed(configuration.ringDate),
                     countdownDuration: snoozeMinutes.map { Alarm.CountdownDuration(preAlert: nil, postAlert: TimeInterval($0 * 60)) },
-                    schedule: .fixed(configuration.ringDate), attributes: attributes,
+                    attributes: attributes,
                     sound: Self.alertSound(fileNamed: configuration.soundFileNameOverride))
                 // Record the attempted ID before awaiting so cancellation or an
                 // uncertain error can still retire a partially registered alarm.
                 registered.append(registration.id)
-                _ = try await manager.schedule(id: registration.id, configuration: alarmConfiguration)
+                try await manager.schedule(id: registration.id, request: request)
             }
             try Task.checkCancellation()
             // A reused alarm can start ringing, be snoozed, or be deleted while
             // another schedule() call suspends us. Recheck before retiring old IDs.
-            let confirmed = Dictionary(uniqueKeysWithValues: try manager.alarms.map { ($0.id, $0) })
+            let confirmedAlarms = try manager.alarms()
+            let confirmed = Dictionary(uniqueKeysWithValues: confirmedAlarms.map { ($0.id, $0) })
             let confirmedAt = Date()
             guard registrations.allSatisfy({ registration in
                 guard let alarm = confirmed[registration.id] else { return false }
@@ -228,31 +294,56 @@ struct AlarmKitScheduler: NotificationScheduling {
             // An empty plan intentionally cancels the period. A cancellation
             // error leaves the saved mapping untouched and is reported upstream.
             retiringOldAlarms = true
-            for alarm in liveAlarms where !retainedIDs.contains(alarm.id) && alarm.state == .scheduled {
-                try manager.cancel(id: alarm.id)
-            }
-            UserDefaults.standard.set(storedRegistrations, forKey: Self.calendarRegistrationsKey)
+            try retire(confirmedAlarms.filter { !retainedIDs.contains($0.id) })
+            defaults.set(storedRegistrations, forKey: Self.calendarRegistrationsKey)
         } catch {
             if retiringOldAlarms {
                 // Some old IDs may already be gone. Preserve their replacements
                 // and retain identities for a later repair; the UI receives an
                 // error and does not claim a completed skip.
-                UserDefaults.standard.set(storedRegistrations, forKey: Self.calendarRegistrationsKey)
+                defaults.set(storedRegistrations, forKey: Self.calendarRegistrationsKey)
             } else {
                 for id in registered { try? manager.cancel(id: id) }
             }
             throw error
         }
-        await LocalNotificationScheduler.cancelScheduledAlarms()
+        await cancelNotificationAlarms()
     }
 
-    private static func loadCalendarRegistrations() -> [CalendarAlarmRegistration] {
-        guard let data = UserDefaults.standard.data(forKey: calendarRegistrationsKey),
+    /// Cancels the alarms a registration replaced, except one ringing or snoozing: that
+    /// is left to finish, since only turning the alarm off ends a snooze. What is not
+    /// cancelled is remembered until it is, and `retireSupersededAlarms` cancels it once
+    /// it is merely scheduled again — a weekly one would otherwise ring at its old time
+    /// on its next weekday. Replaces the whole record: every alarm it still covers is in
+    /// `superseded`.
+    private func retire(_ superseded: [AlarmSnapshot]) throws {
+        var remaining = Set(superseded.map(\.id))
+        defer { defaults.set(remaining.map(\.uuidString), forKey: Self.supersededAlarmsKey) }
+        for alarm in superseded where alarm.state == .scheduled {
+            try manager.cancel(id: alarm.id)
+            remaining.remove(alarm.id)
+        }
+    }
+
+    /// Cancels what `retire` had to leave once it has finished ringing and snoozing.
+    /// Called on activation and from background refresh; every registration does the
+    /// same for all the alarms it replaces.
+    func retireSupersededAlarms() async {
+        try? await Self.registrationQueue.run {
+            let superseded = Set((defaults.stringArray(forKey: Self.supersededAlarmsKey) ?? []).compactMap(UUID.init(uuidString:)))
+            guard !superseded.isEmpty else { return }
+            // A list that cannot be read keeps the record for the next pass.
+            try retire(manager.alarms().filter { superseded.contains($0.id) })
+        }
+    }
+
+    private func loadCalendarRegistrations() -> [CalendarAlarmRegistration] {
+        guard let data = defaults.data(forKey: Self.calendarRegistrationsKey),
               let registrations = try? JSONDecoder().decode([CalendarAlarmRegistration].self, from: data) else { return [] }
         return registrations
     }
 
-    private static func matchesScheduledAlarm(_ alarm: Alarm, registration: CalendarAlarmRegistration, now: Date) -> Bool {
+    private static func matchesScheduledAlarm(_ alarm: AlarmSnapshot, registration: CalendarAlarmRegistration, now: Date) -> Bool {
         let configuration = registration.configuration
         let expectedCountdown = configuration.snoozeMinutes.map {
             Alarm.CountdownDuration(preAlert: nil, postAlert: TimeInterval($0 * 60))
@@ -281,20 +372,23 @@ struct AlarmKitScheduler: NotificationScheduling {
         do { return try !AlarmManager.shared.alarms.isEmpty } catch { return true }
     }
 
-    /// Cancels every alarm this app owns. One failed cancel must not leave the rest armed
-    /// — turning the alarm off depends on this — so each is tried, and a second pass
-    /// catches what the first missed.
+    /// Cancels every alarm this app owns — a ringing or snoozing one too. One failed cancel
+    /// must not leave the rest armed — turning the alarm off depends on this — so each is
+    /// tried, and a second pass catches what the first missed.
     func cancelScheduledAlarms() async {
         try? await Self.registrationQueue.run {
             try Task.checkCancellation()
             var unreadable = false
             for _ in 0..<2 {
-                guard let identifiers = try? AlarmManager.shared.alarms.map(\.id) else { unreadable = true; break }
+                guard let identifiers = try? manager.alarms().map(\.id) else { unreadable = true; break }
                 if identifiers.isEmpty { break }
-                for identifier in identifiers { try? AlarmManager.shared.cancel(id: identifier) }
+                for identifier in identifiers { try? manager.cancel(id: identifier) }
             }
             // Keep the bookkeeping while the list could not be read: a later pass needs it.
-            if !unreadable { UserDefaults.standard.removeObject(forKey: Self.calendarRegistrationsKey) }
+            if !unreadable {
+                defaults.removeObject(forKey: Self.calendarRegistrationsKey)
+                defaults.removeObject(forKey: Self.supersededAlarmsKey)
+            }
         }
     }
 

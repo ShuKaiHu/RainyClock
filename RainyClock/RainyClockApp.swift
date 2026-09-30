@@ -82,6 +82,10 @@ struct RainyClockApp: App {
         Task {
             await LocalNotificationScheduler().rearmAlarmsIfNeeded()
         }
+        // An AlarmKit alarm replaced while it rang or snoozed, and finished since.
+        Task {
+            await SystemAlarmScheduler.retireSupersededAlarms()
+        }
     }
 
     private var mainContent: some View {
