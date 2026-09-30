@@ -119,7 +119,7 @@ final class MembershipStoreKitTests: XCTestCase {
         XCTAssertEqual(monthly.subscription?.subscriptionPeriod.unit, .month)
         XCTAssertEqual(lifetime.type, .nonConsumable)
         XCTAssertEqual(monthly.price, 1)
-        XCTAssertEqual(lifetime.price, 10)
+        XCTAssertEqual(lifetime.price, 15)
         XCTAssertFalse(monthly.displayPrice.isEmpty)
         let token = UUID()
         guard case .success(.verified(let purchase)) = try await monthly.purchase(options: [.appAccountToken(token)]) else {
@@ -204,7 +204,7 @@ final class MembershipStoreKitTests: XCTestCase {
         _ = await (first, second)
         XCTAssertEqual(Set(manager.products.keys), Set(MembershipPlan.offeredPlans))
         XCTAssertEqual(manager.products[.monthly]?.price, 1)
-        XCTAssertEqual(manager.products[.lifetime]?.price, 10)
+        XCTAssertEqual(manager.products[.lifetime]?.price, 15)
         XCTAssertNil(manager.productMessage)
         XCTAssertFalse(manager.isLoadingProducts)
         XCTAssertFalse(manager.isBusy)
