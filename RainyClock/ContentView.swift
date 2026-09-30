@@ -55,6 +55,9 @@ struct ContentView: View {
             // Membership verification is not a prerequisite for this prompt.
             await consentManager.requestConsentThenStartAds()
             Task { await membership.start() }
+            // The plan this install last had confirmed, before anything below decides the
+            // closure rule with it; `start()` only reaches it after loading products.
+            await viewModel.loadMembershipEntitlements()
             if !AppEnvironment.isRunningTests { viewModel.activateAutomaticScheduling() }
             Task { await DisasterPushRegistration.shared.update(enabled: viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled) }
             // The armed alarm repeats weekly with the rain decision that was current
@@ -74,8 +77,14 @@ struct ContentView: View {
 
             // Retry a deferred ATT request or failed SDK init on activation.
             Task { await consentManager.requestConsentThenStartAds() }
-            Task { await DisasterPushRegistration.shared.update(enabled: viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled) }
+            // Both wait for the launch's plan restore (immediate once restored): decided on
+            // no plan, a subscriber's closure push registration and skips would be dropped.
             Task {
+                await viewModel.loadMembershipEntitlements()
+                await DisasterPushRegistration.shared.update(enabled: viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled)
+            }
+            Task {
+                await viewModel.loadMembershipEntitlements()
                 await viewModel.refreshScheduledAlarmIfWeatherIsStale()
             }
         }

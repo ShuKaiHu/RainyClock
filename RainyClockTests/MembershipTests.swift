@@ -1090,9 +1090,23 @@ final class MembershipSchedulingTests: XCTestCase {
         return summary
     }
 
-    func testUnknownMembershipAndDisabledRolloutKeepSavedRules() {
+    func testDisabledRolloutKeepsSavedRules() {
         let saved = savedSettings()
-        XCTAssertEqual(MembershipSchedulingAccess.effectiveSettings(saved, entitlements: nil), saved)
+        XCTAssertEqual(MembershipSchedulingAccess.effectiveSettings(saved, entitlements: nil, membershipConfigured: false), saved)
+    }
+
+    /// A missing sync is not a revocation of the calendar, but the closure rule only takes
+    /// rings away: with nothing confirmed (not restored yet in this launch, never synced,
+    /// membership data deleted) the alarm rings (adversarial review, 2026-10-01).
+    func testUnknownMembershipKeepsTheCalendarButNotTheClosureRule() {
+        let saved = savedSettings()
+        let effective = MembershipSchedulingAccess.effectiveSettings(saved, entitlements: nil, membershipConfigured: true)
+        XCTAssertEqual(effective.calendarSettings, saved.calendarSettings)
+        XCTAssertFalse(effective.isDisasterSuspensionEnabled)
+        XCTAssertTrue(saved.isDisasterSuspensionEnabled, "the saved preference is kept for when a plan is confirmed")
+        var unmasked = effective
+        unmasked.isDisasterSuspensionEnabled = true
+        XCTAssertEqual(unmasked, saved, "nothing but the closure rule is held back")
     }
 
     func testFreeAccessMasksCopyWithoutErasingCalendarOrClosurePreferences() {
@@ -1242,7 +1256,8 @@ final class TemporaryClosureControlStateTests: XCTestCase {
         var settings = CommuteAlarmSettings()
         settings.isDisasterSuspensionEnabled = saved
         let scheduling = configured ? snapshot : nil
-        let applied = MembershipSchedulingAccess.effectiveSettings(settings, entitlements: scheduling).isDisasterSuspensionEnabled
+        let applied = MembershipSchedulingAccess.effectiveSettings(settings, entitlements: scheduling,
+                                                                   membershipConfigured: configured).isDisasterSuspensionEnabled
         let state = TemporaryClosureControlState.resolve(membershipConfigured: configured,
             entitlements: snapshot?.valid(at: now) ?? .free, schedulingEntitlements: scheduling,
             savedEnabled: saved, appliedEnabled: applied)
@@ -1329,14 +1344,16 @@ final class TemporaryClosureControlStateTests: XCTestCase {
         assertCaptionMatchesScheduling(result)
     }
 
-    /// Configured service with no snapshot (before the first sync, after membership data
-    /// deletion, App Attest failing): scheduling passes the saved rule through.
-    func testAMissingSnapshotIsUnconfirmedAndStillApplied() {
+    /// Configured service with no snapshot (not restored yet, before the first sync, after
+    /// membership data deletion): the plan is unconfirmed, not locked, but scheduling does not
+    /// apply the rule — it only takes rings away (adversarial review, 2026-10-01).
+    func testAMissingSnapshotIsUnconfirmedAndNotApplied() {
         let result = resolve(snapshot: nil, saved: true)
         XCTAssertEqual(result.state.access, .unconfirmed)
-        XCTAssertTrue(result.applied)
-        XCTAssertFalse(result.state.keepsSavedRuleUnapplied)
-        XCTAssertTrue(result.state.savedRuleStillApplied)
+        XCTAssertFalse(result.applied)
+        XCTAssertTrue(result.state.keepsSavedRuleUnapplied)
+        XCTAssertFalse(result.state.savedRuleStillApplied)
+        XCTAssertTrue(result.state.allowsToggle, "the saved rule can still be turned off")
         XCTAssertFalse(result.state.offersPlans)
         assertCaptionMatchesScheduling(result)
     }

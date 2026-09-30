@@ -35,6 +35,8 @@ final class MembershipManager: ObservableObject {
     private var productLoadTask: Task<Void, Never>?
     private var localRefreshVersion = 0
     private var started = false
+    /// The restore `restoreSchedulingEntitlements()` has in flight; `start()` joins it.
+    private var schedulingRestore: Task<Void, Never>?
     private var accountIdentity: String?
     private var latestDiagnostic: MembershipDiagnostic?
     private var storefrontCountryCode: String?
@@ -51,7 +53,9 @@ final class MembershipManager: ObservableObject {
     var entitlements: MembershipEntitlements { snapshot?.entitlements.valid(at: Date()) ?? .free }
     var canUseAdvancedRules: Bool { entitlements.calendar }
     /// Last server-confirmed rights, intentionally not recomputed from a phone clock.
-    /// Failure to refresh must never reinterpret an existing alarm's paid rules.
+    /// Failure to refresh must never reinterpret an existing alarm's paid rules. Without
+    /// a snapshot the closure rule is not applied (`MembershipSchedulingAccess`), so
+    /// scheduling restores one first (`restoreSchedulingEntitlements()`).
     var schedulingEntitlements: MembershipEntitlements? {
         isConfigured ? snapshot?.entitlements : nil
     }
@@ -109,6 +113,9 @@ final class MembershipManager: ObservableObject {
         if isLocalStoreKitTesting { await refreshLocalStoreKitState() }
         else {
             do {
+                // Join a restore scheduling began: two first activations racing expire
+                // each other's identity generation, and this one would fail as expired.
+                await restoreSchedulingEntitlements()
                 guard let current = try await prepareCurrentContext() else { throw MembershipError.sessionExpired }
                 retryPendingJournalDeletion()
                 if !dataDeleted {
@@ -132,6 +139,23 @@ final class MembershipManager: ObservableObject {
                 }
             } catch { report(error, at: .startup) }
         }
+    }
+
+    /// Restores the last server-confirmed rights this install keeps — the cached snapshot
+    /// `activateVerifiedContext` reads once StoreKit has verified the environment — with no
+    /// sync and no sign-in sheet. Scheduling needs them before it decides anything: a
+    /// background task or push launch never reaches `start()`, and the foreground launch
+    /// schedules while `start()` is still loading products. A failure leaves them unknown.
+    func restoreSchedulingEntitlements() async {
+        guard isConfigured, !isLocalStoreKitTesting, routing == nil else { return }
+        if let schedulingRestore {
+            await schedulingRestore.value
+            return
+        }
+        let restore = Task { _ = try? await self.prepareCurrentContext() }
+        schedulingRestore = restore
+        await restore.value
+        schedulingRestore = nil
     }
 
     func refresh() async {

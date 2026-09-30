@@ -230,6 +230,10 @@ enum CommuteAlarmRefresher {
         // rings again at its old time, whatever the rest of this run does.
         await SystemAlarmScheduler.retireSupersededAlarms()
 
+        // A background launch never reaches `MembershipManager.start()`: without this the
+        // closure rule would be decided on no plan at all.
+        await viewModel.loadMembershipEntitlements()
+
         // Turned off, but a removal never finished (the app was suspended mid-cancel):
         // finish it here rather than leave an alarm the user turned off.
         if !viewModel.settings.isAlarmEnabled {

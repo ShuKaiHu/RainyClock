@@ -531,9 +531,17 @@ enum MembershipText {
 enum MembershipSchedulingAccess {
     /// A missing/failed membership sync is not a revocation. Callers supply only a
     /// previously server-verified snapshot, or nil while rollout is disabled/unknown.
-    static func effectiveSettings(_ saved: CommuteAlarmSettings,
-                                  entitlements: MembershipEntitlements?) -> CommuteAlarmSettings {
-        guard let entitlements else { return saved }
+    ///
+    /// Unknown keeps the saved calendar, but not the closure rule: it only ever takes a
+    /// ring away, so with the service configured and no snapshot (not restored yet in this
+    /// launch, never synced, membership data deleted) the alarm rings.
+    static func effectiveSettings(_ saved: CommuteAlarmSettings, entitlements: MembershipEntitlements?,
+                                  membershipConfigured: Bool = true) -> CommuteAlarmSettings {
+        guard let entitlements else {
+            var effective = saved
+            if membershipConfigured { effective.isDisasterSuspensionEnabled = false }
+            return effective
+        }
         var effective = saved
         if !entitlements.calendar { effective.calendarSettings.isEnabled = false }
         if !entitlements.temporaryClosures { effective.isDisasterSuspensionEnabled = false }
@@ -549,17 +557,19 @@ enum MembershipSchedulingAccess {
 /// clock-validated `MembershipManager.entitlements` (what the plan screen shows), but
 /// whether the rule is *applied* is whatever scheduling does with
 /// `MembershipManager.schedulingEntitlements` — the raw server-confirmed snapshot, or
-/// nil (saved settings pass through) when there is none. So the caller passes
-/// `appliedEnabled` from `AlarmViewModel.effectiveSchedulingSettings`, and anything the
-/// screen says about the rule being applied comes from that, never from the lock.
+/// nil (the saved calendar passes through, the closure rule does not) when there is none.
+/// So the caller passes `appliedEnabled` from `AlarmViewModel.effectiveSchedulingSettings`,
+/// and anything the screen says about the rule being applied comes from that, never from
+/// the lock.
 struct TemporaryClosureControlState: Equatable, Sendable {
     enum Access: Equatable, Sendable {
         /// The membership service is off, or the plan includes the rule.
         case available
         /// Scheduling has no server-confirmed plan (no snapshot yet, after membership
         /// data deletion, or App Attest failing), or it still holds a confirmed plan
-        /// with the rule that the phone clock says has lapsed. Scheduling passes the
-        /// saved rule through in both, so the screen must not call the plan locked.
+        /// with the rule that the phone clock says has lapsed. Neither is a plan without
+        /// the rule, so the screen must not call the plan locked — though only the second
+        /// still applies the saved rule.
         case unconfirmed
         /// A confirmed plan without the rule.
         case locked

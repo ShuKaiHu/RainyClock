@@ -543,6 +543,81 @@ final class DisasterIntegrationTests: XCTestCase {
         XCTAssertEqual(calls, 0)
     }
 
+    // MARK: - Before the plan is known (adversarial review, 2026-10-01)
+
+    /// Registers the next 07:30 alarm for a subscriber, so the closure rule is in the fingerprint.
+    private func storeSubscriberRegistration(in storage: UserDefaults) async throws {
+        let next = calendar.date(byAdding: .day, value: 1, to: Date())!
+        var value = settings()
+        value.alarmTime = calendar.date(bySettingHour: 7, minute: 30, second: 0, of: next)!
+        try storage.set(JSONEncoder().encode(value), forKey: "commuteAlarmSettings")
+        let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+            autoRefreshDebounce: .seconds(60),
+            disasterFeedProvider: FeedStub(value: .success(.init(checkedAt: Date(), notices: []))),
+            disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
+        await model.evaluateRouteAndScheduleAlarm()
+        XCTAssertTrue(model.hasScheduledAlarm)
+        XCTAssertFalse(model.isScheduleStale)
+    }
+
+    /// A background task or a push launch never reaches `MembershipManager.start()`, so the
+    /// model saw no plan — and no plan passed the saved closure rule through, so a lapsed
+    /// subscriber's alarm was still skipped for an announced closure. The rule only takes
+    /// rings away: until a plan is confirmed, the alarm rings.
+    func testWithoutAConfirmedPlanAnAnnouncedClosureDoesNotSkipTheAlarm() async throws {
+        let suite = "DisasterUnconfirmedPlan-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        try await storeSubscriberRegistration(in: storage)
+        let provider = FeedStub(value: .success(feed(now: Date())))
+        let reporter = DisasterReceiptSpy()
+        let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+            disasterFeedProvider: provider, disasterSyncReporter: reporter,
+            membershipEntitlements: { nil }, membershipConfigured: { true }, supportsTemporaryClosures: true)
+        XCTAssertFalse(model.effectiveSchedulingSettings.isDisasterSuspensionEnabled)
+        _ = await model.refreshScheduledAlarmUnattended()
+        XCTAssertNil(model.nextAppliedDisasterSkip, "Nothing confirms the plan includes the rule, so the alarm must ring")
+        XCTAssertTrue(model.hasScheduledAlarm)
+        XCTAssertTrue(reporter.receipts.isEmpty, "Nothing was applied, so nothing is acknowledged")
+        XCTAssertTrue(model.settings.isDisasterSuspensionEnabled, "The saved preference is kept for when a plan is confirmed")
+        let calls = await provider.calls
+        XCTAssertEqual(calls, 0)
+    }
+
+    /// The other half: the model is built before anything restores the plan (the app's first
+    /// body, or an earlier run), so the background task, the push and the launch restore it
+    /// before deciding. A subscriber keeps the closure, and the registration judged against no
+    /// plan is judged again; a confirmed lapse, or nothing to restore, rings.
+    func testTheRestoredPlanDecidesTheClosure() async throws {
+        let lapsed = MembershipEntitlements(removeBanner: false, calendar: false, temporaryClosures: false,
+            dailyAI: false, subscriptionActive: false, lifetimeActive: false, subscriptionExpiresAt: 1,
+            subscriptionProductId: MembershipPlan.monthly.rawValue)
+        final class Restore { var plan: MembershipEntitlements?; var count = 0 }
+        let cases: [(plan: MembershipEntitlements?, skips: Bool)] = [(Self.closureEntitlements, true), (lapsed, false), (nil, false)]
+        for (plan, skips) in cases {
+            let suite = "DisasterRestoredPlan-\(UUID())"
+            let storage = UserDefaults(suiteName: suite)!
+            defer { storage.removePersistentDomain(forName: suite) }
+            try await storeSubscriberRegistration(in: storage)
+            let restore = Restore()
+            let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+                disasterFeedProvider: FeedStub(value: .success(feed(now: Date()))),
+                disasterSyncReporter: DisasterReceiptSpy(),
+                membershipEntitlements: { restore.plan }, membershipConfigured: { true },
+                restoreMembershipEntitlements: { restore.count += 1; restore.plan = plan },
+                supportsTemporaryClosures: true)
+            XCTAssertTrue(model.isScheduleStale, "Judged against no plan, the closure registration looks outdated")
+            await model.loadMembershipEntitlements()
+            XCTAssertEqual(restore.count, 1)
+            XCTAssertEqual(model.isScheduleStale, !skips, "Judged again against the restored plan")
+            _ = await model.refreshDisasterSuspensions(force: true)
+            XCTAssertEqual(model.nextAppliedDisasterSkip?.noticeIDs, skips ? ["dgpa-test"] : nil)
+            XCTAssertTrue(model.hasScheduledAlarm)
+            XCTAssertTrue(model.settings.isDisasterSuspensionEnabled)
+        }
+    }
+
     // MARK: - Between an early ring and the normal time (adversarial review, 2026-09-29)
 
     /// Stores a dated registration made before this morning's early (rain) ring, which has

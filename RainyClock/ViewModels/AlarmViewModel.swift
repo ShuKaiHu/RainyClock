@@ -143,11 +143,14 @@ final class AlarmViewModel: ObservableObject {
     private let canRefreshInBackground: @MainActor () -> Bool
     private let settingsStorage: UserDefaults
     private let membershipEntitlements: @MainActor () -> MembershipEntitlements?
+    private let membershipConfigured: @MainActor () -> Bool
+    private let restoreMembershipEntitlements: @MainActor () async -> Void
     private let supportsTemporaryClosures: Bool
 
     /// Rights constrain a scheduling copy only; saved premium rules remain recoverable.
     var effectiveSchedulingSettings: CommuteAlarmSettings {
-        var effective = MembershipSchedulingAccess.effectiveSettings(settings, entitlements: membershipEntitlements())
+        var effective = MembershipSchedulingAccess.effectiveSettings(settings, entitlements: membershipEntitlements(),
+                                                                     membershipConfigured: membershipConfigured())
         if !supportsTemporaryClosures { effective.isDisasterSuspensionEnabled = false }
         return effective
     }
@@ -215,6 +218,10 @@ final class AlarmViewModel: ObservableObject {
         disasterFeedProvider: (any DisasterFeedProviding)? = nil,
         disasterSyncReporter: (any DisasterSyncReporting)? = nil,
         membershipEntitlements: @escaping @MainActor () -> MembershipEntitlements? = { MembershipManager.shared.schedulingEntitlements },
+        membershipConfigured: @escaping @MainActor () -> Bool = { MembershipManager.shared.isConfigured },
+        restoreMembershipEntitlements: @escaping @MainActor () async -> Void = {
+            await MembershipManager.shared.restoreSchedulingEntitlements()
+        },
         supportsTemporaryClosures: Bool = AppEnvironment.supportsTemporaryClosures,
         dayOffPushReceivedAt: @escaping () -> Date? = {
             AppEnvironment.isRunningTests ? nil : DayOffPushMarker.lastReceivedAt()
@@ -247,6 +254,8 @@ final class AlarmViewModel: ObservableObject {
         self.canRefreshInBackground = canRefreshInBackground
         self.settingsStorage = settingsStorage
         self.membershipEntitlements = membershipEntitlements
+        self.membershipConfigured = membershipConfigured
+        self.restoreMembershipEntitlements = restoreMembershipEntitlements
         self.supportsTemporaryClosures = supportsTemporaryClosures
         self.dayOffPushReceivedAt = dayOffPushReceivedAt
         self.alarmInProgress = alarmInProgress
@@ -293,6 +302,16 @@ final class AlarmViewModel: ObservableObject {
         lastWeatherEvaluationAt = settingsStorage.object(forKey: Self.lastEvaluationStorageKey) as? Date
         updateScheduleStaleness()
         updateAlarmKitRescheduleNotice()
+    }
+
+    /// Restores the plan this install last had confirmed, for a launch, background task or
+    /// push to call before it decides anything with it: without one the closure rule is not
+    /// applied. The model is built before that (the app's first body, or an earlier run),
+    /// so what was judged against no plan is judged again here.
+    func loadMembershipEntitlements() async {
+        await restoreMembershipEntitlements()
+        updateScheduleStaleness()
+        mirrorDayOffSharedState()
     }
 
     /// Re-decides the armed alarm against current weather when the stored decision has

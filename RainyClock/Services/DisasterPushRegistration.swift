@@ -15,6 +15,8 @@ final class DisasterPushDelegate: NSObject, UIApplicationDelegate {
               userInfo["type"] as? String == "dayoff-sync" else { completionHandler(.noData); return }
         Task { @MainActor in
             let model = CommuteAlarmRefresher.currentModel()
+            // A push launch never reaches `MembershipManager.start()` either.
+            await model.loadMembershipEntitlements()
             guard model.effectiveSchedulingSettings.isDisasterSuspensionEnabled else { completionHandler(.noData); return }
             let changed = await model.refreshDisasterSuspensions(force: true)
             // Synchronously, as the BGTask path does: the publisher's debounce would
