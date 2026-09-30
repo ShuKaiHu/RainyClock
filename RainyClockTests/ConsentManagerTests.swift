@@ -243,6 +243,17 @@ final class ConsentManagerTests: XCTestCase {
         XCTAssertEqual(f.events, ["ATT", "init", "ready"])
     }
 
+    /// The privacy policy (en and zh) promises the consent sheet in the EEA, the UK and
+    /// Switzerland. Switzerland is in neither the EU nor the EEA, so nothing implies it.
+    func testConsentRegionsAreTheEEAPlusTheUKAndSwitzerland() {
+        let eu: Set<String> = [
+            "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "HU",
+            "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK",
+        ]
+        XCTAssertEqual(eu.count, 27)
+        XCTAssertEqual(ConsentManager.gdprRegions, eu.union(["IS", "LI", "NO", "GB", "CH"]))
+    }
+
     func testDisabledConsentEnvironmentNeverCallsPermissionOrSDK() async {
         let f = fixture()
         f.allowsConsent = false

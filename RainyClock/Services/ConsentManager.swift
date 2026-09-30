@@ -355,11 +355,14 @@ final class ConsentManager: ObservableObject {
     }
     #endif
 
-    /// EEA members plus the UK.
-    private static let gdprRegions: Set<String> = [
+    /// EEA members, the UK, and Switzerland — the regions the privacy policy
+    /// promises the consent sheet to. Switzerland is outside the EEA, so it is
+    /// listed on its own. Internal so tests can hold the list to the policy.
+    static let gdprRegions: Set<String> = [
         "AT", "BE", "BG", "HR", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR",
         "GB", "GR", "HU", "IE", "IS", "IT", "LI", "LT", "LU", "LV", "MT", "NL",
         "NO", "PL", "PT", "RO", "SE", "SI", "SK",
+        "CH",
     ]
 }
 
