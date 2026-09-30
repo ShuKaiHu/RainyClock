@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A77000012C00000000000001 /* ConsentManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77000012C00000000000002 /* ConsentManagerTests.swift */; };
 		A77000022C00000000000001 /* NotificationResponseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77000022C00000000000002 /* NotificationResponseTests.swift */; };
+		A77000032C00000000000001 /* LocalNotificationSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A77000032C00000000000002 /* LocalNotificationSchedulerTests.swift */; };
 		D0FF0001A1B2C3D4E5F60001 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FF0002A1B2C3D4E5F60001 /* NotificationService.swift */; };
 		D0FF0001A1B2C3D4E5F60002 /* DisasterSuspension.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADAB6B006C9443C388B4BC1B /* DisasterSuspension.swift */; };
 		D0FF0001A1B2C3D4E5F60003 /* DayOffSharedState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FF0002A1B2C3D4E5F60004 /* DayOffSharedState.swift */; };
@@ -173,6 +174,7 @@
 /* Begin PBXFileReference section */
 		A77000012C00000000000002 /* ConsentManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentManagerTests.swift; sourceTree = "<group>"; };
 		A77000022C00000000000002 /* NotificationResponseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationResponseTests.swift; sourceTree = "<group>"; };
+		A77000032C00000000000002 /* LocalNotificationSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationSchedulerTests.swift; sourceTree = "<group>"; };
 		D0FF0002A1B2C3D4E5F60001 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		D0FF0002A1B2C3D4E5F60002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D0FF0002A1B2C3D4E5F60003 /* RainyClockDayOffNotification.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RainyClockDayOffNotification.entitlements; sourceTree = "<group>"; };
@@ -489,6 +491,7 @@
 				904B2BF979344A6ABB930E70 /* MembershipTests.swift */,
 				A77000012C00000000000002 /* ConsentManagerTests.swift */,
 				A77000022C00000000000002 /* NotificationResponseTests.swift */,
+				A77000032C00000000000002 /* LocalNotificationSchedulerTests.swift */,
 				7B2C65ECC2D44837BE727569 /* MembershipLegacyPriceProbeTests.swift */,
 				0A1000462C00000000000002 /* AlarmTimeCalculatorTests.swift */,
 				0A1000872C00000000000002 /* WeatherSampleMapperTests.swift */,
@@ -747,6 +750,7 @@
 				E7CE6E8A17D7416586EF18D6 /* MembershipTests.swift in Sources */,
 				A77000012C00000000000001 /* ConsentManagerTests.swift in Sources */,
 				A77000022C00000000000001 /* NotificationResponseTests.swift in Sources */,
+				A77000032C00000000000001 /* LocalNotificationSchedulerTests.swift in Sources */,
 				38ABA2C657074798B222B397 /* MembershipLegacyPriceProbeTests.swift in Sources */,
 				0A10000B2C00000000000001 /* AlarmTimeCalculatorTests.swift in Sources */,
 				0A1000102C00000000000001 /* WeatherSampleMapperTests.swift in Sources */,
