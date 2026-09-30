@@ -19,7 +19,7 @@ AI 完整生成／下載、S2S 廣告與其他驗收請依最新
 > **2026-09-28 擁有者決定：1.8.0 起臨時放假規則月訂閱與買斷都包含，免費不含**
 > （[產品決策](PRODUCT_DECISIONS.md)）。伺服器 `deriveEntitlements` 的 `temporaryClosures` 改為
 > 買斷或訂閱任一有效，買斷在訂閱到期後仍保有此規則，與日曆相同。正式會員服務
-> `rainyclock-membership` 須在 1.8.0 發布前重新部署，目前仍對買斷回 `false`。
+> `rainyclock-membership` 已於 2026-09-30 重新部署（`rainyclock-membership-00006-hnb`），買斷現在也回 `true`。
 
 ## 最新方案目錄 — 2026-09-21
 
@@ -390,7 +390,7 @@ Both include banner removal, calendar and one shared daily AI generation. Additi
 require a verified rewarded ad. Annual is off sale, historical valid transactions remain supported,
 and temporary disaster closures are not public in 1.7.0. From 1.8.0 the closure rule is included
 with both monthly and lifetime and not with free (owner decision 2026-09-28); the production
-membership service must be redeployed before 1.8.0 ships. Lifetime outranks monthly in the displayed
+membership service was redeployed with this rule on 2026-09-30 (rainyclock-membership-00006-hnb). Lifetime outranks monthly in the displayed
 plan without silently cancelling an Apple subscription. Free membership receives one initial
 allowance, and each eligible legacy identity receives a fixed migration allowance of one only once;
 unverified client ad-balance claims stay quarantined rather than increasing server credit.

@@ -226,9 +226,11 @@ Last updated: 2026-09-26.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
-- **2026-09-29：正式會員服務重新部署——擁有者已同意，映像已建好，等擁有者在自己的終端機執行部署**（auto mode 的
-  安全檢查不允許 Claude 部署正式環境）。映像 `rainyclock-membership@sha256:463da306…`（標籤
+- **2026-09-30：正式會員服務已重新部署——`rainyclock-membership-00006-hnb`，100% 流量**（擁有者 9/29 同意；9/29 第一次被 auto mode
+  安全檢查擋下，9/30 擁有者要求再跑一次後通過）。映像 `rainyclock-membership@sha256:463da306…`（標籤
   `lifetime-closures-20260929`，來源與 sandbox 已驗證的版本相同）；和線上版比對過，只多買斷也給臨時放假那一行。
+  部署前後比對：環境變數、secret 參照、容器設定、服務帳號都沒變；`/health` 200，新 revision 無錯誤記錄。
+  唯一差異：revision 的 `maxScale` 由未設定變成 20（gcloud 548 帶入；其他服務是 1／3／3，並行 10，足夠）。
   回退：`gcloud run services update-traffic rainyclock-membership --region=asia-east1 --to-revisions=rainyclock-membership-00005-5pm=100`。
 - **2026-09-29：買斷調價決定——US$15／NT$150（原 US$10／NT$100），月訂閱不變**；同時再次確認臨時放假給月訂閱與買斷
   （[產品決策](PRODUCT_DECISIONS.md)）。App 用 StoreKit 當地價格，不改程式；本機 `RainyClockMembership.storekit` 已改 15.00。
@@ -271,9 +273,9 @@ Last updated: 2026-09-26.
   - 工作樹已改：伺服器 `deriveEntitlements` 與 iOS `MembershipEntitlements.valid(at:)`／本機 StoreKit 讀取的
     `temporaryClosures` 改為買斷或訂閱任一有效；會員頁每張付費方案卡都列「颱風臨時放假」，「買斷已涵蓋其他權益」
     按鈕文字拿掉；鎖頭一行（現在只有免費會看到）改為「訂閱或買斷可使用臨時放假規則」。測試同步更新。
-  - Sandbox 會員服務正隨此變更重新部署。**正式會員服務 `rainyclock-membership` 尚未重新部署，仍對買斷回
-    `temporaryClosures=false`；1.8.0 發布前必須部署**（權益以伺服器為準，不部署的話買斷使用者在 1.8.0 會看到
-    鎖住的開關）。1.7.1 的 gate 為 false、不讀這個欄位，可以先部署。
+  - Sandbox 會員服務正隨此變更重新部署。正式會員服務 `rainyclock-membership` 當時尚未重新部署
+    （**2026-09-30 已部署 `rainyclock-membership-00006-hnb`**，見上）；權益以伺服器為準，不部署的話買斷使用者在 1.8.0 會看到
+    鎖住的開關。1.7.1 的 gate 為 false、不讀這個欄位，可以先部署。
   - `appstore-metadata.md` 的 1.8.0 What's New 與審查說明已改成定案的方案說法，方括號備註已刪除。
     ASC 買斷／月訂閱的商品說明若要列出臨時放假，由擁有者在 ASC 修改。
 
@@ -293,7 +295,7 @@ Last updated: 2026-09-26.
     StoreKit 測試環境初始化失敗（`SKInternalErrorDomain 3`，App 程式執行前），送審 archive 前要在 Xcode 裡重跑。**
     dayoff-service 120 項（Emulator 全過）。
   - 還沒做：**真機驗證**（見 `dayoff-service/DEPLOYMENT.md` 的 sandbox 手機步驟）、擁有者的權益決定（9/28 已完成）、
-    **正式會員服務重新部署**、ASC 隱私問卷與截圖、archive／上傳。
+    正式會員服務重新部署（9/30 已完成）、ASC 隱私問卷與截圖、archive／上傳。
 
 - **工作樹已全部提交到 `ios/main`**（四個 commit：App 與測試、weather-proxy 會員後端、
   dayoff-service 與天災文件、其餘文件與素材）。1.7.0（34）送審的原始碼從此有 git 紀錄；

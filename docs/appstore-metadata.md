@@ -925,8 +925,8 @@ included with **both** plans. Lifetime (`com.shukaihu.RainyClock.banner.lifetime
 banner removal, calendar, one shared daily AI generation **and the temporary closure rule**,
 permanently, like the calendar; monthly grants the same while active; free does not include it.
 The 1.8.0 What's New and review-note drafts above state this. The production membership service
-(`rainyclock-membership`) must be redeployed before 1.8.0 is released; until then it returns
-`temporaryClosures=false` for lifetime owners.
+(`rainyclock-membership`) was redeployed with this rule on 2026-09-30 (rainyclock-membership-00006-hnb), so lifetime
+owners now receive `temporaryClosures=true`.
 
 Current lifetime descriptions — saved and read back in ASC on 2026-09-21 (not submitted):
 

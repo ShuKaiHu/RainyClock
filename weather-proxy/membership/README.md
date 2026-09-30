@@ -36,7 +36,7 @@ ASC 買斷中英說明已保存並讀回，未更新正式會員服務。確切�
   買斷優先作為顯示層級；仍保存實際訂閱／續訂資料。
 - 臨時放假（`temporaryClosures`，iOS 1.8.0）：2026-09-28 擁有者決定有效買斷或有效月訂閱都包含，
   免費不含；`deriveEntitlements` 為 `lifetimeActive || subscriptionActive`，訂閱到期而買斷有效時保留。
-  正式服務 `rainyclock-membership` 須在 1.8.0 發布前重新部署才會回傳新值。
+  正式服務 `rainyclock-membership` 已於 2026-09-30 重新部署（`rainyclock-membership-00006-hnb`），回傳新值。
 - 生成結果可靠保存到後端後才扣次數；失敗退回原本的每日、免費或廣告額度。
   播放手機已保存的音檔不扣次數。同一請求重新下載不扣次數。
 - 到期時不清除手機設定或既有排程；沒有有效買斷等日曆權益時，App 下次安全重排才
@@ -317,8 +317,7 @@ calendar if lifetime is still valid. Free initial one and extra-generation rewar
 Future disaster-closure lifetime eligibility is not decided (superseded 2026-09-28: the owner
 decided the iOS 1.8.0 closure rule is included with both lifetime and monthly, not free;
 `deriveEntitlements` returns `temporaryClosures: lifetimeActive || subscriptionActive`, and the
-production service must be redeployed before 1.8.0 ships). This code change does not itself prove
-production deployment. Sandbox revision 00004-kkd includes the minimal calendar entitlement change,
+production service was redeployed with it on 2026-09-30 as rainyclock-membership-00006-hnb). Sandbox revision 00004-kkd includes the minimal calendar entitlement change,
 and ASC lifetime English/Traditional Chinese copy is saved and read back; see staging for evidence.
 The latest September 21 catalog offers monthly and non-consumable lifetime only: US$1/month and
 US$10 once in the US, NT$10/month and NT$100 once in Taiwan. Annual is no longer offered; existing
