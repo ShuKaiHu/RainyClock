@@ -53,6 +53,9 @@ final class AlarmViewModel: ObservableObject {
             if oldValue.isDisasterSuspensionEnabled != settings.isDisasterSuspensionEnabled {
                 Task { await DisasterPushRegistration.shared.update(enabled: effectiveSchedulingSettings.isDisasterSuspensionEnabled) }
                 Task { await refreshDisasterSuspensions(force: true) }
+                if settings.isDisasterSuspensionEnabled {
+                    Task { await requestClosureNotificationAuthorizationIfNeeded() }
+                }
             }
             saveSettings()
             if oldValue.scheduleFingerprint() != effectiveSchedulingSettings.scheduleFingerprint() {
@@ -1361,6 +1364,21 @@ final class AlarmViewModel: ObservableObject {
         }
 
         await replanEveningPreviews(requestingAuthorization: true)
+    }
+
+    /// The closure announcements arrive as visible pushes, which need notification
+    /// permission. On iOS 17–25 the alarm is itself a notification and asks when it is
+    /// scheduled; on iOS 26 its permission is AlarmKit's, so with the previews off
+    /// nothing else would ever ask and every announcement would go unseen. Asked when
+    /// the person turns the rule on, only while undecided; a refusal leaves the rule
+    /// on — the app still applies what it fetches, just without the push saying so.
+    private func requestClosureNotificationAuthorizationIfNeeded() async {
+        guard !usesNotificationAlarms, effectiveSchedulingSettings.isDisasterSuspensionEnabled,
+              await previewScheduler.authorizationStatus() == .notDetermined else {
+            return
+        }
+
+        _ = await previewScheduler.requestAuthorization()
     }
 
     /// Re-plans the previews from the stored summary — the toggle flipping, or

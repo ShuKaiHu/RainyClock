@@ -329,8 +329,9 @@ protocol EveningPreviewScheduling: Sendable {
 /// information and tapping it just opens the app.
 ///
 /// On iOS 26 the alarm itself is AlarmKit, whose permission is not notification
-/// permission, so this is the first thing in the app that asks for the latter
-/// there. On iOS 17–25 the alarm already asked, and the answer covers both.
+/// permission, so this is what asks for the latter there — for the previews, and
+/// for the closure pushes when that rule is turned on. On iOS 17–25 the alarm
+/// already asked, and the answer covers all of them.
 struct UserNotificationEveningPreviewScheduler: EveningPreviewScheduling {
     func authorizationStatus() async -> EveningPreviewAuthorization {
         guard !AppEnvironment.isRunningTests else {

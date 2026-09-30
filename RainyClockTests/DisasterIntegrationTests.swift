@@ -420,6 +420,66 @@ final class DisasterIntegrationTests: XCTestCase {
         XCTAssertEqual(calls, 2, "Without a newer push the throttle still holds")
     }
 
+    /// The model the closure switch drives, with the evening previews off so nothing but
+    /// the switch can ask for notification permission.
+    private func closureSwitchModel(storage: UserDefaults, permission: ClosurePermissionSpy,
+                                    usesNotificationAlarms: Bool) throws -> AlarmViewModel {
+        var saved = settings()
+        saved.isDisasterSuspensionEnabled = false
+        saved.isEveningPreviewEnabled = false
+        try storage.set(JSONEncoder().encode(saved), forKey: "commuteAlarmSettings")
+        return AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), previewScheduler: permission,
+            settingsStorage: storage, autoRefreshDebounce: .seconds(60),
+            disasterFeedProvider: FeedStub(value: .success(.init(checkedAt: Date(), notices: []))),
+            disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true,
+            usesNotificationAlarms: usesNotificationAlarms)
+    }
+
+    /// The closure announcements are visible pushes. On iOS 26 the alarm's permission is
+    /// AlarmKit's, so with the evening previews off nothing ever asked for notification
+    /// permission and every announcement was dropped unseen. Turning the rule on asks,
+    /// once; a refusal leaves the rule on. (Adversarial review, 2026-10-01.)
+    func testTurningClosuresOnAsksForNotificationPermissionOnceOnAlarmKit() async throws {
+        let suite = "DisasterPermissionAlarmKit-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        let permission = ClosurePermissionSpy(grants: false)
+        let model = try closureSwitchModel(storage: storage, permission: permission, usesNotificationAlarms: false)
+        let asked = expectation(description: "Turning the rule on asked for notification permission")
+        permission.onRequest(asked)
+        model.settings.isDisasterSuspensionEnabled = true
+        await fulfillment(of: [asked], timeout: 2)
+        XCTAssertEqual(permission.requests, 1)
+        XCTAssertTrue(model.settings.isDisasterSuspensionEnabled, "A refusal must not turn the rule back off")
+        XCTAssertTrue(model.effectiveSchedulingSettings.isDisasterSuspensionEnabled)
+
+        let askedAgain = expectation(description: "An answered prompt is not shown again")
+        askedAgain.isInverted = true
+        permission.onRequest(askedAgain)
+        model.settings.isDisasterSuspensionEnabled = false
+        model.settings.isDisasterSuspensionEnabled = true
+        await fulfillment(of: [askedAgain], timeout: 0.5)
+        XCTAssertEqual(permission.requests, 1)
+    }
+
+    /// On iOS 17–25 the alarm is itself a notification and asks when it is scheduled, in
+    /// its own context; the closure switch leaves that prompt to it.
+    func testTurningClosuresOnLeavesNotificationAlarmsToAskForPermission() async throws {
+        let suite = "DisasterPermissionNotifications-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        let permission = ClosurePermissionSpy(grants: true)
+        let model = try closureSwitchModel(storage: storage, permission: permission, usesNotificationAlarms: true)
+        let asked = expectation(description: "The closure switch asked on the notification-alarm path")
+        asked.isInverted = true
+        permission.onRequest(asked)
+        model.settings.isDisasterSuspensionEnabled = true
+        await fulfillment(of: [asked], timeout: 0.5)
+        XCTAssertEqual(permission.requests, 0)
+        XCTAssertTrue(model.settings.isDisasterSuspensionEnabled)
+    }
+
     /// 1.8.0 ships with the gate open; these tests inject it closed to keep proving
     /// what a gated build does with saved closure rules.
     func testClosedGateExcludesClosureWithoutErasingSavedRulesOrFetching() async throws {
@@ -628,6 +688,35 @@ final class DisasterIntegrationTests: XCTestCase {
 private final class DisasterReceiptSpy: DisasterSyncReporting {
     var receipts: [DisasterSyncReceipt] = []
     func report(_ receipt: DisasterSyncReceipt) async { receipts.append(receipt) }
+}
+
+/// Notification permission as the closure switch sees it: undecided until the prompt
+/// is shown, then whatever it was answered.
+private final class ClosurePermissionSpy: EveningPreviewScheduling, @unchecked Sendable {
+    private let lock = NSLock()
+    private let grants: Bool
+    private var status = EveningPreviewAuthorization.notDetermined
+    private var storedRequests = 0
+    private var requested: XCTestExpectation?
+    init(grants: Bool) { self.grants = grants }
+
+    var requests: Int { lock.withLock { storedRequests } }
+    func onRequest(_ expectation: XCTestExpectation) { lock.withLock { requested = expectation } }
+
+    func authorizationStatus() async -> EveningPreviewAuthorization { lock.withLock { status } }
+    func requestAuthorization() async -> Bool {
+        let requested: XCTestExpectation? = lock.withLock {
+            storedRequests += 1
+            status = grants ? .authorized : .denied
+            return self.requested
+        }
+        requested?.fulfill()
+        return grants
+    }
+    func replacePreviews(_ previews: [EveningPreview]) async {}
+    func cancelPreviews() async {}
+    func showSample(_ preview: EveningPreview) async {}
+    func notifyDecisionChange(_ change: AlarmDecisionChange) async {}
 }
 
 private actor FeedStub: DisasterFeedProviding {
