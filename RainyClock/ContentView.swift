@@ -363,8 +363,9 @@ private struct AlarmHomeView: View {
                         Spacer()
                         Text(tomorrow.day.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
                     }
-                    .font(.title3.bold())
-                    .lineLimit(1).minimumScaleFactor(0.85)
+                    // Owner, 2026-09-30: larger than title3 so the day reads at a glance.
+                    .font(compact ? .title2.bold() : .title.bold())
+                    .lineLimit(1).minimumScaleFactor(0.7)
                     .contentShape(Rectangle())
                 }.buttonStyle(.plain)
             }
