@@ -11,7 +11,7 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-09-26.
+Last updated: 2026-10-01.
 
 > **1.7.1（37）已上架：2026-09-26 05:33 UTC（台灣 13:33）**，台灣與美國商店的 App Store lookup 都回 1.7.1。
 > 這是 1.7.0（34）退審後的重送版，包含會員方案（月訂閱、買斷）、LevelPlay 廣告、地址建議清單修復。
@@ -22,6 +22,11 @@ Last updated: 2026-09-26.
 
 > **颱風／臨時放假改定 1.8.0（2026-09-24）**，1.7.1 另作他用。下方較早紀錄裡指這項功能的「1.7.1」
 > 保留原文，一律讀成 1.8.0；現況見「1.8.0 準備中」一節。
+>
+> **1.8.0（38）= 颱風停班停課 ＋ 鬧鐘總開關 ＋ 主畫面／鎖定畫面「下次鬧鐘」widget。**
+> `ios/widget`（worktree `RainyClock-widget`，`ad0b628`）已於 **2026-10-01** 依擁有者決定以合併 commit 合入
+> 1.8.0 線；尚未上傳。合併時統一的規則見「1.8.0 準備中」的「`ios/widget` 合入 1.8.0 線」一點，
+> 送審前欠項見同一點與該節末的 widget 小節。
 
 > **1.7.1（37）已重新送審，正在等待審查（2026-09-25 00:10 提交，4 個項目：App、訂閱群組、月訂閱、買斷）。**
 > 發佈方式維持「手動發佈」。以下為送審準備紀錄。
@@ -226,6 +231,91 @@ Last updated: 2026-09-26.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-10-01：`ios/widget` 合入 1.8.0 線（擁有者決定 1.8.0 帶「下次鬧鐘」widget）。** 合併 commit 把 `ios/widget`
+  （`ad0b628`）合進 `e02c1ff`（`ios/main` ＋ 測試 commit）；尚未上傳。版本維持 1.8.0（38）：`Info.plist` 與 11 個
+  `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`（App、AlarmWidget、DayOffNotification 各 3，tests 2）一致；
+  `Info.plist` 保留 widget 的 `CFBundleURLTypes`（`rainyclock`）與 `DayOffServiceURL`／`DayOffSandboxServiceURL`。
+  兩邊各自解過的問題統一成一套（理由見[產品決策](PRODUCT_DECISIONS.md) 2026-10-01）：
+  1. **哪個早上。** `TomorrowWeatherRequest`／`TomorrowAlarmStatus.resolve` 的 `dayOffset` 改成可省略：不給是主卡的
+     「接下來的早上」（`tomorrowStatus`，也是 App 唯一抓預報的早上）；0／1 是 widget 的今天（`todayStatus`）與日曆明天
+     （新的 `calendarTomorrowStatus`，widget 原本用 `tomorrowStatus`，合併後那是主卡）。
+  2. **同一份摘要。** 主卡改讀與 widget 相同、成對往後捲的每週摘要（`rollingForwardAsPair`）。每週分支在摘要已被
+     捲過今天那一格時看 `decidedNormalAlarmDate`：為今天或更早的早上決定的，那一格已響過（主卡「已響鈴」，無警示）；
+     為之後的早上才登記的，今天沒有鈴了——`registeredRingDate` 是那個之後的鈴（主卡照 `ios/main` 警示），
+     `passedRingDate` 是今天那一格（widget 結束今天）。App 一直開著、原定時間過後，主卡現在也顯示週重複真正會響的
+     沿用提早（`ios/main` 原本顯示原定時間，重開 App 才正確）。
+  3. **`decisionNormalAlarmDate` 與 `firedEarlyRing` 並用。** `restoreWeeklySchedule`：`hasSameForecast` ＝ 略過保存的預報、
+     `calendarForecastDate` 或 `decidedNormalAlarmDate`；響過的鈴照 `ios/main` 留在已響的時間並記 `firedEarlyRing`；
+     `decisionNormalAlarmDate` 記成這次登記的早上（沒有下一個早上時沿用前一個）。`registerCalendar` 保存略過那天的
+     預報也改看 `decidedNormalAlarmDate`：重開後被捲到明天的沿用提早不會被記成明天的決定，取消略過回原定時間。
+  4. **主卡規則移進 `TomorrowWidgetSnapshotBuilder`**（卡片與 widget 共用）：關閉時只有關閉失敗會警示、
+     `ringIsNotRegistered` →「鬧鐘設定尚未更新完成」、響過後不顯示降雨 %；`ContentView` 只負責把同一行字寫成
+     今天／明天版本、`ringAfterSkip` 的日期與停班停課的時間。新原因 `alarmOff`／`skippedOnce` 進 snapshot（版本 3）：
+     widget 關閉時所有尺寸寫「鬧鐘已關閉」（鎖定畫面圓形寫「關閉」）且不寫日期、不出現今天的項目；僅關閉下一次寫
+     「只關閉這一次，之後的鬧鐘照常響」（inline 寫「明天／今天只關閉這一次」）。
+  5. **仍刻意和主卡不同：** 過期警告 3 小時 vs 30 分鐘（D-B）；widget 午夜到**響鈴**寫「今天」，主卡到**原定時間**、
+     標題「下次鬧鐘」（D-C 仍照舊，「卡片整天講明天」那句被 9/29 取代）；沿用的提早響過後主卡寫「因雨提早」
+     （widget 不會顯示響過的早上）。**最後這項是合併時的暫定做法，與 D-D「卡片同規則」不同，尚未經擁有者同意**
+     （待決定：照這樣、改寫別的字，或不顯示原因）。
+  6. **字串：** 英文 `ux_tomorrow_closure` 採 widget 的「Work or school is closed tomorrow」（widget 表逐字共用；中文兩邊
+     相同）；英文 `ux_today_weekend` 對齊為「Today is a weekend day」；新增 `ux_today_awaiting_forecast`（等待今天預報）；
+     widget 表加共用 3 鍵（`ux_alarm_off`、`ux_alarm_off_message_only`、`ux_skip_once_reason`）與 widget 專用 3 鍵
+     （`widget_skip_off` 關閉／Off、`widget_alarm_off_short`、`widget_skip_once_short`）。另外三句主卡英文隨 widget 表
+     改了（widget 表逐字共用 App 的字）：`ux_tomorrow_weekend`「Tomorrow is a weekend」→「… weekend day」、
+     `ux_rain_applied_forecast`「Route rain %d%% · %d min earlier」→「Route rain %d%%, %d min earlier」、
+     `ux_weather_rain`「Rain」→「Rainy」；主卡表也多了 `ux_tomorrow_awaiting_forecast`（D-D）。**新文字與這三句都待擁有者看過。**
+  7. **文件：** `appstore-metadata.md` 的兩份 1.8.0 草稿合成一份（What's New 中英各一、審查備註事實一份）；
+     審查備註要另外在 4,000 字內重寫。
+  - 已知（未改）：BGTask 抓的是主卡的早上，所以今天提早響過到原定時間之間，widget 的「明天」沒有預報（顯示
+    「尚未取得明天天氣」）；原定時間過後就是同一個早上。鬧鐘關閉時背景更新鏈停止，widget 在第二個午夜後變
+    「開啟 App 更新」。
+  - **合併審查後修正（同日，審查找到 14 項，全部處理）：**
+    1. **App 一直開著時同一個早上會響兩次（`ios/main` 既有，合併後主卡已顯示矛盾）。** 例：週一晚判斷週二下雨，登記
+       7:00（原定 7:30）；App 一直開著、之後沒有成功的重新登記；週三 AlarmKit 的每週重複照樣 7:00 響。7:05–7:30 之間
+       背景更新、開 App、改設定或「僅關閉下一次」重新登記時，排程讀的是記憶體裡週二的摘要：檢查窗看的是週二、
+       `earlyRingThatWentOff` 認不出週三已響，於是把週三 7:30 排回去（不需要網路），再響一次；主卡同時寫「已響鈴 7:00」。
+       改為排程（背景的檢查窗、`restrictedRulesTransitionIsSafe`、`weeklyComingMorningIsDecided`、`restoreWeeklySchedule`
+       的 `rang`、`datedBasePlan`）都讀 `registeredSummary(now:)`——每週摘要照啟動時的方式往後捲（逐日計畫原樣），
+       和主卡與重開 App 讀到的一致。測試：`SkipNextAlarmTests` 2 項（App 一直開著：背景更新不動、僅關閉下一次不把今天
+       排回、取消略過留在 7:00；前景執行留在 7:00），修正前都失敗。為了測，`AlarmViewModel` 加一個 DEBUG 專用的
+       `holdRegistrationForTesting`（測試沒辦法等一天）。
+    2. **晚上預覽照 D-D。** 沿用到隔天的每週提早，預覽不再當成隔天的判斷（「降雨機率 80%…提前到 7:00」其實是前一天的
+       預報），改用「明天 7:00 有鬧鐘，早上會依當天預報決定…」，時間是 AlarmKit 真的會響的。`EveningPreviewPlannerTests` 1 項。
+    3. **widget 不丟主卡的「鬧鐘設定尚未更新完成」。** 已提交的停班停課略過不再被公告支持、或逐日計畫少了這個早上
+       （`ringIsNotRegistered`）時，widget 的今天原本在午夜就結束，直接顯示「明天 週三 照常響鈴」；現在和主卡一樣
+       留到原定時間並帶同一個警示。合併時的測試夾具（沒記 `firedEarlyRing` 的逐日計畫）改成真的會發生的樣子。
+    4. **widget 的停班停課標來源（DAYOFF-SPEC §7）。** snapshot 版本 3 → 4，停班停課項目帶公告資料的來源更新時間；
+       小型、中型、長方形在停班停課那一行下面標「來源：人事總處／NCDR」與「來源更新 9/30 下午5:05」（長方形合成一行），
+       VoiceOver 也念。鎖定畫面圓形與 inline 放不下，改成不報停班停課（圓形「不響」、inline「明天略過鬧鐘」、鈴鐺圖示）；
+       擁有者 9/23 選的圓形「停班」字串保留、暫時不用。
+    5. **關閉時的 widget 不再掛天氣警示。** 天氣過期或抓取失敗時，「鬧鐘已關閉」原本會帶橘色警示標記；現在關閉時只有
+       關閉失敗才警示（照 2026-10-01 的規則）。
+    6. **inline 的「僅關閉下一次」說出是哪個早上**（「明天只關閉這一次」／「今天只關閉這一次」）。
+    7–14. 文件：沿用提早響過後主卡寫「因雨提早」標成待擁有者決定（本點「仍刻意和主卡不同」那一項）；本節互相參照改成寫明是哪一點；
+       widget 小節過時的幾行加註；「所有尺寸寫鬧鐘已關閉」補上圓形寫「關閉」；三句英文字串的變更補記；D-B／D-C
+       的理由更正；合併的狀態改成提交後仍成立的寫法；上面 1.（App 一直開著響兩次）原本要列進「已知」，已修正。
+    - 測試（審查修正後）：結果在下面「測試」那一項的最後。新增 8 項，調整 5 項（`todayShownUntil` 分成「已響」與「未登記」、
+      合併夾具補 `firedEarlyRing`、圓形字改成「不響」、字串鍵數 51 與新字的檢查）。突變測試：拿掉 1、2、3、5 的修正，
+      對應的 6 項測試都失敗（4、6 是新的顯示資料，沒有修正就不能編譯）。
+    - 手機待確認：①下雨天 App 一直開著跨一天、隔天沿用的 7:00 響過後 7:30 前在 App 裡做「僅關閉下一次」，今天 7:30
+      不再響；②有停班停課時小型、中型、長方形的來源兩行（長方形一行）放得下、不被截掉，圓形／inline 顯示一般略過。
+  - 測試：新增 5 項（主卡與 widget 讀同一份捲過的週摘要、總開關進 widget、主卡規則在 builder、`dayOffset` 的請求、
+    取消略過不把沿用的提早當成那天的決定），調整 widget 測試中與新規則衝突的斷言（`tomorrowStatus` 午夜後是今天、
+    捲過今天那一格時 `registeredRingDate` 的值、`ux_tomorrow_closure` 共用鍵、字串鍵數 36／47、D-D 測試的過期預報改在 07:30
+    後取得）。`RainyClock Membership Local` 簽章、`-parallel-testing-worker-count 1`、略過 `MembershipStoreKitTests`：
+    iPhone 17 Pro（iOS 26.5）**561 項、557 過、0 失敗、4 略過**（`LocalNotificationSchedulerSystemTests`，模擬器沒有通知權限）；
+    iPhone 16 Pro（iOS 18.6）**561 項、559 過、0 失敗、2 略過**（同一組）。兩次都在 02:50 後執行，沒有測試被跨午夜保護略過。
+    **合併審查修正後（同樣的設定）：iPhone 17 Pro（iOS 26.5）569 項、565 過、0 失敗、4 略過；iPhone 16 Pro（iOS 18.6）
+    569 項、567 過、0 失敗、2 略過**（略過的都是 `LocalNotificationSchedulerSystemTests`，同上）；03:43 後執行，沒有測試被
+    跨午夜保護略過。
+  - 送審前還欠：widget 小節的四項（widget App ID 開 App Groups、真機、審查備註重寫並核准——草稿只有
+    `appstore-metadata.md` 那一份，`.txt` 已作廢、`MembershipStoreKitTests`）；真機加看一次「關閉」「僅關閉下一次」
+    「停班停課」的 widget 畫面（小型、中型、圓形、inline、長方形），以及上面「合併審查後修正」的兩項手機確認。
+    **擁有者要決定：**①沿用的提早響過後主卡寫「因雨提早」（「仍刻意和主卡不同」那一項，與 D-D 不同）；②圓形／inline 不報停班停課，
+    或記下 §7 例外讓圓形恢復「停班」（那時 What's New 與審查備註的「顯示任何停班停課結果時都會標示資料來源」要改成
+    不含 widget）；③「字串」那一項與審查修正新增的文字（「來源：人事總處／NCDR」「來源更新 %@」「明天／今天只關閉這一次」、
+    三句改過的英文）。
+
 - **2026-10-01：iOS 17–25 通知鬧鐘——沒按停止的補響，重新登記後照常響完**（下一點列為「仍未處理」的既有問題）。
   例：7:00 鬧鐘、賴床 5 分鐘，使用者還在睡；7:07 背景更新判斷明天下雨、把每週鬧鐘改成 6:30。原本重新登記會刪掉今天
   7:10 起的補響，換成 6:30 那條鏈落在今天的部分（五天鬧鐘是 7:10–7:20，七天鬧鐘則一則都沒有），人就這樣睡過頭。
@@ -269,7 +359,7 @@ Last updated: 2026-09-26.
     完整測試：iPhone 17 Pro（iOS 26.5）上 **496 項全過、0 失敗**，略過 `MembershipStoreKitTests`（同下）。其中 6 項
     「今天早上」情境測試在 23:50 那次完整執行時被自己的跨午夜保護略過，另以 `TEST_RUNNER_TZ=America/Los_Angeles` 單獨重跑通過。
   - 仍未處理（既有）：沒按停止時重新登記，今天的補響會換成新計畫那條鏈（例如明天下雨、時間改 6:30，今天 7:00 的補響
-    就只剩 6:30 那條鏈落在今天的部分）。（**2026-10-01 已修正**，見本節第一點。）
+    就只剩 6:30 那條鏈落在今天的部分）。（**2026-10-01 已修正**，見本節「2026-10-01：iOS 17–25 通知鬧鐘——沒按停止的補響」一點。）
   - 待確認：要 iOS 17–25 的裝置或模擬器（這台 Mac 目前只有 iOS 26 runtime，iPhone 16 Pro 走 AlarmKit）——7:00 響、
     按停止後在 App 裡改一個會重新登記的設定，今天不再補響，下週同一天照響。
 
@@ -290,12 +380,12 @@ Last updated: 2026-09-26.
     修正後通過；再用突變測試確認第 3 點與「今天已提早響過」條件各自有測試守住（只修第 2 點時，兩次刷新登記兩次）。
     完整測試：iPhone 17 Pro（iOS 26.5）上 **487 項全過、0 失敗**，略過 `MembershipStoreKitTests`（同下，這台模擬器上會卡住）。
   - 已知限制（既有行為，未改）：iOS 17–25 的通知鬧鐘在這段時間重新登記每週排程時，仍會把今天剩下的補響通知加回來。
-    （按過停止的早上：同日已修正，見本節第一點。）
+    （按過停止的早上：同日已修正，見本節「2026-09-30：iOS 17–25 通知鬧鐘——按過停止的早上」一點。）
   - **同日擁有者決定：提早響過後到原定時間之間開放「僅關閉下一次」**（[產品決策](PRODUCT_DECISIONS.md)）。
     這段時間的「下一次鬧鐘」是明天的：略過明天之後，今天已提早響過的早上不會在原定時間再響；取消略過時，每週鬧鐘
     維持在已響過的那個時間。每週鬧鐘正在響／賴床時仍要先停止（那個重複鬧鐘撐得過逐日重新登記）。
     關閉對話框的「今天已提早響過，⋯之後才能只關閉下一次」字串已移除。iOS 17–25 在這段時間略過，會一併移除今天
-    剩下的補響通知（使用者正在操作 App，已經醒了）。（**10/1 起改為照常補響到按停止為止**，與 AlarmKit 一致，見本節第一點。）先寫 2 項失敗測試（每週、逐日各 1 項），修正後通過；
+    剩下的補響通知（使用者正在操作 App，已經醒了）。（**10/1 起改為照常補響到按停止為止**，與 AlarmKit 一致，見本節「2026-10-01：iOS 17–25 通知鬧鐘——沒按停止的補響」一點。）先寫 2 項失敗測試（每週、逐日各 1 項），修正後通過；
     完整測試 **489 項全過、0 失敗**（同上，略過 `MembershipStoreKitTests`）。
     手機待確認：下雨天 7:00 提早響過後，7:30 前關閉開關，對話框的「下一次鬧鐘：」應是明天的日期，選「僅關閉下一次」後今天 7:30 不響、明天不響、後天照響。
 
@@ -346,7 +436,7 @@ Last updated: 2026-09-26.
     提前分鐘回推；②每週排程在檢查點到原定時間之間被重新登記時，依新的重複鬧鐘時間判斷今天，今天已沒有鈴聲就警示；
     ③畫面時鐘在公告或排程更新時立刻刷新，避免最多 30 秒的假警示。同一審查找到三個既有的排程問題（每週排程在這段時間
     改設定會吃掉今天的鈴、冷啟動後可能響兩次、停班停課刷新在這段時間反覆重新登記），另開任務處理，不在 1.8.0 這次改。
-    （**2026-09-30 已修正並併入 1.8.0**，見本節第一點。）
+    （**2026-09-30 已修正並併入 1.8.0**，見本節「2026-09-30：修正檢查點到原定時間之間的三個既有排程問題」一點。）
   - 測試（主卡改為接下來的早上，含審查修正）：iPhone 17 Pro 上 449 項全過，略過 `MembershipStoreKitTests`（同下）。
     標題依擁有者決定改為「下次鬧鐘」＋日期（英文 Next alarm），不寫「今天」。
     手機待確認：凌晨打開 App 標題是「下次鬧鐘」、天氣卡「今天的天氣」；有停班停課時主卡寫「今天 7:30 的鬧鐘因臨時停班／停課略過」。
@@ -381,6 +471,9 @@ Last updated: 2026-09-26.
   - 還沒做：**真機驗證**（見 `dayoff-service/DEPLOYMENT.md` 的 sandbox 手機步驟）、擁有者的權益決定（9/28 已完成）、
     正式會員服務重新部署（9/30 已完成）、ASC 隱私問卷與截圖、archive／上傳。
 
+- **2026-09-24：主畫面／鎖定畫面「明天」widget 也納入 1.8.0**，在 `ios/widget` 分支，現為
+  **1.8.0（38）**；見本節末「主畫面／鎖定畫面 widget」小節。`supportsTemporaryClosures` 仍為
+  `false`，下方開閘條件不變。（9/28 `8031f51` 已開閘；widget 已於 10/1 合入，見本節「2026-10-01：`ios/widget` 合入 1.8.0 線」一點。）
 - **工作樹已全部提交到 `ios/main`**（四個 commit：App 與測試、weather-proxy 會員後端、
   dayoff-service 與天災文件、其餘文件與素材）。1.7.0（34）送審的原始碼從此有 git 紀錄；
   之前自 9/10 起 110 個檔案都只在本機。變體 PNG 的重複 `.zip` 已 gitignore，其餘 `docs/`
@@ -428,6 +521,125 @@ Last updated: 2026-09-26.
   **尚未在真機驗證**：擴充功能需要真的 APNs 推播才會執行；模擬器無法收 APNs。
 - ASC 審查結果本輪未讀到（隔離瀏覽器為登入頁，Gmail 無 Apple 信件）。
   `RainyClock-dayoff-preview/` 工作樹每個檔案都比主工作樹舊，可移除。
+
+### 主畫面／鎖定畫面「明天」widget — 2026-09-24
+
+- **是什麼：** widget 名稱「下次鬧鐘／Next Alarm」（`kind` 不變）。顯示下一次鬧鐘幾點響、為什麼（下雨提早、
+  假日、週末、停班停課、路線未設、天氣過期／失敗、排程待更新）：午夜到今天響鈴前是**今天**的，響過之後
+  是明天的。規則與 App 鬧鐘頁的明天卡片（2026-09-29 起是描述「接下來的早上」的主卡，標題「下次鬧鐘」）共用
+  `TomorrowWidgetSnapshotBuilder`（reason／notice／issue），
+  停班停課走同一個 `DisasterSuspensionEvaluator`，widget 不自己判斷。尺寸：主畫面 small、medium；
+  鎖定畫面 rectangular、circular、inline。放在既有 `RainyClockAlarmWidget` 擴充功能，所以**只有 iOS 26+**；
+  iOS 17–25 看不到，`TomorrowWidgetPublisher` 不動作。App 仍是 iPhone only。
+- **資料流：** App 把 Codable snapshot 寫進 App Group `group.com.shukaihu.RainyClock` 的
+  `tomorrowWidgetSnapshot.v1`（天災擴充功能用 `dayOffSharedState.v1`，同 group 不同 key）並 reload
+  timeline；前景、背景 BGTask、推播喚醒都會 publish。snapshot 先算好下一個邊界（天氣過期、午夜、
+  提早點、響鈴），第二個午夜後改為「開啟 App 更新」。**widget 本身不連網**：無 WeatherKit、MapKit、
+  定位、廣告 SDK（LevelPlay 只連 App target），不存地址或路段名稱（有測試）。隱私營養標籤不用改；
+  widget 自帶 `PrivacyInfo.xcprivacy`（UserDefaults 1C8F.1）。DEBUG 的 `-widget-demo` 範例不進 Release。
+- **分支：** `ios/widget`，worktree `/Users/shukaihu/Code_Project_Local/RainyClock-widget`。**尚未合回
+  `ios/main`**（**2026-10-01 已合入 1.8.0 線**，見本節「2026-10-01：`ios/widget` 合入 1.8.0 線」一點），因為 1.7.0／1.7.1 可能還要從 `ios/main` 出 build；只做 `ios/main` → `ios/widget`，
+  不可反向。今天合過三次：`8a29847`（1.7.0（36）＋作法 B）、`1ce7bf5`（1.7.1（37）地址修正＋
+  dayoff-service absence 告警；只有版本號衝突，ContentView／AlarmViewModel／字串改的是不同段落）、
+  `1d3d91f`（1.7.1（37）上傳紀錄，僅文件）。
+  之後 `ios/main` 每多一個 commit 都要再合進來，否則 1.8.0 archive 會少掉它（例如 1.7.1 的地址建議）。
+- **版本：** 本分支 **1.8.0（38）**。`43bedcf` 原設 1.8.0（37），但 `ios/main` 的 1.7.1 也是 37，兩邊
+  相同時合併不會衝突、沒人會發現，故 `da9105e` 改 38（1.7.1（37）已於 15:00 上傳 TestFlight）。
+  `Info.plist` 與 11 個 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`（App ×3、AlarmWidget ×3、
+  DayOffNotification ×3、tests ×2）一致；建置後三個 bundle 都是 1.8.0（38）。`-ObjC`、`LevelPlayAppKey` 未動。
+- **合併審查修正（`b54483d`）：**
+  - 圓形鎖定畫面的略過字曾被改成「停班課」，已改回**「停班」**：這是使用者 9/23 看過截圖後的決定，
+    只停課時也寫「停班」，旁邊的長方形 widget 會寫「停班／停課」。英文 `Closed` 本來就中性。
+    （**2026-10-01 起圓形暫時不寫「停班」**：圓形放不下 DAYOFF-SPEC §7 要求的資料來源與更新時間，所以不報停班停課，
+    改寫一般的「不響」；字串保留，擁有者記下 §7 例外就能恢復。見本節「2026-10-01：`ios/widget` 合入 1.8.0 線」一點。）
+  - `RainyClockDayOffNotification` 補 `PrivacyInfo.xcprivacy`（無追蹤、無收集、UserDefaults 1C8F.1），
+    與 widget 一致。**`ios/main` 同樣缺**，1.7.x 若再出 build 要一起補。
+  - `DisasterPushDelegate` 在 `completionHandler` 前同步 publish widget，與 BGTask 路徑相同（debounce 在
+    App 被掛起前不會觸發）。目前 `supportsTemporaryClosures=false`，屬預先修正。（當時的狀態；9/28 `8031f51` 已開閘，
+    合入 1.8.0 線後這條路徑是實際會跑的。）
+- **建置／測試（`da9105e` 之後的程式碼）：** Debug 模擬器建置成功、0 錯誤；三個 bundle 都帶 manifest。
+  `RainyClock Membership Local` 簽章、iPhone Air 模擬器（iOS 26.5，`8C5C0CD4`）：**420 項全過、0 失敗、0 跳過**
+  （`-parallel-testing-worker-count 1 -skip-testing:RainyClockTests/MembershipStoreKitTests`，xcresult
+  `DerivedData/Logs/Test/Test-RainyClock Membership Local-2026.09.24_15-12-07-+0800.xcresult`），含 widget
+  31 項、`TomorrowAlarmStatusTests`、`AlarmViewModelSchedulingTests`（含 1.7.1 新增）、`DayOffPushContentTests`
+  與全部 Disaster 測試。
+  **`MembershipStoreKitTests`（7 項）在這台模擬器跑不了**：第一項 `testAskToBuyDoesNotUnlockBeforeApproval`
+  一開始就彈出「登入 Apple 帳號」，App 啟動被 SpringBoard 拒絕、xcodebuild 無限等待，三次都一樣。
+  會員程式與這些測試和 `ios/main` 完全相同（`ios/main` 的 395 項在 iOS 26.2 模擬器全過），判斷是
+  iOS 26.5 模擬器環境問題，不是 widget 造成；送審前在 26.2 模擬器或真機補跑一次。
+  另：預設兩個以上 clone 時多出來的 clone 會被 SpringBoard 拒絕啟動，照舊用 `-parallel-testing-worker-count 1`。
+- **四項決定（使用者 2026-09-24 決定 D-A～D-D，理由與被否決的做法見 PRODUCT_DECISIONS「1.8.0「明天」widget 的四項決定 — 2026-09-24」一節；
+  合併後它不在最上方了）：**
+  - **D-A WeatherKit 標示（`0a746d9`）。** 只有 medium 顯示天氣資料（住家／公司天氣、降雨 %、依天氣畫的
+    天空），天氣欄下方畫 Apple 官方組合標記：App 在已經連 WeatherKit 的地方（卡片的
+    `WeatherAttributionView`、背景更新）下載 `combinedMarkDarkURL` 存進 App Group，下載前畫文字
+    「 Weather」。天氣欄是 widget `Link`（`rainyclock://weather-attribution`），App 的 `onOpenURL` 開
+    `legalPageURL`。依據：developer.apple.com/weatherkit/get-started「must clearly display the Apple
+    Weather trademark ( Weather), as well as the legal link to other data sources」。其他尺寸（small、
+    StandBy、長方形、圓形、inline）只顯示決定：「因雨提早 N 分鐘」（不帶 %）、一般日「照常響鈴」，small
+    天空只在因雨提早時下雨、其他時候品牌深藍，StandBy 沒有天氣符號。過期／失敗／尚無預報是資料新舊，保留。
+  - **D-B 過期（`48967b9`）。** BGTask 在鬧鐘工作後、發布 widget 前也抓明天天氣
+    （`refreshTomorrowWeatherIfNeeded`，只在前 15 秒內開始、逾時一併取消、不登記也不改鬧鐘）。widget 的
+    snapshot 在天氣滿 3 小時的那一秒切成「天氣資料需要更新」。
+  - **D-C 今天（`b1d7caa`，snapshot 版本 2）。** 午夜到今天響鈴（略過的日子到原本時間）所有尺寸顯示「今天」
+    ＋時間＋原因，snapshot 事先算好，App 不用醒著。時間是 AlarmKit 真的會響的：已登記的響鈴；週登記在
+    今天檢查點之後才做的，若今天那一格還沒到也算；設定改了但重新登記失敗時是仍在的舊登記（標「鬧鐘設定
+    尚未更新完成」）。今天的項目不帶預報，medium 在今天不畫天氣欄與標記。
+  - **D-D 沿用的提早（`c5f146b`）。** 週鬧鐘提早響過後隔天仍在同一時間響：顯示這個時間，但在隔天自己的
+    預報決定前說「等待明天預報」（今天的項目「等待今天預報」），卡片共用同一規則；同一天的預報決定、只是
+    過期的提早仍說「因雨提早」。兩種情況都有單元測試。
+- **刻意和卡片不同（寫在 `TomorrowWidgetSnapshotBuilder` 開頭）：**
+  1. **過期警告：** widget 天氣超過 **3 小時**才警告，卡片仍 **30 分鐘**。widget 整天掛著又不能自己更新；
+     卡片點開才看、會自己更新。鬧鐘決定（`TomorrowAlarmStatus.resolve`）仍用 30 分鐘，沒改。
+  2. **今天：** widget 午夜到響鈴前講今天，卡片整天講明天（在 App 裡看的是要改什麼，今天已經登記了）。
+     （**卡片那半句已被 9/29 主卡規則取代**：午夜後卡片也講今天、標題「下次鬧鐘」、到原定時間才換；見本節「2026-10-01：`ios/widget` 合入 1.8.0 線」一點。）
+  3. 延伸：跨午夜的提早（00:10 在前一晚 23:40 響）響過後到午夜前，widget 維持響之前的項目，不改口說
+     「明天 00:10 照常響鈴」；卡片那幾分鐘仍照舊。（合併後卡片那幾分鐘顯示「已響鈴 23:40」。）
+- **實作後審查與修正（`1e106d0`）：** 15 項意見逐項對照程式，14 項屬實已修，1 項與另一項重複：
+  - 屬實：重開 App 後離線重新登記把前一天的提早記成今天的（改看 `decisionNormalAlarmDate`，1.8.0 以前的
+    摘要在啟動時補上；**這會改變登記**：重開後離線重新登記的早上，沒有預報決定過就用原本時間，與 App
+    一直開著時一致）；跨午夜提早響後說 00:10 照常響鈴；重新登記失敗時今天顯示新設定的時間；檢查點後
+    的週登記藏掉今天真的會響的那一格；今天的項目帶前一晚的預報卻不警告；著色／透明主畫面標記消失
+    （改永遠用白字深色版、只下載這一版）；VoiceOver 點不到法律頁連結（天氣欄改成獨立的連結元素＋提示）；
+    標記列把太陽光芒擠到「晴天」上（太陽改畫在天氣欄兩列之間的空隙）；送審草稿描述錯誤（已重寫，見下）；
+    small 在非雨天畫晴天（改深藍）；今天的項目天氣欄空白（今天不畫天氣欄）；medium 同時寫
+    「等待明天預報」與「尚未取得明天天氣」（左邊不再重複）；widget 叫「明天的鬧鐘」卻顯示今天（改名）；
+    DEBUG 範例看不到標記兩種狀態與今天的其他原因（已補）。
+  - 重複：第 14 項「VoiceOver 點不到法律頁」與第 7 項同一件事，一起修。
+- **DEBUG 範例（`-widget-demo`）：** 情境 `carriedOver`、`todayRain`、`todayNormal`、`todaySkipped`、
+  `todayCarriedOver`、`todayHolidayNamed`、`todayHolidayUnnamed`、`todayManualSkip`、`todayManualRing`、
+  `todayUnselectedWeekday`、`todayClosure`（也都在 `tour` 裡）；標記：畫面上「mark: Apple image／text
+  fallback」兩個按鈕，或啟動參數 `-widget-demo-mark image|text`（image 要 WeatherKit 能連）。
+- **建置／測試（`1e106d0`）：** Debug 模擬器建置（簽章）成功、0 錯誤。`RainyClock Membership Local` 簽章、
+  `8C5C0CD4`（iOS 26.5），`-parallel-testing-worker-count 1 -skip-testing:RainyClockTests/MembershipStoreKitTests`：
+  **440 項全過、0 失敗、0 跳過**（原 435 ＋ 審查新增 5：跨午夜提早、舊登記、檢查點後的週登記、離線重新
+  登記（真的 `AlarmViewModel`）、今天不畫天氣欄），xcresult
+  `DerivedData/Logs/Test/Test-RainyClock Membership Local-2026.09.24_22-41-42-+0800.xcresult`。
+  **還沒做的驗證：** 主畫面／鎖定畫面實際加 widget 看畫面（medium 標記列：圖與文字兩種狀態、太陽位置、
+  著色與透明主畫面、點天氣欄開法律頁、VoiceOver 讀到連結）；這一輪只有單元測試與建置。
+- **送審 1.8.0 前 widget 還欠：**
+  1. **（你要做）widget 的 App ID 開 App Groups。** `com.shukaihu.RainyClock.AlarmWidget` 唯一的 profile
+     （`6932dac7`，7/27）沒有 application-groups，1.7.0（36）archive 裡的 widget entitlements 也沒有；
+     App 與 DayOffNotification 已有。在 Xcode Signing & Capabilities（team `MQJ88U9NAJ`）或開發者網站
+     Identifiers 勾 `group.com.shukaihu.RainyClock`，archive 用 `-allowProvisioningUpdates`，再用
+     `codesign -d --entitlements -` 確認 appex 帶 group。否則 archive 失敗，或 widget 永遠停在「開啟 App」。
+  2. **真機驗證（TestFlight 1.8.0）。** 開一次 App 後 small／medium／鎖定畫面顯示真實鬧鐘；改時間、背景
+     更新後會變；午夜後顯示「今天」、響過換明天；medium 看得到  Weather（官方圖下載前後各一次）、點天氣欄
+     開 Apple 法律頁、VoiceOver 讀得到連結；著色／透明圖示下標記仍在；gallery 兩種語言、五個尺寸、
+     StandBy 日夜（紅）、12／24 小時、換時區。
+  3. **（你要核准）送審草稿。** `appstore-review-notes-1.8.0-DRAFT.txt` 與 `appstore-metadata.md` 的 1.8.0
+     節已依 D-A～D-D 重寫：widget 叫「Next Alarm」、今天／明天、「等待明天預報」、天氣只在 medium、標記在
+     天氣欄下方、點天氣欄開法律頁；What's New 兩種語言也提今天與等待明天預報。備註 3,824 字（含開閘段落
+     3,994），上限 4,000。1.7.0 的「不是主畫面 widget」與 2.1(a) 回覆 1.8.0 起不可沿用。最終文字由你核准後再貼。
+     **（2026-10-01 起這段過時：）**審查備註草稿只有 `appstore-metadata.md`「Version-specific note for 1.8.0 (38)」
+     一份，是事實版、超過 4,000 字（含停班停課、總開關、widget 三段），要另外重寫再核准；`.txt` 已標 SUPERSEDED、
+     還寫著停班停課沒開閘，不要貼。上面的 3,824／3,994 字是 `.txt` 當時的字數。
+  4. **`MembershipStoreKitTests`（7 項）在 iOS 26.2 模擬器或真機補跑。** 在 26.5 模擬器第一項就彈 Apple 帳號
+     登入、xcodebuild 無限等待（見上）；會員程式與 `ios/main` 相同。
+  - 其他：Apple 對「value-added」產品另要求標  Weather 並註明資料已修改；非 medium 的「因雨提早」是否算，
+    依 D-A 不加標記，送審被問再議。1.7.1 與 1.8.0 的送審順序（build 38 兩種都成立；**已過時**：1.7.1 已於 9/26 上架）。Archive 後 Organizer →
+    Generate Privacy Report 確認三份 manifest。ASC 新增 1.8.0 版本頁。選擇性：`privacy-policy.html` 加一句
+    widget 只顯示本機資料；`.disfavoredLocations([.carPlay], for: [.systemSmall])`。
 
 > **下一個 AI 請先讀 [2026-09-23 iOS 交接檔](HANDOFF-IOS-2026-09-23.md)。**
 > [9/22 交接](HANDOFF-IOS-2026-09-22.md) 與以下時序保留為歷史背景；目前已退審並交付 build 35，

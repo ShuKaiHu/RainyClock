@@ -225,27 +225,21 @@ private struct AlarmHomeView: View {
         viewModel.settings.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || viewModel.settings.workAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+    /// Selection shared with the Home Screen widget (TomorrowWidgetSnapshotBuilder),
+    /// so the two say the same thing by construction. The card keeps the real
+    /// `isScheduling`; only the widget snapshot treats it as false.
     private var scheduleIssue: String? {
-        // Off: only a failure to turn off is worth a banner; every other notice is about
-        // an alarm the user chose not to have.
-        guard viewModel.settings.isAlarmEnabled else { return viewModel.scheduleErrorMessage }
-        if let message = viewModel.scheduleErrorMessage { return message }
-        if viewModel.requiresAlarmKitReschedule { return String(localized: "alarmkit_reschedule_notice") }
-        if AppEnvironment.supportsTemporaryClosures && viewModel.disasterScheduleNeedsAttention { return String(localized: "disaster_schedule_uncertain") }
-        if viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled && viewModel.disasterRefreshFailed {
-            return String(localized: "ux_closure_update_failed")
+        // The rules, including the master switch's (off: only a failure to turn off is worth a
+        // banner) and the committed schedule missing a ring the card expects, are the
+        // builder's, so the widget cannot drift from them.
+        switch TomorrowWidgetSnapshotBuilder.scheduleIssue(for: tomorrow, flags: .init(model: viewModel)) {
+        case nil: nil
+        case .schedulingFailed: viewModel.scheduleErrorMessage
+        case .alarmKitReschedule: String(localized: "alarmkit_reschedule_notice")
+        case .closureUncertain: String(localized: "disaster_schedule_uncertain")
+        case .closureUpdateFailed: String(localized: "ux_closure_update_failed")
+        case .updateNeeded: String(localized: "ux_schedule_update_needed")
         }
-        if viewModel.isScheduleStale && !viewModel.isScheduling { return String(localized: "ux_schedule_update_needed") }
-        if !viewModel.isScheduling, let registered = tomorrow.registeredRingDate,
-           registered != tomorrow.expectedRingDate {
-            return String(localized: "ux_schedule_update_needed")
-        }
-        // The card expects a ring the committed schedule does not hold: a closure skip the
-        // live preview no longer supports, or a plan that lost the morning.
-        if !viewModel.isScheduling, tomorrow.ringIsNotRegistered {
-            return String(localized: "ux_schedule_update_needed")
-        }
-        return nil
     }
 
     var body: some View {
@@ -403,7 +397,10 @@ private struct AlarmHomeView: View {
                                  tomorrow.reason == .rain ? "rain" : nil)
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: tomorrow.reason == .rain ? "cloud.rain" : (tomorrow.expectedRingDate == nil ? "bell.slash" : "calendar"))
+                        // A carried-over lead waits for its own forecast: not a rain icon (until it
+                        // has rung; then the line says 因雨提早 too, see `reason`).
+                        Image(systemName: tomorrow.rainLeadIsCarriedOver && !tomorrow.hasRung ? "hourglass"
+                              : tomorrow.reason == .rain ? "cloud.rain" : (tomorrow.expectedRingDate == nil ? "bell.slash" : "calendar"))
                             .foregroundStyle(Color.accentColor)
                         Text(reason).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                     }.font(.subheadline).frame(maxWidth: .infinity)
@@ -458,15 +455,15 @@ private struct AlarmHomeView: View {
     }
 
     private var weatherNotice: String? {
-        if tomorrow.weatherRefreshFailed {
-            return String(localized: tomorrow.isToday ? "ux_today_weather_failed" : "ux_tomorrow_weather_failed")
+        let today = tomorrow.isToday
+        return switch TomorrowWidgetSnapshotBuilder.weatherNotice(for: tomorrow, addressesMissing: routeIncomplete) {
+        case nil: nil
+        case .failed: String(localized: today ? "ux_today_weather_failed" : "ux_tomorrow_weather_failed")
+        case .stale: String(localized: "ux_tomorrow_weather_stale")
+        case .routeNeeded: String(localized: "ux_route_needed")
+        // The card can load; the widget cannot.
+        case .noForecast: String(localized: today ? "ux_today_weather_loading" : "ux_tomorrow_weather_loading")
         }
-        if tomorrow.weatherIsStale { return String(localized: "ux_tomorrow_weather_stale") }
-        if tomorrow.weather == nil {
-            if routeIncomplete { return String(localized: "ux_route_needed") }
-            return String(localized: tomorrow.isToday ? "ux_today_weather_loading" : "ux_tomorrow_weather_loading")
-        }
-        return nil
     }
 
     private var isWaitingForFirstForecast: Bool {
@@ -474,42 +471,40 @@ private struct AlarmHomeView: View {
     }
 
     private var reason: String? {
-        switch tomorrow.reason {
-        case .normal: return nil
-        case .rain:
-            // After the ring a newer forecast must not print a percentage that contradicts it.
-            if !tomorrow.hasRung, let weather = tomorrow.weather, !tomorrow.weatherIsStale {
-                return String.localizedStringWithFormat(String(localized: "ux_rain_applied_forecast"),
-                                                        Int((weather.maximumPrecipitationProbability * 100).rounded()), tomorrow.leadTimeMinutes)
-            }
-            return String.localizedStringWithFormat(String(localized: "ux_rain_applied"), tomorrow.leadTimeMinutes)
-        case .holiday:
-            if let name = tomorrow.holidayName, !name.isEmpty {
-                return String.localizedStringWithFormat(
-                    String(localized: tomorrow.isToday ? "ux_today_holiday_named" : "ux_tomorrow_holiday_named"), name)
-            }
-            return String(localized: tomorrow.isToday ? "ux_today_holiday" : "ux_tomorrow_holiday")
-        case .manual:
-            if tomorrow.expectedRingDate == nil {
-                return String(localized: tomorrow.isToday ? "ux_today_manual_skip" : "ux_tomorrow_manual_skip")
-            }
-            return String(localized: tomorrow.isToday ? "ux_today_manual_ring" : "ux_tomorrow_manual_ring")
-        case .weekend: return String(localized: tomorrow.isToday ? "ux_today_weekend" : "ux_tomorrow_weekend")
-        case .unselectedWeekday: return String(localized: tomorrow.isToday ? "ux_today_unselected" : "ux_tomorrow_unselected")
-        case .disaster:
-            if tomorrow.isToday {
-                return String.localizedStringWithFormat(String(localized: "ux_today_closure_skipped"),
-                                                        viewModel.settings.timeFormat.time(tomorrow.normalAlarmDate))
-            }
-            return String(localized: "ux_tomorrow_closure")
-        case .routeIncomplete: return String(localized: "ux_route_needed")
-        case .alarmOff: return String(localized: "ux_alarm_off_reason")
+        // The builder chooses the line (shared with the widget); the card words it for the
+        // morning it describes: 今天 after midnight, 明天 before.
+        let today = tomorrow.isToday
+        return switch TomorrowWidgetSnapshotBuilder.reasonLine(for: tomorrow) {
+        case nil: nil
+        case .rainForecast(let percent, let minutes):
+            String.localizedStringWithFormat(String(localized: "ux_rain_applied_forecast"), percent, minutes)
+        case .rainEarlier(let minutes): String.localizedStringWithFormat(String(localized: "ux_rain_applied"), minutes)
+        case .awaitingForecast:
+            // Card only: a carried-over lead that has rung waits for nothing any more, and no
+            // widget entry describes a morning after its ring.
+            tomorrow.hasRung
+                ? String.localizedStringWithFormat(String(localized: "ux_rain_applied"), tomorrow.leadTimeMinutes)
+                : String(localized: today ? "ux_today_awaiting_forecast" : "ux_tomorrow_awaiting_forecast")
+        case .holidayNamed(let name):
+            String.localizedStringWithFormat(String(localized: today ? "ux_today_holiday_named" : "ux_tomorrow_holiday_named"), name)
+        case .holiday: String(localized: today ? "ux_today_holiday" : "ux_tomorrow_holiday")
+        case .manualSkip: String(localized: today ? "ux_today_manual_skip" : "ux_tomorrow_manual_skip")
+        case .manualRing: String(localized: today ? "ux_today_manual_ring" : "ux_tomorrow_manual_ring")
+        case .weekend: String(localized: today ? "ux_today_weekend" : "ux_tomorrow_weekend")
+        case .unselectedWeekday: String(localized: today ? "ux_today_unselected" : "ux_tomorrow_unselected")
+        case .closure:
+            today ? String.localizedStringWithFormat(String(localized: "ux_today_closure_skipped"),
+                                                     viewModel.settings.timeFormat.time(tomorrow.normalAlarmDate))
+                  : String(localized: "ux_tomorrow_closure")
+        case .routeNeeded: String(localized: "ux_route_needed")
+        case .alarmOff: String(localized: "ux_alarm_off_reason")
         case .skippedOnce:
             if let resume = viewModel.ringAfterSkip(now: now) {
-                return String.localizedStringWithFormat(String(localized: "ux_skip_once_resume"),
+                String.localizedStringWithFormat(String(localized: "ux_skip_once_resume"),
                     resume.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
+            } else {
+                String(localized: "ux_skip_once_reason")
             }
-            return String(localized: "ux_skip_once_reason")
         }
     }
 

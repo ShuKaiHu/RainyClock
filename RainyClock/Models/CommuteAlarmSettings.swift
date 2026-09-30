@@ -495,6 +495,19 @@ struct ScheduledAlarmSummary: Codable, Equatable {
     /// The rain decision the skipped morning had before it was skipped, so undoing the
     /// skip restores it (a rain-advanced 07:00, not the normal 07:30) without a fetch.
     var skippedMorningForecast: SkippedMorningForecast? = nil
+    /// A weekly registration's `normalAlarmDate` as registered: the morning whose forecast
+    /// decided `scheduledAlarmDate`. Rolling forward never moves it. It answers WHICH
+    /// morning a lead belongs to, where `firedEarlyRing` / `earlyRingThatWentOff` answer
+    /// WHEN a morning already rang; the two are read together, never instead of each other:
+    /// - `TomorrowAlarmStatus` tells a lead the weekly repeat carried past that morning from
+    ///   one decided for the day it serves (D-D), and a rolled summary's slot that already
+    ///   passed from one registered for a later morning;
+    /// - an offline re-registration (`restoreWeeklySchedule`, `registerCalendar`) and the
+    ///   one-time skip's saved forecast reuse a probability only for this morning.
+    /// nil in summaries stored before 1.8.0 (`AlarmViewModel` backfills the stored, not yet
+    /// rolled, date at launch; see `decidedNormalAlarmDate`) and in calendar plans, whose
+    /// rain only ever sits on the occurrence its own forecast decided.
+    var decisionNormalAlarmDate: Date? = nil
 }
 
 struct SkippedMorningForecast: Codable, Equatable {
@@ -562,6 +575,11 @@ extension ScheduledAlarmSummary {
         return .init(normalDate: morning, ringDate: ring)
     }
 
+    /// The morning whose forecast decided this weekly registration's ring. Rolling moves
+    /// `normalAlarmDate` on after that ring; this does not, so re-registering offline
+    /// reuses a lead only for the morning it was decided for.
+    var decidedNormalAlarmDate: Date { decisionNormalAlarmDate ?? normalAlarmDate }
+
     /// Returns the summary with past dates advanced to their next weekly occurrence,
     /// so a summary reloaded after relaunch still describes the upcoming ring.
     func rollingForward(
@@ -605,6 +623,52 @@ extension ScheduledAlarmSummary {
             after: now,
             calendar: calendar
         )
+        return summary
+    }
+
+    /// `rollingForward`, except that a weekly summary's ring and normal time move as the
+    /// pair AlarmKit's weekly repeat rings: the next ring after `now`, and the normal time
+    /// that ring serves. For display (`AlarmViewModel.tomorrowStatus`) only.
+    ///
+    /// `rollingForward` moves each date on its own, so between an early ring and its normal
+    /// time it pairs the NEXT ring with TODAY's normal time — for a lead that crosses
+    /// midnight, a mismatch that reads as "update needed". `init` and the background
+    /// refresh guard depend on that unrolled normal time, so they keep `rollingForward`.
+    ///
+    /// Works on a summary that was already rolled one date at a time (a relaunch between
+    /// the ring and the normal time): each date keeps its wall-clock time, so the lead and
+    /// its day shift are recovered from the times of day, not from the stored dates.
+    func rollingForwardAsPair(
+        selectedWeekdays: Set<Int>,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> ScheduledAlarmSummary {
+        var summary = rollingForward(selectedWeekdays: selectedWeekdays, now: now, calendar: calendar)
+        guard calendarPlan == nil else { return summary }
+
+        let day: TimeInterval = 86_400
+        func secondOfDay(_ date: Date) -> TimeInterval {
+            let time = calendar.dateComponents([.hour, .minute, .second], from: date)
+            return TimeInterval((time.hour ?? 0) * 3_600 + (time.minute ?? 0) * 60 + (time.second ?? 0))
+        }
+        let ringTime = secondOfDay(scheduledAlarmDate)
+        let lead = (secondOfDay(normalAlarmDate) - ringTime + day).truncatingRemainder(dividingBy: day)
+        let dayShift = ringTime + lead >= day ? 1 : 0
+        let weekdays = selectedWeekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : selectedWeekdays
+        let ringWeekdays = dayShift == 0 ? weekdays
+            : Set(weekdays.map { AlarmTimeCalculator.shiftedWeekday($0, byDays: -dayShift) })
+        let ring = Self.nextOccurrence(of: scheduledAlarmDate, weekdays: ringWeekdays, after: now, calendar: calendar)
+
+        // An upcoming ring still paired with its own normal time: nothing to re-pair.
+        let storedLead = normalAlarmDate.timeIntervalSince(scheduledAlarmDate)
+        if ring == scheduledAlarmDate, storedLead >= 0, storedLead < day { return summary }
+
+        let normalTime = calendar.dateComponents([.hour, .minute, .second], from: normalAlarmDate)
+        guard let normalDay = calendar.date(byAdding: .day, value: dayShift, to: calendar.startOfDay(for: ring)),
+              let normal = calendar.date(bySettingHour: normalTime.hour ?? 0, minute: normalTime.minute ?? 0,
+                                         second: normalTime.second ?? 0, of: normalDay) else { return summary }
+        summary.scheduledAlarmDate = ring
+        summary.normalAlarmDate = normal
         return summary
     }
 
@@ -656,28 +720,5 @@ extension ScheduledAlarmSummary {
         }
 
         return date
-    }
-}
-
-/// A display preference only: never changes a Date or the scheduled alarm time.
-enum ClockTimeFormat: String, Codable, CaseIterable, Identifiable, Sendable {
-    case twelveHour, twentyFourHour
-    var id: String { rawValue }
-    var title: String { String(localized: self == .twelveHour ? "clock_format_12" : "clock_format_24") }
-
-    func time(_ date: Date, locale: Locale = .current, timeZone: TimeZone = .current) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = timeZone
-        let chinese = locale.language.languageCode?.identifier == "zh"
-        formatter.amSymbol = chinese ? "上午" : "AM"
-        formatter.pmSymbol = chinese ? "下午" : "PM"
-        formatter.dateFormat = self == .twentyFourHour ? "HH:mm" : (chinese ? "a h:mm" : "h:mm a")
-        return formatter.string(from: date)
-    }
-
-    func dateTime(_ date: Date) -> String {
-        date.formatted(date: .abbreviated, time: .omitted) + " " + time(date)
     }
 }

@@ -196,6 +196,83 @@ final class TomorrowAlarmStatusTests: XCTestCase {
         XCTAssertEqual(status(value, now: now, feed: feed).expectedRingDate, date(16, 7, 30))
     }
 
+    /// D-D: after an early ring the weekly repeat rings at the same early time the next
+    /// morning. That time is what AlarmKit will do, so it stays; what it must not claim is
+    /// that rain moved it, until a forecast for that morning decides.
+    @MainActor
+    func testCarriedOverRainLeadKeepsRegisteredTimeWithoutClaimingRain() {
+        let value = settings()
+        // Decided Monday evening for Tuesday: rain moved Tuesday's 07:30 to 07:00.
+        var registered = summary(normal: date(15, 7, 30), ring: date(15, 7))
+        registered.decisionNormalAlarmDate = date(15, 7, 30)
+        func rolled(_ summary: ScheduledAlarmSummary, at now: Date) -> ScheduledAlarmSummary {
+            summary.rollingForwardAsPair(selectedWeekdays: value.selectedWeekdays, now: now, calendar: calendar)
+        }
+
+        // Tuesday 08:00: Tuesday's ring has fired; the repeat rings Wednesday 07:00.
+        let afterRing = date(15, 8)
+        let carried = status(value, now: afterRing, summary: rolled(registered, at: afterRing))
+        XCTAssertEqual(carried.day, date(16, 0))
+        XCTAssertEqual(carried.expectedRingDate, date(16, 7), "The registered time is what AlarmKit rings")
+        XCTAssertEqual(carried.registeredRingDate, date(16, 7))
+        XCTAssertEqual(carried.reason, .rain)
+        XCTAssertEqual(carried.leadTimeMinutes, 30)
+        XCTAssertTrue(carried.rainLeadIsCarriedOver)
+        XCTAssertEqual(TomorrowWidgetSnapshotBuilder.reasonLine(for: carried), .awaitingForecast)
+        XCTAssertNil(TomorrowWidgetSnapshotBuilder.scheduleIssue(for: carried, flags: .init()), "Nothing to update: it is registered")
+
+        // A Wednesday forecast that has gone stale did not decide the registration either.
+        // (Requested at 07:30, when the coming morning became Wednesday; 31 minutes old.)
+        let staleWednesday = record(value, now: date(15, 7, 30))
+        let staleCheck = date(15, 8, 1)
+        let stillCarried = status(value, now: staleCheck, weather: staleWednesday, summary: rolled(registered, at: staleCheck))
+        XCTAssertTrue(stillCarried.weatherIsStale)
+        XCTAssertTrue(stillCarried.rainLeadIsCarriedOver)
+        XCTAssertEqual(TomorrowWidgetSnapshotBuilder.reasonLine(for: stillCarried), .awaitingForecast)
+
+        // A fresh Wednesday forecast decides Wednesday outright: rain, and said so.
+        let decided = status(value, now: date(15, 9), weather: record(value, now: date(15, 9)),
+                             summary: rolled(registered, at: date(15, 9)))
+        XCTAssertFalse(decided.rainLeadIsCarriedOver)
+        XCTAssertEqual(decided.reason, .rain)
+        XCTAssertEqual(TomorrowWidgetSnapshotBuilder.reasonLine(for: decided), .rainForecast(percent: 80, minutes: 30))
+
+        // The same day: Wednesday's own forecast decided Wednesday at 22:00 and went stale by
+        // 23:00. That lead was decided for this morning and keeps its reason.
+        var sameDay = summary(normal: date(16, 7, 30), ring: date(16, 7))
+        sameDay.decisionNormalAlarmDate = date(16, 7, 30)
+        let evening = date(15, 23)
+        let staleSameDay = status(value, now: evening, weather: record(value, now: date(15, 22)),
+                                  summary: rolled(sameDay, at: evening))
+        XCTAssertTrue(staleSameDay.weatherIsStale)
+        XCTAssertEqual(staleSameDay.expectedRingDate, date(16, 7))
+        XCTAssertEqual(staleSameDay.reason, .rain)
+        XCTAssertFalse(staleSameDay.rainLeadIsCarriedOver)
+        XCTAssertEqual(TomorrowWidgetSnapshotBuilder.reasonLine(for: staleSameDay), .rainEarlier(minutes: 30))
+        // ...and with no forecast left at all.
+        XCTAssertFalse(status(value, now: evening, summary: rolled(sameDay, at: evening)).rainLeadIsCarriedOver)
+
+        // A lead-free carried registration claims nothing either way.
+        var dry = summary(normal: date(15, 7, 30), ring: date(15, 7, 30))
+        dry.decisionNormalAlarmDate = date(15, 7, 30)
+        let dryCarried = status(value, now: afterRing, summary: rolled(dry, at: afterRing))
+        XCTAssertEqual(dryCarried.reason, .normal)
+        XCTAssertFalse(dryCarried.rainLeadIsCarriedOver)
+
+        // A summary stored before 1.8.0 names no morning: read as decided, as it always was.
+        let legacy = summary(normal: date(15, 7, 30), ring: date(15, 7))
+        XCTAssertFalse(status(value, now: afterRing, summary: rolled(legacy, at: afterRing)).rainLeadIsCarriedOver)
+
+        // A dated calendar plan only ever puts rain on the occurrence its forecast decided.
+        var plan = summary(normal: date(16, 7, 30), ring: date(16, 7))
+        plan.decisionNormalAlarmDate = date(15, 7, 30)
+        plan.calendarPlan = .init(occurrences: [.init(normalDate: date(16, 7, 30), ringDate: date(16, 7))],
+                                  coveredUntil: date(20, 0), timeZoneID: calendar.timeZone.identifier)
+        let planned = status(value, now: afterRing, summary: plan)
+        XCTAssertEqual(planned.expectedRingDate, date(16, 7))
+        XCTAssertFalse(planned.rainLeadIsCarriedOver)
+    }
+
     func testExpiredDatedCoverageCannotVerifyTomorrow() {
         let value = settings()
         let now = date(15)
@@ -377,6 +454,8 @@ final class TomorrowAlarmStatusTests: XCTestCase {
         XCTAssertEqual(rainyTomorrow.expectedRingDate, date(29, 7, 30))
         XCTAssertEqual(rainyTomorrow.registeredRingDate, date(30, 7), "Today's 07:00 has passed: nothing is left today")
         XCTAssertNotEqual(rainyTomorrow.registeredRingDate, rainyTomorrow.expectedRingDate, "So the page flags the mismatch")
+        XCTAssertFalse(rainyTomorrow.hasRung, "Registered for Wednesday after Tuesday's 07:00: that slot never rang")
+        XCTAssertEqual(rainyTomorrow.passedRingDate, date(29, 7), "The widget ends today there (merge with ios/widget)")
         let dryTomorrow = status(value, now: date(29, 7, 10), summary: summary(normal: date(30, 7, 30), ring: date(30, 7, 30)))
         XCTAssertEqual(dryTomorrow.registeredRingDate, date(29, 7, 30), "The weekly 07:30 still rings today")
         XCTAssertEqual(dryTomorrow.expectedRingDate, date(29, 7, 30))
@@ -436,6 +515,30 @@ final class TomorrowAlarmStatusTests: XCTestCase {
         XCTAssertEqual(sunday.expectedRingDate, date(28, 7, 30))
     }
 
+    /// The widget merge (2026-10-01): one request type, two ways to name the morning. nil is
+    /// the card's coming morning (the one forecast the app fetches); 0 and 1 are the widget's
+    /// calendar days, which match that forecast only when they name the same morning.
+    func testCalendarDayRequestsBesideTheComingMorning() {
+        let value = settings()
+        func request(_ now: Date, _ offset: Int?) -> TomorrowWeatherRequest {
+            TomorrowWeatherRequest(settings: value, now: now, calendar: calendar, dayOffset: offset)
+        }
+        for (now, coming) in [(date(28, 21), date(29, 7, 30)), (date(29, 3), date(29, 7, 30)), (date(29, 7, 30), date(30, 7, 30))] {
+            XCTAssertEqual(request(now, nil).normalAlarmDate, coming, "\(now)")
+            XCTAssertEqual(request(now, 0).normalAlarmDate, calendar.date(bySettingHour: 7, minute: 30, second: 0, of: now), "\(now)")
+            XCTAssertEqual(request(now, 1).normalAlarmDate,
+                           calendar.date(byAdding: .day, value: 1, to: calendar.date(bySettingHour: 7, minute: 30, second: 0, of: now)!),
+                           "\(now)")
+            XCTAssertEqual(TomorrowWeatherRequest(settings: value, now: now, calendar: calendar), request(now, nil))
+        }
+        // The evening's fetched forecast serves the widget's tomorrow before midnight and its
+        // today after it, never a day it was not fetched for.
+        let evening = record(value, now: date(28, 21))
+        XCTAssertEqual(evening.request, request(date(28, 21), 1))
+        XCTAssertEqual(evening.request, request(date(29, 3), 0))
+        XCTAssertNotEqual(evening.request, request(date(29, 3), 1))
+    }
+
     // MARK: - Master switch (1.8.0)
 
     func testAlarmOffOutranksEveryOtherReason() {
@@ -493,7 +596,9 @@ final class TomorrowAlarmStatusTests: XCTestCase {
                     "ux_next_alarm", "ux_today_weather", "ux_today_weather_loading", "ux_today_weather_failed",
                     "ux_today_holiday_named", "ux_today_holiday", "ux_today_manual_skip", "ux_today_manual_ring",
                     "ux_today_weekend", "ux_today_unselected", "ux_rang_at", "ux_today_closure_skipped",
-                    "ux_tomorrow", "ux_tomorrow_weather"]
+                    "ux_tomorrow", "ux_tomorrow_weather",
+                    // The widget merge: a carried-over lead (D-D) on the card after midnight.
+                    "ux_tomorrow_awaiting_forecast", "ux_today_awaiting_forecast"]
         let bundle = Bundle(for: AlarmViewModel.self)
         for language in ["en", "zh-Hant"] {
             let path = try XCTUnwrap(bundle.path(forResource: "Localizable", ofType: "strings", inDirectory: nil,

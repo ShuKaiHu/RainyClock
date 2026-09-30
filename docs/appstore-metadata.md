@@ -1,5 +1,83 @@
 # Rainy Clock App Store Metadata
 
+## 1.8.0 (38) — DRAFT, not approved: What's New — typhoon closures, alarm switch, Next Alarm widget
+
+> **DRAFT.** Nothing in this section has been approved, pasted into App Store Connect or
+> submitted; the owner approves the final text. One draft since 2026-10-01, when `ios/widget`
+> (the widget's 2026-09-24 draft, written in worktree `RainyClock-widget`) was merged into the 1.8.0
+> line with `ios/main` (the closure and alarm-switch draft of 2026-09-28 / 09-30, formerly the
+> "Version 1.8.0 (38) “What’s New” — LOCAL DRAFT" section below). The App Review note is one draft
+> too: "Version-specific note for 1.8.0 (38)" under App Review Notes.
+
+Where the draft stands:
+
+- **1.7.1 (37) is live** (2026-09-26), so nothing from 1.7.0 / 1.7.1 is carried into this What's New; the
+  widget draft's "only if 1.7.1 is not released on its own" line is dropped.
+- **The typhoon / disaster closure rule is on in this build** (`supportsTemporaryClosures = true`,
+  `8031f51`) and its plans are decided (2026-09-28: monthly subscription and one-time purchase, not
+  free; [PRODUCT_DECISIONS](PRODUCT_DECISIONS.md)). The copy states that and names no price. Nothing
+  here claims background delivery is guaranteed. The public description's OPTIONAL MEMBERSHIP list and
+  the ASC product descriptions still list only banner removal, calendar and the daily AI generation;
+  adding the closure rule there is an owner edit (see the StoreKit products section below).
+- **The alarm switch** (2026-09-30, owner request) is free on every plan.
+- **The widget is iOS 26+ only** (it lives in the AlarmKit Live Activity extension); the app stays
+  iOS 17+, iPhone only. Only the medium widget shows weather, with Apple's  Weather mark under its
+  weather column and a link (through the app) to Apple's legal page (decision D-A); confirm on the
+  submitted build, on a device.
+- The 1.7.0 (30) review note's "not a Home Screen widget", line 3 of
+  `appstore-review-notes-1.7.0-34.txt` and the 1.6.x 2.1(a) replies below all say the app has no Home
+  Screen widget; **from 1.8.0 that is false and must not be reused.**
+
+### What's New — English (DRAFT)
+
+```
+Sleep in when the government calls a day off, and see your next alarm on your Home Screen and Lock Screen.
+
+• Typhoon and disaster closures: when a city or county government suspends work or school for the district of your home or workplace, Rainy Clock skips that day's alarm. Announcements come from the Directorate-General of Personnel Administration's open data, and the app shows the source and its update time next to any closure it reports.
+• Choose whether work closures, school closures, or both count, and confirm your home and workplace districts in Settings → Calendar. Closure rules are included with a monthly subscription or a one-time purchase.
+• An optional notification can tell you when an announcement changes. It is checked against your districts on your phone — nothing about where you live is uploaded — and the alarm is only ever silenced after the app has verified the announcement.
+• A township map shows today's and tomorrow's announcements for all 22 cities and counties and 368 townships and districts.
+• If no announcement can be confirmed, or the network is down, the alarm rings as usual.
+• New switch next to the Alarm title: turn off only the next alarm (it comes back on by itself after that morning), or turn the alarm off until you turn it back on. Free on every plan.
+• New widget: see when your alarm will ring and why — moved earlier for rain on your route, or skipped for a holiday, a weekend, a closure or a day you set to stay silent. After midnight it shows today's alarm until it rings, then tomorrow's.
+• After an early ring for rain, the next morning's alarm keeps that time until its own forecast arrives; the widget then says "Waiting for tomorrow's forecast".
+• Choose a small or medium widget for the Home Screen, or add one to the Lock Screen. The medium widget also shows home and work weather from Apple Weather.
+• The widget updates whenever Rainy Clock checks the forecast. Open the app once after updating to set it up. Widgets require iOS 26 or later.
+```
+
+### What's New — 繁體中文（草稿）
+
+```
+政府宣布放假，就讓你多睡一會；下次鬧鐘，主畫面和鎖定畫面就看得到。
+
+・颱風與天災停班停課：當縣市政府宣布你住家或公司所在行政區停止上班或上課，雨天鬧鐘會略過當天的鬧鐘。公告來自行政院人事行政總處的開放資料，App 顯示任何停班停課結果時都會標示資料來源與更新時間。
+・可選擇只看停班、只看停課或兩者皆算，並在「設定 → 日曆」確認住家與公司所在行政區。月訂閱或買斷可使用臨時放假規則。
+・選用的通知可以在公告更新時提醒你。比對行政區在你的手機上完成，不會上傳你的所在地；鬧鐘只會在 App 確認公告後才靜音。
+・鄉鎮市區地圖可查看今天與明天的公告，涵蓋 22 縣市、368 鄉鎮市區。
+・無法確認公告或網路異常時，鬧鐘照常響鈴。
+・鬧鐘頁標題旁新增開關：可以只關閉下一次鬧鐘（那次過後自動恢復），或關閉到你重新開啟為止。所有方案都能使用。
+・新增小工具：顯示鬧鐘幾點響與原因——路線可能下雨而提早，或因假日、週末、停班停課、手動設為安靜而略過。午夜後到今天的鬧鐘響之前顯示「今天」，響過之後改顯示明天。
+・因雨提早響過之後，隔天的鬧鐘在自己的預報出來前仍會在同一時間響，小工具這時顯示「等待明天預報」。
+・主畫面可選小型或中型，也能加到鎖定畫面；中型另外顯示住家與公司天氣（Apple 天氣）。
+・雨天鬧鐘每次檢查預報都會更新小工具。更新後請先開啟 App 一次，小工具才會顯示內容。小工具需要 iOS 26 以上。
+```
+
+### Before pasting — internal, not App Store copy
+
+- [ ] The Apple Weather treatment in the build matches the widget lines above (medium widget), or the
+      lines are rewritten.
+- [ ] The widget App ID has the App Group enabled and the archived `.appex` carries it; otherwise the
+      widget never leaves "Open the app…" and the reviewer's widget steps fail.
+- [ ] The review note (below, under App Review Notes) is rewritten to fit 4,000 characters.
+- [ ] "Shows the source and its update time next to any closure it reports" (What's New, both languages, and the
+      review note) covers the widget too: on a device, the small, medium and rectangular widgets show the
+      source and its time under a closure, and the circular and inline widgets show a plain skipped day
+      (DAYOFF-SPEC §7, 2026-10-01). If the owner instead records a §7 exception that restores 停班 on the
+      circular face, scope that sentence to the app.
+- [ ] The 2.1(a) section of `app-store-submission-checklist.md` is marked historical for 1.8.0+.
+
+---
+
 ## 1.7.0 (30) — current submission copy, 2026-09-21
 
 本節為目前版本優先使用的完整文案。1.7.0（30）已完成封存及 ASC 上傳，並加入內部
@@ -286,43 +364,11 @@ rain alarm,weather alarm,commute alarm,smart alarm,rain,weather,alarm clock,comm
 
 雨天鬧鐘,天氣鬧鐘,通勤鬧鐘,智慧鬧鐘,降雨,天氣,鬧鐘,通勤
 
-## Version 1.8.0 (38) “What’s New” — LOCAL DRAFT
+## Version 1.8.0 (38) “What’s New”
 
-Local draft written 2026-09-28, before any archive or upload; 1.7.1 (37) is the live build.
-The typhoon / disaster closure rule leads. The free alarm switch added on 2026-09-30 follows
-as its own bullet (owner request: off for the next alarm only, or until turned back on). The plan was decided on 2026-09-28 ([PRODUCT_DECISIONS](PRODUCT_DECISIONS.md)): the
-rule is included with **both** the monthly subscription and the one-time purchase, and not with
-the free plan. The copy states that and names no price. (The earlier draft said only
-"Availability follows your plan settings" while the decision was open.) Nothing here claims
-background delivery is guaranteed. The public description's OPTIONAL MEMBERSHIP list and the
-ASC product descriptions still list only banner removal, calendar and the daily AI generation;
-adding the closure rule there is an owner edit (see the StoreKit products section below).
-
-### English
-
-```
-Sleep in when the government calls a day off.
-
-• Typhoon and disaster closures: when a city or county government suspends work or school for the district of your home or workplace, Rainy Clock skips that day's alarm. Announcements come from the Directorate-General of Personnel Administration's open data, and the app shows the source and its update time next to any closure it reports.
-• Choose whether work closures, school closures, or both count, and confirm your home and workplace districts in Settings → Calendar. Closure rules are included with a monthly subscription or a one-time purchase.
-• An optional notification can tell you when an announcement changes. It is checked against your districts on your phone — nothing about where you live is uploaded — and the alarm is only ever silenced after the app has verified the announcement.
-• A township map shows today's and tomorrow's announcements for all 22 cities and counties and 368 townships and districts.
-• If no announcement can be confirmed, or the network is down, the alarm rings as usual.
-• New switch next to the Alarm title: turn off only the next alarm (it comes back on by itself after that morning), or turn the alarm off until you turn it back on. Free on every plan.
-```
-
-### 繁體中文
-
-```
-政府宣布放假，就讓你多睡一會。
-
-・颱風與天災停班停課：當縣市政府宣布你住家或公司所在行政區停止上班或上課，雨天鬧鐘會略過當天的鬧鐘。公告來自行政院人事行政總處的開放資料，App 顯示任何停班停課結果時都會標示資料來源與更新時間。
-・可選擇只看停班、只看停課或兩者皆算，並在「設定 → 日曆」確認住家與公司所在行政區。月訂閱或買斷可使用臨時放假規則。
-・選用的通知可以在公告更新時提醒你。比對行政區在你的手機上完成，不會上傳你的所在地；鬧鐘只會在 App 確認公告後才靜音。
-・鄉鎮市區地圖可查看今天與明天的公告，涵蓋 22 縣市、368 鄉鎮市區。
-・無法確認公告或網路異常時，鬧鐘照常響鈴。
-・鬧鐘頁標題旁新增開關：可以只關閉下一次鬧鐘（那次過後自動恢復），或關閉到你重新開啟為止。所有方案都能使用。
-```
+Merged on 2026-10-01 into the single 1.8.0 draft at the top of this file (closures, alarm switch,
+Next Alarm widget). The 2026-09-28 / 09-30 notes that stood here — closure rule first, the switch as its
+own bullet, the plan wording decided on 2026-09-28 — moved there with it.
 
 ## Version 1.7.0 (29) “What’s New” — LOCAL DRAFT
 
@@ -586,6 +632,14 @@ AdMob and `npa=1`, which `1.6.7` replaced with Unity LevelPlay.
 
 ### Version-specific note for 1.8.0 (38) — LOCAL DRAFT
 
+**The one 1.8.0 review-note draft** (2026-10-01, `ios/widget` merged into the 1.8.0 line): the
+closure and alarm-switch sections below (`ios/main`, 2026-09-28 / 09-30) plus the widget section
+from `ios/widget` (2026-09-24), which follows them. It keeps the facts only: pasted on top of the
+1.7.1 (37) note it runs well past App Review Information → Notes' 4,000 characters, so the final
+text is rewritten separately and approved by the owner. `appstore-review-notes-1.8.0-DRAFT.txt`
+(the widget branch's full paste-ready note, built on the 1.7.0 (34) note with the closure rule still
+gated off) is superseded by this draft and kept only as a record of that wording.
+
 Drafted 2026-09-28. Paste it on top of the 1.7.1 (37) note that was actually sent
 (`docs/appstore-review-notes-1.7.1-37.txt`), with the build number changed. **When pasting, change
 that note's "the Alarm tab shows tomorrow's alarm" to "the Alarm tab shows the next alarm: today's
@@ -598,7 +652,10 @@ section of the 1.7.1 note ("Both remove banner ads, unlock calendar features …
 provides these benefits permanently") is now consistent with this build; it may be left as is,
 or its benefit list may add temporary disaster closures when the note is pasted. The production
 membership service was redeployed on 2026-09-30, so a reviewer testing with the one-time purchase
-gets the closure rule. Paste the ALARM SWITCH paragraph below as well.
+gets the closure rule. Paste the ALARM SWITCH paragraph below as well, and the NEW: HOME SCREEN AND LOCK SCREEN WIDGET
+section after it (English, then its Chinese version). The widget section supersedes every earlier
+"no Home Screen widget" / 2.1(a) statement; with the widget, "the Alarm tab shows tomorrow's alarm"
+in the 1.7.1 note becomes "the Alarm tab shows the next alarm" as noted above.
 
 ```
 TEMPORARY DISASTER CLOSURES (new in 1.8.0)
@@ -632,6 +689,44 @@ Data: the phone sends our service a random installation identifier, the APNs tok
 「鬧鐘」分頁標題旁有一個開關。關閉時會請使用者二選一：「僅關閉下一次鬧鐘」——只移除下一次排定的鬧鐘，之後的鬧鐘都保留，那天早上過後開關自動恢復——或「關閉，直到我重新開啟」，移除所有鬧鐘直到再次打開開關。打開開關會立刻重新排定。測試方式：設定好路線並排定鬧鐘後，關閉開關並選任一選項，下方卡片會顯示「略過鬧鐘」（僅下一次）或「鬧鐘已關閉」。
 
 資料：手機傳給服務的是隨機安裝識別碼、APNs token 與裝置持有 credential 的雜湊；處理完公告後回報公告版本、時間戳與「已處理／未設鬧鐘」結果。住家與公司地址、行政區、路線、鬧鐘時間與略過日期都不會上傳。此功能不要求定位權限。詳見隱私政策「天災臨時放假」一節。
+```
+
+The widget section (from `ios/widget`'s draft, with the closure and the alarm switch's faces added on 2026-10-01):
+
+```
+NEW: HOME SCREEN AND LOCK SCREEN WIDGET
+Earlier notes said there was no Home Screen widget; there now is one, "Next Alarm" (iOS 26+; test on an iPhone: iPad compatibility mode has no widgets).
+
+Sizes: small, medium; Lock Screen rectangular, circular, inline. Each shows the next alarm and why (earlier for rain on the route; skipped for a holiday, non-repeat day, closure or silent date): today's from midnight until it rings, then tomorrow's. A repeated early ring awaiting its own morning's forecast reads "Waiting for tomorrow's forecast". With the alarm switch off it reads "Alarm Off" ("Off" on the circular Lock Screen widget); with only the next alarm off, "Off just this once; later alarms ring as usual" (shorter on the Lock Screen). A closure is shown on the small, medium and rectangular widgets with its source and the source's own update time; the circular and inline widgets have no room for the source, so they show that day only as skipped.
+
+Only the medium size shows weather (conditions, rain chance), with the Apple Weather mark under it; tapping that column opens Apple's legal attribution page via the app. Other sizes: no weather.
+
+No network, no ads: it reads a snapshot (no addresses) the app writes to its App Group, also from background refresh.
+
+To test:
+1. Open the app; set Home and Work (Settings > Route) and the time (Settings > Time); allow alarms. Before that the widget reads "Open the app to show your next alarm".
+2. Home Screen: long-press > Edit > Add Widget > search "Rainy Clock" (雨天鬧鐘) > small or medium.
+3. Lock Screen: long-press > Customize > Lock Screen > tap the widget area > Rainy Clock.
+4. Change the time in Settings > Time; the widget follows.
+```
+
+小工具段落的中文版（供繁中審查說明使用）：
+
+```
+新增：主畫面與鎖定畫面小工具
+先前的說明寫過本 App 沒有主畫面小工具；現在有一個「下次鬧鐘」（iOS 26 以上；請用 iPhone 測試，iPad 相容模式沒有小工具）。
+
+尺寸：主畫面小型、中型；鎖定畫面長方形、圓形、inline。每個尺寸都顯示下一次鬧鐘與原因（路線可能下雨而提早；因假日、非重複日、停班停課或手動靜音而略過）：午夜到今天的鬧鐘響之前是今天的，響過之後是明天的。因雨提早響過後、隔天自己的預報還沒決定的重複提早，顯示「等待明天預報」。鬧鐘總開關關閉時顯示「鬧鐘已關閉」（鎖定畫面圓形顯示「關閉」），只關閉下一次時顯示「只關閉這一次，之後的鬧鐘照常響」（鎖定畫面為較短的版本）。停班停課在小型、中型與長方形小工具上會同時標示資料來源與來源本身的更新時間；圓形與 inline 放不下資料來源，那天只顯示為略過。
+
+只有中型顯示天氣（天氣狀況、降雨機率），下方有 Apple 天氣標記；點天氣欄會經由 App 開啟 Apple 的法律聲明頁。其他尺寸不顯示天氣。
+
+不連網、無廣告：小工具只讀 App 寫進 App Group 的資料（不含地址），背景更新時也會寫入。
+
+測試方式：
+1. 開啟 App，設定住家與公司（設定 > 路線）與時間（設定 > 時間），允許鬧鐘。在此之前小工具顯示「開啟 App 以顯示下次鬧鐘」。
+2. 主畫面：長按 > 編輯 > 加入小工具 > 搜尋「雨天鬧鐘」> 小型或中型。
+3. 鎖定畫面：長按 > 自訂 > 鎖定畫面 > 點小工具區 > 雨天鬧鐘。
+4. 在「設定 > 時間」改時間，小工具會跟著變。
 ```
 
 ### Version-specific note for 1.7.0 (29) — LOCAL DRAFT
@@ -744,7 +839,9 @@ The app has no server and sends nothing anywhere; the background task calls Appl
 WeatherKit and re-registers the local alarm.
 ```
 
-If 2.1(a) (Home Screen widgets) is raised again, append the iPhone-only/AlarmKit paragraph
+**Not for 1.8.0 or later:** from 1.8.0 the app has a Home Screen widget, so the "no Home Screen
+widget" argument is false; use the widget section of the 1.8.0 DRAFT note at the top instead.
+Up to 1.7.x: if 2.1(a) (Home Screen widgets) is raised again, append the iPhone-only/AlarmKit paragraph
 from the `1.6.5` block below verbatim; it is left out here because that rejection was
 answered and cleared, and re-arguing a settled point invites a fresh look at it.
 

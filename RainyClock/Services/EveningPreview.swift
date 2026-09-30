@@ -116,6 +116,11 @@ enum EveningPreviewPlanner {
 
             let isArmedRing = calendar.isDate(alarm, equalTo: summary.normalAlarmDate, toGranularity: .minute)
                 && (summary.calendarPlan == nil || summary.calendarForecastDate == summary.normalAlarmDate)
+            // A weekly lead the repeat carried onto this morning was decided by an earlier
+            // morning's forecast (D-D): the card and widget say 等待明天預報, and so does this.
+            // It still names the time AlarmKit will ring.
+            let carriesAnotherMorningsDecision = isArmedRing && summary.calendarPlan == nil
+                && !calendar.isDate(summary.decidedNormalAlarmDate, equalTo: alarm, toGranularity: .minute)
             let disasterSilent = (summary.disasterSkips ?? []).contains {
                 calendar.isDate($0.normalDate, equalTo: alarm, toGranularity: .minute)
             }
@@ -124,7 +129,9 @@ enum EveningPreviewPlanner {
                 calendar.isDate($0, equalTo: alarm, toGranularity: .minute)
             } ?? false
             let kind: EveningPreview.Kind = skippedByUser ? .skippedOnce(normalAlarmDate: alarm)
-                : silent ? .dayOff(normalAlarmDate: alarm) : isArmedRing
+                : silent ? .dayOff(normalAlarmDate: alarm)
+                : carriesAnotherMorningsDecision ? .upcoming(normalAlarmDate: summary.scheduledAlarmDate)
+                : isArmedRing
                 ? .decision(
                     rain: summary.exceedsRainThreshold,
                     normalAlarmDate: summary.normalAlarmDate,

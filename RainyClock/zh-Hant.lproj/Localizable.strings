@@ -450,6 +450,10 @@
 "disaster_route_address_missing" = "請先在路線設定地址";
 "disaster_route_region_unavailable" = "尚未取得行政區";
 "ux_rain_applied_forecast" = "路線降雨機率 %d%%，提前 %d 分鐘";
+/* The ring is the weekly repeat of an earlier morning's rain lead; tomorrow's own forecast has not decided it yet. */
+"ux_tomorrow_awaiting_forecast" = "等待明天預報";
+/* The same after midnight, when the card describes today's alarm. */
+"ux_today_awaiting_forecast" = "等待今天預報";
 "ux_closure_update_failed" = "臨時放假資訊尚未更新成功";
 
 /* Commute sky */

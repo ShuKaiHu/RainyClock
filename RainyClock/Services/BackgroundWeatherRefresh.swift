@@ -150,10 +150,27 @@ enum BackgroundWeatherRefresh {
         let task: BGTask
     }
 
+    /// Tomorrow's forecast (for the card and the widget) is fetched only if the alarm work
+    /// left at least this much of the ~30 s a refresh task is given; the alarm comes first.
+    static let tomorrowWeatherStartDeadline: TimeInterval = 15
+
     @MainActor
     private static func handle(task: BGTask) {
+        let startedAt = Date()
         let work = Task { @MainActor in
-            await CommuteAlarmRefresher.refreshArmedAlarm()
+            let outcome = await CommuteAlarmRefresher.refreshArmedAlarm()
+            // Then the "tomorrow" forecast the widget snapshot describes, so a phone that
+            // was not opened all evening still shows a current one. Never registers,
+            // cancels or reschedules anything (`refreshTomorrowWeatherIfNeeded`), and the
+            // expiration handler's cancellation ends it like the alarm work.
+            if !Task.isCancelled, Date().timeIntervalSince(startedAt) < tomorrowWeatherStartDeadline {
+                await CommuteAlarmRefresher.refreshTomorrowWeather()
+            }
+            // The medium widget's  Weather mark, at most weekly, and only with time to spare.
+            if !Task.isCancelled, Date().timeIntervalSince(startedAt) < tomorrowWeatherStartDeadline {
+                await WeatherAttributionMarkCache.refreshIfNeeded()
+            }
+            return outcome
         }
 
         // The system reclaims the task if it runs long; cancelling here stops the
@@ -169,6 +186,8 @@ enum BackgroundWeatherRefresh {
                 scheduleNextRun(before: nextRefreshDate)
             }
             logger.info("Background refresh finished, rescheduled: \(outcome.didReschedule, privacy: .public)")
+            // Synchronously: the publisher's debounce would never fire before suspension.
+            TomorrowWidgetPublisher.shared.publish()
             task.setTaskCompleted(success: outcome.didReschedule)
         }
     }
@@ -191,12 +210,18 @@ enum CommuteAlarmRefresher {
         let model = AlarmViewModel(routeWeatherService: AppEnvironment.routeWeatherService,
             notificationScheduler: SystemAlarmScheduler())
         processModel = model
+        TomorrowWidgetPublisher.shared.start(observing: model)
         return model
     }
 
     struct Outcome {
         var didReschedule: Bool
         var nextWeatherRefreshDate: Date?
+    }
+
+    /// The card's and the widget's forecast for tomorrow; see `AlarmViewModel.refreshTomorrowWeatherIfNeeded`.
+    static func refreshTomorrowWeather() async {
+        await currentModel().refreshTomorrowWeatherIfNeeded()
     }
 
     static func refreshArmedAlarm() async -> Outcome {

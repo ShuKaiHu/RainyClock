@@ -238,6 +238,38 @@ final class EveningPreviewPlannerTests: XCTestCase {
         XCTAssertFalse(EveningPreviewText.body(for: skipped[0]).isEmpty)
     }
 
+    /// D-D, merge review 2026-10-01: Tuesday's rain decided 06:30 for Tuesday; Tuesday
+    /// evening's refresh failed, so the weekly repeat carries 06:30 to Wednesday. The summary
+    /// rolled at Tuesday 20:00 (as `replanEveningPreviews` rolls it) names Wednesday, but its
+    /// probability and place are still Tuesday's. Wednesday's preview must not present them
+    /// as Wednesday's forecast: it says an alarm at the time AlarmKit rings, which the
+    /// morning's forecast decides, as the card and widget say 等待明天預報.
+    func testACarriedOverLeadIsNotPresentedAsThatMorningsDecision() {
+        let now = date(8, 20)
+        var decided = summary(normal: date(8, 7), rain: true)
+        decided.decisionNormalAlarmDate = date(8, 7)
+        let rolled = decided.rollingForward(selectedWeekdays: weekdaysTueToFri, now: now, calendar: calendar)
+        XCTAssertEqual(rolled.normalAlarmDate, date(9, 7), "The fixture is the rolled summary")
+        XCTAssertEqual(rolled.decidedNormalAlarmDate, date(8, 7))
+        let previews = EveningPreviewPlanner.plan(summary: rolled, selectedWeekdays: weekdaysTueToFri, previewTime: date(7, 21),
+                                                  checkedAt: date(7, 21), now: now, canRefreshInBackground: true, calendar: calendar)
+        XCTAssertEqual(previews.first?.fireDate, date(8, 21))
+        guard case let .upcoming(ring)? = previews.first?.kind else {
+            return XCTFail("a carried lead is not Wednesday's decision, got \(String(describing: previews.first?.kind))")
+        }
+        XCTAssertEqual(ring, date(9, 6, 30), "It names the time AlarmKit will ring")
+        XCTAssertFalse(previews.contains { if case .decision = $0.kind { return true }; return false })
+
+        // Decided for Wednesday itself (a rolled summary that recorded Wednesday): the decision.
+        var own = rolled
+        own.decisionNormalAlarmDate = date(9, 7)
+        let ownPreviews = EveningPreviewPlanner.plan(summary: own, selectedWeekdays: weekdaysTueToFri, previewTime: date(7, 21),
+                                                     checkedAt: date(8, 19), now: now, canRefreshInBackground: true, calendar: calendar)
+        guard case .decision(true, _, _, 30, _, _, _, _)? = ownPreviews.first?.kind else {
+            return XCTFail("Wednesday's own rain decision, got \(String(describing: ownPreviews.first?.kind))")
+        }
+    }
+
     func testTheRenewalReminderNamesTheWeeklyAlarmWhenOnlyASkipMadeThePlan() {
         XCTAssertEqual("\(CalendarCoverageReminder.copyKeys(keepsWeeklyAlarm: true).title)",
                        "\(String.LocalizationValue("alarm_renew_title"))")

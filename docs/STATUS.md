@@ -20,7 +20,7 @@ hold the whole repo — the separation is by branch, not by directory.
 
 | Platform | State |
 | --- | --- |
-| **iOS** | `1.7.1 (37)` live on the App Store since 2026-09-26 (TW and US storefronts): RainyClock Plus membership (monthly subscription + one-time purchase), Unity LevelPlay ads, address suggestions. Typhoon day-off is next, in 1.8.0. |
+| **iOS** | `1.7.1 (37)` live on the App Store since 2026-09-26 (TW and US storefronts): RainyClock Plus membership (monthly subscription + one-time purchase), Unity LevelPlay ads, address suggestions. Next is 1.8.0 (38), not yet uploaded: typhoon day-off, the master alarm switch and the "Next Alarm" Home/Lock Screen widget (`ios/widget` merged into the 1.8.0 line on 2026-10-01). |
 | **Android** | Never shipped. The port builds, runs and matches the iOS behaviour, but a weather-provider licensing call and a Play developer account still block a first release. |
 
 ## Shared references

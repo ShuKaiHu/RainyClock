@@ -1,0 +1,119 @@
+/* Rainy Clock widget extension. Keys under "Shared with the app" are copied
+   byte-for-byte from RainyClock/zh-Hant.lproj/Localizable.strings; a unit test
+   (TomorrowWidgetStringsTests) keeps them identical. */
+
+/* Shared with the app */
+"app_title" = "雨天鬧鐘";
+"ux_tomorrow" = "明天";
+"ux_expected_ring" = "預計響鈴";
+"ux_tomorrow_skipped" = "略過鬧鐘";
+"ux_not_set" = "尚未設定鬧鐘";
+"ux_rain_applied_forecast" = "路線降雨機率 %d%%，提前 %d 分鐘";
+"ux_rain_applied" = "因雨提早 %d 分鐘";
+"ux_tomorrow_awaiting_forecast" = "等待明天預報";
+"ux_tomorrow_holiday_named" = "明天放假：%@";
+"ux_tomorrow_holiday" = "明天是國定假日";
+"ux_tomorrow_manual_skip" = "明天已手動設為略過";
+"ux_tomorrow_manual_ring" = "明天已手動設為照常響鈴";
+"ux_tomorrow_weekend" = "明天是週末";
+"ux_tomorrow_unselected" = "明天未列入重複星期";
+"ux_tomorrow_closure" = "明天因臨時停班／停課略過";
+"ux_route_needed" = "請完成路線";
+"ux_tomorrow_weather_failed" = "明天天氣更新失敗";
+"ux_tomorrow_weather_stale" = "天氣資料需要更新";
+"ux_tomorrow_weather_unavailable" = "尚未取得明天天氣";
+"ux_schedule_update_needed" = "鬧鐘設定尚未更新完成";
+"ux_closure_update_failed" = "臨時放假資訊尚未更新成功";
+"ux_rain_chance" = "降雨 %d%%";
+"ux_weather_home" = "住家";
+"ux_weather_work" = "公司";
+"ux_weather_clear" = "晴天";
+"ux_weather_cloudy" = "多雲";
+"ux_weather_rain" = "下雨";
+"ux_weather_updated" = "天氣更新於 %@";
+"calendar_silent" = "不響";
+"commute_mode_car" = "開車";
+"commute_mode_scooter" = "騎車";
+"commute_mode_walking" = "步行";
+"commute_mode_public_transit" = "大眾交通";
+"ux_alarm_off" = "鬧鐘已關閉";
+"ux_alarm_off_message_only" = "鬧鐘會保持關閉，直到你重新開啟。";
+"ux_skip_once_reason" = "只關閉這一次，之後的鬧鐘照常響";
+
+/* Widget only */
+/* The gallery name. Not 明天: between midnight and the ring the widget shows today's alarm. */
+"widget_display_name" = "下次鬧鐘";
+"widget_description" = "預計響鈴時間，以及是否因下雨提早。";
+"widget_open_to_refresh" = "開啟 App 更新";
+"widget_open_to_start" = "開啟 App 以顯示下次鬧鐘";
+/* A normal ringing day, on every family but the medium: the decision, not the weather. */
+"widget_rings_as_usual" = "照常響鈴";
+"widget_rain_short" = "因雨提早";
+/* A carried-over early ring: no forecast for its own morning yet. */
+"widget_awaiting_forecast_short" = "等待預報";
+"widget_manual_skip_short" = "已設為略過";
+"widget_manual_ring_short" = "已設為照常響鈴";
+"widget_holiday_named_short" = "放假：%@";
+"widget_unselected_short" = "非重複日";
+"widget_closure_short" = "停班停課略過";
+"widget_issue_schedule_failed" = "請開啟 App 檢查鬧鐘";
+"widget_issue_alarmkit" = "鬧鐘需要重新排程";
+"widget_issue_closure_uncertain" = "停班停課排程尚未確認";
+"widget_issue_short" = "請開啟 App 確認鬧鐘";
+"widget_weather_failed_short" = "天氣更新失敗";
+"widget_weather_stale_short" = "天氣資料需要更新";
+"widget_forecast_pending" = "尚無天氣預報";
+"widget_inline_ring" = "明天 %@";
+"widget_inline_rain" = "明天 %1$@，提早 %2$d 分鐘";
+"widget_inline_skipped" = "明天略過鬧鐘";
+"widget_inline_refresh" = "開啟雨天鬧鐘以更新";
+"widget_inline_refresh_short" = "開啟以更新";
+/* Before the app has published anything: nothing is on the widget to refresh yet. */
+"widget_inline_start" = "開啟雨天鬧鐘開始使用";
+"widget_inline_start_short" = "開啟雨天鬧鐘";
+/* Rain moved the ring across midnight: %1$@ is the ring's weekday, %2$@ its time. */
+"widget_inline_ring_on" = "%1$@ %2$@";
+"widget_inline_rain_on" = "%1$@ %2$@，提早 %3$d 分鐘";
+
+/* Circular Lock Screen face: one word under a skipped day's glyph. */
+"widget_skip_holiday" = "放假";
+/* 停班 by the user's choice (2026-09-23), also for a school-only notice; the rectangular line says 停班／停課.
+   Unused since 2026-10-01: the circular face cannot show the source a closure must name
+   (DAYOFF-SPEC §7), so it shows widget_skip_other; kept for an owner-recorded exception. */
+"widget_skip_closure" = "停班";
+/* Any other skipped day: a weekend, an unselected weekday or a manual skip. */
+"widget_skip_other" = "不響";
+
+/* Today, between midnight and today's ring (D-C). The card describes the same morning then,
+   under the header 下次鬧鐘, until its normal time. */
+"widget_today" = "今天";
+"widget_today_awaiting_forecast" = "等待今天預報";
+"widget_today_holiday_named" = "今天放假：%@";
+"widget_today_holiday" = "今天是國定假日";
+"widget_today_manual_skip" = "今天已手動設為略過";
+"widget_today_manual_ring" = "今天已手動設為照常響鈴";
+"widget_today_weekend" = "今天是週末";
+"widget_today_unselected" = "今天未列入重複星期";
+"widget_today_closure" = "今天因臨時停班／停課略過";
+"widget_inline_today_ring" = "今天 %@";
+"widget_inline_today_rain" = "今天 %1$@，提早 %2$d 分鐘";
+"widget_inline_today_skipped" = "今天略過鬧鐘";
+
+/* VoiceOver hint on the medium widget's weather column, which links to Apple's legal attribution page. */
+"widget_weather_legal_hint" = "開啟 Apple 天氣的資料來源與法律聲明";
+
+/* The master switch (1.8.0): the circular face's word under the bell, and the rectangular
+   family's short lines. The hero and the full lines are the app's own (shared above). */
+"widget_skip_off" = "關閉";
+"widget_alarm_off_short" = "直到重新開啟";
+"widget_skip_once_short" = "只關閉這一次";
+/* The inline face's one-time skip names its morning, as every other inline skip does. */
+"widget_inline_skip_once" = "明天只關閉這一次";
+"widget_inline_today_skip_once" = "今天只關閉這一次";
+
+/* Under a closure on the small, medium and rectangular faces (DAYOFF-SPEC §7): the source,
+   which the open-data licence requires, and the source's own update time (%@ = date and
+   time). Short forms of the card's disaster_source / disaster_source_updated. The circular
+   and inline faces cannot fit them, so they do not name the closure (merge review, 2026-10-01). */
+"widget_closure_source" = "來源：人事總處／NCDR";
+"widget_closure_source_updated" = "來源更新 %@";

@@ -431,9 +431,9 @@
 "ux_tomorrow_holiday" = "Tomorrow is a public holiday";
 "ux_tomorrow_manual_skip" = "Tomorrow was manually set to silent";
 "ux_tomorrow_manual_ring" = "Tomorrow was manually set to ring";
-"ux_tomorrow_weekend" = "Tomorrow is a weekend";
+"ux_tomorrow_weekend" = "Tomorrow is a weekend day";
 "ux_tomorrow_unselected" = "Tomorrow is not a selected repeat day";
-"ux_tomorrow_closure" = "Tomorrow is a temporary work or school closure";
+"ux_tomorrow_closure" = "Work or school is closed tomorrow";
 "ux_today_closure_skipped" = "Today's %@ alarm is skipped for a temporary work or school closure";
 "ux_next_alarm" = "Next alarm";
 "ux_today_weather" = "Today's weather";
@@ -443,13 +443,17 @@
 "ux_today_holiday" = "Today is a public holiday";
 "ux_today_manual_skip" = "Today was manually set to silent";
 "ux_today_manual_ring" = "Today was manually set to ring";
-"ux_today_weekend" = "Today is a weekend";
+"ux_today_weekend" = "Today is a weekend day";
 "ux_today_unselected" = "Today is not a selected repeat day";
 "ux_rang_at" = "Rang at";
 "ux_schedule_update_needed" = "The alarm schedule has not finished updating";
 "disaster_route_address_missing" = "Set an address in Route first";
 "disaster_route_region_unavailable" = "District not available yet";
-"ux_rain_applied_forecast" = "Route rain %d%% · %d min earlier";
+"ux_rain_applied_forecast" = "Route rain %d%%, %d\U00A0min earlier";
+/* The ring is the weekly repeat of an earlier morning's rain lead; tomorrow's own forecast has not decided it yet. */
+"ux_tomorrow_awaiting_forecast" = "Waiting for tomorrow's forecast";
+/* The same after midnight, when the card describes today's alarm. */
+"ux_today_awaiting_forecast" = "Waiting for today's forecast";
 "ux_closure_update_failed" = "Temporary closure information could not be updated";
 
 /* Commute sky */
@@ -457,7 +461,7 @@
 "ux_weather_work" = "Work";
 "ux_weather_clear" = "Sunny";
 "ux_weather_cloudy" = "Cloudy";
-"ux_weather_rain" = "Rain";
+"ux_weather_rain" = "Rainy";
 "ux_weather_open_route" = "Edit your route";
 "ux_weather_set_address" = "Set an address";
 "ux_weather_fetching" = "Getting your forecast…";

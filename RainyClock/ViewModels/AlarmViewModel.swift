@@ -272,7 +272,14 @@ final class AlarmViewModel: ObservableObject {
         let cacheNow = Date()
         tomorrowWeatherRecord = TomorrowWeatherRecord.load(from: settingsStorage,
             matching: TomorrowWeatherRequest(settings: settings, now: cacheNow), now: cacheNow)
-        if let storedSummary = Self.loadScheduledAlarmSummary(from: settingsStorage) {
+        if var storedSummary = Self.loadScheduledAlarmSummary(from: settingsStorage) {
+            // A weekly summary stored before 1.8.0 names no decided morning; the stored date,
+            // before the roll below moves it on, is the best record of it. Without this a
+            // relaunch after an early ring reads the rolled morning as the decided one, and
+            // an offline re-registration would re-apply that lead to it (`hasSameForecast`).
+            if storedSummary.calendarPlan == nil, storedSummary.decisionNormalAlarmDate == nil {
+                storedSummary.decisionNormalAlarmDate = storedSummary.normalAlarmDate
+            }
             scheduledAlarmSummary = storedSummary.rollingForward(selectedWeekdays: settings.selectedWeekdays)
             if let plan = storedSummary.calendarPlan {
                 statusMessage = String(localized: plan.occurrences.isEmpty ? "calendar_all_silent" : "calendar_schedule_saved")
@@ -342,8 +349,10 @@ final class AlarmViewModel: ObservableObject {
         // re-register the weekly alarm at tomorrow's time — and if that differs
         // from today's, today's ring is gone. iOS grants refresh windows at its
         // discretion, so this half hour is reachable; the next run is not far.
-        if let summary = scheduledAlarmSummary {
-            let now = Date()
+        // Read the registration as a relaunch would: a weekly summary this process has held
+        // since an earlier morning still names that morning, and today's window would be missed.
+        let now = Date()
+        if let summary = registeredSummary(now: now) {
             let checkPoint = summary.normalAlarmDate.addingTimeInterval(TimeInterval(-settings.rainLeadTimeMinutes * 60))
             if now >= checkPoint, now < summary.normalAlarmDate {
                 return disasterChanged
@@ -472,8 +481,8 @@ final class AlarmViewModel: ObservableObject {
     }
 
     private var restrictedRulesTransitionIsSafe: Bool {
-        guard let summary = scheduledAlarmSummary else { return true }
         let now = Date()
+        guard let summary = registeredSummary(now: now) else { return true }
         let check = summary.normalAlarmDate.addingTimeInterval(Double(-settings.rainLeadTimeMinutes * 60))
         return now < check || now >= summary.normalAlarmDate
     }
@@ -556,18 +565,86 @@ final class AlarmViewModel: ObservableObject {
             && !hasUnconfirmedSuggestedAddresses
     }
 
+    /// The Alarm page card: the coming morning, today's alarm until its normal time has
+    /// passed, then tomorrow's (see `TomorrowAlarmStatus`).
     func tomorrowStatus(now: Date = Date()) -> TomorrowAlarmStatus {
+        alarmStatus(now: now, dayOffset: nil)
+    }
+
+    /// Today's alarm, for the widget between local midnight and today's ring (D-C): the same
+    /// inputs and rules as the card, resolved for the calendar day that has begun, so it is
+    /// what AlarmKit's registration will ring (or the forecast's decision, flagged "update
+    /// needed" when the registration differs). From midnight to the normal time this is the
+    /// card's morning too; the widget hands over at the ring, the card at the normal time.
+    func todayStatus(now: Date = Date()) -> TomorrowAlarmStatus {
+        alarmStatus(now: now, dayOffset: 0)
+    }
+
+    /// Calendar tomorrow, the widget's other day. Before midnight it is the card's morning
+    /// (once today's normal time has passed); after midnight the card describes today.
+    func calendarTomorrowStatus(now: Date = Date()) -> TomorrowAlarmStatus {
+        alarmStatus(now: now, dayOffset: 1)
+    }
+
+    /// One reading for the card and the widget: the weekly summary is rolled forward as a
+    /// pair at `now`, so a process that stays alive reads what a relaunch reads, and after
+    /// an early ring the next morning shows the ring AlarmKit's repeat will fire.
+    private func alarmStatus(now: Date, dayOffset: Int?) -> TomorrowAlarmStatus {
         let settings = effectiveSchedulingSettings
-        let request = TomorrowWeatherRequest(settings: settings, now: now)
+        let request = TomorrowWeatherRequest(settings: settings, now: now, dayOffset: dayOffset)
         let currentRegistration = scheduledAlarmSummary != nil && scheduledFingerprint == effectiveSchedulingSettings.scheduleFingerprint()
         let routeIsReady = invalidAddressFields.isEmpty && !hasUnconfirmedSuggestedAddresses
             && (hasConfirmedAutomaticRoute || currentRegistration)
+        // The registration repeats on the weekdays it was made with; they differ from the
+        // settings' only while it is outdated (then `outdatedRegistrationRingDate` reads it).
+        let registeredWeekdays = scheduledFingerprint?.selectedWeekdays ?? settings.selectedWeekdays
         return TomorrowAlarmStatus.resolve(settings: settings, holidays: holidayCalendar,
             weatherRecord: tomorrowWeatherRecord, weatherRefreshFailed: tomorrowWeatherFailureRequest == request,
             routeIsReady: routeIsReady,
-            summary: scheduledAlarmSummary, registeredFingerprint: scheduledFingerprint,
-            disasterFeed: disasterFeed, disasterSourceFailed: disasterRefreshFailed, now: now)
+            summary: displaySummary?.rollingForwardAsPair(selectedWeekdays: registeredWeekdays, now: now,
+                                                          calendar: AlarmCalendarSettings.calendar),
+            registeredFingerprint: scheduledFingerprint,
+            disasterFeed: disasterFeed, disasterSourceFailed: disasterRefreshFailed, now: now, dayOffset: dayOffset)
     }
+
+    /// The registered summary as the status reads it. A weekly summary stored before 1.8.0
+    /// does not name the morning it was decided for; the unrolled date this model holds is
+    /// that morning, unless a relaunch after its ring already rolled it (then the lead reads
+    /// as decided, as it did before 1.8.0, until the next registration records the date).
+    private var displaySummary: ScheduledAlarmSummary? {
+        guard var summary = scheduledAlarmSummary else { return nil }
+        if summary.calendarPlan == nil, summary.decisionNormalAlarmDate == nil {
+            summary.decisionNormalAlarmDate = summary.normalAlarmDate
+        }
+        return summary
+    }
+
+    /// The registration as the scheduler reads it: what a relaunch reads (`init` rolls the
+    /// stored summary forward). A weekly summary this process has held since it registered
+    /// still names the morning it was made for, while AlarmKit's weekly repeat has carried
+    /// its ring onto every selected morning since. Rolled, its normal date is the coming
+    /// morning's, so a carried early ring that already went off there is recognised
+    /// (`earlyRingThatWentOff`) and that morning's check window is where the scheduler looks;
+    /// unrolled, a re-registration inside the window armed the normal time and the morning
+    /// rang twice. The lead and `decisionNormalAlarmDate` survive the roll.
+    ///
+    /// Dated plans are returned as held: each occurrence already names its morning, and
+    /// `datedBasePlan` reads those.
+    private func registeredSummary(now: Date) -> ScheduledAlarmSummary? {
+        guard let summary = displaySummary else { return nil }
+        guard summary.calendarPlan == nil else { return summary }
+        return summary.rollingForward(selectedWeekdays: scheduledFingerprint?.selectedWeekdays ?? settings.selectedWeekdays,
+                                      now: now, calendar: AlarmCalendarSettings.calendar)
+    }
+
+    #if DEBUG
+    /// Tests only: a process that registered `summary` on an earlier morning and has stayed
+    /// alive since holds it as registered, never rolled (only `init` rolls). A test cannot
+    /// wait a day for AlarmKit's weekly repeat to carry the ring on, so it hands one over.
+    func holdRegistrationForTesting(_ summary: ScheduledAlarmSummary) {
+        scheduledAlarmSummary = summary
+    }
+    #endif
 
     /// The coming morning's forecast (today's until its normal time, then tomorrow's) is
     /// fetched even on a skipped day. This path never authorizes,
@@ -998,6 +1075,8 @@ final class AlarmViewModel: ObservableObject {
             summary.wettestSegmentName = snapshot.segments
                 .max { $0.precipitationProbability < $1.precipitationProbability }?
                 .name
+            // The morning this forecast decided: the weekly repeat carries the ring past it.
+            summary.decisionNormalAlarmDate = summary.normalAlarmDate
 
             let body = exceedsThreshold
                 ? String(localized: "notification_body_adjusted")
@@ -1526,7 +1605,7 @@ final class AlarmViewModel: ObservableObject {
         let weekday = AlarmCalendarSettings.calendar.component(.weekday, from: coming.normalAlarmDate)
         guard settings.selectedWeekdays.contains(weekday) else { return false }
         return coming.forecastDate <= now
-            || scheduledAlarmSummary?.hasFiredEarlyRing(forMorning: coming.normalAlarmDate, now: now) == true
+            || registeredSummary(now: now)?.hasFiredEarlyRing(forMorning: coming.normalAlarmDate, now: now) == true
     }
 
     private func cancelPendingAutoRefresh() {
@@ -1831,14 +1910,18 @@ final class AlarmViewModel: ObservableObject {
         if let next = base.occurrences.first {
             // Undoing a skip: the skipped morning's own forecast, kept through the skip.
             let saved = previous?.skippedMorningForecast.flatMap { $0.normalDate == next.normalDate ? $0 : nil }
+            // A weekly summary's own normal date may have been rolled on (a relaunch after its
+            // early ring); the morning its forecast decided is `decidedNormalAlarmDate`.
             let hasSameForecast = saved != nil || previous?.calendarForecastDate == next.normalDate
-                || (previous?.calendarPlan == nil && previous?.normalAlarmDate == next.normalDate)
+                || (previous?.calendarPlan == nil && previous?.decidedNormalAlarmDate == next.normalDate)
             let probability = saved?.probability ?? probability
             let earlier = next.normalDate.addingTimeInterval(Double(-snapshot.rainLeadTimeMinutes * 60))
             let rain = hasSameForecast && probability >= snapshot.rainProbabilityThreshold && earlier > now
             // This morning already rang early: the one repeating clock time stays on that
             // ring, which has passed. The normal time would ring the same morning again.
-            let rang = previous?.earlyRingThatWentOff(forMorning: next.normalDate, now: now)
+            // Read from the registration as a relaunch reads it: held since an earlier
+            // morning, the weekly repeat's ring for this one is not recognised otherwise.
+            let rang = registeredSummary(now: now)?.earlyRingThatWentOff(forMorning: next.normalDate, now: now)
             summary.normalAlarmDate = next.normalDate
             summary.scheduledAlarmDate = rang?.ringDate ?? (rain ? earlier : next.normalDate)
             summary.weatherRefreshDate = earlier
@@ -1847,6 +1930,14 @@ final class AlarmViewModel: ObservableObject {
                 ?? (rain ? snapshot.rainLeadTimeMinutes : 0)
             summary.maximumPrecipitationProbability = hasSameForecast ? probability : 0
             summary.firedEarlyRing = rang
+            // This registration describes `next`: a rain lead only survives `hasSameForecast`
+            // (this very morning's forecast), and a ring that already went off (`rang`) is this
+            // morning's own, whichever forecast decided it. Rolling never moves this date, so
+            // the lead reads as carried over on the mornings after it (D-D).
+            summary.decisionNormalAlarmDate = next.normalDate
+        } else {
+            // No selected day ahead: whatever lead remains is the previous decision's.
+            summary.decisionNormalAlarmDate = previous?.decisionNormalAlarmDate ?? previous?.normalAlarmDate
         }
         let selectedSound = snapshot.soundSelection(ringDate: summary.scheduledAlarmDate, normalDate: summary.normalAlarmDate)
         guard settings.isAlarmEnabled else { return }
@@ -1873,7 +1964,9 @@ final class AlarmViewModel: ObservableObject {
     private func datedBasePlan(settings: CommuteAlarmSettings, now: Date)
         -> (plan: CalendarAlarmPlan, firedEarlyRing: CalendarAlarmPlan.Occurrence?) {
         var plan = CalendarAlarmPlan.make(settings: settings, holidays: holidayCalendar, rain: false, now: now, days: Self.calendarHorizonDays)
-        guard let summary = scheduledAlarmSummary else { return (plan, nil) }
+        // A weekly registration being replaced (the one-time skip, a calendar edit) is read as
+        // a relaunch reads it, so the weekly repeat's early ring this morning is found too.
+        guard let summary = registeredSummary(now: now) else { return (plan, nil) }
         var fired = summary.firedEarlyRing.flatMap { $0.normalDate > now ? $0 : nil }
         plan.occurrences.removeAll { occurrence in
             guard let ring = summary.earlyRingThatWentOff(forMorning: occurrence.normalDate, now: now) else { return false }
@@ -1900,7 +1993,8 @@ final class AlarmViewModel: ObservableObject {
         var checkedAt: Date?
         var forecastDate: Date?
         if let next, let previous,
-           previous.calendarForecastDate == next.normalDate || (previous.calendarPlan == nil && previous.normalAlarmDate == next.normalDate) {
+           previous.calendarForecastDate == next.normalDate
+            || (previous.calendarPlan == nil && previous.decidedNormalAlarmDate == next.normalDate) {
             forecastDate = next.normalDate
             probability = previous.maximumPrecipitationProbability
             rain = probability >= snapshot.rainProbabilityThreshold
@@ -1919,7 +2013,9 @@ final class AlarmViewModel: ObservableObject {
             if let kept = previous.skippedMorningForecast, kept.normalDate == skippedMorning {
                 skippedMorningForecast = kept
             } else if previous.calendarForecastDate == skippedMorning
-                        || (previous.calendarPlan == nil && previous.normalAlarmDate == skippedMorning) {
+                        || (previous.calendarPlan == nil && previous.decidedNormalAlarmDate == skippedMorning) {
+                // Only the skipped morning's own decision: a lead the weekly repeat carried onto
+                // it (a relaunch rolled `normalAlarmDate` there) must not come back on undo (D-D).
                 skippedMorningForecast = .init(normalDate: skippedMorning, probability: previous.maximumPrecipitationProbability,
                                                place: previous.wettestSegmentName)
             }
