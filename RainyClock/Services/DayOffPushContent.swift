@@ -21,7 +21,7 @@ enum DayOffPushContent {
         /// `alreadyApplied`, so every revision of a typhoon night does not ring.
         case keptByUser
         /// The user turned the alarm off: nothing an announcement says changes it.
-        /// Silent and passive.
+        /// Silent and passive, and decided before the closure rules are looked at.
         case alarmOff
         /// The user's district has a new announcement that does not silence the
         /// alarm (partial area, unrecognised wording, contradictory data): sound,
@@ -114,12 +114,15 @@ enum DayOffPushContent {
         let generic = Result(urgency: .unknown,
                              title: chinese ? "停班停課公告已更新" : "Work/school closure update",
                              body: chinese ? "打開雨天鬧鐘確認下一次鬧鐘。" : "Open Rainy Clock to check your next alarm.")
-        guard let state, state.enabled, state.observesWork || state.observesSchool,
-              state.home?.isValid == true || state.destination?.isValid == true else { return generic }
+        guard let state else { return generic }
+        // Before the closure rules: with the alarm off an incomplete setup (no rule on, no
+        // district) must not fall back to the sounding generic "check your next alarm".
         if state.alarmOff == true {
             return Result(urgency: .alarmOff, title: generic.title,
                           body: chinese ? "你的鬧鐘目前關閉，這則公告不會改變鬧鐘。" : "Your alarm is off, so this announcement doesn't change it.")
         }
+        guard state.enabled, state.observesWork || state.observesSchool,
+              state.home?.isValid == true || state.destination?.isValid == true else { return generic }
         guard let feed else { return generic }
         // Every upcoming normal date, including ones the app already skipped: a repeat
         // announcement for a day that is already off must still read as a match.

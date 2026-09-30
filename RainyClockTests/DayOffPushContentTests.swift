@@ -405,6 +405,20 @@ final class DayOffPushContentTests: XCTestCase {
         }
     }
 
+    /// The alarm is off whatever the closure rules say. No rule on, no district or the
+    /// feature off must not fall back to the server's sounding "check your next alarm".
+    func testAnAnnouncementWhileTheAlarmIsOffIsQuietEvenWithAnIncompleteSetup() {
+        let announcement = feed("[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。")
+        for var incomplete in [state(work: false, school: false), state(home: nil), state(enabled: false)] {
+            incomplete.alarmOff = true
+            for fetched in [nil, announcement] as [DisasterFeed?] {
+                let result = DayOffPushContent.evaluate(state: incomplete, feed: fetched, now: now, chinese: true)
+                XCTAssertEqual(result.urgency, .alarmOff)
+                XCTAssertEqual(result.body, "你的鬧鐘目前關閉，這則公告不會改變鬧鐘。")
+            }
+        }
+    }
+
     /// The user turned off only 9/30. A closure for 9/30 is not news; another county's
     /// update is judged against the next armed day, not the loud generic text.
     func testAUserSkippedMorningIsHandledQuietly() {
