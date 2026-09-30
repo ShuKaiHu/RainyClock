@@ -232,7 +232,10 @@ struct DisasterDecision: Codable, Equatable, Sendable {
 }
 
 enum DisasterSuspensionEvaluator {
+    /// How old the downloaded feed may be, and a notice that names no day (spec §8.2).
     static let maximumAge: TimeInterval = 18 * 60 * 60
+    /// Spec v4: how many Taipei days before the day it names a notice may be sent.
+    static let maximumLeadDays = 2
     static func decision(feed: DisasterFeed?, normalAlarmDate: Date, now: Date, home: DisasterRegion?, destination: DisasterRegion?, observesWork: Bool, observesSchool: Bool) -> DisasterDecision {
         guard observesWork || observesSchool else { return .ring("未選擇停班或停課規則", status: "disabled") }
         let regions = [home, destination].compactMap { $0 }.filter(\.isValid)
@@ -264,8 +267,16 @@ enum DisasterSuspensionEvaluator {
             guard latest.count == 1, let (notice, parsed) = latest.first else {
                 fallback = .ring("公告內容有衝突，維持原鬧鐘"); continue
             }
-            guard notice.sentAt <= now, notice.sentAt <= feed.checkedAt,
-                  now.timeIntervalSince(notice.sentAt) <= maximumAge else {
+            // Spec v4 (owner, 2026-10-01): a notice that names the alarm's day stays current
+            // for that day however long ago it was sent — a 12:00 "明天" turned 18 h old at
+            // 06:00 and undid its own skip. The fresh feed above is what proves nothing newer
+            // replaced it; the lead limit keeps a year-rolled "M/D" in a frozen archive out.
+            // A notice naming no day never suppresses and still ages out after 18 h.
+            let lead = parsed.targetDate.flatMap {
+                calendar.dateComponents([.day], from: calendar.startOfDay(for: notice.sentAt), to: $0).day
+            }
+            let isCurrent = lead.map { $0 <= maximumLeadDays } ?? (now.timeIntervalSince(notice.sentAt) <= maximumAge)
+            guard notice.sentAt <= now, notice.sentAt <= feed.checkedAt, isCurrent else {
                 fallback = .ring("公告已過期或時間異常，維持原鬧鐘"); continue
             }
             let area = DisasterRegion.normalize(parsed.area)

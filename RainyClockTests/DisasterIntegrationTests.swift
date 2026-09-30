@@ -43,6 +43,24 @@ final class DisasterIntegrationTests: XCTestCase {
         XCTAssertEqual(base.coveredUntil, result.plan.coveredUntil)
     }
 
+    /// Adversarial review, 2026-10-01: a closure announced at 12:00 was skipped, then every
+    /// re-plan from 06:00 the next morning — once the notice was 18 h old — put 07:30 back.
+    func testNoonClosureStaysSkippedWhenReplannedTheNextMorning() {
+        let settings = settings()
+        let announced = date(15, 12, 0)
+        var feed = DisasterFeed(checkedAt: announced, notices: [.init(id: "noon", sentAt: announced,
+            description: "[停班停課通知]臺北市:明天停止上班、停止上課。行政院人事行政總處。", severity: "Extreme")])
+        for now in [date(15, 12, 5), date(16, 6, 30)] {
+            feed.checkedAt = now.addingTimeInterval(-60)
+            let base = CalendarAlarmPlan.make(settings: settings, holidays: .init(), rain: false, now: now, days: 3, calendar: calendar)
+            let result = DisasterAlarmPlan.filtering(base, settings: settings, feed: feed, now: now)
+            XCTAssertEqual(result.skips.map(\.normalDate), [date(16)], "\(now)")
+            XCTAssertEqual(result.skips.first?.noticeIDs, ["noon"], "\(now)")
+            XCTAssertFalse(result.plan.occurrences.contains { $0.normalDate == date(16) }, "\(now)")
+            XCTAssertTrue(result.plan.occurrences.contains { $0.normalDate == date(17) }, "\(now)")
+        }
+    }
+
     func testManualRingWinsOnlyWhileCalendarEnabled() {
         let now = date(15, 20)
         var settings = settings()

@@ -9,8 +9,8 @@ final class DisasterSuspensionTests: XCTestCase {
     private func notice(_ body: String = "明天停止上班、停止上課", id: String = "notice-1", area: String = "臺北市", sent: String = "2026-09-14T20:00:00+08:00", severity: String = "Extreme", type: String = "Alert", status: String = "Actual", references: [String] = []) -> DisasterNotice {
         DisasterNotice(id: id, sentAt: date(sent), description: "[停班停課通知]\(area):\(body)。行政院人事行政總處。", severity: severity, msgType: type, status: status, references: references)
     }
-    private func decision(_ notices: [DisasterNotice], alarmDate: Date? = nil, checkedAt: Date? = nil, work: Bool = true, school: Bool = false) -> DisasterDecision {
-        DisasterSuspensionEvaluator.decision(feed: .init(checkedAt: checkedAt ?? now, notices: notices), normalAlarmDate: alarmDate ?? alarm, now: now,
+    private func decision(_ notices: [DisasterNotice], alarmDate: Date? = nil, checkedAt: Date? = nil, at time: Date? = nil, work: Bool = true, school: Bool = false) -> DisasterDecision {
+        DisasterSuspensionEvaluator.decision(feed: .init(checkedAt: checkedAt ?? time ?? now, notices: notices), normalAlarmDate: alarmDate ?? alarm, now: time ?? now,
                                              home: home, destination: nil, observesWork: work, observesSchool: school)
     }
 
@@ -46,7 +46,7 @@ final class DisasterSuspensionTests: XCTestCase {
 
     func testEverySharedSpecTwoParserFixture() throws {
         let fixtures = try fixtures()
-        XCTAssertEqual(fixtures.specVersion, 3, "Review the shared contract before accepting a new version")
+        XCTAssertEqual(fixtures.specVersion, 4, "Review the shared contract before accepting a new version")
         XCTAssertEqual(fixtures.parseCases.count, 28)
         for example in fixtures.parseCases {
             let parsed = DisasterNoticeParser.parse(example.input.notice(id: example.id))
@@ -108,8 +108,50 @@ final class DisasterSuspensionTests: XCTestCase {
         XCTAssertFalse(decision([notice()], checkedAt: now.addingTimeInterval(1)).shouldSkip)
         XCTAssertFalse(decision([notice("今天停止上班、停止上課", sent: "2026-09-15T06:01:00+08:00")]).shouldSkip)
         XCTAssertTrue(decision([notice("9/15停止上班、停止上課", sent: "2026-09-14T12:00:00+08:00")]).shouldSkip)
-        XCTAssertFalse(decision([notice("9/15停止上班、停止上課", sent: "2026-09-14T11:59:59+08:00")]).shouldSkip)
+        // Spec v4: a notice naming 9/15 is judged by how far ahead of 9/15 it was sent, not by
+        // its age at 06:00 (v3 rejected this one at 18 h 1 s). Two days ahead is the limit.
+        XCTAssertTrue(decision([notice("9/15停止上班、停止上課", sent: "2026-09-14T11:59:59+08:00")]).shouldSkip)
+        XCTAssertTrue(decision([notice("9/15停止上班、停止上課", sent: "2026-09-13T00:00:00+08:00")]).shouldSkip)
+        XCTAssertFalse(decision([notice("9/15停止上班、停止上課", sent: "2026-09-12T23:59:59+08:00")]).shouldSkip)
+        // A frozen archive's year-rolled date: "9/15" sent in October resolves to next year's 9/15.
+        let archived = notice("9/15停止上班、停止上課", sent: "2025-10-01T20:00:00+08:00")
+        XCTAssertEqual(DisasterNoticeParser.parse(archived)?.targetDate, date("2026-09-15T00:00:00+08:00"))
+        XCTAssertFalse(decision([archived]).shouldSkip)
         XCTAssertFalse(decision([notice("今天停止上班、停止上課")]).shouldSkip)
+        // A notice naming no day never suppresses and still ages out after 18 h, so an old
+        // "尚未宣布消息" cannot keep the district reading as undeclared.
+        let undeclared = notice("尚未宣布消息", sent: "2026-09-14T12:00:00+08:00", severity: "Minor")
+        XCTAssertEqual(decision([undeclared]).status, "undeclared")
+        XCTAssertEqual(decision([undeclared], at: date("2026-09-15T06:00:01+08:00")).reason, "公告已過期或時間異常，維持原鬧鐘")
+    }
+
+    /// Adversarial review, 2026-10-01: a 12:00 "明天" skipped tomorrow 07:30, and from 06:00 —
+    /// when it turned 18 h old — every refresh put the alarm back on a confirmed day off.
+    func testNoonAnnouncementStaysValidThroughTheMorningItNames() {
+        let noon = notice(sent: "2026-09-14T12:00:00+08:00")
+        for time in ["2026-09-14T12:05:00+08:00", "2026-09-15T06:00:01+08:00", "2026-09-15T07:29:00+08:00"] {
+            let result = decision([noon], at: date(time))
+            XCTAssertTrue(result.shouldSkip, time)
+            XCTAssertEqual(result.noticeIDs, ["notice-1"], time)
+        }
+        // What still expires is the download: a copy from 12:30 the day before cannot show
+        // that nothing newer has replaced the notice by 06:31.
+        XCTAssertFalse(decision([noon], checkedAt: date("2026-09-14T12:30:00+08:00"), at: date("2026-09-15T06:31:00+08:00")).shouldSkip)
+    }
+
+    /// Dates announced days ahead: 9/16 announced on the evening of 9/14 holds until the 9/16
+    /// alarm instead of lapsing at 14:00 on 9/15, and still covers no other day.
+    func testExplicitDateAnnouncedDaysAheadStaysValidUntilThatDay() {
+        let alarm = date("2026-09-16T07:30:00+08:00")
+        let ahead = notice("9/16停止上班、停止上課", sent: "2026-09-14T20:00:00+08:00")
+        for time in ["2026-09-14T20:05:00+08:00", "2026-09-15T14:01:00+08:00", "2026-09-16T07:00:00+08:00"] {
+            XCTAssertTrue(decision([ahead], alarmDate: alarm, at: date(time)).shouldSkip, time)
+        }
+        XCTAssertFalse(decision([ahead], at: date("2026-09-15T06:00:00+08:00")).shouldSkip)
+        XCTAssertFalse(decision([ahead], alarmDate: date("2026-09-17T07:30:00+08:00"), at: date("2026-09-16T08:00:00+08:00")).shouldSkip)
+        // A newer notice for the same day still wins.
+        let reversal = notice("9/16照常上班、照常上課", id: "later", sent: "2026-09-15T21:00:00+08:00", severity: "Severe")
+        XCTAssertFalse(decision([ahead, reversal], alarmDate: alarm, at: date("2026-09-16T06:00:00+08:00")).shouldSkip)
     }
 
     func testVillageGeocodeNeverBecomesAWholeDistrictSuspension() {

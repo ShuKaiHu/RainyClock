@@ -1,5 +1,5 @@
 {
- "specVersion": 3,
+ "specVersion": 4,
  "purpose": "iOS 與 Android 兩邊必須用同一組測試案例。任何一邊改了規則，就要改這個檔並 bump specVersion，另一邊的測試會失敗 —— 那就是交接訊號。",
  "sourceOfTruth": "parseCases 的 input 全部是 NCDR 歷史 API 的逐字真實紀錄。語料為 DGPA 停班停課完整檔案 1,374 筆（2014-07-22 ~ 2026-08-24，NCDR /server/v1/Generic/capZip 列出的全部 62 個事件），去重後取 28 種句型代表。decisionCases 的 feed 為求精簡刪去尾端電話號碼，其餘逐字。",
  "parseCases": [

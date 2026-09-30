@@ -119,5 +119,21 @@
   "cutover": "2016-06-13",
   "legacyRecords": 108,
   "note": "Legacy records have no [停班停課通知] prefix, no status prose, many areas per record, no _i_ segment, and declare Taiwan_Geocode_100. Treat as unparseable => ring."
+ },
+ "announcementLead": {
+  "generated": "2026-10-01",
+  "what": "Spec v4, section 8 item 2. Days from the Asia/Taipei date of sentDate to the day the modern-format record names (今天/明天/M/D resolved as in section 3.1), over the same 1,374-alert corpus re-harvested with the commands above.",
+  "modernRecords": 1266,
+  "namesNoDay": 33,
+  "leadDays": { "0": 577, "1": 656 },
+  "yearRolledDates": 0,
+  "fullOrMorningWorkClosures": 890,
+  "sentMoreThan18hBefore0730OfTheirDay": [
+   { "sentDate": "2018-08-24T00:32:55", "area": "南投縣", "body": "8/25停止上班、停止上課", "hoursBefore0730": 31.0 },
+   { "sentDate": "2026-07-10T08:50:58", "area": "臺中市", "body": "7/11已達停止上班及上課標準", "hoursBefore0730": 22.7 },
+   { "sentDate": "2026-07-10T09:23:01", "area": "南投縣", "body": "7/11已達停止上班及上課標準", "hoursBefore0730": 22.1 },
+   { "sentDate": "2026-07-10T09:35:03", "area": "臺中市", "body": "7/11已達停止上班及上課標準", "hoursBefore0730": 21.9 }
+  ],
+  "note": "No record names a day more than one day after it was sent, and none relies on the year roll. fullOrMorningWorkClosures counts full-day or 上午 records with no start time whose status suspends 上班; under v3's 18 h notice limit, the four listed would have expired before a 07:30 alarm on the day they name."
  }
 }

@@ -1,6 +1,6 @@
 # Day-off suppression — shared specification
 
-**Spec version: 3** · Researched and written 2026-09-10 on `ios/main`; v3 on 2026-09-22. iOS has implemented (A) and (B) against this contract, gated off for 1.7.0 and being prepared for 1.8.0 — see `docs/DISASTER-PREVIEW.md` for the shipped architecture where it differs from the proposals below. Android has not started.
+**Spec version: 4** · Researched and written 2026-09-10 on `ios/main`; v3 on 2026-09-22; v4 on 2026-10-01. iOS has implemented (A) and (B) against this contract, gated off for 1.7.0 and being prepared for 1.8.0 — see `docs/DISASTER-PREVIEW.md` for the shipped architecture where it differs from the proposals below. Android has not started.
 
 Two features that answer the same question — *is there anything to get up for tomorrow?* — and
 therefore share one data path, one decision function, and one set of test fixtures:
@@ -389,7 +389,8 @@ show them and a type is a cheaper guarantee than a code review.
    3-digit prefix).
 4. Does `area` cover the user's **home** district **or** their **destination** district? (P3, P4 —
    route interior points are never considered.) No ⇒ ring.
-5. Resolve the target date (§3.1). Not equal to the alarm's own date ⇒ ring.
+5. Resolve the target date (§3.1). Not equal to the alarm's own date ⇒ ring. Sent more than two
+   Taipei calendar days before that date ⇒ ring (§8 item 2, v4).
 6. Resolve the day part. Not full-day and not 上午 ⇒ ring.
 7. Parse `上班` and `上課` independently, checking `照常` **before** `停止`.
 8. Assert the parse agrees with `severity` (§2.5). Disagreement ⇒ ring.
@@ -574,6 +575,29 @@ here — build on it and say so, and the owner can overrule cheaply.
    still count. 18 h leaves margin for a late fetch while guaranteeing that a suspension can never
    be applied two mornings running on one fetch. Measure from the *source's* update time, not the
    app's fetch time.
+   **Narrowed in v4 (owner, 2026-10-01): 18 h limits the download, not an announcement that names
+   the alarm's day.** Applied to the notice as well, it expired closures that were still true: a
+   12:00 「明天停止上班」 turned 18 h old at 06:00 the next morning, and every refresh from then on
+   put the 07:30 alarm back on a confirmed day off; a date announced two days ahead lapsed the
+   afternoon before it. The rule is now:
+   - **The feed copy** must have been fetched at most 18 h ago — unchanged. A fresh copy is what
+     shows that no newer notice (a 照常上班, a Cancel, an Update) has replaced the one being
+     applied, and it alone already stops one fetch from silencing two mornings.
+   - **A notice that names the alarm's day** (今天 / 明天 / M/D, resolved as in §3.1) is current
+     for that whole day, however long ago it was sent, provided it was sent **at most two Taipei
+     calendar days before that day** (`targetDate − date(sentDate) ≤ 2`). The date match already
+     keeps a 今天/明天 off every other day; the lead limit is what keeps a year-rolled M/D out —
+     a 「9/15」 sent in October resolves to next September, and the feed is a frozen archive
+     (§2.4). A notice announced further ahead rings (P5).
+   - **A notice that names no day** never suppresses; it still ages out 18 h after it was sent,
+     so an old 尚未宣布消息 cannot keep the user's district reading as undeclared.
+   Everything is still measured from the source's time; the fetch time only dates the copy.
+   Measured on the full archive (`announcementLead` in `docs/dayoff-corpus-summary.json`): all
+   1,233 dated modern announcements name the day they were sent (577) or the next day (656) —
+   none further ahead, none year-rolled — so two days is one day of margin over anything DGPA has
+   published. And the v3 failure is real: 4 of 890 full-day or morning 停班 were sent more than
+   18 h before 07:30 of their day, most recently 臺中市 and 南投縣 at 08:50–09:35 on 2026-07-10
+   for 7/11 — a phone that had skipped 7/11 would have re-armed it from about 03:30 that morning.
 3. **Is the feature hidden outside Taiwan?**
    **Default: the feature is visible only when the user has set a Taiwanese 縣市/區 pair**, which is
    a prerequisite for it to work at all. No locale sniffing, no region gate — the setting is the
@@ -693,6 +717,20 @@ writing a branch that suppresses an alarm on incomplete information, that branch
 
 ### Changelog
 
+- **v4** (2026-10-01) — **an announcement stays valid for the day it names.** Found by
+  adversarial review of iOS and approved by the owner the same day: the 18 h limit was measured
+  against each notice, so a closure announced at 12:00 for tomorrow expired at 06:00 on the day
+  itself and the alarm was re-armed on a confirmed day off. §8 item 2 now applies 18 h to the
+  feed copy (unchanged) and to notices that name no day; a notice naming the alarm's day counts
+  for that whole day if it was sent at most two Taipei days before it; §5 step 5 says so.
+  `docs/dayoff-corpus-summary.json` gains `announcementLead`, the archive measurement behind the
+  two-day limit and the four real announcements v3 would have expired. No fixture expectation
+  changed — every `decisionCases` entry is still decided the same way — but the rule did, so
+  `specVersion` → 4. The new cases need an evaluation time the fixture schema does not carry, so
+  they live in iOS's `DisasterSuspensionTests` (noon 「明天」 read at 06:00:01 and 07:29, 「9/16」
+  sent 9/14 read on 9/15 14:01 and 9/16 07:00, a 3-day lead and a year-rolled 「9/15」 sent in
+  October ringing). iOS implemented it the same day.
+  **Android: not yet implemented** — when it starts, build against v4, not v3.
 - **v3** (2026-09-22) — **`both` is an OR.** Owner ruled that ticking work and school means either
   suspension alone silences the alarm. §1 truth table and §8 item 1 updated; `decide-08` now
   expects `suppress`; `specVersion` → 3, so both platforms must re-run. iOS updated the same day
