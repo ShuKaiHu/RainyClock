@@ -513,6 +513,29 @@ final class DisasterIntegrationTests: XCTestCase {
         XCTAssertFalse(model.scheduledAlarmSummary?.calendarPlan?.occurrences.contains { $0.normalDate == normal } ?? true)
     }
 
+    /// Owner decision, 2026-09-30: after the early ring, the dated plan's next alarm —
+    /// tomorrow's — can be skipped at once; this morning's normal ring stays out.
+    func testAfterAnEarlyRingTheNextDatedMorningCanBeSkippedAtOnce() async throws {
+        let suite = "EarlyRingSkip-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        let normal = try storeRungEarlyMorning(in: storage, dropped: false)
+        let tomorrow = try XCTUnwrap(AlarmCalendarSettings.calendar.date(byAdding: .day, value: 1, to: normal))
+        let scheduler = DisasterSchedulerSpy()
+        let model = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage,
+            disasterFeedProvider: FeedStub(value: .success(.init(checkedAt: Date(), notices: []))),
+            disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
+        guard case .available(let target) = model.skipAvailability() else { return XCTFail("\(model.skipAvailability())") }
+        XCTAssertEqual(target.normalDate, tomorrow)
+        let skipped = await model.skipNextAlarm(target)
+        XCTAssertTrue(skipped)
+        let plan = try XCTUnwrap(scheduler.lastPlan)
+        XCTAssertFalse(plan.occurrences.contains { $0.normalDate == normal || $0.normalDate == tomorrow })
+        XCTAssertEqual(model.scheduledAlarmSummary?.firedEarlyRing?.normalDate, normal)
+        XCTAssertEqual(model.scheduledAlarmSummary?.userSkippedNormalDate, tomorrow)
+    }
+
     func testDeferringClosuresPreservesAnActiveCalendarOnlySchedule() async throws {
         let suite = "DeferredClosuresCalendarOnly-\(UUID())"
         let storage = UserDefaults(suiteName: suite)!

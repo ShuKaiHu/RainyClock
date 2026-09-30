@@ -215,9 +215,6 @@ private struct AlarmHomeView: View {
             let when = target.ringDate.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated))
                 + " " + viewModel.settings.timeFormat.time(target.ringDate)
             return String.localizedStringWithFormat(String(localized: "ux_alarm_off_message_next"), when)
-        case .afterEarlyRing(let until):
-            return String.localizedStringWithFormat(String(localized: "ux_alarm_off_message_after_early_ring"),
-                                                    viewModel.settings.timeFormat.time(until))
         case .alarmInProgress:
             return String(localized: "ux_alarm_off_message_in_progress")
         case .unavailable:

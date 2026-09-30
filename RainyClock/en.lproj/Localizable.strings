@@ -469,7 +469,6 @@
 "ux_alarm_skip_next" = "Turn Off Next Alarm Only";
 "ux_alarm_turn_off" = "Turn Off Until I Turn It Back On";
 "ux_alarm_off_message_next" = "Your next alarm is %@. Turning off only that one keeps every alarm after it.";
-"ux_alarm_off_message_after_early_ring" = "Today's alarm already rang early. You can turn off only the next one after %@.";
 "ux_alarm_off_message_in_progress" = "An alarm is ringing or snoozing. Stop it first to turn off only the next one.";
 "ux_alarm_off_message_only" = "The alarm stays off until you turn it back on.";
 "ux_alarm_switch_skip_value" = "Off for %@ only";

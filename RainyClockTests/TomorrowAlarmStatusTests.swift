@@ -486,7 +486,7 @@ final class TomorrowAlarmStatusTests: XCTestCase {
 
     func testAlarmPageDayStringsExistInBothLocalizations() throws {
         let keys = ["ux_alarm_off_title", "ux_alarm_skip_next", "ux_alarm_turn_off", "ux_alarm_off_message_next",
-                    "ux_alarm_off_message_after_early_ring", "ux_alarm_off_message_in_progress", "ux_alarm_off_message_only",
+                    "ux_alarm_off_message_in_progress", "ux_alarm_off_message_only",
                     "ux_alarm_switch_skip_value", "ux_alarm_off", "ux_alarm_off_reason", "ux_skip_once_reason",
                     "ux_skip_once_resume", "ux_skip_later", "alarm_off_failed", "alarm_on_without_forecast",
                     "status_alarm_turned_off", "evening_preview_skip_once", "alarm_renew_title", "alarm_renew_body",

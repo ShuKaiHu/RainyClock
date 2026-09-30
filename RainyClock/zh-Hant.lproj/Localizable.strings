@@ -469,7 +469,6 @@
 "ux_alarm_skip_next" = "僅關閉下一次鬧鐘";
 "ux_alarm_turn_off" = "關閉，直到我重新開啟";
 "ux_alarm_off_message_next" = "下一次鬧鐘：%@。只關閉這一次的話，之後的鬧鐘照常響。";
-"ux_alarm_off_message_after_early_ring" = "今天的鬧鐘已提早響過，%@ 之後才能只關閉下一次。";
 "ux_alarm_off_message_in_progress" = "鬧鐘正在響或賴床中，先停止它才能只關閉下一次。";
 "ux_alarm_off_message_only" = "鬧鐘會保持關閉，直到你重新開啟。";
 "ux_alarm_switch_skip_value" = "只關閉 %@ 這一次";

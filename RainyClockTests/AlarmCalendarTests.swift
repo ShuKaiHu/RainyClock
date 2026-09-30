@@ -607,6 +607,50 @@ final class SkipNextAlarmTests: XCTestCase {
         }
     }
 
+    /// Owner decision, 2026-09-30: once this morning has rung early, "turn off only the next
+    /// alarm" is offered at once — for tomorrow — instead of waiting for this morning's
+    /// normal time. Neither the skip nor undoing it may bring this morning's normal ring back.
+    func testAfterTodaysEarlyRingTheNextAlarmCanBeSkippedAtOnce() async throws {
+        let calendar = AlarmCalendarSettings.calendar
+        let now = Date()
+        var settings = CommuteAlarmSettings()
+        settings.homeAddress = "Clear Street"; settings.workAddress = "Office"
+        settings.selectedWeekdays = Set(1...7)
+        settings.alarmTime = now.addingTimeInterval(10 * 60)
+        settings.rainLeadTimeMinutes = 30
+        let normal = TomorrowWeatherRequest(settings: settings, now: now).normalAlarmDate
+        let early = normal.addingTimeInterval(-30 * 60)
+        try XCTSkipUnless(calendar.isDate(early, inSameDayAs: normal) && calendar.isDate(now, inSameDayAs: normal),
+                          "The window must sit inside one calendar day")
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: normal))
+        // Registered last night for a rainy morning; the 30-minutes-early ring has gone off.
+        let summary = ScheduledAlarmSummary(normalAlarmDate: normal, scheduledAlarmDate: early, weatherRefreshDate: early,
+            exceedsRainThreshold: true, leadTimeMinutes: 30, rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0.72)
+        storage.set(try JSONEncoder().encode(settings), forKey: "commuteAlarmSettings")
+        storage.set(try JSONEncoder().encode(summary), forKey: "scheduledAlarmSummaryDisplay")
+        storage.set(try JSONEncoder().encode(settings.scheduleFingerprint()), forKey: "scheduledAlarmFingerprint")
+        let scheduler = CalendarSchedulerSpy()
+        let model = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: scheduler,
+            settingsStorage: storage, holidayCalendar: .init(), autoRefreshDebounce: .seconds(60),
+            membershipEntitlements: { Self.free }, alarmInProgress: { false }, usesNotificationAlarms: false)
+
+        guard case .available(let target) = model.skipAvailability() else { return XCTFail("\(model.skipAvailability())") }
+        XCTAssertEqual(target.normalDate, tomorrow, "This morning already rang, so the next alarm is tomorrow's")
+        let skipped = await model.skipNextAlarm(target)
+        XCTAssertTrue(skipped)
+        let plan = try XCTUnwrap(scheduler.plans.last)
+        XCTAssertFalse(plan.occurrences.contains { $0.normalDate == normal }, "This morning must not ring again")
+        XCTAssertFalse(plan.occurrences.contains { $0.normalDate == tomorrow })
+        XCTAssertEqual(model.liveSkippedAlarmDate(), tomorrow)
+        XCTAssertTrue(model.tomorrowStatus().hasRung, "The card still says this morning rang")
+
+        await model.turnAlarmOn()
+        XCTAssertNil(model.settings.skippedAlarmDay)
+        XCTAssertEqual(scheduler.weeklyCalls, 1)
+        XCTAssertEqual(model.scheduledAlarmSummary?.scheduledAlarmDate, early,
+                       "Undoing the skip keeps the weekly clock on the ring that already went off")
+    }
+
     func testTurningOffWhileSkippingClearsTheSkip() async throws {
         let scheduler = CalendarSchedulerSpy()
         let model = await weeklyModel(scheduler)

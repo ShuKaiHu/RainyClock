@@ -16,8 +16,6 @@ struct SuggestedAddressMatch: Equatable {
 enum AlarmSkipAvailability: Equatable {
     /// The morning to skip (`normalDate`) and the ring the system holds for it (`ringDate`).
     case available(CalendarAlarmPlan.Occurrence)
-    /// This morning already rang early; a skip waits until its normal time.
-    case afterEarlyRing(until: Date)
     /// An alarm is ringing or snoozing; stop it first.
     case alarmInProgress
     case unavailable
@@ -1392,11 +1390,8 @@ final class AlarmViewModel: ObservableObject {
         // A run in flight is not "nothing to skip": skipNextAlarm waits for it and re-checks.
         guard settings.isAlarmEnabled, liveSkippedAlarmDate(now: now) == nil,
               let summary = scheduledAlarmSummary else { return .unavailable }
-        let coming = TomorrowWeatherRequest(settings: effectiveSchedulingSettings, now: now).normalAlarmDate
-        // This morning already rang early: a skip waits until its normal time (product rule,
-        // PRODUCT_DECISIONS 2026-09-30). It was also a guard against re-registration re-adding
-        // that morning's normal-time ring, a gap closed on 2026-09-30 (datedBasePlan).
-        if summary.hasFiredEarlyRing(forMorning: coming, now: now) { return .afterEarlyRing(until: coming) }
+        // A morning that already rang early is not "next": its normal-time ring stays out of
+        // every re-registration (datedBasePlan), so the target is the following morning's.
         // A ringing or snoozing weekly relative alarm survives the dated re-registration.
         if summary.calendarPlan == nil, alarmInProgress() { return .alarmInProgress }
         guard let target = summary.nextRegisteredRing(settings: effectiveSchedulingSettings,
