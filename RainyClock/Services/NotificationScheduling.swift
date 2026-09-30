@@ -192,15 +192,20 @@ struct LocalNotificationScheduler: NotificationScheduling {
     private static let storedPlanKey = "scheduledAlarmPlan"
     private static let rearmAfterKey = "scheduledAlarmRearmAfter"
     private static let acknowledgedAtKey = "scheduledAlarmAcknowledgedAt"
+    private static let carriedIdentifierPrefix = "\(identifierPrefix)-carry-"
+    private static let chainStartKey = "chainStart"
     private static let registrationQueue = AlarmRegistrationQueue()
 
     private let center: any AlarmNotificationCenter
     /// UserDefaults is thread-safe but not marked Sendable.
     nonisolated(unsafe) private let defaults: UserDefaults
+    private let now: @Sendable () -> Date
 
-    init(center: any AlarmNotificationCenter = SystemNotificationCenter(), defaults: UserDefaults = .standard) {
+    init(center: any AlarmNotificationCenter = SystemNotificationCenter(), defaults: UserDefaults = .standard,
+         now: @escaping @Sendable () -> Date = { Date() }) {
         self.center = center
         self.defaults = defaults
+        self.now = now
     }
 
     static func registerNotificationCategories() {
@@ -258,7 +263,7 @@ struct LocalNotificationScheduler: NotificationScheduling {
     ) async throws {
         let selectedWeekdays = weekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : weekdays
         let plan = StoredAlarmPlan(
-            scheduledAt: Date(),
+            scheduledAt: now(),
             ringDate: date,
             normalAlarmDate: normalAlarmDate,
             weekdays: selectedWeekdays,
@@ -270,17 +275,14 @@ struct LocalNotificationScheduler: NotificationScheduling {
         )
 
         try await Self.registrationQueue.run {
-            // Re-registered while a morning the user already stopped would still be
-            // following up (a refresh, a settings change, the calendar switched off):
-            // that morning stays stopped.
-            try await register(plan: plan, silencingRingsDueBy: acknowledgedAt())
+            try await register(plan: plan)
             storePlan(plan)
         }
     }
 
     func scheduleCalendar(_ plan: CalendarAlarmPlan, sound: CommuteAlarmSettings.AlarmSound,
                           soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws {
-        let stored = StoredAlarmPlan(scheduledAt: Date(), ringDate: plan.occurrences.first?.ringDate ?? plan.coveredUntil,
+        let stored = StoredAlarmPlan(scheduledAt: now(), ringDate: plan.occurrences.first?.ringDate ?? plan.coveredUntil,
             normalAlarmDate: plan.occurrences.first?.normalDate ?? plan.coveredUntil,
             weekdays: [], soundRawValue: sound.rawValue, soundFileNameOverride: soundFileNameOverride,
             followUpIntervalMinutes: snoozeMinutes ?? 0, title: title, body: body, calendarPlan: plan)
@@ -296,28 +298,36 @@ struct LocalNotificationScheduler: NotificationScheduling {
     private func registerDated(plan: StoredAlarmPlan) async throws {
         guard let dated = plan.calendarPlan else { return }
         let identifierPrefix = Self.identifierPrefix
+        let now = self.now()
         let previous = await center.pendingNotificationRequests().filter { $0.identifier.hasPrefix(identifierPrefix) }
+        let carried = carriedChains(in: previous, now: now)
         center.removePendingNotificationRequests(withIdentifiers: previous.map(\.identifier))
+        var requests: [PendingAlarm] = []
+        for occurrence in dated.occurrences {
+            var offsets = [0]
+            if let interval = plan.followUpIntervalMinutes, interval > 0 { offsets.append(interval * 60) }
+            for offset in offsets {
+                let fire = occurrence.ringDate.addingTimeInterval(Double(offset))
+                guard fire > now else { continue }
+                let id = "\(identifierPrefix)-date-\(AlarmCalendarSettings.key(for: occurrence.normalDate))-\(offset)"
+                let content = UNMutableNotificationContent()
+                content.title = plan.title; content.body = plan.body
+                let selectedSound = occurrence.resolvedSound(fallback: .init(
+                    sound: CommuteAlarmSettings.AlarmSound(rawValue: plan.soundRawValue) ?? .rainyClock,
+                    fileNameOverride: plan.soundFileNameOverride))
+                content.sound = Self.notificationSound(for: selectedSound); content.categoryIdentifier = Self.categoryIdentifier
+                content.userInfo = ["normalDay": AlarmCalendarSettings.key(for: occurrence.normalDate)]
+                let trigger = UNCalendarNotificationTrigger(dateMatching: AlarmCalendarSettings.calendar.dateComponents([.calendar, .timeZone, .year, .month, .day, .hour, .minute, .second], from: fire), repeats: false)
+                requests.append(PendingAlarm(request: UNNotificationRequest(identifier: id, content: content, trigger: trigger),
+                                             fireDate: fire, isFollowUp: offset > 0))
+            }
+        }
+        let fitted = Self.fitting(requests, alongside: carried)
         var added: [String] = []
         do {
-            for occurrence in dated.occurrences {
-                var offsets = [0]
-                if let interval = plan.followUpIntervalMinutes, interval > 0 { offsets.append(interval * 60) }
-                for offset in offsets {
-                    let fire = occurrence.ringDate.addingTimeInterval(Double(offset))
-                    guard fire > Date() else { continue }
-                    let id = "\(identifierPrefix)-date-\(AlarmCalendarSettings.key(for: occurrence.normalDate))-\(offset)"
-                    let content = UNMutableNotificationContent()
-                    content.title = plan.title; content.body = plan.body
-                    let selectedSound = occurrence.resolvedSound(fallback: .init(
-                        sound: CommuteAlarmSettings.AlarmSound(rawValue: plan.soundRawValue) ?? .rainyClock,
-                        fileNameOverride: plan.soundFileNameOverride))
-                    content.sound = Self.notificationSound(for: selectedSound); content.categoryIdentifier = Self.categoryIdentifier
-                    content.userInfo = ["normalDay": AlarmCalendarSettings.key(for: occurrence.normalDate)]
-                    let trigger = UNCalendarNotificationTrigger(dateMatching: AlarmCalendarSettings.calendar.dateComponents([.calendar, .timeZone, .year, .month, .day, .hour, .minute, .second], from: fire), repeats: false)
-                    try await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
-                    added.append(id)
-                }
+            for alarm in fitted.plan + fitted.carried {
+                try await center.add(alarm.request)
+                added.append(alarm.request.identifier)
             }
         } catch {
             center.removePendingNotificationRequests(withIdentifiers: added)
@@ -326,13 +336,13 @@ struct LocalNotificationScheduler: NotificationScheduling {
         }
         let keep = Set(added)
         center.removePendingNotificationRequests(withIdentifiers: previous.map(\.identifier).filter { !keep.contains($0) })
-        clearRearmFlag()
+        updateRearmFlag(restoringAfter: fitted.carried.last?.fireDate)
     }
 
     /// Silences the remainder of the ring session the tapped notification belongs to,
-    /// while keeping the weekly schedule armed. The session is anchored to the
-    /// notification's delivery time — the rings due by then — so tapping yesterday's stale
-    /// banner cannot cancel an upcoming ring. That time is kept for later registrations.
+    /// while keeping the schedule armed. The session is every ring due by the
+    /// notification's delivery, so tapping yesterday's stale banner cannot cancel an
+    /// upcoming ring. That time is kept, so no later registration carries the chain on.
     func acknowledgeAlarm(notificationDeliveredAt deliveredAt: Date) async {
         try? await Self.registrationQueue.run {
             let deliveredAlarmIdentifiers = await center.deliveredNotificationIdentifiers()
@@ -344,54 +354,53 @@ struct LocalNotificationScheduler: NotificationScheduling {
                 return
             }
 
-            // A notification delivered before the current plan existed still silences
-            // only rings due by its delivery, so it cannot suppress a later ring the user
-            // just scheduled — and a re-registration mid-chain cannot make Stop a no-op.
-            if let dated = plan.calendarPlan {
-                let interval = Double((plan.followUpIntervalMinutes ?? 0) * 60 + 60)
-                if let occurrence = dated.occurrences.last(where: { $0.ringDate <= deliveredAt && deliveredAt < $0.ringDate.addingTimeInterval(interval) }) {
-                    let prefix = "\(Self.identifierPrefix)-date-\(AlarmCalendarSettings.key(for: occurrence.normalDate))-"
-                    let pending = await center.pendingNotificationRequests()
-                    center.removePendingNotificationRequests(withIdentifiers: pending.map(\.identifier).filter { $0.hasPrefix(prefix) })
-                    // Switching back to the weekly alarm this morning must not bring
-                    // its follow-ups back.
-                    recordAcknowledgement(deliveredAt)
-                }
-                return
-            }
-            let window = Self.followUpWindow(for: plan)
-            let windowEnd = deliveredAt.addingTimeInterval(window)
-            guard windowEnd > Date() else {
-                return
-            }
-
+            // Delivered before the current plan existed, a notification still stops only
+            // rings due by then: not a later ring the user just set, and a re-registration
+            // mid-chain cannot make Stop a no-op.
             recordAcknowledgement(deliveredAt)
-            try await register(plan: plan, silencingRingsDueBy: acknowledgedAt())
+            guard let dated = plan.calendarPlan else {
+                try await register(plan: plan)
+                return
+            }
+            let pending = await center.pendingNotificationRequests()
+            var silenced = pending.filter { request in
+                guard request.identifier.hasPrefix(Self.carriedIdentifierPrefix),
+                      let start = request.content.userInfo[Self.chainStartKey] as? TimeInterval else { return false }
+                return start <= deliveredAt.timeIntervalSince1970
+            }.map(\.identifier)
+            let interval = Double((plan.followUpIntervalMinutes ?? 0) * 60 + 60)
+            if let occurrence = dated.occurrences.last(where: { $0.ringDate <= deliveredAt && deliveredAt < $0.ringDate.addingTimeInterval(interval) }) {
+                let prefix = "\(Self.identifierPrefix)-date-\(AlarmCalendarSettings.key(for: occurrence.normalDate))-"
+                silenced += pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
+            }
+            center.removePendingNotificationRequests(withIdentifiers: silenced)
         }
     }
 
-    /// Converts any fallback triggers left behind by acknowledgeAlarm back into
-    /// precise weekly calendar triggers, once their silence window has passed.
-    /// Called on app activation.
+    /// Replaces the stand-ins a registration left for this morning — fallbacks for
+    /// held-back follow-ups, a carried-over chain — with the exact plan once the last of
+    /// them has passed. Called on app activation.
     func rearmAlarmsIfNeeded() async {
         try? await Self.registrationQueue.run {
             guard let rearmAfter = rearmAfterDate(),
-                  Date() >= rearmAfter,
+                  now() >= rearmAfter,
                   let plan = loadPlan() else {
                 return
             }
 
-            try await register(plan: plan, silencingRingsDueBy: acknowledgedAt())
+            if plan.calendarPlan != nil {
+                try await registerDated(plan: plan)
+            } else {
+                try await register(plan: plan)
+            }
         }
     }
 
-    /// - Parameter acknowledged: when the last alarm the user stopped was delivered. A
-    ///   ring due by then was answered, so its follow-ups still ahead are held back for
-    ///   this week. A ring due later — the alarm moved past it — rings with its own. Only
-    ///   a chain still running can match, so an old acknowledgement holds nothing back.
-    private func register(plan: StoredAlarmPlan, silencingRingsDueBy acknowledged: Date?) async throws {
+    private func register(plan: StoredAlarmPlan) async throws {
         let identifierPrefix = Self.identifierPrefix
+        let now = self.now()
         let previous = await center.pendingNotificationRequests().filter { $0.identifier.hasPrefix(identifierPrefix) }
+        let carried = carriedChains(in: previous, now: now)
         await removeAllPendingAlarmRequests()
         do {
             let content = UNMutableNotificationContent()
@@ -410,7 +419,8 @@ struct LocalNotificationScheduler: NotificationScheduling {
             ).day ?? 0
             let timeComponents = calendar.dateComponents([.hour, .minute, .second], from: plan.ringDate)
             let offsets = Self.ringOffsets(for: plan)
-            var lastSilencedFireDate: Date?
+            var requests: [PendingAlarm] = []
+            var lastHeldBack: Date?
 
             for weekday in plan.weekdays.sorted() {
                 for offset in offsets {
@@ -422,25 +432,27 @@ struct LocalNotificationScheduler: NotificationScheduling {
                     )
                     let repeatingTrigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
                     var trigger: UNNotificationTrigger = repeatingTrigger
+                    let nextFireDate = Self.nextFireDate(of: repeatingTrigger, after: now) ?? .distantFuture
+                    var fireDate = nextFireDate
 
-                    if let acknowledged,
-                       let nextFireDate = repeatingTrigger.nextTriggerDate(),
-                       nextFireDate.addingTimeInterval(-Double(offset)) <= acknowledged {
-                        // A follow-up of a ring already answered: re-registering this
-                        // repeating trigger would ring again this morning. Fall back to a
-                        // weekly time-interval trigger anchored at next week's occurrence —
-                        // it keeps repeating (with minor drift) even if the app is never
-                        // activated again, and rearmAlarmsIfNeeded restores the precise
-                        // calendar version.
-                        lastSilencedFireDate = max(lastSilencedFireDate ?? nextFireDate, nextFireDate)
+                    if nextFireDate.addingTimeInterval(-Double(offset)) <= now {
+                        // A follow-up of a ring that already went off — or, registered after
+                        // its time, never did. What is left of a chain that rang is carried
+                        // over until someone stops it; this trigger must not ring it a second
+                        // time, nor invent one. Fall back to a weekly time-interval trigger
+                        // anchored at next week's occurrence — it keeps repeating (with minor
+                        // drift) even if the app is never activated again, and
+                        // rearmAlarmsIfNeeded restores the precise calendar version.
+                        lastHeldBack = max(lastHeldBack ?? nextFireDate, nextFireDate)
                         guard let nextWeekFireDate = calendar.date(byAdding: .day, value: 7, to: nextFireDate),
-                              nextWeekFireDate.timeIntervalSinceNow > 60 else {
+                              nextWeekFireDate.timeIntervalSince(now) > 60 else {
                             continue
                         }
                         trigger = UNTimeIntervalNotificationTrigger(
-                            timeInterval: nextWeekFireDate.timeIntervalSinceNow,
+                            timeInterval: nextWeekFireDate.timeIntervalSince(now),
                             repeats: true
                         )
+                        fireDate = nextWeekFireDate
                     }
 
                     let request = UNNotificationRequest(
@@ -448,15 +460,15 @@ struct LocalNotificationScheduler: NotificationScheduling {
                         content: content,
                         trigger: trigger
                     )
-                    try await center.add(request)
+                    requests.append(PendingAlarm(request: request, fireDate: fireDate, isFollowUp: offset > 0))
                 }
             }
 
-            if let lastSilencedFireDate {
-                setRearmFlag(after: lastSilencedFireDate.addingTimeInterval(60))
-            } else {
-                clearRearmFlag()
+            let fitted = Self.fitting(requests, alongside: carried)
+            for alarm in fitted.plan + fitted.carried {
+                try await center.add(alarm.request)
             }
+            updateRearmFlag(restoringAfter: [lastHeldBack, fitted.carried.last?.fireDate].compactMap { $0 }.max())
         } catch {
             await removeAllPendingAlarmRequests()
             for request in previous { try? await center.add(request) }
@@ -464,12 +476,86 @@ struct LocalNotificationScheduler: NotificationScheduling {
         }
     }
 
+    /// A request about to be registered, with when it fires, so a registration can be
+    /// fitted into the alarm's share of the pending-request limit.
+    private struct PendingAlarm {
+        var request: UNNotificationRequest
+        var fireDate: Date
+        var isFollowUp: Bool
+    }
+
+    /// Follow-ups still due from a ring that already went off and that nobody stopped,
+    /// rebuilt as one-shot requests. A re-registration — often a background refresh while
+    /// the person sleeps through the alarm — must neither cut that chain short nor trade
+    /// it for the new plan's; stopping it or turning the alarm off ends it.
+    private func carriedChains(in previous: [UNNotificationRequest], now: Date) -> [PendingAlarm] {
+        let acknowledged = acknowledgedAt()
+        var carried: [String: PendingAlarm] = [:]
+        for request in previous {
+            guard let trigger = request.trigger as? UNCalendarNotificationTrigger,
+                  let fire = Self.nextFireDate(of: trigger, after: now),
+                  let start = Self.chainStart(of: request, firingAt: fire),
+                  start < fire, start <= now,
+                  acknowledged.map({ start > $0 }) ?? true,
+                  let content = request.content.mutableCopy() as? UNMutableNotificationContent else {
+                continue
+            }
+            content.userInfo[Self.chainStartKey] = start.timeIntervalSince1970
+            let identifier = Self.carriedIdentifierPrefix + String(Int(fire.timeIntervalSince1970))
+            let components = Calendar.current.dateComponents(
+                [.calendar, .timeZone, .year, .month, .day, .hour, .minute, .second], from: fire)
+            let oneShot = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            carried[identifier] = PendingAlarm(
+                request: UNNotificationRequest(identifier: identifier, content: content, trigger: oneShot),
+                fireDate: fire, isFollowUp: true)
+        }
+        return carried.values.sorted { $0.fireDate < $1.fireDate }
+    }
+
+    /// When the ring a pending request belongs to went off: kept on carried requests, and
+    /// otherwise its fire date less the offset its identifier ends with (0 for a ring).
+    private static func chainStart(of request: UNNotificationRequest, firingAt fire: Date) -> Date? {
+        if let start = request.content.userInfo[chainStartKey] as? TimeInterval {
+            return Date(timeIntervalSince1970: start)
+        }
+        guard !request.identifier.hasPrefix(carriedIdentifierPrefix),
+              let offset = request.identifier.split(separator: "-").last.flatMap({ Int($0) }) else {
+            return nil
+        }
+        return fire.addingTimeInterval(-Double(offset))
+    }
+
+    /// A carried chain shares the alarm's requests with the new plan. Where both ring in
+    /// the same second the plan's request is enough; where they do not fit together, the
+    /// plan's latest follow-ups — never a ring — wait for the rearm after the chain.
+    private static func fitting(_ plan: [PendingAlarm], alongside carried: [PendingAlarm])
+        -> (plan: [PendingAlarm], carried: [PendingAlarm]) {
+        let planSeconds = Set(plan.map { Int($0.fireDate.timeIntervalSince1970) })
+        let carried = carried.filter { !planSeconds.contains(Int($0.fireDate.timeIntervalSince1970)) }
+        let excess = plan.count + carried.count - pendingNotificationLimit
+        guard excess > 0 else { return (plan, carried) }
+        let dropped = Set(plan.indices
+            .filter { plan[$0].isFollowUp }
+            .sorted { plan[$0].fireDate > plan[$1].fireDate }
+            .prefix(excess))
+        return (plan.indices.filter { !dropped.contains($0) }.map { plan[$0] }, carried)
+    }
+
+    private func updateRearmFlag(restoringAfter date: Date?) {
+        if let date {
+            setRearmFlag(after: date.addingTimeInterval(60))
+        } else {
+            clearRearmFlag()
+        }
+    }
+
     /// Legacy installs (upgraded with pending requests from the old two-ring design but
     /// no stored plan): silence only the requests firing inside the old ring window and
     /// leave the rest of the weekly schedule untouched.
     private func silenceLegacyRequests(deliveredAt: Date) async {
+        let now = self.now()
         let windowEnd = deliveredAt.addingTimeInterval(120)
-        guard windowEnd > Date() else {
+        guard windowEnd > now else {
             return
         }
 
@@ -478,7 +564,7 @@ struct LocalNotificationScheduler: NotificationScheduling {
             .filter { $0.identifier.hasPrefix(Self.identifierPrefix) }
             .filter { request in
                 guard let trigger = request.trigger as? UNCalendarNotificationTrigger,
-                      let nextFireDate = trigger.nextTriggerDate() else {
+                      let nextFireDate = Self.nextFireDate(of: trigger, after: now) else {
                     return false
                 }
                 return nextFireDate < windowEnd
@@ -512,8 +598,13 @@ struct LocalNotificationScheduler: NotificationScheduling {
         return TimeInterval(min(maximumFollowUpCount, perWeekdayLimit - 1) * interval * 60 + 60)
     }
 
-    private static func followUpWindow(for plan: StoredAlarmPlan) -> TimeInterval {
-        TimeInterval((ringOffsets(for: plan).last ?? 0) + 60)
+    /// When a calendar trigger next fires after `now`. `nextTriggerDate()` answers the
+    /// same question against the wall clock, which a test cannot move.
+    static func nextFireDate(of trigger: UNCalendarNotificationTrigger, after now: Date) -> Date? {
+        if !trigger.repeats, let date = trigger.dateComponents.date {
+            return date > now ? date : nil
+        }
+        return Calendar.current.nextDate(after: now, matching: trigger.dateComponents, matchingPolicy: .nextTime)
     }
 
     /// `UNNotificationSound(named:)` searches the container's `Library/Sounds` before
