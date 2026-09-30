@@ -244,4 +244,24 @@ final class LocalNotificationSchedulerTests: XCTestCase {
         try await scheduleWeekly(ringingAt: ring)
         XCTAssertEqual(center.fires(within: 3_600), [])
     }
+
+    func testRearmingTheDatedPlanKeepsAStoppedMorningSilent() async throws {
+        // 06:00 is still following up when, at 06:10, the dated plan takes over at 07:00: the
+        // chain is carried until 06:35, and the next activation after it restores the plan.
+        move(to: -65)
+        try await scheduleWeekly(ringingAt: at(-60))
+        move(to: -50)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: ring)!
+        try await scheduleDated([ring, tomorrow])
+
+        // Tapping the 07:00 banner stops it and opens the app, whose activation rearms the
+        // stored plan — today's occurrence included.
+        move(to: 1)
+        await scheduler.acknowledgeAlarm(notificationDeliveredAt: at(0))
+        XCTAssertEqual(center.fires(within: 3_600), [])
+        await scheduler.rearmAlarmsIfNeeded()
+        XCTAssertEqual(center.fires(within: 3_600), [], "the stopped follow-up came back")
+        XCTAssertEqual(center.fires(within: 2 * 86_400), [tomorrow, tomorrow.addingTimeInterval(5 * 60)],
+                       "tomorrow keeps its ring and follow-up")
+    }
 }

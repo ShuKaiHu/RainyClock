@@ -306,13 +306,18 @@ struct LocalNotificationScheduler: NotificationScheduling {
         guard let dated = plan.calendarPlan else { return }
         let identifierPrefix = Self.identifierPrefix
         let now = self.now()
+        let acknowledged = acknowledgedAt()
         let previous = await center.pendingNotificationRequests().filter { $0.identifier.hasPrefix(identifierPrefix) }
         let carried = carriedChains(in: previous, now: now)
         center.removePendingNotificationRequests(withIdentifiers: previous.map(\.identifier))
         var requests: [PendingAlarm] = []
         for occurrence in dated.occurrences {
             var offsets = [0]
-            if let interval = plan.followUpIntervalMinutes, interval > 0 { offsets.append(interval * 60) }
+            // The follow-up of a ring due by a stopped notification's delivery stays stopped (the
+            // rule `carriedChains` keeps): the rearm that follows the tap re-registers this
+            // stored plan, this morning's occurrence included.
+            let stopped = acknowledged.map { occurrence.ringDate <= $0 } ?? false
+            if let interval = plan.followUpIntervalMinutes, interval > 0, !stopped { offsets.append(interval * 60) }
             for offset in offsets {
                 let fire = occurrence.ringDate.addingTimeInterval(Double(offset))
                 guard fire > now else { continue }
