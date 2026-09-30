@@ -564,6 +564,75 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         XCTAssertNil(model.scheduleErrorMessage)
     }
 
+    // MARK: - Inside this morning's check window (adversarial review, 2026-09-29)
+
+    /// Relaunches onto a weekly registration for a morning ~10 minutes away whose rain check
+    /// point (30 minutes before it) has passed — the user opened the app inside the window.
+    /// `rangEarly`: that morning was rainy and its early ring already went off.
+    private func relaunchInsideThisMorningsWindow(spy: SchedulerSpy, home: String,
+                                                   rangEarly: Bool) throws -> (model: AlarmViewModel, normal: Date) {
+        let now = Date()
+        var settings = CommuteAlarmSettings()
+        settings.homeAddress = home
+        settings.workAddress = "Work Street 2"
+        settings.alarmTime = now.addingTimeInterval(10 * 60)
+        settings.rainLeadTimeMinutes = 30
+        let normal = TomorrowWeatherRequest(settings: settings, now: now).normalAlarmDate
+        let early = normal.addingTimeInterval(-30 * 60)
+        try XCTSkipUnless(Calendar.current.isDate(early, inSameDayAs: normal) && Calendar.current.isDate(now, inSameDayAs: normal),
+                          "The window must sit inside one calendar day")
+        let summary = ScheduledAlarmSummary(normalAlarmDate: normal, scheduledAlarmDate: rangEarly ? early : normal,
+            weatherRefreshDate: early, exceedsRainThreshold: rangEarly, leadTimeMinutes: rangEarly ? 30 : 0,
+            rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: rangEarly ? 0.72 : 0.08)
+        storage.set(try JSONEncoder().encode(settings), forKey: "commuteAlarmSettings")
+        storage.set(try JSONEncoder().encode(summary), forKey: "scheduledAlarmSummaryDisplay")
+        storage.set(try JSONEncoder().encode(settings.scheduleFingerprint()), forKey: "scheduledAlarmFingerprint")
+        let model = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: spy,
+                                   settingsStorage: storage, autoRefreshDebounce: .milliseconds(80))
+        return (model, normal)
+    }
+
+    /// A foreground run inside the window (an edit, Retry, the debounced refresh) decided
+    /// *tomorrow*, whose check point is the next one ahead, and moved the single weekly
+    /// repeating alarm to tomorrow's time. A rainy tomorrow took this morning's ring with it.
+    func testAnEditInsideThisMorningsWindowKeepsThisMorningsRing() async throws {
+        let spy = SchedulerSpy()
+        let (model, normal) = try relaunchInsideThisMorningsWindow(spy: spy, home: "Rain Street", rangEarly: false)
+        model.settings.alarmSound = .softPiano
+        try await waitUntil("the edit re-registered") { spy.scheduleCalls.count == 1 && !model.isScheduling }
+        var call = try XCTUnwrap(spy.scheduleCalls.last)
+        XCTAssertEqual(call.date, normal, "A rainy tomorrow must not take this morning's ring")
+        XCTAssertEqual(call.normalAlarmDate, normal)
+        XCTAssertEqual(call.sound, .softPiano, "The edit itself still applies")
+        XCTAssertFalse(model.isScheduleStale)
+
+        await model.evaluateRouteAndScheduleAlarm()
+        call = try XCTUnwrap(spy.scheduleCalls.last)
+        XCTAssertEqual(spy.scheduleCalls.count, 2)
+        XCTAssertEqual(call.date, normal, "Retry keeps it too")
+    }
+
+    /// The same window after this morning already rang early: a dry tomorrow puts the
+    /// weekly alarm back at the normal time, which rang this morning a second time.
+    func testARunAfterThisMorningsEarlyRingDoesNotRingItAgain() async throws {
+        let spy = SchedulerSpy()
+        let (model, normal) = try relaunchInsideThisMorningsWindow(spy: spy, home: "Clear Street", rangEarly: true)
+        await model.evaluateRouteAndScheduleAlarm()
+        let call = try XCTUnwrap(spy.scheduleCalls.last)
+        let early = normal.addingTimeInterval(-30 * 60)
+        XCTAssertEqual(call.date, early, "The weekly clock stays on the ring that already went off")
+        XCTAssertEqual(call.normalAlarmDate, normal)
+        XCTAssertEqual(model.scheduledAlarmSummary?.normalAlarmDate, normal)
+        let status = model.tomorrowStatus()
+        XCTAssertTrue(status.hasRung)
+        XCTAssertEqual(status.registeredRingDate, early)
+
+        // A shorter lead puts this morning's check point back ahead; it still rang already.
+        model.settings.rainLeadTimeMinutes = 5
+        try await waitUntil("the edit re-registered") { spy.scheduleCalls.count == 2 && !model.isScheduling }
+        XCTAssertEqual(spy.scheduleCalls.last?.date, early, "A morning that rang early never rings again")
+    }
+
     private func waitUntil(
         _ what: String,
         timeout: TimeInterval = 5,

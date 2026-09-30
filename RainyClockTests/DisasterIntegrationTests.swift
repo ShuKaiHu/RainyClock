@@ -422,6 +422,97 @@ final class DisasterIntegrationTests: XCTestCase {
         XCTAssertEqual(calls, 0)
     }
 
+    // MARK: - Between an early ring and the normal time (adversarial review, 2026-09-29)
+
+    /// Stores a dated registration made before this morning's early (rain) ring, which has
+    /// since gone off: normal time ~10 minutes away, the ring 30 minutes before it.
+    /// `dropped`: a registration inside the window already took that morning out of the plan.
+    private func storeRungEarlyMorning(in storage: UserDefaults, dropped: Bool) throws -> Date {
+        let now = Date()
+        var value = settings()
+        value.alarmTime = now.addingTimeInterval(10 * 60)
+        value.rainLeadTimeMinutes = 30
+        let normal = TomorrowWeatherRequest(settings: value, now: now).normalAlarmDate
+        let early = normal.addingTimeInterval(-30 * 60)
+        let registeredAt = early.addingTimeInterval(-5 * 60)
+        try XCTSkipUnless(Calendar.current.isDate(registeredAt, inSameDayAs: normal) && Calendar.current.isDate(now, inSameDayAs: normal),
+                          "The window must sit inside one calendar day")
+        var plan = CalendarAlarmPlan.make(settings: value, holidays: .init(), rain: false, now: registeredAt,
+                                          days: AlarmViewModel.calendarHorizonDays)
+        XCTAssertEqual(plan.occurrences.first?.normalDate, normal)
+        plan.occurrences[0].ringDate = early
+        var summary: ScheduledAlarmSummary
+        if dropped {
+            plan.occurrences.removeFirst()
+            let next = try XCTUnwrap(plan.occurrences.first)
+            summary = ScheduledAlarmSummary(normalAlarmDate: next.normalDate, scheduledAlarmDate: next.ringDate,
+                weatherRefreshDate: next.normalDate.addingTimeInterval(-30 * 60), exceedsRainThreshold: false,
+                leadTimeMinutes: 0, rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0, calendarPlan: plan)
+            summary.firedEarlyRing = .init(normalDate: normal, ringDate: early)
+        } else {
+            summary = ScheduledAlarmSummary(normalAlarmDate: normal, scheduledAlarmDate: early, weatherRefreshDate: early,
+                exceedsRainThreshold: true, leadTimeMinutes: 30, rainProbabilityThreshold: 0.5,
+                maximumPrecipitationProbability: 0.72, calendarPlan: plan, calendarForecastDate: normal)
+        }
+        summary.disasterSkips = []
+        try storage.set(JSONEncoder().encode(value), forKey: "commuteAlarmSettings")
+        try storage.set(JSONEncoder().encode(summary), forKey: "scheduledAlarmSummaryDisplay")
+        try storage.set(JSONEncoder().encode(value.scheduleFingerprint()), forKey: "scheduledAlarmFingerprint")
+        storage.set(early.addingTimeInterval(-3_600), forKey: "lastWeatherEvaluationAt")
+        return normal
+    }
+
+    /// registerCalendar dropped a morning that had already rung early only while the loaded
+    /// summary still pointed at it. After a cold launch inside the window, rollingForward
+    /// has moved the summary to tomorrow, so the next re-registration re-armed that
+    /// morning's normal-time ring — a second ring. A second re-registration did the same,
+    /// its `previous` being tomorrow's summary by then.
+    func testReRegisteringAfterAColdLaunchPastAnEarlyRingDoesNotRingThatMorningAgain() async throws {
+        let suite = "EarlyRingColdLaunch-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        let normal = try storeRungEarlyMorning(in: storage, dropped: false)
+        let early = normal.addingTimeInterval(-30 * 60)
+        let scheduler = DisasterSchedulerSpy()
+        let model = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage,
+            disasterFeedProvider: FeedStub(value: .success(.init(checkedAt: Date(), notices: []))),
+            disasterSyncReporter: DisasterReceiptSpy(),
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
+        XCTAssertGreaterThan(try XCTUnwrap(model.scheduledAlarmSummary).normalAlarmDate, normal,
+                             "The cold launch rolled the summary past the ring that went off")
+        for pass in 1...2 {
+            await model.applyCalendarSettings()
+            XCTAssertEqual(scheduler.calendarCalls, pass)
+            let plan = try XCTUnwrap(scheduler.lastPlan)
+            XCTAssertFalse(plan.occurrences.contains { $0.normalDate == normal },
+                           "Registration \(pass) re-armed a morning that already rang early")
+            XCTAssertEqual(model.scheduledAlarmSummary?.firedEarlyRing, .init(normalDate: normal, ringDate: early))
+            XCTAssertTrue(model.tomorrowStatus().hasRung)
+        }
+    }
+
+    /// The closure refresh compared its skips against a plan that still held a morning whose
+    /// early ring had gone off. A "today" closure announced after that ring then looked new
+    /// on every refresh until the normal time: a re-registration every five minutes, none of
+    /// which could be acknowledged.
+    func testAClosureAnnouncedAfterTheEarlyRingIsNotReappliedOnEveryRefresh() async throws {
+        let suite = "EarlyRingClosure-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        let normal = try storeRungEarlyMorning(in: storage, dropped: true)
+        let scheduler = DisasterSchedulerSpy()
+        let reporter = DisasterReceiptSpy()
+        let model = AlarmViewModel(notificationScheduler: scheduler, settingsStorage: storage,
+            disasterFeedProvider: FeedStub(value: .success(feed(now: Date(), target: "今天"))),
+            disasterSyncReporter: reporter,
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
+        for _ in 1...2 { _ = await model.refreshDisasterSuspensions(force: true) }
+        XCTAssertEqual(scheduler.calendarCalls, 0, "The morning already rang: nothing is left to skip or re-register")
+        XCTAssertEqual(reporter.receipts.map(\.result), [.applied, .applied])
+        XCTAssertNil(model.nextAppliedDisasterSkip)
+        XCTAssertFalse(model.scheduledAlarmSummary?.calendarPlan?.occurrences.contains { $0.normalDate == normal } ?? true)
+    }
+
     func testDeferringClosuresPreservesAnActiveCalendarOnlySchedule() async throws {
         let suite = "DeferredClosuresCalendarOnly-\(UUID())"
         let storage = UserDefaults(suiteName: suite)!
@@ -499,6 +590,8 @@ private final class DisasterSchedulerSpy: NotificationScheduling, @unchecked Sen
     var calendarCalls = 0
     var weeklyCalls = 0
     var cancellations = 0
+    /// The last dated plan the system accepted.
+    var lastPlan: CalendarAlarmPlan?
     var beforeCalendarCompletion: (@Sendable () async -> Void)?
     func requestAuthorization() async throws -> Bool { true }
     func scheduleAlarm(at date: Date, normalAlarmDate: Date, weekdays: Set<Int>, sound: CommuteAlarmSettings.AlarmSound,
@@ -510,6 +603,7 @@ private final class DisasterSchedulerSpy: NotificationScheduling, @unchecked Sen
                           soundFileNameOverride: String?, snoozeMinutes: Int?, title: String, body: String) async throws {
         calendarCalls += 1
         if fail { throw URLError(.cannotWriteToFile) }
+        lastPlan = plan
         await beforeCalendarCompletion?()
     }
     func cancelScheduledAlarms() async { cancellations += 1 }

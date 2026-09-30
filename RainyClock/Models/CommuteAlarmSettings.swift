@@ -541,13 +541,25 @@ extension ScheduledAlarmSummary {
 
     /// Whether morning `morning` (a normal alarm date still ahead) already rang early.
     func hasFiredEarlyRing(forMorning morning: Date, now: Date) -> Bool {
-        guard morning > now else { return false }
-        if let fired = firedEarlyRing, fired.normalDate == morning, fired.ringDate <= now { return true }
-        if let plan = calendarPlan {
-            return plan.occurrences.contains { $0.normalDate == morning && $0.ringDate <= now }
+        earlyRingThatWentOff(forMorning: morning, now: now) != nil
+    }
+
+    /// The early ring morning `morning` (a normal alarm date still ahead) already had, at
+    /// the time it actually went off. Read from what was committed, none of which
+    /// rollingForward rewrites: the recorded ring, the dated plan's own occurrence, or the
+    /// weekly summary's lead — never `scheduledAlarmDate`, which a relaunch moves on.
+    func earlyRingThatWentOff(forMorning morning: Date, now: Date) -> CalendarAlarmPlan.Occurrence? {
+        guard morning > now else { return nil }
+        if let fired = firedEarlyRing, fired.normalDate == morning, fired.ringDate <= now {
+            return .init(normalDate: morning, ringDate: fired.ringDate)
         }
-        return normalAlarmDate == morning && leadTimeMinutes > 0
-            && morning.addingTimeInterval(TimeInterval(-leadTimeMinutes * 60)) <= now
+        if let plan = calendarPlan {
+            return plan.occurrences.first { $0.normalDate == morning && $0.ringDate <= now }
+                .map { .init(normalDate: morning, ringDate: $0.ringDate) }
+        }
+        let ring = morning.addingTimeInterval(TimeInterval(-leadTimeMinutes * 60))
+        guard normalAlarmDate == morning, leadTimeMinutes > 0, ring <= now else { return nil }
+        return .init(normalDate: morning, ringDate: ring)
     }
 
     /// Returns the summary with past dates advanced to their next weekly occurrence,

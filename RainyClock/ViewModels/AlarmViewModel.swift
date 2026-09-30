@@ -951,6 +951,16 @@ final class AlarmViewModel: ObservableObject {
                 reconcileScheduledAlarmWithSettings()
                 return
             }
+            if weeklyComingMorningIsDecided(settingsSnapshot, now: Date()) {
+                // The rain check below would decide the next check point ahead — tomorrow's
+                // — and move the one repeating alarm to tomorrow's time: a rainy tomorrow
+                // takes this morning's ring with it, a dry one rings a morning that already
+                // rang early a second time. Register this morning's own decision instead;
+                // the first run after its normal time decides tomorrow.
+                try await restoreWeeklySchedule(settings: settingsSnapshot)
+                reconcileScheduledAlarmWithSettings()
+                return
+            }
 
             // Scheduling supersedes any in-flight background weather refresh, and must
             // also clear the refresh spinner that refresh will no longer reset.
@@ -1383,8 +1393,9 @@ final class AlarmViewModel: ObservableObject {
         guard settings.isAlarmEnabled, liveSkippedAlarmDate(now: now) == nil,
               let summary = scheduledAlarmSummary else { return .unavailable }
         let coming = TomorrowWeatherRequest(settings: effectiveSchedulingSettings, now: now).normalAlarmDate
-        // Re-registering after this morning's early ring can re-add its normal-time ring
-        // (a known scheduler gap), so a skip waits until that morning's normal time.
+        // This morning already rang early: a skip waits until its normal time (product rule,
+        // PRODUCT_DECISIONS 2026-09-30). It was also a guard against re-registration re-adding
+        // that morning's normal-time ring, a gap closed on 2026-09-30 (datedBasePlan).
         if summary.hasFiredEarlyRing(forMorning: coming, now: now) { return .afterEarlyRing(until: coming) }
         // A ringing or snoozing weekly relative alarm survives the dated re-registration.
         if summary.calendarPlan == nil, alarmInProgress() { return .alarmInProgress }
@@ -1494,10 +1505,7 @@ final class AlarmViewModel: ObservableObject {
         if let settingsRemovalTask { await settingsRemovalTask.value }
         guard settings.isAlarmEnabled, !hasScheduledAlarm, canSchedule else { return }
         let effective = effectiveSchedulingSettings
-        let now = Date()
-        let coming = TomorrowWeatherRequest(settings: effective, now: now)
-        let weekday = AlarmCalendarSettings.calendar.component(.weekday, from: coming.normalAlarmDate)
-        if !effective.usesDatedSchedule, coming.forecastDate <= now, effective.selectedWeekdays.contains(weekday) {
+        if weeklyComingMorningIsDecided(effective, now: Date()) {
             // Inside this morning's check window the weekly evaluate would decide tomorrow,
             // and a rainy tomorrow would replace this morning's ring. Arm at the usual time.
             await armWithoutForecast()
@@ -1511,6 +1519,19 @@ final class AlarmViewModel: ObservableObject {
            await armWithoutForecast() {
             scheduleErrorMessage = String(localized: "alarm_on_without_forecast")
         }
+    }
+
+    /// Weekly schedules: the coming morning is a selected day whose rain decision can no
+    /// longer change — its check point has passed, or its early ring already went off —
+    /// while its normal time is still ahead. A registration made now must carry that
+    /// morning's decision, not the next one's (see `restoreWeeklySchedule`).
+    private func weeklyComingMorningIsDecided(_ settings: CommuteAlarmSettings, now: Date) -> Bool {
+        guard !settings.usesDatedSchedule else { return false }
+        let coming = TomorrowWeatherRequest(settings: settings, now: now)
+        let weekday = AlarmCalendarSettings.calendar.component(.weekday, from: coming.normalAlarmDate)
+        guard settings.selectedWeekdays.contains(weekday) else { return false }
+        return coming.forecastDate <= now
+            || scheduledAlarmSummary?.hasFiredEarlyRing(forMorning: coming.normalAlarmDate, now: now) == true
     }
 
     private func cancelPendingAutoRefresh() {
@@ -1660,8 +1681,7 @@ final class AlarmViewModel: ObservableObject {
             return false
         }
         let now = Date()
-        let base = CalendarAlarmPlan.make(settings: settings, holidays: holidayCalendar, rain: false,
-            now: now, days: Self.calendarHorizonDays)
+        let base = datedBasePlan(settings: settings, now: now).plan
         let new = DisasterAlarmPlan.filtering(base, settings: settings,
             feed: disasterRefreshFailed ? nil : disasterFeed, now: now).skips
         let old = (scheduledAlarmSummary?.disasterSkips ?? []).filter { $0.normalDate > now }
@@ -1697,8 +1717,7 @@ final class AlarmViewModel: ObservableObject {
         if let summary = scheduledAlarmSummary {
             guard scheduledFingerprint == effectiveSchedulingSettings.scheduleFingerprint(),
                   let plan = summary.calendarPlan, plan.coveredUntil > now else { return }
-            let base = CalendarAlarmPlan.make(settings: settings, holidays: holidayCalendar,
-                rain: false, now: now, days: Self.calendarHorizonDays)
+            let base = datedBasePlan(settings: settings, now: now).plan
             let expected = DisasterAlarmPlan.filtering(base, settings: settings, feed: feed, now: now).skips
             let actual = (summary.disasterSkips ?? []).filter { $0.normalDate > now }
             guard expected.map(\.normalDate) == actual.map(\.normalDate),
@@ -1804,8 +1823,8 @@ final class AlarmViewModel: ObservableObject {
         }
     }
 
-    private func restoreWeeklySchedule() async throws {
-        let snapshot = effectiveSchedulingSettings
+    private func restoreWeeklySchedule(settings frozen: CommuteAlarmSettings? = nil) async throws {
+        let snapshot = frozen ?? effectiveSchedulingSettings
         let previous = scheduledAlarmSummary
         let probability = previous?.maximumPrecipitationProbability ?? 0
         var summary = AlarmTimeCalculator.nextAlarmDateForWeatherCheck(alarmTime: snapshot.alarmTime,
@@ -1822,12 +1841,17 @@ final class AlarmViewModel: ObservableObject {
             let probability = saved?.probability ?? probability
             let earlier = next.normalDate.addingTimeInterval(Double(-snapshot.rainLeadTimeMinutes * 60))
             let rain = hasSameForecast && probability >= snapshot.rainProbabilityThreshold && earlier > now
+            // This morning already rang early: the one repeating clock time stays on that
+            // ring, which has passed. The normal time would ring the same morning again.
+            let rang = previous?.earlyRingThatWentOff(forMorning: next.normalDate, now: now)
             summary.normalAlarmDate = next.normalDate
-            summary.scheduledAlarmDate = rain ? earlier : next.normalDate
+            summary.scheduledAlarmDate = rang?.ringDate ?? (rain ? earlier : next.normalDate)
             summary.weatherRefreshDate = earlier
-            summary.exceedsRainThreshold = rain
-            summary.leadTimeMinutes = rain ? snapshot.rainLeadTimeMinutes : 0
+            summary.exceedsRainThreshold = rain || rang != nil
+            summary.leadTimeMinutes = rang.map { Int(next.normalDate.timeIntervalSince($0.ringDate) / 60) }
+                ?? (rain ? snapshot.rainLeadTimeMinutes : 0)
             summary.maximumPrecipitationProbability = hasSameForecast ? probability : 0
+            summary.firedEarlyRing = rang
         }
         let selectedSound = snapshot.soundSelection(ringDate: summary.scheduledAlarmDate, normalDate: summary.normalAlarmDate)
         guard settings.isAlarmEnabled else { return }
@@ -1837,21 +1861,39 @@ final class AlarmViewModel: ObservableObject {
         scheduledAlarmSummary = summary
         scheduledFingerprint = snapshot.scheduleFingerprint()
         updateScheduleStaleness()
+        updateAlarmKitRescheduleNotice()
         statusMessage = String(localized: "status_alarm_scheduled")
-        BackgroundWeatherRefresh.scheduleNextRun(before: summary.weatherRefreshDate)
+        // Inside this morning's window its check point has been answered; aim at the next.
+        BackgroundWeatherRefresh.scheduleNextRun(before: summary.weatherRefreshDate > now
+            ? summary.weatherRefreshDate : nextWeatherCheckDate(for: snapshot, now: now))
         await CalendarCoverageReminder.cancel()
-        await replanEveningPreviews(requestingAuthorization: true)
+        await replanEveningPreviews(requestingAuthorization: !isRunningUnattended)
+    }
+
+    /// `CalendarAlarmPlan.make` without the morning whose early (rain) ring already went
+    /// off, plus that ring. Its normal-time ring must not come back — however many times
+    /// the plan is re-registered, and whether or not a relaunch has rolled the summary on —
+    /// and a closure announced after that ring has nothing left to skip. Registration, the
+    /// closure refresh and its receipt all start here, so the skips they compare stay equal.
+    private func datedBasePlan(settings: CommuteAlarmSettings, now: Date)
+        -> (plan: CalendarAlarmPlan, firedEarlyRing: CalendarAlarmPlan.Occurrence?) {
+        var plan = CalendarAlarmPlan.make(settings: settings, holidays: holidayCalendar, rain: false, now: now, days: Self.calendarHorizonDays)
+        guard let summary = scheduledAlarmSummary else { return (plan, nil) }
+        var fired = summary.firedEarlyRing.flatMap { $0.normalDate > now ? $0 : nil }
+        plan.occurrences.removeAll { occurrence in
+            guard let ring = summary.earlyRingThatWentOff(forMorning: occurrence.normalDate, now: now) else { return false }
+            fired = ring
+            return true
+        }
+        return (plan, fired)
     }
 
     private func registerCalendar(settings snapshot: CommuteAlarmSettings, refreshWeather: Bool) async throws {
         let now = Date()
         let previous = scheduledAlarmSummary
-        var plan = CalendarAlarmPlan.make(settings: snapshot, holidays: holidayCalendar, rain: false, now: now, days: Self.calendarHorizonDays)
-        var firedEarlyRing = previous?.firedEarlyRing.flatMap { $0.normalDate > now ? $0 : nil }
-        if let previous, previous.scheduledAlarmDate <= now, now < previous.normalAlarmDate {
-            plan.occurrences.removeAll { $0.normalDate == previous.normalAlarmDate }
-            firedEarlyRing = .init(normalDate: previous.normalAlarmDate, ringDate: previous.scheduledAlarmDate)
-        }
+        let base = datedBasePlan(settings: snapshot, now: now)
+        var plan = base.plan
+        let firedEarlyRing = base.firedEarlyRing
         let appliedFeed = disasterRefreshFailed ? nil : disasterFeed
         let filtered = DisasterAlarmPlan.filtering(plan, settings: snapshot,
             feed: appliedFeed, now: now)
