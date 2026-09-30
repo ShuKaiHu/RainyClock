@@ -1409,6 +1409,8 @@ final class AlarmViewModel: ObservableObject {
             canRefreshInBackground: canRefreshInBackground(),
             calendarSettings: settings.calendarSettings,
             holidays: holidayCalendar,
+            // What the card shows under a closure, so the preview names the same update time.
+            closureSourceUpdatedAt: disasterFeed?.sourceUpdatedAt,
             // Display preference may change while a schedule/permission request
             // is in flight; use the current format with the registered dates.
             timeFormat: self.settings.timeFormat

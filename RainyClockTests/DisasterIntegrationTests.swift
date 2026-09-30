@@ -109,7 +109,50 @@ final class DisasterIntegrationTests: XCTestCase {
             disasterSkips: [.init(normalDate: date(16), noticeIDs: ["notice"], appliedAt: now)])
         let previews = EveningPreviewPlanner.plan(summary: summary, selectedWeekdays: Set(1...7),
             previewTime: date(15, 21), checkedAt: now, now: now, canRefreshInBackground: true, calendar: calendar)
-        XCTAssertTrue(previews.contains { if case .dayOff(let day) = $0.kind { return day == date(16) }; return false })
+        XCTAssertTrue(previews.contains { if case .closure(let day, _) = $0.kind { return day == date(16) }; return false })
+    }
+
+    /// Adversarial review 2026-10-01: a morning skipped for a verified closure was previewed as
+    /// "off according to your calendar" — the wrong cause, and no source. DAYOFF-SPEC §7 and
+    /// the store copy promise the source and its own update time wherever a closure is reported;
+    /// the preview uses the same two lines the alarm card shows under a closure.
+    func testAClosurePreviewNamesTheClosureAndItsSourceNotTheCalendar() throws {
+        let now = date(15, 18)
+        let sourceUpdated = date(15, 17, 5)
+        let summary = ScheduledAlarmSummary(normalAlarmDate: date(17), scheduledAlarmDate: date(17),
+            weatherRefreshDate: date(17, 7), exceedsRainThreshold: false, leadTimeMinutes: 0,
+            rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0,
+            disasterSkips: [.init(normalDate: date(16), noticeIDs: ["notice"], appliedAt: now)])
+        // The calendar is off: nothing but the closure silences 9/16.
+        let previews = EveningPreviewPlanner.plan(summary: summary, selectedWeekdays: Set(1...7),
+            previewTime: date(15, 21), checkedAt: now, now: now, canRefreshInBackground: true, calendar: calendar,
+            closureSourceUpdatedAt: sourceUpdated)
+        let closure = try XCTUnwrap(previews.first { $0.identifier == "commute-rain-preview-20260916" })
+        XCTAssertEqual(closure.kind, .closure(normalAlarmDate: date(16), sourceUpdatedAt: sourceUpdated))
+        let body = EveningPreviewText.body(for: closure)
+        XCTAssertFalse(body.contains(String(localized: "evening_preview_day_off")), body)
+        XCTAssertEqual(body, [String(localized: "evening_preview_closure"),
+                              String.localizedStringWithFormat(String(localized: "disaster_source_updated"),
+                                                               closure.timeFormat.dateTime(sourceUpdated)),
+                              String(localized: "disaster_source")].joined(separator: "\n"))
+
+        // A feed without its own update time still credits the source; the time is left out, never faked.
+        let undated = EveningPreview(identifier: closure.identifier, fireDate: closure.fireDate,
+            kind: .closure(normalAlarmDate: date(16), sourceUpdatedAt: nil), canRefreshInBackground: true)
+        XCTAssertEqual(EveningPreviewText.body(for: undated),
+                       String(localized: "evening_preview_closure") + "\n" + String(localized: "disaster_source"))
+
+        // Both languages carry the new sentence, and neither blames the calendar.
+        let bundle = Bundle(for: AlarmViewModel.self)
+        for language in ["en", "zh-Hant"] {
+            let path = try XCTUnwrap(bundle.path(forResource: "Localizable", ofType: "strings", inDirectory: nil,
+                                                 forLocalization: language), language)
+            let table = try XCTUnwrap(NSDictionary(contentsOfFile: path) as? [String: String], language)
+            let sentence = try XCTUnwrap(table["evening_preview_closure"], language)
+            XCTAssertFalse(sentence.isEmpty, language)
+            XCTAssertFalse(sentence.lowercased().contains("calendar") || sentence.contains("行事曆") || sentence.contains("月曆"),
+                           "\(language): \(sentence)")
+        }
     }
 
     /// A push that lands while a fetch is in flight — the app was opened, then locked on

@@ -29,6 +29,9 @@ struct EveningPreview: Equatable, Sendable {
         /// A later selected weekday; the morning's refresh will decide it.
         case upcoming(normalAlarmDate: Date)
         case dayOff(normalAlarmDate: Date)
+        /// A morning skipped for a verified work/school closure. Not the calendar's doing, and
+        /// DAYOFF-SPEC §7 wants the source and its own update time wherever a closure is reported.
+        case closure(normalAlarmDate: Date, sourceUpdatedAt: Date?)
         /// The user turned off only this morning's alarm: a quiet reminder the evening
         /// before, in case the skip was a slip.
         case skippedOnce(normalAlarmDate: Date)
@@ -83,6 +86,8 @@ enum EveningPreviewPlanner {
 
     /// - Parameter previewTime: only its hour and minute are read; the preview
     ///   fires at that time on the calendar day before each alarm.
+    /// - Parameter closureSourceUpdatedAt: the closure feed's own update time
+    ///   (`DisasterFeed.sourceUpdatedAt`), named under a morning a closure skipped.
     static func plan(
         summary: ScheduledAlarmSummary,
         selectedWeekdays: Set<Int>,
@@ -93,6 +98,7 @@ enum EveningPreviewPlanner {
         calendar: Calendar = AlarmCalendarSettings.calendar,
         calendarSettings: AlarmCalendarSettings = AlarmCalendarSettings(),
         holidays: HolidayCalendar = HolidayCalendar(),
+        closureSourceUpdatedAt: Date? = nil,
         timeFormat: ClockTimeFormat = .twentyFourHour
     ) -> [EveningPreview] {
         let weekdays = selectedWeekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : selectedWeekdays
@@ -129,6 +135,7 @@ enum EveningPreviewPlanner {
                 calendar.isDate($0, equalTo: alarm, toGranularity: .minute)
             } ?? false
             let kind: EveningPreview.Kind = skippedByUser ? .skippedOnce(normalAlarmDate: alarm)
+                : disasterSilent ? .closure(normalAlarmDate: alarm, sourceUpdatedAt: closureSourceUpdatedAt)
                 : silent ? .dayOff(normalAlarmDate: alarm)
                 : carriesAnotherMorningsDecision ? .upcoming(normalAlarmDate: summary.scheduledAlarmDate)
                 : isArmedRing
@@ -240,6 +247,15 @@ enum EveningPreviewText {
 
         case .dayOff:
             return String(localized: "evening_preview_day_off")
+
+        case let .closure(_, sourceUpdatedAt):
+            // The same source lines the alarm card shows under a closure: the update time
+            // when the feed has one, then the OGDL credit, which is a licence condition.
+            let updated: String? = sourceUpdatedAt.map {
+                String.localizedStringWithFormat(String(localized: "disaster_source_updated"), format.dateTime($0))
+            }
+            let lines: [String?] = [String(localized: "evening_preview_closure"), updated, String(localized: "disaster_source")]
+            return lines.compactMap { $0 }.joined(separator: "\n")
 
         case .skippedOnce:
             return String(localized: "evening_preview_skip_once")

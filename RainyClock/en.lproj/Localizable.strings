@@ -255,6 +255,7 @@
 "calendar_all_silent" = "No alarms in the scheduled period. Your calendar rules are saved.";
 "calendar_schedule_saved" = "Alarm calendar applied.";
 "evening_preview_day_off" = "Tomorrow’s alarm is off according to your calendar. You can change that date in Settings → Alarm calendar.";
+"evening_preview_closure" = "Tomorrow's alarm is skipped for a temporary work or school closure.";
 "calendar_renew_title" = "Extend your alarm calendar";
 "calendar_renew_body" = "Your scheduled alarms end in one week. Open Rainy Clock to extend them and keep your alarms ringing.";
 

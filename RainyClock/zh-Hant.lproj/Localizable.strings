@@ -255,6 +255,7 @@
 "calendar_all_silent" = "預排期間內沒有響鈴日，行事曆規則已儲存。";
 "calendar_schedule_saved" = "鬧鐘行事曆已套用。";
 "evening_preview_day_off" = "依你的行事曆，明天鬧鐘不響。可到「設定 → 鬧鐘月曆」修改當天設定。";
+"evening_preview_closure" = "明天的鬧鐘因臨時停班／停課略過。";
 "calendar_renew_title" = "延長你的鬧鐘行事曆";
 "calendar_renew_body" = "已排程的鬧鐘將在一週後到期。請開啟雨天鬧鐘延長排程，讓之後的鬧鐘繼續響鈴。";
 

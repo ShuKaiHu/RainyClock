@@ -148,9 +148,13 @@ enum DayOffPushContent {
             case "noAnnouncement", "disabled", "missingRegion": return nil
             default:
                 if decision.shouldSkip || feedProblemReasons.contains(decision.reason) { return nil }
+                // This too relays an announcement for the user's district, so it credits the source
+                // like a match does (§7). A decision that keeps the alarm carries no notice time, so
+                // the time is the feed's own.
+                let reason = chinese ? decision.reason : englishRelatedReasons[decision.reason] ?? englishRelatedFallback
                 return Result(urgency: .related, title: generic.title,
-                              body: chinese ? decision.reason
-                                            : englishRelatedReasons[decision.reason] ?? englishRelatedFallback)
+                              body: reason + "\n" + sourceLine(updatedAt: feed.sourceUpdatedAt ?? decision.sourceUpdatedAt,
+                                                               chinese: chinese))
             }
         }
         // 1. News: a closure the app has not applied and the user has not overridden.

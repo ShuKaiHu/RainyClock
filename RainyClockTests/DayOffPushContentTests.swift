@@ -65,8 +65,22 @@ final class DayOffPushContentTests: XCTestCase {
             state: state(), feed: feed("[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。", geocodes: ["1000412-001"]),
             now: now, chinese: false)
         XCTAssertEqual(result.urgency, .related)
-        XCTAssertEqual(result.body, "Only part of your district is closed, so your alarm stays on.")
+        XCTAssertEqual(result.body, "Only part of your district is closed, so your alarm stays on.\nSource: DGPA via NCDR")
         XCTAssertNil(result.body.range(of: #"\p{Han}"#, options: .regularExpression))
+    }
+
+    /// Spec §7, adversarial review 2026-10-01: "only part of your district is closed" relays an
+    /// announcement for the user's own district as much as a match does, so it names the source
+    /// and the source's update time too. It used to carry the reason alone.
+    func testRelatedNotificationCreditsTheSourceAndItsUpdateTime() {
+        var announcement = feed("[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。", geocodes: ["1000412-001"])
+        announcement.sourceUpdatedAt = now.addingTimeInterval(-120) // 2026-09-15 18:58 Asia/Taipei
+        let zh = DayOffPushContent.evaluate(state: state(), feed: announcement, now: now, chinese: true)
+        XCTAssertEqual(zh.urgency, .related)
+        XCTAssertEqual(zh.body, "僅部分地區停班停課，維持原鬧鐘\n資料來源：行政院人事行政總處（經 NCDR 發布），更新 9/15 18:58")
+        let en = DayOffPushContent.evaluate(state: state(), feed: announcement, now: now, chinese: false)
+        XCTAssertEqual(en.urgency, .related)
+        XCTAssertEqual(en.body, "Only part of your district is closed, so your alarm stays on.\nSource: DGPA via NCDR, updated 9/15 18:58")
     }
 
     func testNoNotificationTextPromisesTomorrow() {
@@ -92,7 +106,7 @@ final class DayOffPushContentTests: XCTestCase {
             state: state(), feed: feed("[停班停課通知]新竹縣尖石鄉:明天停止上班、停止上課。行政院人事行政總處。", geocodes: ["1000412-001"]),
             now: now, chinese: true)
         XCTAssertEqual(result.urgency, .related)
-        XCTAssertEqual(result.body, "僅部分地區停班停課，維持原鬧鐘")
+        XCTAssertEqual(result.body, "僅部分地區停班停課，維持原鬧鐘\n資料來源：行政院人事行政總處（經 NCDR 發布）")
     }
 
     func testMissingStateFeedOrFutureAlarmLeavesTheGenericFallback() {
@@ -340,7 +354,7 @@ final class DayOffPushContentTests: XCTestCase {
         ])
         let result = DayOffPushContent.evaluate(state: state, feed: feed, now: push, chinese: true)
         XCTAssertEqual(result.urgency, .related, result.body)
-        XCTAssertEqual(result.body, "僅部分地區停班停課，維持原鬧鐘")
+        XCTAssertEqual(result.body, "僅部分地區停班停課，維持原鬧鐘\n資料來源：行政院人事行政總處（經 NCDR 發布）")
     }
 
     func testStateWithoutKeptDatesDecodesAsNothingKept() throws {
