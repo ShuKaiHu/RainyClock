@@ -168,7 +168,18 @@ struct CommuteAlarmSettings: Codable, Equatable {
     var isDisasterSuspensionEnabled = false
     var homeSuspensionRegion: DisasterRegion?
     var workSuspensionRegion: DisasterRegion?
-    var usesDatedSchedule: Bool { calendarSettings.isActive || isDisasterSuspensionEnabled }
+    /// The free master switch on the Alarm page. `false` is "off until I turn it back
+    /// on": nothing is registered and nothing re-arms. Not part of the fingerprint —
+    /// turning off removes the registration instead.
+    var isAlarmEnabled = true
+    /// "Turn off only the next alarm": the Gregorian key (`AlarmCalendarSettings.key`)
+    /// of that morning's NORMAL alarm day, pinned when the user chose it — never the
+    /// rain-adjusted ring date. Applied in `CalendarAlarmPlan.make` only; spent once
+    /// that morning's normal time has passed, retired by the view model at a safe moment.
+    var skippedAlarmDay: String?
+    /// A pending one-time skip needs dated registration even on the free weekly plan: a
+    /// repeating weekly alarm cannot leave out one morning.
+    var usesDatedSchedule: Bool { calendarSettings.isActive || isDisasterSuspensionEnabled || skippedAlarmDay != nil }
 
     var homeAddress: String = ""
     var workAddress: String = ""
@@ -222,6 +233,8 @@ struct CommuteAlarmSettings: Codable, Equatable {
         isDisasterSuspensionEnabled = try values.decodeIfPresent(Bool.self, forKey: .isDisasterSuspensionEnabled) ?? false
         homeSuspensionRegion = try values.decodeIfPresent(DisasterRegion.self, forKey: .homeSuspensionRegion)
         workSuspensionRegion = try values.decodeIfPresent(DisasterRegion.self, forKey: .workSuspensionRegion)
+        isAlarmEnabled = try values.decodeIfPresent(Bool.self, forKey: .isAlarmEnabled) ?? true
+        skippedAlarmDay = try values.decodeIfPresent(String.self, forKey: .skippedAlarmDay)
         timeFormat = try values.decodeIfPresent(ClockTimeFormat.self, forKey: .timeFormat) ?? .twelveHour
         homeAddress = try values.decodeIfPresent(String.self, forKey: .homeAddress) ?? ""
         workAddress = try values.decodeIfPresent(String.self, forKey: .workAddress) ?? ""
@@ -319,6 +332,9 @@ struct AlarmScheduleFingerprint: Codable, Equatable {
     var earlyAIVoiceFileName: String?
     var isSnoozeEnabled: Bool
     var snoozeDurationMinutes: Int
+    /// The pending one-time skip (see `CommuteAlarmSettings.skippedAlarmDay`). Last and
+    /// optional: fingerprints stored before 1.8.0 decode to nil and stay equal.
+    var skippedAlarmDay: String? = nil
 }
 
 extension AlarmScheduleFingerprint {
@@ -348,6 +364,7 @@ extension AlarmScheduleFingerprint {
             : aiVoiceFileName
         isSnoozeEnabled = try values.decodeIfPresent(Bool.self, forKey: .isSnoozeEnabled) ?? true
         snoozeDurationMinutes = try values.decodeIfPresent(Int.self, forKey: .snoozeDurationMinutes) ?? 5
+        skippedAlarmDay = try values.decodeIfPresent(String.self, forKey: .skippedAlarmDay)
     }
 }
 
@@ -372,7 +389,8 @@ extension CommuteAlarmSettings {
             earlyAlarmSoundRawValue: earlyAlarmSound.rawValue,
             earlyAIVoiceFileName: earlyAlarmSound == .aiVoice ? earlyAIVoiceFileName : nil,
             isSnoozeEnabled: isSnoozeEnabled,
-            snoozeDurationMinutes: snoozeDurationMinutes
+            snoozeDurationMinutes: snoozeDurationMinutes,
+            skippedAlarmDay: skippedAlarmDay
         )
     }
 
@@ -471,6 +489,18 @@ struct ScheduledAlarmSummary: Codable, Equatable {
     /// Alarm page can say when it actually rang, instead of rebuilding that from a lead
     /// time the user may have changed since. Absent in older summaries.
     var firedEarlyRing: CalendarAlarmPlan.Occurrence? = nil
+    /// The committed "turn off only the next alarm" morning (its normal date). Set by
+    /// registerCalendar after the system accepted the plan without it.
+    var userSkippedNormalDate: Date? = nil
+    /// The rain decision the skipped morning had before it was skipped, so undoing the
+    /// skip restores it (a rain-advanced 07:00, not the normal 07:30) without a fetch.
+    var skippedMorningForecast: SkippedMorningForecast? = nil
+}
+
+struct SkippedMorningForecast: Codable, Equatable {
+    var normalDate: Date
+    var probability: Double
+    var place: String?
 }
 
 extension ScheduledAlarmSummary {
@@ -480,11 +510,44 @@ extension ScheduledAlarmSummary {
     /// those), and the skipped ones on their own. Without a calendar plan (plain weekly
     /// schedule) the single next normal date is all there is. An all-silent plan yields
     /// none — its `normalAlarmDate` is only the coverage boundary, not an alarm.
-    func dayOffAlarmDates(after now: Date, limit: Int = DayOffSharedState.upcomingDateLimit) -> (upcoming: [Date], skipped: [Date]) {
+    func dayOffAlarmDates(after now: Date, limit: Int = DayOffSharedState.upcomingDateLimit)
+        -> (upcoming: [Date], skipped: [Date], userSkipped: [Date]) {
         let skipped = Array(Set((disasterSkips ?? []).map(\.normalDate).filter { $0 > now })).sorted()
+        // The user's one-time skip is its own list: a closure for that day is not news, but
+        // an unrelated announcement must still be judged against the next armed day.
+        let userSkipped = [userSkippedNormalDate].compactMap { $0 }.filter { $0 > now }
         let scheduled = calendarPlan.map { $0.occurrences.map(\.normalDate) } ?? [normalAlarmDate]
-        let upcoming = Array(Set(scheduled + skipped).filter { $0 > now }).sorted()
-        return (Array(upcoming.prefix(limit)), skipped)
+        let upcoming = Array(Set(scheduled + skipped + userSkipped).filter { $0 > now }).sorted()
+        return (Array(upcoming.prefix(limit)), skipped, userSkipped)
+    }
+
+    /// The next ring the system actually holds. Dated: the plan's first ring still ahead
+    /// (closure-skipped and early-rung mornings are already absent; a rain-advanced ring
+    /// keeps its real time). Weekly: the repeating alarm rings at one clock time —
+    /// normal minus this summary's lead — on every selected weekday.
+    func nextRegisteredRing(settings: CommuteAlarmSettings, holidays: HolidayCalendar, now: Date,
+                            calendar: Calendar = AlarmCalendarSettings.calendar) -> CalendarAlarmPlan.Occurrence? {
+        if let plan = calendarPlan {
+            return plan.occurrences.first { $0.ringDate > now }
+        }
+        var weekly = settings
+        weekly.skippedAlarmDay = nil
+        weekly.calendarSettings.isEnabled = false
+        let lead = TimeInterval(leadTimeMinutes * 60)
+        return CalendarAlarmPlan.make(settings: weekly, holidays: holidays, rain: false, now: now, days: 9, calendar: calendar).occurrences
+            .map { CalendarAlarmPlan.Occurrence(normalDate: $0.normalDate, ringDate: $0.normalDate.addingTimeInterval(-lead)) }
+            .first { $0.ringDate > now }
+    }
+
+    /// Whether morning `morning` (a normal alarm date still ahead) already rang early.
+    func hasFiredEarlyRing(forMorning morning: Date, now: Date) -> Bool {
+        guard morning > now else { return false }
+        if let fired = firedEarlyRing, fired.normalDate == morning, fired.ringDate <= now { return true }
+        if let plan = calendarPlan {
+            return plan.occurrences.contains { $0.normalDate == morning && $0.ringDate <= now }
+        }
+        return normalAlarmDate == morning && leadTimeMinutes > 0
+            && morning.addingTimeInterval(TimeInterval(-leadTimeMinutes * 60)) <= now
     }
 
     /// Returns the summary with past dates advanced to their next weekly occurrence,

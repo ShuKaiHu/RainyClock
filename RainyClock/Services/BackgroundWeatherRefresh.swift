@@ -202,6 +202,13 @@ enum CommuteAlarmRefresher {
     static func refreshArmedAlarm() async -> Outcome {
         let viewModel = currentModel()
 
+        // Turned off, but a removal never finished (the app was suspended mid-cancel):
+        // finish it here rather than leave an alarm the user turned off.
+        if !viewModel.settings.isAlarmEnabled {
+            await viewModel.finishTurningOffIfNeeded()
+            return Outcome(didReschedule: false, nextWeatherRefreshDate: nil)
+        }
+
         guard viewModel.hasScheduledAlarm else {
             // Nothing armed: stop the chain instead of waking up forever.
             return Outcome(didReschedule: false, nextWeatherRefreshDate: nil)

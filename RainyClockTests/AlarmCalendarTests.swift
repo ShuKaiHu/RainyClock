@@ -456,6 +456,155 @@ final class CalendarSchedulingTests: XCTestCase {
     }
 }
 
+/// "Turn off only the next alarm" (1.8.0): free, offline, and back to one weekly alarm after.
+@MainActor
+final class SkipNextAlarmTests: XCTestCase {
+    private static let free = MembershipEntitlements(removeBanner: false, calendar: false, temporaryClosures: false,
+                                                    dailyAI: false, subscriptionActive: false, lifetimeActive: false)
+    private var storage: UserDefaults!
+    private var suite: String!
+    override func setUp() {
+        super.setUp()
+        suite = "SkipNextAlarmTests-\(UUID())"
+        storage = UserDefaults(suiteName: suite)
+    }
+    override func tearDown() {
+        storage.removePersistentDomain(forName: suite)
+        super.tearDown()
+    }
+
+    private func weeklyModel(_ scheduler: CalendarSchedulerSpy, inProgress: @escaping @MainActor () -> Bool = { false },
+                             home: String = "Clear Street", notificationAlarms: Bool = false) async -> AlarmViewModel {
+        let model = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: scheduler,
+            settingsStorage: storage, holidayCalendar: .init(), autoRefreshDebounce: .seconds(60),
+            membershipEntitlements: { Self.free }, alarmInProgress: inProgress, usesNotificationAlarms: notificationAlarms)
+        model.settings.homeAddress = home; model.settings.workAddress = "Office"
+        model.settings.selectedWeekdays = Set(1...7)
+        model.settings.alarmTime = Date().addingTimeInterval(3 * 3_600)
+        await model.evaluateRouteAndScheduleAlarm()
+        return model
+    }
+
+    func testSkipNextOnAWeeklyAlarmRegistersADatedPlanWithoutThatMorning() async throws {
+        let scheduler = CalendarSchedulerSpy()
+        let model = await weeklyModel(scheduler)
+        XCTAssertEqual(scheduler.weeklyCalls, 1)
+        XCTAssertNil(model.scheduledAlarmSummary?.calendarPlan)
+        guard case .available(let target) = model.skipAvailability() else { return XCTFail("\(model.skipAvailability())") }
+
+        let skipped = await model.skipNextAlarm(target)
+        XCTAssertTrue(skipped)
+        XCTAssertEqual(scheduler.weeklyCalls, 1)
+        let plan = try XCTUnwrap(scheduler.plans.last)
+        XCTAssertEqual(scheduler.plans.count, 1)
+        XCTAssertFalse(plan.occurrences.contains { $0.normalDate == target.normalDate })
+        XCTAssertTrue(plan.occurrences.contains { $0.normalDate > target.normalDate }, "Later mornings stay registered")
+        XCTAssertEqual(model.scheduledAlarmSummary?.userSkippedNormalDate, target.normalDate)
+        XCTAssertEqual(model.liveSkippedAlarmDate(), target.normalDate)
+        XCTAssertFalse(model.isAlarmSwitchOn())
+        XCTAssertFalse(model.isScheduleStale)
+        XCTAssertNotNil(model.ringAfterSkip())
+        let status = model.tomorrowStatus()
+        if AlarmCalendarSettings.calendar.isDate(status.normalAlarmDate, equalTo: target.normalDate, toGranularity: .minute) {
+            XCTAssertEqual(status.reason, .skippedOnce)
+            XCTAssertFalse(status.ringIsNotRegistered)
+        }
+    }
+
+    func testTurningTheSwitchBackOnUndoesTheSkip() async throws {
+        let scheduler = CalendarSchedulerSpy()
+        let model = await weeklyModel(scheduler)
+        guard case .available(let target) = model.skipAvailability() else { return XCTFail() }
+        _ = await model.skipNextAlarm(target)
+        await model.turnAlarmOn()
+        XCTAssertNil(model.settings.skippedAlarmDay)
+        XCTAssertEqual(scheduler.weeklyCalls, 2, "A free weekly user is back on one repeating alarm")
+        XCTAssertNil(model.scheduledAlarmSummary?.calendarPlan)
+        XCTAssertTrue(model.isAlarmSwitchOn())
+    }
+
+    func testASpentSkipIsRetiredBackToTheWeeklyAlarm() async throws {
+        let scheduler = CalendarSchedulerSpy()
+        let model = await weeklyModel(scheduler)
+        guard case .available(let target) = model.skipAvailability() else { return XCTFail() }
+        _ = await model.skipNextAlarm(target)
+        // Moving the alarm time before now makes the skipped morning's normal time pass.
+        model.settings.alarmTime = Date().addingTimeInterval(-2 * 3_600)
+        await model.refreshScheduledAlarmIfWeatherIsStale()
+        XCTAssertNil(model.settings.skippedAlarmDay)
+        XCTAssertGreaterThanOrEqual(scheduler.weeklyCalls, 2)
+        XCTAssertNil(model.scheduledAlarmSummary?.calendarPlan)
+    }
+
+    func testSkipWaitsWhileAWeeklyAlarmRings() async throws {
+        let scheduler = CalendarSchedulerSpy()
+        let model = await weeklyModel(scheduler, inProgress: { true })
+        XCTAssertEqual(model.skipAvailability(), .alarmInProgress)
+        let target = CalendarAlarmPlan.Occurrence(normalDate: Date().addingTimeInterval(3 * 3_600),
+                                                  ringDate: Date().addingTimeInterval(3 * 3_600))
+        let skipped = await model.skipNextAlarm(target)
+        XCTAssertFalse(skipped)
+        XCTAssertNil(model.settings.skippedAlarmDay)
+        XCTAssertTrue(scheduler.plans.isEmpty)
+    }
+
+    func testASkipForAMorningThatIsNoLongerNextIsRejected() async throws {
+        let scheduler = CalendarSchedulerSpy()
+        let model = await weeklyModel(scheduler)
+        guard case .available(let target) = model.skipAvailability() else { return XCTFail() }
+        let stale = CalendarAlarmPlan.Occurrence(normalDate: target.normalDate.addingTimeInterval(86_400),
+                                                 ringDate: target.ringDate.addingTimeInterval(86_400))
+        let skipped = await model.skipNextAlarm(stale)
+        XCTAssertFalse(skipped)
+        XCTAssertNil(model.settings.skippedAlarmDay)
+    }
+
+    /// Skipping a rainy morning and turning the switch straight back on must bring back
+    /// its rain-advanced ring, not the normal time (adversarial review).
+    func testUndoingASkipRestoresTheSkippedMorningsRainDecision() async throws {
+        let scheduler = CalendarSchedulerSpy()
+        let model = await weeklyModel(scheduler, home: "Rain Street")
+        let armed = try XCTUnwrap(model.scheduledAlarmSummary)
+        XCTAssertTrue(armed.exceedsRainThreshold)
+        guard case .available(let target) = model.skipAvailability() else { return XCTFail() }
+        XCTAssertEqual(target.normalDate, armed.normalAlarmDate)
+        _ = await model.skipNextAlarm(target)
+        XCTAssertEqual(model.scheduledAlarmSummary?.skippedMorningForecast?.normalDate, target.normalDate)
+        await model.turnAlarmOn()
+        let restored = try XCTUnwrap(model.scheduledAlarmSummary)
+        XCTAssertEqual(restored.normalAlarmDate, armed.normalAlarmDate)
+        XCTAssertEqual(restored.scheduledAlarmDate, armed.scheduledAlarmDate, "Still the rain-advanced ring")
+        XCTAssertEqual(restored.leadTimeMinutes, armed.leadTimeMinutes)
+    }
+
+    /// iOS 17–25: going back to the weekly plan while today's follow-up chain would still
+    /// fire re-adds those follow-ups, so retiring waits (adversarial review).
+    func testRetireWaitsWhileTodaysNotificationFollowUpsWouldRevive() async throws {
+        let hour = AlarmCalendarSettings.calendar.component(.hour, from: Date())
+        try XCTSkipIf(hour == 0, "Near midnight 'ten minutes ago' is yesterday")
+        let scheduler = CalendarSchedulerSpy()
+        let model = await weeklyModel(scheduler, notificationAlarms: true)
+        guard case .available(let target) = model.skipAvailability() else { return XCTFail() }
+        _ = await model.skipNextAlarm(target)
+        // Today's weekly ring was ten minutes ago: its follow-ups would still be firing.
+        model.settings.alarmTime = Date().addingTimeInterval(-10 * 60)
+        await model.refreshScheduledAlarmIfWeatherIsStale()
+        XCTAssertNotNil(model.settings.skippedAlarmDay, "Retire waits for today's follow-ups to end")
+        XCTAssertEqual(scheduler.weeklyCalls, 1)
+    }
+
+    func testTurningOffWhileSkippingClearsTheSkip() async throws {
+        let scheduler = CalendarSchedulerSpy()
+        let model = await weeklyModel(scheduler)
+        guard case .available(let target) = model.skipAvailability() else { return XCTFail() }
+        _ = await model.skipNextAlarm(target)
+        await model.turnAlarmOff()
+        XCTAssertNil(model.settings.skippedAlarmDay)
+        XCTAssertFalse(model.hasScheduledAlarm)
+        XCTAssertGreaterThanOrEqual(scheduler.cancellations, 1)
+    }
+}
+
 private final class CalendarSchedulerSpy: NotificationScheduling, @unchecked Sendable {
     var plans: [CalendarAlarmPlan] = []
     var fails = false
@@ -467,7 +616,8 @@ private final class CalendarSchedulerSpy: NotificationScheduling, @unchecked Sen
         if fails { throw URLError(.cannotConnectToHost) }
         plans.append(plan)
     }
-    func cancelScheduledAlarms() async {}
+    var cancellations = 0
+    func cancelScheduledAlarms() async { cancellations += 1 }
 }
 private struct OfflineCalendarWeather: RouteWeatherService {
     func fetchRouteWeather(from homeAddress: String, homeLocation: ResolvedMapLocation?, to workAddress: String,

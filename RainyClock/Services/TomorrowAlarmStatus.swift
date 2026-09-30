@@ -8,6 +8,10 @@ import Foundation
 struct TomorrowAlarmStatus: Equatable {
     enum Reason: Equatable {
         case normal, rain, holiday, manual, weekend, unselectedWeekday, disaster, routeIncomplete
+        /// The master switch is off (until the user turns it back on).
+        case alarmOff
+        /// The user turned off only this morning's alarm.
+        case skippedOnce
     }
 
     var day: Date
@@ -59,6 +63,7 @@ struct TomorrowAlarmStatus: Equatable {
         let decisionIsFinal = request.forecastDate <= now
         let key = AlarmCalendarSettings.key(for: day, calendar: calendar)
         let manualRing = settings.calendarSettings.isEnabled && settings.calendarSettings.overrides[key] == .ring
+        let skippedByUser = settings.skippedAlarmDay == key
         var expected: Date? = decision.rings ? request.normalAlarmDate : nil
         var reason: Reason = .normal
         var holidayName: String?
@@ -85,7 +90,7 @@ struct TomorrowAlarmStatus: Equatable {
                         // The recorded time, not one rebuilt from the current lead.
                         registered = fired.ringDate
                         firedRing = fired.ringDate
-                    } else if decision.rings, !committedSkip {
+                    } else if decision.rings, !committedSkip, !skippedByUser {
                         missingFromPlan = true
                     }
                 }
@@ -110,7 +115,10 @@ struct TomorrowAlarmStatus: Equatable {
             }
         }
 
-        if !decision.rings {
+        if !settings.isAlarmEnabled {
+            expected = nil
+            reason = .alarmOff
+        } else if !decision.rings {
             switch decision.reason {
             case .manual: reason = .manual
             case .holiday:
@@ -123,6 +131,9 @@ struct TomorrowAlarmStatus: Equatable {
         } else if !request.hasRoute || !routeIsReady {
             expected = nil
             reason = .routeIncomplete
+        } else if skippedByUser {
+            expected = nil
+            reason = .skippedOnce
         } else {
             reason = manualRing ? .manual : .normal
             // The same rule as DisasterAlarmPlan.filtering: a closure announced after this

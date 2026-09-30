@@ -20,6 +20,9 @@ enum DayOffPushContent {
         /// "ring" outranks a closure). Already decided: silent and passive, like
         /// `alreadyApplied`, so every revision of a typhoon night does not ring.
         case keptByUser
+        /// The user turned the alarm off: nothing an announcement says changes it.
+        /// Silent and passive.
+        case alarmOff
         /// The user's district has a new announcement that does not silence the
         /// alarm (partial area, unrecognised wording, contradictory data): sound,
         /// normal urgency, with the reason.
@@ -43,7 +46,7 @@ enum DayOffPushContent {
         case .unknown: nil
         case .matched: Presentation(playsSound: true, interruptionLevel: .timeSensitive)
         case .related: Presentation(playsSound: true, interruptionLevel: .active)
-        case .unrelated, .alreadyApplied, .keptByUser: Presentation(playsSound: false, interruptionLevel: .passive)
+        case .unrelated, .alreadyApplied, .keptByUser, .alarmOff: Presentation(playsSound: false, interruptionLevel: .passive)
         }
     }
 
@@ -112,8 +115,12 @@ enum DayOffPushContent {
                              title: chinese ? "停班停課公告已更新" : "Work/school closure update",
                              body: chinese ? "打開雨天鬧鐘確認下一次鬧鐘。" : "Open Rainy Clock to check your next alarm.")
         guard let state, state.enabled, state.observesWork || state.observesSchool,
-              state.home?.isValid == true || state.destination?.isValid == true,
-              let feed else { return generic }
+              state.home?.isValid == true || state.destination?.isValid == true else { return generic }
+        if state.alarmOff == true {
+            return Result(urgency: .alarmOff, title: generic.title,
+                          body: chinese ? "你的鬧鐘目前關閉，這則公告不會改變鬧鐘。" : "Your alarm is off, so this announcement doesn't change it.")
+        }
+        guard let feed else { return generic }
         // Every upcoming normal date, including ones the app already skipped: a repeat
         // announcement for a day that is already off must still read as a match.
         let dates = state.candidateAlarmDates(after: now)
@@ -145,7 +152,9 @@ enum DayOffPushContent {
         }
         // 1. News: a closure the app has not applied and the user has not overridden.
         //    It outranks a day that is already off, even when that day comes earlier.
-        if let (date, decision) = suppressing.first(where: { !state.isAlreadySkipped($0.0) && !state.isKeptRinging($0.0) }) {
+        if let (date, decision) = suppressing.first(where: {
+            !state.isAlreadySkipped($0.0) && !state.isKeptRinging($0.0) && !state.isUserSkipped($0.0)
+        }) {
             let day = dayLabel(date)
             let action = date == nearest
                 ? (chinese ? "下一次鬧鐘會依你的設定處理，打開 App 確認。" : "Your next alarm will follow your settings. Open the app to confirm.")
@@ -155,11 +164,12 @@ enum DayOffPushContent {
         // 2. The next day that will actually ring has an announcement that does not
         //    silence it (partial area, unclear wording): that is worth a sound, and it
         //    outranks a repeat for a day that is already off.
-        if let armed = dates.first(where: { !state.isAlreadySkipped($0) }), let result = related(decide(armed)) {
+        if let armed = dates.first(where: { !state.isAlreadySkipped($0) && !state.isUserSkipped($0) }),
+           let result = related(decide(armed)) {
             return result
         }
         // 3. Already decided: skipped by the app, or kept ringing by the user's own setting.
-        if let (date, decision) = suppressing.first(where: { state.isAlreadySkipped($0.0) }) {
+        if let (date, decision) = suppressing.first(where: { state.isAlreadySkipped($0.0) || state.isUserSkipped($0.0) }) {
             return matched(date, decision, urgency: .alreadyApplied,
                            action: chinese ? "\(dayLabel(date)) 當天的鬧鐘已略過。" : "\(dayLabel(date)): that day's alarm has already been skipped.")
         }
@@ -171,8 +181,10 @@ enum DayOffPushContent {
         // the phone and the announcements disagree until the app runs again, and
         // "the alarm rings as usual" would name a day that is not armed. Say nothing
         // specific; the generic text asks the user to open the app.
-        if state.isAlreadySkipped(nearest) { return generic }
-        if decide(nearest).status == "noAnnouncement" {
+        // A morning the user turned off once is not "the alarm": judge the next armed one.
+        guard let judged = dates.first(where: { !state.isUserSkipped($0) }) else { return generic }
+        if state.isAlreadySkipped(judged) { return generic }
+        if decide(judged).status == "noAnnouncement" {
             return Result(urgency: .unrelated, title: generic.title,
                           body: chinese ? "與你設定的地區無關，鬧鐘照常。" : "Not for your districts; the alarm rings as usual.")
         }

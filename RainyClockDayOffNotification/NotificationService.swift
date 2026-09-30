@@ -33,7 +33,8 @@ final class NotificationService: UNNotificationServiceExtension, @unchecked Send
         work = Task { [weak self] in
             let state = DayOffSharedState.load()
             var feed: DisasterFeed?
-            if let url = state?.serviceURL {
+            // An alarm the user turned off needs no announcement to decide the notification.
+            if state?.alarmOff != true, let url = state?.serviceURL {
                 let client = DisasterFeedClient(endpoint: url.appendingPathComponent("v1/suspensions"))
                 feed = await DayOffPushContent.fetchFeed(matching: pushedRevision,
                                                          fetch: { try await client.fetch() })

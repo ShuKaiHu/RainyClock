@@ -12,6 +12,17 @@ struct SuggestedAddressMatch: Equatable {
     var isConfirmed: Bool
 }
 
+/// What "turn off only the next alarm" can offer at a given moment.
+enum AlarmSkipAvailability: Equatable {
+    /// The morning to skip (`normalDate`) and the ring the system holds for it (`ringDate`).
+    case available(CalendarAlarmPlan.Occurrence)
+    /// This morning already rang early; a skip waits until its normal time.
+    case afterEarlyRing(until: Date)
+    /// An alarm is ringing or snoozing; stop it first.
+    case alarmInProgress
+    case unavailable
+}
+
 @MainActor
 final class AlarmViewModel: ObservableObject {
     @Published var settings: CommuteAlarmSettings {
@@ -173,6 +184,12 @@ final class AlarmViewModel: ObservableObject {
     private let autoRefreshDebounce: Duration
     /// When the notification extension last saw a day-off push (see `DayOffPushMarker`).
     private let dayOffPushReceivedAt: () -> Date?
+    /// An alarm is ringing or snoozing (AlarmKit only; false below iOS 26 and in tests).
+    private let alarmInProgress: @MainActor () -> Bool
+    /// The system still holds alarms of ours, whatever the stored summary says.
+    private let systemHoldsAlarms: @MainActor () -> Bool
+    /// Alarms are local notifications with self-repeating follow-ups (iOS 17–25).
+    private let usesNotificationAlarms: Bool
     private let calendarWeatherTimeout: Duration
     private static let addressValidationTimeout: Duration = .seconds(4)
     private static let settingsStorageKey = "commuteAlarmSettings"
@@ -200,7 +217,14 @@ final class AlarmViewModel: ObservableObject {
         supportsTemporaryClosures: Bool = AppEnvironment.supportsTemporaryClosures,
         dayOffPushReceivedAt: @escaping () -> Date? = {
             AppEnvironment.isRunningTests ? nil : DayOffPushMarker.lastReceivedAt()
-        }
+        },
+        alarmInProgress: @escaping @MainActor () -> Bool = {
+            AppEnvironment.isRunningTests ? false : SystemAlarmScheduler.hasAlarmInProgress()
+        },
+        systemHoldsAlarms: @escaping @MainActor () -> Bool = {
+            AppEnvironment.isRunningTests ? false : SystemAlarmScheduler.holdsRegisteredAlarms()
+        },
+        usesNotificationAlarms: Bool? = nil
     ) {
         // Assigning the published summary also clears the success/error state;
         // capture the persisted flag before restoring that summary.
@@ -224,6 +248,15 @@ final class AlarmViewModel: ObservableObject {
         self.membershipEntitlements = membershipEntitlements
         self.supportsTemporaryClosures = supportsTemporaryClosures
         self.dayOffPushReceivedAt = dayOffPushReceivedAt
+        self.alarmInProgress = alarmInProgress
+        self.systemHoldsAlarms = systemHoldsAlarms
+        if let usesNotificationAlarms {
+            self.usesNotificationAlarms = usesNotificationAlarms
+        } else if #available(iOS 26.0, *) {
+            self.usesNotificationAlarms = false
+        } else {
+            self.usesNotificationAlarms = true
+        }
 
         // Restore state that survives relaunches, so a scheduled alarm and confirmed
         // addresses do not look reset every time the app reopens.
@@ -258,6 +291,7 @@ final class AlarmViewModel: ObservableObject {
     /// aged out. This is the "user opened the app" path; `BackgroundWeatherRefresh` is
     /// the one that covers the mornings they do not.
     func refreshScheduledAlarmIfWeatherIsStale() async {
+        await retireSkipIfSafe()
         let settings = effectiveSchedulingSettings
         await refreshDisasterSuspensions()
         if settings.usesDatedSchedule, let plan = scheduledAlarmSummary?.calendarPlan,
@@ -293,9 +327,14 @@ final class AlarmViewModel: ObservableObject {
     /// - Returns: whether the alarm was actually re-registered.
     @discardableResult
     func refreshScheduledAlarmUnattended() async -> Bool {
+        if !settings.isAlarmEnabled {
+            await finishTurningOffIfNeeded()
+            return false
+        }
         // Disaster updates must precede the weather guard below: a 06:55 notice
         // can still cancel a 07:00 alarm even though today's rain check has passed.
-        let disasterChanged = await refreshDisasterSuspensions()
+        let refreshed = await refreshDisasterSuspensions()
+        let disasterChanged = await retireSkipIfSafe() || refreshed
         guard hasScheduledAlarm, canSchedule, !isScheduling else {
             return disasterChanged
         }
@@ -359,6 +398,11 @@ final class AlarmViewModel: ObservableObject {
     func activateAutomaticScheduling() {
         guard !automaticSchedulingActivated else { return }
         automaticSchedulingActivated = true
+        // Off, yet the system still holds alarms (an interrupted or failed cancel, or a
+        // summary that did not decode): remove them before anything else runs.
+        if !settings.isAlarmEnabled, scheduledAlarmSummary == nil, systemHoldsAlarms() {
+            enqueueSettingsRemoval(statusKey: "status_alarm_turned_off")
+        }
         reconcileScheduledAlarmWithSettings()
     }
 
@@ -389,6 +433,15 @@ final class AlarmViewModel: ObservableObject {
     /// old registration before the replacement route can be armed.
     private func reconcileScheduledAlarmWithSettings() {
         guard settingsRemovalTask == nil else { return }
+        // Off until the user turns it back on: nothing registered, nothing re-armed —
+        // before the first-arm, premium-lapse and fingerprint rules below get a say.
+        guard settings.isAlarmEnabled else {
+            autoRefreshTask?.cancel()
+            if scheduledAlarmSummary != nil || scheduledFingerprint != nil {
+                enqueueSettingsRemoval(statusKey: "status_alarm_turned_off")
+            }
+            return
+        }
         guard scheduledAlarmSummary != nil, let scheduledFingerprint else {
             if automaticSchedulingActivated, canSchedule, hasConfirmedAutomaticRoute,
                lastAutomaticInitialAttempt != effectiveSchedulingSettings.scheduleFingerprint() {
@@ -470,7 +523,8 @@ final class AlarmViewModel: ObservableObject {
                 self.lastAutomaticInitialAttempt = current
                 await self.evaluateRouteAndScheduleAlarm()
             } else if self.scheduledFingerprint?.calendarSettings != current.calendarSettings
-                || self.scheduledFingerprint?.disasterSettings != current.disasterSettings {
+                || self.scheduledFingerprint?.disasterSettings != current.disasterSettings
+                || self.scheduledFingerprint?.skippedAlarmDay != current.skippedAlarmDay {
                 await self.applyCalendarSettings()
             } else {
                 guard self.canSchedule else { return }
@@ -488,12 +542,16 @@ final class AlarmViewModel: ObservableObject {
         scheduledFingerprint = nil
         isScheduleStale = false
         scheduleErrorMessage = nil
+        if !settings.isAlarmEnabled, systemHoldsAlarms() {
+            scheduleErrorMessage = String(localized: "alarm_off_failed")
+        }
         statusMessage = String(localized: statusKey)
         updateAlarmKitRescheduleNotice()
     }
 
     var canSchedule: Bool {
-        !settings.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        settings.isAlarmEnabled
+            && !settings.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !settings.workAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && hasEnabledAlarmDay
             && settings.rainLeadTimeMinutes > 0
@@ -834,6 +892,10 @@ final class AlarmViewModel: ObservableObject {
 
     func evaluateRouteAndScheduleAlarm() async {
         if let settingsRemovalTask { await settingsRemovalTask.value }
+        guard settings.isAlarmEnabled else {
+            statusMessage = String(localized: "status_alarm_turned_off")
+            return
+        }
         if hasScheduledAlarm,
            settings.scheduleFingerprint() != effectiveSchedulingSettings.scheduleFingerprint(),
            !restrictedRulesTransitionIsSafe {
@@ -935,6 +997,8 @@ final class AlarmViewModel: ObservableObject {
 
             let selectedSound = settingsSnapshot.soundSelection(
                 ringDate: summary.scheduledAlarmDate, normalDate: summary.normalAlarmDate)
+            // Turned off while the forecast was loading: register nothing.
+            guard settings.isAlarmEnabled else { return }
             try await notificationScheduler.scheduleAlarm(
                 at: summary.scheduledAlarmDate,
                 normalAlarmDate: summary.normalAlarmDate,
@@ -1290,6 +1354,228 @@ final class AlarmViewModel: ObservableObject {
         settings.calendarSettings.overrides.removeValue(forKey: AlarmCalendarSettings.key(for: day))
     }
 
+    // MARK: - Master switch (free on every plan)
+
+    /// Whether the Alarm page's switch reads on: enabled and not skipping the next alarm.
+    /// Reads the clock, so the page's 30 s tick turns it back on after the skipped morning.
+    func isAlarmSwitchOn(now: Date = Date()) -> Bool {
+        settings.isAlarmEnabled && liveSkippedAlarmDate(now: now) == nil
+    }
+
+    /// The pending one-time skip's morning (its normal time) while still ahead.
+    func liveSkippedAlarmDate(now: Date = Date()) -> Date? {
+        guard settings.isAlarmEnabled else { return nil }
+        return CalendarAlarmPlan.skippedNormalDate(settings: effectiveSchedulingSettings, holidays: holidayCalendar, now: now)
+    }
+
+    /// When the alarm rings again after the skipped morning — only once the system holds
+    /// the plan without it, so the page never promises an unregistered resume.
+    func ringAfterSkip(now: Date = Date()) -> Date? {
+        guard let skipped = liveSkippedAlarmDate(now: now),
+              scheduledFingerprint?.skippedAlarmDay == settings.skippedAlarmDay,
+              let plan = scheduledAlarmSummary?.calendarPlan else { return nil }
+        return plan.occurrences.first { $0.normalDate > skipped && $0.ringDate > now }?.normalDate
+    }
+
+    /// What "turn off only the next alarm" can offer right now.
+    func skipAvailability(now: Date = Date()) -> AlarmSkipAvailability {
+        // A run in flight is not "nothing to skip": skipNextAlarm waits for it and re-checks.
+        guard settings.isAlarmEnabled, liveSkippedAlarmDate(now: now) == nil,
+              let summary = scheduledAlarmSummary else { return .unavailable }
+        let coming = TomorrowWeatherRequest(settings: effectiveSchedulingSettings, now: now).normalAlarmDate
+        // Re-registering after this morning's early ring can re-add its normal-time ring
+        // (a known scheduler gap), so a skip waits until that morning's normal time.
+        if summary.hasFiredEarlyRing(forMorning: coming, now: now) { return .afterEarlyRing(until: coming) }
+        // A ringing or snoozing weekly relative alarm survives the dated re-registration.
+        if summary.calendarPlan == nil, alarmInProgress() { return .alarmInProgress }
+        guard let target = summary.nextRegisteredRing(settings: effectiveSchedulingSettings,
+                                                      holidays: holidayCalendar, now: now) else { return .unavailable }
+        return .available(target)
+    }
+
+    /// Turns off only `target`'s morning. Re-validates first: a dialog left open past a
+    /// ring must not skip a different morning than the one it named.
+    @discardableResult
+    func skipNextAlarm(_ target: CalendarAlarmPlan.Occurrence) async -> Bool {
+        await waitForSchedulingToSettle()
+        guard case .available(let current) = skipAvailability(now: Date()), current.normalDate == target.normalDate,
+              !isScheduling, settingsRemovalTask == nil else {
+            return false
+        }
+        cancelPendingAutoRefresh()
+        settings.skippedAlarmDay = AlarmCalendarSettings.key(for: target.normalDate)
+        cancelPendingAutoRefresh()
+        // Immediate and offline: no weather fetch inside a ring window.
+        await applyCalendarSettings(userInitiated: true)
+        return true
+    }
+
+    /// Off until the user turns it back on. Cancels everything at once — even inside a
+    /// ring window, and a ringing or snoozing alarm: this is an explicit choice.
+    func turnAlarmOff() async {
+        let background = beginBackgroundTime("turn-alarm-off")
+        defer { endBackgroundTime(background) }
+        cancelPendingAutoRefresh()
+        var next = settings
+        next.isAlarmEnabled = false
+        next.skippedAlarmDay = nil
+        settings = next
+        // Cancel at once, without waiting for an in-flight registration (its weather fetch
+        // can take long, and the app may be suspended meanwhile). The removal below sweeps
+        // again once that run ends, and registrations re-check the switch before arming.
+        await notificationScheduler.cancelScheduledAlarms()
+        // Reconcile's off branch removes a stored registration; this also sweeps alarms
+        // the system holds without one (a summary that failed to decode).
+        if settingsRemovalTask == nil { enqueueSettingsRemoval(statusKey: "status_alarm_turned_off") }
+        await settingsRemovalTask?.value
+    }
+
+    /// Off, but a registration or system alarms survived (a cancel interrupted by
+    /// suspension): remove them. Called from launch, background and push paths.
+    func finishTurningOffIfNeeded() async {
+        guard !settings.isAlarmEnabled, hasScheduledAlarm || scheduledFingerprint != nil || systemHoldsAlarms() else { return }
+        let background = beginBackgroundTime("finish-turning-off")
+        defer { endBackgroundTime(background) }
+        if settingsRemovalTask == nil { enqueueSettingsRemoval(statusKey: "status_alarm_turned_off") }
+        await settingsRemovalTask?.value
+    }
+
+    private func waitForSchedulingToSettle(timeout: Duration = .seconds(20)) async {
+        if let settingsRemovalTask { await settingsRemovalTask.value }
+        let deadline = ContinuousClock.now + timeout
+        while isScheduling, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+    }
+
+    private func beginBackgroundTime(_ name: String) -> UIBackgroundTaskIdentifier {
+        guard !AppEnvironment.isRunningTests else { return .invalid }
+        return UIApplication.shared.beginBackgroundTask(withName: name)
+    }
+
+    private func endBackgroundTime(_ identifier: UIBackgroundTaskIdentifier) {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+    }
+
+    /// iOS 17–25 notification alarms: going back to the weekly plan re-adds today's
+    /// repeating follow-up triggers. While today's chain would still be firing, stay on
+    /// the dated plan (which already left today's rung morning out).
+    private func weeklyRestoreWouldReviveFollowUps(now: Date = Date()) -> Bool {
+        guard usesNotificationAlarms else { return false }
+        let effective = effectiveSchedulingSettings
+        let calendar = AlarmCalendarSettings.calendar
+        guard effective.selectedWeekdays.contains(calendar.component(.weekday, from: now)) else { return false }
+        let time = calendar.dateComponents([.hour, .minute], from: effective.alarmTime)
+        guard let normal = calendar.date(bySettingHour: time.hour ?? 7, minute: time.minute ?? 30, second: 0, of: now) else { return false }
+        let start = normal.addingTimeInterval(TimeInterval(-effective.rainLeadTimeMinutes * 60))
+        let end = normal.addingTimeInterval(LocalNotificationScheduler.weeklyFollowUpWindow(
+            weekdayCount: effective.selectedWeekdays.count, snoozeMinutes: effective.effectiveSnoozeMinutes))
+        return start <= now && now < end
+    }
+
+    /// The switch was turned on: undo a one-time skip, or arm again after "off".
+    func turnAlarmOn() async {
+        if settings.isAlarmEnabled {
+            guard settings.skippedAlarmDay != nil else { return }
+            await waitForSchedulingToSettle()
+            cancelPendingAutoRefresh()
+            settings.skippedAlarmDay = nil
+            cancelPendingAutoRefresh()
+            await applyCalendarSettings(userInitiated: true, keepDated: weeklyRestoreWouldReviveFollowUps())
+            return
+        }
+        var next = settings
+        next.isAlarmEnabled = true
+        next.skippedAlarmDay = nil
+        lastAutomaticInitialAttempt = nil
+        settings = next
+        cancelPendingAutoRefresh()
+        if let settingsRemovalTask { await settingsRemovalTask.value }
+        guard settings.isAlarmEnabled, !hasScheduledAlarm, canSchedule else { return }
+        let effective = effectiveSchedulingSettings
+        let now = Date()
+        let coming = TomorrowWeatherRequest(settings: effective, now: now)
+        let weekday = AlarmCalendarSettings.calendar.component(.weekday, from: coming.normalAlarmDate)
+        if !effective.usesDatedSchedule, coming.forecastDate <= now, effective.selectedWeekdays.contains(weekday) {
+            // Inside this morning's check window the weekly evaluate would decide tomorrow,
+            // and a rainy tomorrow would replace this morning's ring. Arm at the usual time.
+            await armWithoutForecast()
+            return
+        }
+        await evaluateRouteAndScheduleAlarm()
+        // On means armed, like the Clock app: offline, a weekly alarm still rings at its
+        // usual time until the rain check can run.
+        if !hasScheduledAlarm, settings.isAlarmEnabled, !effective.usesDatedSchedule, canSchedule,
+           invalidAddressFields.isEmpty, !isScheduling, settingsRemovalTask == nil,
+           await armWithoutForecast() {
+            scheduleErrorMessage = String(localized: "alarm_on_without_forecast")
+        }
+    }
+
+    private func cancelPendingAutoRefresh() {
+        autoRefreshTask?.cancel()
+        autoRefreshTask = nil
+    }
+
+    /// Registers from settings alone — no forecast, no route re-check — for turning the
+    /// alarm back on when the weather cannot or must not be consulted.
+    @discardableResult
+    private func armWithoutForecast() async -> Bool {
+        guard settings.isAlarmEnabled, canSchedule, !isScheduling, settingsRemovalTask == nil else { return false }
+        isScheduling = true
+        scheduleErrorMessage = nil
+        cancelPendingAutoRefresh()
+        var succeeded = false
+        defer {
+            finishScheduling()
+            if succeeded { reconcileScheduledAlarmWithSettings() }
+        }
+        do {
+            guard try await notificationScheduler.requestAuthorization() else {
+                statusMessage = if #available(iOS 26.0, *) {
+                    String(localized: "status_alarm_permission_denied")
+                } else { String(localized: "status_permission_denied") }
+                scheduleErrorMessage = statusMessage
+                return false
+            }
+            let snapshot = effectiveSchedulingSettings
+            if snapshot.usesDatedSchedule {
+                try await registerCalendar(settings: snapshot, refreshWeather: false)
+            } else {
+                try await restoreWeeklySchedule()
+            }
+            succeeded = true
+            return true
+        } catch {
+            statusMessage = String.localizedStringWithFormat(String(localized: "status_schedule_failed"), Self.userFacingMessage(for: error))
+            scheduleErrorMessage = statusMessage
+            return false
+        }
+    }
+
+    /// Clears a spent one-time skip and goes back to the ordinary registration (weekly
+    /// users to their single repeating alarm) — only at a moment that cannot disturb a
+    /// morning in progress. Deferring is harmless: the dated plan keeps ringing later days.
+    @discardableResult
+    private func retireSkipIfSafe(now: Date = Date()) async -> Bool {
+        let effective = effectiveSchedulingSettings
+        guard settings.skippedAlarmDay != nil,
+              CalendarAlarmPlan.skippedNormalDate(settings: effective, holidays: holidayCalendar, now: now) == nil,
+              !isScheduling, settingsRemovalTask == nil, !alarmInProgress(),
+              TomorrowWeatherRequest(settings: effective, now: now).forecastDate > now,
+              !weeklyRestoreWouldReviveFollowUps(now: now) else { return false }
+        if let summary = scheduledAlarmSummary {
+            let recent = (summary.calendarPlan?.occurrences ?? []) + [summary.firedEarlyRing].compactMap { $0 }
+            // Within an hour of a ring: follow-up notifications (iOS 17–25) or an alerting alarm.
+            if recent.contains(where: { $0.ringDate <= now && now < $0.normalDate.addingTimeInterval(3_600) }) { return false }
+        }
+        settings.skippedAlarmDay = nil
+        cancelPendingAutoRefresh()
+        await applyCalendarSettings()
+        return true
+    }
+
     /// Updates announcements independently from weather. Failed requests never
     /// masquerade as an empty successful feed, and successful fetches alone never
     /// publish an "alarm skipped" state.
@@ -1333,6 +1619,7 @@ final class AlarmViewModel: ObservableObject {
     }
 
     private func performDisasterRefresh(force: Bool) async -> Bool {
+        if !self.settings.isAlarmEnabled { await finishTurningOffIfNeeded() }
         let settings = effectiveSchedulingSettings
         // Turning the feature off must retry an unfinished restore, even with
         // fresh weather or no network. A persisted skip remains real until the
@@ -1453,7 +1740,12 @@ final class AlarmViewModel: ObservableObject {
 
     /// Calendar edits must work offline. They reuse a decision only for the same
     /// morning; an unforecast future morning keeps the configured normal time.
-    func applyCalendarSettings() async {
+    /// - Parameter userInitiated: an explicit tap (the master switch's skip or undo). It may
+    ///   re-register inside the current ring window, which automatic runs never do.
+    /// - Parameter keepDated: register the dated plan even when the settings no longer need
+    ///   one (see `weeklyRestoreWouldReviveFollowUps`).
+    func applyCalendarSettings(userInitiated: Bool = false, keepDated: Bool = false) async {
+        guard settings.isAlarmEnabled else { return }
         let saved = settings
         let settings = effectiveSchedulingSettings
         let rulesRestricted = saved.scheduleFingerprint() != settings.scheduleFingerprint()
@@ -1461,7 +1753,7 @@ final class AlarmViewModel: ObservableObject {
             // Keep already armed alarms through the current ring window. If calendar
             // exceptions were the only enabled days, do not erase the existing plan;
             // the user needs to choose basic repeat days before a replacement exists.
-            guard hasEnabledAlarmDay, restrictedRulesTransitionIsSafe else { return }
+            guard hasEnabledAlarmDay, userInitiated || restrictedRulesTransitionIsSafe else { return }
         }
         guard hasScheduledAlarm, !isScheduling, settingsRemovalTask == nil, let registered = scheduledFingerprint else { return }
         let current = effectiveSchedulingSettings.scheduleFingerprint()
@@ -1486,7 +1778,7 @@ final class AlarmViewModel: ObservableObject {
                 scheduleErrorMessage = statusMessage
                 return
             }
-            if settings.usesDatedSchedule {
+            if settings.usesDatedSchedule || keepDated {
                 try await registerCalendar(settings: settings, refreshWeather: false)
             } else {
                 try await restoreWeeklySchedule()
@@ -1523,8 +1815,11 @@ final class AlarmViewModel: ObservableObject {
         let now = Date()
         let base = CalendarAlarmPlan.make(settings: snapshot, holidays: holidayCalendar, rain: false, now: now, days: 8)
         if let next = base.occurrences.first {
-            let hasSameForecast = previous?.calendarForecastDate == next.normalDate
+            // Undoing a skip: the skipped morning's own forecast, kept through the skip.
+            let saved = previous?.skippedMorningForecast.flatMap { $0.normalDate == next.normalDate ? $0 : nil }
+            let hasSameForecast = saved != nil || previous?.calendarForecastDate == next.normalDate
                 || (previous?.calendarPlan == nil && previous?.normalAlarmDate == next.normalDate)
+            let probability = saved?.probability ?? probability
             let earlier = next.normalDate.addingTimeInterval(Double(-snapshot.rainLeadTimeMinutes * 60))
             let rain = hasSameForecast && probability >= snapshot.rainProbabilityThreshold && earlier > now
             summary.normalAlarmDate = next.normalDate
@@ -1535,6 +1830,7 @@ final class AlarmViewModel: ObservableObject {
             summary.maximumPrecipitationProbability = hasSameForecast ? probability : 0
         }
         let selectedSound = snapshot.soundSelection(ringDate: summary.scheduledAlarmDate, normalDate: summary.normalAlarmDate)
+        guard settings.isAlarmEnabled else { return }
         try await notificationScheduler.scheduleAlarm(at: summary.scheduledAlarmDate, normalAlarmDate: summary.normalAlarmDate,
             weekdays: snapshot.selectedWeekdays, sound: selectedSound.sound, soundFileNameOverride: selectedSound.fileNameOverride,
             snoozeMinutes: snapshot.effectiveSnoozeMinutes, title: String(localized: "notification_title"), body: String(localized: "notification_body_normal"))
@@ -1572,6 +1868,24 @@ final class AlarmViewModel: ObservableObject {
             probability = previous.maximumPrecipitationProbability
             rain = probability >= snapshot.rainProbabilityThreshold
             place = previous.wettestSegmentName
+        } else if let next, let saved = previous?.skippedMorningForecast, saved.normalDate == next.normalDate {
+            // Undoing a skip: the morning comes back with the decision it had.
+            forecastDate = next.normalDate
+            probability = saved.probability
+            rain = probability >= snapshot.rainProbabilityThreshold
+            place = saved.place
+        }
+        // A live skip keeps the skipped morning's forecast for a later undo.
+        let skippedMorning = CalendarAlarmPlan.skippedNormalDate(settings: snapshot, holidays: holidayCalendar, now: now)
+        var skippedMorningForecast: SkippedMorningForecast?
+        if let skippedMorning, let previous {
+            if let kept = previous.skippedMorningForecast, kept.normalDate == skippedMorning {
+                skippedMorningForecast = kept
+            } else if previous.calendarForecastDate == skippedMorning
+                        || (previous.calendarPlan == nil && previous.normalAlarmDate == skippedMorning) {
+                skippedMorningForecast = .init(normalDate: skippedMorning, probability: previous.maximumPrecipitationProbability,
+                                               place: previous.wettestSegmentName)
+            }
         }
         if refreshWeather, let next {
             do {
@@ -1615,6 +1929,7 @@ final class AlarmViewModel: ObservableObject {
             if earlier > Date() { plan.occurrences[0].ringDate = earlier } else { rain = false }
         }
         plan.applySounds(from: snapshot)
+        guard settings.isAlarmEnabled else { return }
         try await notificationScheduler.scheduleCalendar(plan, sound: snapshot.alarmSound, soundFileNameOverride: snapshot.soundFileNameOverride,
             snoozeMinutes: snapshot.effectiveSnoozeMinutes, title: String(localized: "notification_title"), body: String(localized: "notification_body_normal"))
         let normal = next?.normalDate ?? plan.coveredUntil
@@ -1625,6 +1940,8 @@ final class AlarmViewModel: ObservableObject {
         var committedSummary = summary
         committedSummary.disasterSkips = filtered.skips
         committedSummary.firedEarlyRing = firedEarlyRing
+        committedSummary.userSkippedNormalDate = skippedMorning
+        committedSummary.skippedMorningForecast = skippedMorningForecast
         scheduledAlarmSummary = committedSummary
         scheduledFingerprint = snapshot.scheduleFingerprint()
         if let checkedAt { lastWeatherEvaluationAt = checkedAt }
@@ -1634,7 +1951,8 @@ final class AlarmViewModel: ObservableObject {
         let nextRefresh = min(summary.weatherRefreshDate, now.addingTimeInterval(24 * 3_600))
         BackgroundWeatherRefresh.scheduleNextRun(before: nextRefresh, now: now)
         await replanEveningPreviews(requestingAuthorization: !isRunningUnattended, summary: committedSummary, settings: snapshot, now: now)
-        await CalendarCoverageReminder.replace(coveredUntil: plan.coveredUntil)
+        await CalendarCoverageReminder.replace(coveredUntil: plan.coveredUntil,
+            keepsWeeklyAlarm: !snapshot.calendarSettings.isActive && !snapshot.isDisasterSuspensionEnabled)
         if isRunningUnattended, snapshot.isEveningPreviewEnabled, let previous,
            Calendar.current.isDate(previous.normalAlarmDate, equalTo: normal, toGranularity: .minute),
            abs(previous.scheduledAlarmDate.timeIntervalSince(summary.scheduledAlarmDate)) >= 60 {
@@ -1703,7 +2021,11 @@ final class AlarmViewModel: ObservableObject {
                           updatedAt: now,
                           upcomingNormalAlarmDates: dates?.upcoming,
                           skippedNormalAlarmDates: dates?.skipped,
-                          keptNormalAlarmDates: dates?.upcoming.filter { effective.calendarSettings.forcesRing(on: $0) }).save()
+                          keptNormalAlarmDates: dates?.upcoming.filter {
+                              effective.calendarSettings.forcesRing(on: $0) && !(dates?.userSkipped.contains($0) ?? false)
+                          },
+                          alarmOff: effective.isAlarmEnabled ? nil : true,
+                          userSkippedNormalAlarmDates: dates?.userSkipped).save()
     }
 
     private static func loadScheduledAlarmSummary(from storage: UserDefaults) -> ScheduledAlarmSummary? {

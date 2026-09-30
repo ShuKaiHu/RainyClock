@@ -294,7 +294,7 @@ final class DayOffPushContentTests: XCTestCase {
     // MARK: - Adversarial review of the device-test fixes
 
     func testQuietResultsAreActuallySilentAndPassive() {
-        for urgency in [DayOffPushContent.Urgency.unrelated, .alreadyApplied, .keptByUser] {
+        for urgency in [DayOffPushContent.Urgency.unrelated, .alreadyApplied, .keptByUser, .alarmOff] {
             XCTAssertEqual(DayOffPushContent.presentation(for: urgency),
                            .init(playsSound: false, interruptionLevel: .passive), "\(urgency)")
         }
@@ -391,5 +391,38 @@ final class DayOffPushContentTests: XCTestCase {
         XCTAssertEqual(taken?.revision, "any")
         let failed = await DayOffPushContent.fetchFeed(matching: "new", fetch: { throw URLError(.timedOut) }, sleep: { _ in })
         XCTAssertNil(failed)
+    }
+
+    // MARK: - Master switch (1.8.0)
+
+    func testAnAnnouncementWhileTheAlarmIsOffIsQuietEvenWithoutAFeed() {
+        var state = mirroredState(from: summaryAfterSkippingTomorrow(), at: taipei(9, 28, 18, 47))
+        state.alarmOff = true
+        for feed in [nil, tainanFeed(sentAt: taipei(9, 28, 23, 26), checkedAt: taipei(9, 28, 23, 27))] as [DisasterFeed?] {
+            let result = DayOffPushContent.evaluate(state: state, feed: feed, now: taipei(9, 28, 23, 28), chinese: true)
+            XCTAssertEqual(result.urgency, .alarmOff)
+            XCTAssertEqual(result.body, "你的鬧鐘目前關閉，這則公告不會改變鬧鐘。")
+        }
+    }
+
+    /// The user turned off only 9/30. A closure for 9/30 is not news; another county's
+    /// update is judged against the next armed day, not the loud generic text.
+    func testAUserSkippedMorningIsHandledQuietly() {
+        let push = taipei(9, 29, 20, 0)
+        let state = DayOffSharedState(enabled: true, observesWork: true, observesSchool: true, home: tainan, destination: anding,
+                                      normalAlarmDate: taipei(10, 1, 7, 20), serviceURL: URL(string: "https://example.invalid"),
+                                      updatedAt: taipei(9, 29, 12, 0),
+                                      upcomingNormalAlarmDates: [taipei(9, 30, 7, 20), taipei(10, 1, 7, 20)],
+                                      skippedNormalAlarmDates: [], keptNormalAlarmDates: [],
+                                      userSkippedNormalAlarmDates: [taipei(9, 30, 7, 20)])
+        let closure = tainanFeed(sentAt: push, checkedAt: push.addingTimeInterval(30))
+        XCTAssertEqual(DayOffPushContent.evaluate(state: state, feed: closure, now: push.addingTimeInterval(60), chinese: true).urgency,
+                       .alreadyApplied)
+        let yilan = DisasterFeed(checkedAt: push.addingTimeInterval(30), notices: [
+            DisasterNotice(id: "yilan", sentAt: push, description: "[停班停課通知]宜蘭縣:明天停止上班、停止上課。行政院人事行政總處。",
+                           severity: "Extreme", geocodes: ["10002"]),
+        ])
+        XCTAssertEqual(DayOffPushContent.evaluate(state: state, feed: yilan, now: push.addingTimeInterval(60), chinese: true).urgency,
+                       .unrelated)
     }
 }

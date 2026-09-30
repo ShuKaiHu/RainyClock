@@ -42,6 +42,22 @@ extension NotificationScheduling {
 /// everywhere else. AlarmKit alarms override silent mode and Focus; the
 /// notification fallback cannot, and stays the behaviour on iOS 17–25.
 struct SystemAlarmScheduler: NotificationScheduling {
+    /// An alarm is ringing or snoozing. Only AlarmKit exposes that; below iOS 26 it is
+    /// unknown and reported as false.
+    static func hasAlarmInProgress() -> Bool {
+        if #available(iOS 26.0, *) { return AlarmKitScheduler.hasAlarmInProgress() }
+        return false
+    }
+
+    /// The system still holds alarms of ours — used after turning the alarm off, to say
+    /// so instead of showing "off" over alarms that would still ring.
+    static func holdsRegisteredAlarms() -> Bool {
+        if #available(iOS 26.0, *) {
+            return AlarmKitScheduler.mayHoldAlarms() || LocalNotificationScheduler.hasScheduledAlarmPlan
+        }
+        return LocalNotificationScheduler.hasScheduledAlarmPlan
+    }
+
     func requestAuthorization() async throws -> Bool {
         if #available(iOS 26.0, *) {
             return try await AlarmKitScheduler().requestAuthorization()
@@ -439,6 +455,15 @@ struct LocalNotificationScheduler: NotificationScheduling {
         let perWeekdayLimit = max(2, pendingNotificationLimit / max(1, plan.weekdays.count))
         let followUpCount = min(maximumFollowUpCount, perWeekdayLimit - 1)
         return [0] + (1...followUpCount).map { $0 * intervalMinutes * 60 }
+    }
+
+    /// How long after a weekly ring its follow-ups keep firing (plus a minute) — the same
+    /// rule as `ringOffsets`, for callers that must not re-register the weekly plan while
+    /// today's chain is still pending.
+    static func weeklyFollowUpWindow(weekdayCount: Int, snoozeMinutes: Int?) -> TimeInterval {
+        guard let interval = snoozeMinutes, interval > 0 else { return 60 }
+        let perWeekdayLimit = max(2, pendingNotificationLimit / max(1, weekdayCount))
+        return TimeInterval(min(maximumFollowUpCount, perWeekdayLimit - 1) * interval * 60 + 60)
     }
 
     private static func followUpWindow(for plan: StoredAlarmPlan) -> TimeInterval {

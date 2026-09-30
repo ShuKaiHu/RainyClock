@@ -50,6 +50,16 @@ struct AlarmCalendarSettings: Codable, Equatable, Sendable {
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
+    /// The start of the day a `key(for:)` string names, or nil when it does not
+    /// round-trip (garbage, or a date the calendar normalises to another day).
+    static func day(forKey key: String, calendar: Calendar = AlarmCalendarSettings.calendar) -> Date? {
+        let parts = key.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3,
+              let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])),
+              Self.key(for: date, calendar: calendar) == key else { return nil }
+        return calendar.startOfDay(for: date)
+    }
+
     /// A manual "ring" for this day. It outranks a temporary closure: the alarm rings anyway.
     func forcesRing(on date: Date, calendar: Calendar = AlarmCalendarSettings.calendar) -> Bool {
         isEnabled && overrides[Self.key(for: date, calendar: calendar)] == .ring
@@ -321,12 +331,18 @@ struct CalendarAlarmPlan: Codable, Equatable, Sendable {
         }
     }
 
+    /// The only place the user's one-time skip (`settings.skippedAlarmDay`) is applied.
+    /// Every plan builder — registration, the closure refresh and its receipt, the weekly
+    /// restore, the next weather check — must go through here, so their plans (and the
+    /// closure skips derived from them) stay equal. The skip outranks a paid manual "ring"
+    /// and a closure: that morning is simply not in the plan.
     static func make(settings: CommuteAlarmSettings, holidays: HolidayCalendar, rain: Bool, now: Date = Date(), days: Int, calendar: Calendar = AlarmCalendarSettings.calendar) -> Self {
         let start = calendar.startOfDay(for: now)
         let time = calendar.dateComponents([.hour, .minute], from: settings.alarmTime)
         var occurrences: [Occurrence] = []
         for offset in 0..<days {
             guard let day = calendar.date(byAdding: .day, value: offset, to: start),
+                  settings.skippedAlarmDay == nil || AlarmCalendarSettings.key(for: day, calendar: calendar) != settings.skippedAlarmDay,
                   settings.calendarSettings.decision(on: day, weekdays: settings.selectedWeekdays, holidays: holidays, calendar: calendar).rings,
                   let normal = calendar.date(bySettingHour: time.hour ?? 7, minute: time.minute ?? 30, second: 0, of: day) else { continue }
             let ring = calendar.date(byAdding: .minute, value: rain ? -settings.rainLeadTimeMinutes : 0, to: normal) ?? normal
@@ -334,5 +350,19 @@ struct CalendarAlarmPlan: Codable, Equatable, Sendable {
             occurrences.append(.init(normalDate: normal, ringDate: ring))
         }
         return Self(occurrences: occurrences, coveredUntil: calendar.date(byAdding: .day, value: days, to: start)!, timeZoneID: calendar.timeZone.identifier)
+    }
+
+    /// The live one-time skip: the skipped day at the alarm's normal time, when that is
+    /// still ahead and the day would otherwise ring. Nil once spent, or when the day no
+    /// longer rings anyway (deselected, holiday, silent), or when nothing is skipped.
+    static func skippedNormalDate(settings: CommuteAlarmSettings, holidays: HolidayCalendar, now: Date,
+                                  calendar: Calendar = AlarmCalendarSettings.calendar) -> Date? {
+        guard let key = settings.skippedAlarmDay, let day = AlarmCalendarSettings.day(forKey: key, calendar: calendar) else { return nil }
+        let time = calendar.dateComponents([.hour, .minute], from: settings.alarmTime)
+        guard let normal = calendar.date(bySettingHour: time.hour ?? 7, minute: time.minute ?? 30, second: 0, of: day),
+              normal > now,
+              settings.calendarSettings.decision(on: day, weekdays: settings.selectedWeekdays, holidays: holidays, calendar: calendar).rings
+        else { return nil }
+        return normal
     }
 }

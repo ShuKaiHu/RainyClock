@@ -185,14 +185,53 @@ private struct AlarmHomeView: View {
     let openSettings: (SettingsCategory, String?) -> Void
     @State private var now = Date()
     @State private var isVisible = false
+    /// The master switch was flipped off: what the choice dialog offers.
+    @State private var offChoice: AlarmSkipAvailability?
     @Environment(\.scenePhase) private var scenePhase
 
     private var tomorrow: TomorrowAlarmStatus { viewModel.tomorrowStatus(now: now) }
+
+    /// On: undo a skip or arm again, immediately. Off: nothing changes until the user
+    /// picks "only the next alarm" or "until I turn it back on" — Cancel leaves it on.
+    private var alarmSwitch: Binding<Bool> {
+        Binding(get: { viewModel.isAlarmSwitchOn(now: now) }, set: { on in
+            if on {
+                Task { await viewModel.turnAlarmOn() }
+            } else {
+                offChoice = viewModel.skipAvailability(now: Date())
+            }
+        })
+    }
+
+    private var switchAccessibilityValue: String? {
+        guard let skipped = viewModel.liveSkippedAlarmDate(now: now) else { return nil }
+        return String.localizedStringWithFormat(String(localized: "ux_alarm_switch_skip_value"),
+            skipped.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
+    }
+
+    private func offMessage(_ choice: AlarmSkipAvailability) -> String {
+        switch choice {
+        case .available(let target):
+            let when = target.ringDate.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated))
+                + " " + viewModel.settings.timeFormat.time(target.ringDate)
+            return String.localizedStringWithFormat(String(localized: "ux_alarm_off_message_next"), when)
+        case .afterEarlyRing(let until):
+            return String.localizedStringWithFormat(String(localized: "ux_alarm_off_message_after_early_ring"),
+                                                    viewModel.settings.timeFormat.time(until))
+        case .alarmInProgress:
+            return String(localized: "ux_alarm_off_message_in_progress")
+        case .unavailable:
+            return String(localized: "ux_alarm_off_message_only")
+        }
+    }
     private var routeIncomplete: Bool {
         viewModel.settings.homeAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || viewModel.settings.workAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     private var scheduleIssue: String? {
+        // Off: only a failure to turn off is worth a banner; every other notice is about
+        // an alarm the user chose not to have.
+        guard viewModel.settings.isAlarmEnabled else { return viewModel.scheduleErrorMessage }
         if let message = viewModel.scheduleErrorMessage { return message }
         if viewModel.requiresAlarmKitReschedule { return String(localized: "alarmkit_reschedule_notice") }
         if AppEnvironment.supportsTemporaryClosures && viewModel.disasterScheduleNeedsAttention { return String(localized: "disaster_schedule_uncertain") }
@@ -223,6 +262,22 @@ private struct AlarmHomeView: View {
         }
         .padding(.horizontal, 20).padding(.top, 8)
         .background(Color.appBackground)
+        .confirmationDialog("ux_alarm_off_title",
+                            isPresented: Binding(get: { offChoice != nil }, set: { if !$0 { offChoice = nil } }),
+                            titleVisibility: .visible, presenting: offChoice) { choice in
+            if case .available(let target) = choice {
+                Button("ux_alarm_skip_next") {
+                    Task {
+                        // The next alarm changed while the dialog was open: ask again.
+                        if !(await viewModel.skipNextAlarm(target)) { offChoice = viewModel.skipAvailability(now: Date()) }
+                    }
+                }
+            }
+            Button("ux_alarm_turn_off", role: .destructive) { Task { await viewModel.turnAlarmOff() } }
+            Button("cancel", role: .cancel) {}
+        } message: { choice in
+            Text(offMessage(choice))
+        }
         .onAppear { now = Date(); isVisible = true; refreshWeather() }
         .onDisappear { isVisible = false }
         .onChange(of: TomorrowWeatherRequest(settings: viewModel.settings, now: now)) { _, _ in
@@ -256,7 +311,14 @@ private struct AlarmHomeView: View {
 
     private func homeContent(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: compact ? 10 : 14) {
-            Text("tab_alarm").font(compact ? .title.bold() : .largeTitle.bold())
+            HStack(alignment: .center) {
+                Text("tab_alarm").font(compact ? .title.bold() : .largeTitle.bold())
+                Spacer(minLength: 12)
+                Toggle("tab_alarm", isOn: alarmSwitch)
+                    .labelsHidden()
+                    .modifier(OptionalAccessibilityValue(value: switchAccessibilityValue))
+                    .accessibilityIdentifier("alarmMasterSwitch")
+            }
             hero(compact: compact)
             if let message = scheduleIssue {
                 HStack(spacing: 10) {
@@ -267,6 +329,10 @@ private struct AlarmHomeView: View {
                         && viewModel.scheduleErrorMessage == nil {
                         Button("ux_category_calendar") { openSettings(.calendar, nil) }
                             .font(.caption.weight(.semibold))
+                    } else if !viewModel.settings.isAlarmEnabled {
+                        // Off, but alarms were left behind: try turning off again.
+                        Button("ux_retry") { Task { await viewModel.turnAlarmOff() } }
+                            .font(.caption.weight(.semibold)).disabled(viewModel.isScheduling)
                     } else {
                         Button("ux_retry") { Task { await viewModel.evaluateRouteAndScheduleAlarm() } }
                             .font(.caption.weight(.semibold)).disabled(viewModel.isScheduling || !viewModel.canSchedule)
@@ -278,18 +344,22 @@ private struct AlarmHomeView: View {
     }
 
     private func hero(compact: Bool) -> some View {
-        VStack(spacing: compact ? 8 : 12) {
-            Button { openSettings(.calendar, nil) } label: {
-                HStack {
-                    // After midnight the owner wants the morning named by what it is, not "today".
-                    Text(tomorrow.isToday ? "ux_next_alarm" : "ux_tomorrow")
-                    Spacer()
-                    Text(tomorrow.day.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
-                }
-                .font(.title3.bold())
-                .lineLimit(1).minimumScaleFactor(0.85)
-                .contentShape(Rectangle())
-            }.buttonStyle(.plain)
+        let userChoice = tomorrow.reason == .alarmOff || tomorrow.reason == .skippedOnce
+        return VStack(spacing: compact ? 8 : 12) {
+            // Off: no day above "Alarm Off" — it would read as an alarm on that day.
+            if tomorrow.reason != .alarmOff {
+                Button { openSettings(.calendar, nil) } label: {
+                    HStack {
+                        // After midnight the owner wants the morning named by what it is, not "today".
+                        Text(tomorrow.isToday ? "ux_next_alarm" : "ux_tomorrow")
+                        Spacer()
+                        Text(tomorrow.day.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
+                    }
+                    .font(.title3.bold())
+                    .lineLimit(1).minimumScaleFactor(0.85)
+                    .contentShape(Rectangle())
+                }.buttonStyle(.plain)
+            }
             if let ring = tomorrow.expectedRingDate {
                 Button { openSettings(.time, "wake") } label: {
                     VStack(spacing: 3) {
@@ -303,6 +373,12 @@ private struct AlarmHomeView: View {
                         }
                     }.frame(maxWidth: .infinity)
                 }.buttonStyle(.plain)
+            } else if userChoice {
+                // The user's own choice: nothing in Settings explains or changes it — the
+                // switch above does.
+                Text(tomorrow.reason == .alarmOff ? "ux_alarm_off" : "ux_tomorrow_skipped")
+                    .font(.system(size: compact ? 32 : 38, weight: .medium, design: .rounded))
+                    .padding(.vertical, compact ? 8 : 12).frame(maxWidth: .infinity)
             } else {
                 Button { openSettings(tomorrow.reason == .routeIncomplete ? .route : .calendar, nil) } label: {
                     Text(tomorrow.reason == .routeIncomplete ? "ux_not_set" : "ux_tomorrow_skipped")
@@ -310,7 +386,12 @@ private struct AlarmHomeView: View {
                         .padding(.vertical, compact ? 8 : 12).frame(maxWidth: .infinity)
                 }.buttonStyle(.plain)
             }
-            if let reason = reason {
+            if let reason = reason, userChoice {
+                HStack(spacing: 6) {
+                    Image(systemName: "bell.slash").foregroundStyle(Color.accentColor)
+                    Text(reason).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                }.font(.subheadline).frame(maxWidth: .infinity)
+            } else if let reason = reason {
                 Button {
                     openSettings(tomorrow.reason == .rain ? .time : (tomorrow.reason == .routeIncomplete ? .route : .calendar),
                                  tomorrow.reason == .rain ? "rain" : nil)
@@ -322,6 +403,14 @@ private struct AlarmHomeView: View {
                     }.font(.subheadline).frame(maxWidth: .infinity)
                 }.buttonStyle(.plain)
                 if tomorrow.reason == .disaster { closureSourceCredit }
+            }
+            // A one-time skip for a later morning than the one this card describes.
+            if tomorrow.reason != .alarmOff, let skipped = viewModel.liveSkippedAlarmDate(now: now),
+               !AlarmCalendarSettings.calendar.isDate(skipped, inSameDayAs: tomorrow.day) {
+                Text(String.localizedStringWithFormat(String(localized: "ux_skip_later"),
+                    skipped.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated))))
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).frame(maxWidth: .infinity)
             }
         }.padding(compact ? 15 : 18)
             .frame(maxWidth: .infinity)
@@ -408,6 +497,13 @@ private struct AlarmHomeView: View {
             }
             return String(localized: "ux_tomorrow_closure")
         case .routeIncomplete: return String(localized: "ux_route_needed")
+        case .alarmOff: return String(localized: "ux_alarm_off_reason")
+        case .skippedOnce:
+            if let resume = viewModel.ringAfterSkip(now: now) {
+                return String.localizedStringWithFormat(String(localized: "ux_skip_once_resume"),
+                    resume.formatted(.dateTime.month(.abbreviated).day().weekday(.abbreviated)))
+            }
+            return String(localized: "ux_skip_once_reason")
         }
     }
 
@@ -1582,4 +1678,13 @@ extension Color {
 
 #Preview {
     ContentView(viewModel: AlarmViewModel())
+}
+
+/// Applies an accessibility value only when there is one, so the system's own on/off
+/// reading stays in place otherwise.
+private struct OptionalAccessibilityValue: ViewModifier {
+    let value: String?
+    func body(content: Content) -> some View {
+        if let value { content.accessibilityValue(Text(value)) } else { content }
+    }
 }

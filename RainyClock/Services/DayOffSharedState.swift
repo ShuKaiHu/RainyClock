@@ -33,6 +33,12 @@ struct DayOffSharedState: Codable, Equatable, Sendable {
     /// outranks a closure). A closure for one of these is already decided, not news.
     /// Dates only, like the fields above. Absent in older state.
     var keptNormalAlarmDates: [Date]? = nil
+    /// The user turned the alarm off (until they turn it back on). A closure then changes
+    /// nothing, so the push is quiet. Absent (nil) in older state and whenever it is on.
+    var alarmOff: Bool? = nil
+    /// The user's one-time "turn off only the next alarm" morning (its normal date). Kept
+    /// apart from `skippedNormalAlarmDates`, which are closure skips. Absent in older state.
+    var userSkippedNormalAlarmDates: [Date]? = nil
 
     /// How many upcoming dates the app mirrors. Announcements target today or tomorrow;
     /// a week covers any skip plus the next ringing day with room to spare.
@@ -50,6 +56,10 @@ struct DayOffSharedState: Codable, Equatable, Sendable {
 
     func isKeptRinging(_ date: Date) -> Bool {
         (keptNormalAlarmDates ?? []).contains { abs($0.timeIntervalSince(date)) < 60 }
+    }
+
+    func isUserSkipped(_ date: Date) -> Bool {
+        (userSkippedNormalAlarmDates ?? []).contains { abs($0.timeIntervalSince(date)) < 60 }
     }
 
     static func sharedDefaults() -> UserDefaults? {

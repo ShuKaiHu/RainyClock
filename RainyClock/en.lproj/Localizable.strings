@@ -463,3 +463,24 @@
 "ux_weather_fetching" = "Getting your forecast…";
 
 "membership_title" = "Membership";
+
+/* Master alarm switch (1.8.0) */
+"ux_alarm_off_title" = "Turn Off Alarm";
+"ux_alarm_skip_next" = "Turn Off Next Alarm Only";
+"ux_alarm_turn_off" = "Turn Off Until I Turn It Back On";
+"ux_alarm_off_message_next" = "Your next alarm is %@. Turning off only that one keeps every alarm after it.";
+"ux_alarm_off_message_after_early_ring" = "Today's alarm already rang early. You can turn off only the next one after %@.";
+"ux_alarm_off_message_in_progress" = "An alarm is ringing or snoozing. Stop it first to turn off only the next one.";
+"ux_alarm_off_message_only" = "The alarm stays off until you turn it back on.";
+"ux_alarm_switch_skip_value" = "Off for %@ only";
+"ux_alarm_off" = "Alarm Off";
+"ux_alarm_off_reason" = "Turn on the switch above to use it again";
+"ux_skip_once_reason" = "Off just this once; later alarms ring as usual";
+"ux_skip_once_resume" = "Off just this once; rings again %@";
+"ux_skip_later" = "Your %@ alarm is off just this once";
+"alarm_off_failed" = "Some alarms could not be turned off. Try again.";
+"alarm_on_without_forecast" = "The alarm is on at its usual time. The rain check couldn't run yet; tap Retry, or it will try again on its own.";
+"status_alarm_turned_off" = "The alarm is off until you turn it back on.";
+"evening_preview_skip_once" = "Tomorrow's alarm is off just this once, as you chose. Alarms after it ring as usual.";
+"alarm_renew_title" = "Keep your alarm ringing";
+"alarm_renew_body" = "Your scheduled alarms end in one week. Open Rainy Clock so your weekly alarm keeps ringing.";

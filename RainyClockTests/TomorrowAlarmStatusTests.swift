@@ -436,8 +436,61 @@ final class TomorrowAlarmStatusTests: XCTestCase {
         XCTAssertEqual(sunday.expectedRingDate, date(28, 7, 30))
     }
 
+    // MARK: - Master switch (1.8.0)
+
+    func testAlarmOffOutranksEveryOtherReason() {
+        var value = closureSettings()
+        value.isAlarmEnabled = false
+        let feed = taipeiClosure(id: "n", sentAt: date(28, 22), checkedAt: date(28, 22, 1), day: "明天")
+        for (name, now, setting) in [("closure", date(28, 23), value), ("rain", date(28, 23), value)] {
+            let result = status(setting, now: now, weather: record(setting, now: now), feed: feed)
+            XCTAssertEqual(result.reason, .alarmOff, name)
+            XCTAssertNil(result.expectedRingDate, name)
+            XCTAssertFalse(result.ringIsNotRegistered, name)
+        }
+        var weekend = value
+        weekend.selectedWeekdays = [2, 3, 4, 5, 6]
+        XCTAssertEqual(status(weekend, now: date(26, 0, 39)).reason, .alarmOff)
+        XCTAssertEqual(status(value, now: date(28, 23), routeReady: false).reason, .alarmOff)
+    }
+
+    func testACommittedSkipForTheComingMorningIsVerifiedNotMissing() {
+        var value = settings()
+        value.skippedAlarmDay = "2026-09-29"
+        let committed = planSummary([(date(30, 7, 30), date(30, 7, 30))], coveredUntil: date(30, 23))
+        let result = status(value, now: date(28, 23), summary: committed)
+        XCTAssertEqual(result.reason, .skippedOnce)
+        XCTAssertNil(result.expectedRingDate)
+        XCTAssertFalse(result.isMissingFromPlan)
+        XCTAssertFalse(result.ringIsNotRegistered)
+        XCTAssertTrue(result.isScheduleVerified)
+        let uncommitted = planSummary([(date(29, 7, 30), date(29, 7, 30)), (date(30, 7, 30), date(30, 7, 30))], coveredUntil: date(30, 23))
+        let pending = status(value, now: date(28, 23), summary: uncommitted)
+        XCTAssertEqual(pending.reason, .skippedOnce)
+        XCTAssertEqual(pending.registeredRingDate, date(29, 7, 30), "Still armed until the skip is committed")
+        XCTAssertFalse(pending.isScheduleVerified)
+    }
+
+    func testASkipNeverHidesAMorePressingReason() {
+        var weekend = settings()
+        weekend.selectedWeekdays = [2, 3, 4, 5, 6]
+        weekend.skippedAlarmDay = "2026-09-26"
+        XCTAssertEqual(status(weekend, now: date(25, 23)).reason, .weekend, "A day that would not ring anyway")
+        var value = settings()
+        value.skippedAlarmDay = "2026-09-29"
+        XCTAssertEqual(status(value, now: date(28, 23), routeReady: false).reason, .routeIncomplete)
+        var later = settings()
+        later.skippedAlarmDay = "2026-10-02"
+        XCTAssertEqual(status(later, now: date(28, 23)).reason, .normal, "The coming morning is not the skipped one")
+    }
+
     func testAlarmPageDayStringsExistInBothLocalizations() throws {
-        let keys = ["ux_next_alarm", "ux_today_weather", "ux_today_weather_loading", "ux_today_weather_failed",
+        let keys = ["ux_alarm_off_title", "ux_alarm_skip_next", "ux_alarm_turn_off", "ux_alarm_off_message_next",
+                    "ux_alarm_off_message_after_early_ring", "ux_alarm_off_message_in_progress", "ux_alarm_off_message_only",
+                    "ux_alarm_switch_skip_value", "ux_alarm_off", "ux_alarm_off_reason", "ux_skip_once_reason",
+                    "ux_skip_once_resume", "ux_skip_later", "alarm_off_failed", "alarm_on_without_forecast",
+                    "status_alarm_turned_off", "evening_preview_skip_once", "alarm_renew_title", "alarm_renew_body",
+                    "ux_next_alarm", "ux_today_weather", "ux_today_weather_loading", "ux_today_weather_failed",
                     "ux_today_holiday_named", "ux_today_holiday", "ux_today_manual_skip", "ux_today_manual_ring",
                     "ux_today_weekend", "ux_today_unselected", "ux_rang_at", "ux_today_closure_skipped",
                     "ux_tomorrow", "ux_tomorrow_weather"]

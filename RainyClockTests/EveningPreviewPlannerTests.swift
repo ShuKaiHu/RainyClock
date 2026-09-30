@@ -225,4 +225,23 @@ final class EveningPreviewPlannerTests: XCTestCase {
 
         XCTAssertEqual(previews.map(\.fireDate), [date(7, 21)])
     }
+
+    func testTheEveningBeforeAUserSkippedMorningSaysSoQuietly() {
+        let now = date(7, 12)
+        var armed = summary(normal: date(8, 7), rain: false)
+        armed.userSkippedNormalDate = date(9, 7)
+        let previews = EveningPreviewPlanner.plan(summary: armed, selectedWeekdays: weekdaysTueToFri, previewTime: date(7, 21),
+                                                  checkedAt: now, now: now, canRefreshInBackground: true, calendar: calendar)
+        let skipped = previews.filter { if case .skippedOnce = $0.kind { return true }; return false }
+        XCTAssertEqual(skipped.map(\.fireDate), [date(8, 21)], "Only the evening before the skipped morning")
+        XCTAssertTrue(previews.contains { if case .decision = $0.kind { return true }; return false }, "Tuesday keeps its decision")
+        XCTAssertFalse(EveningPreviewText.body(for: skipped[0]).isEmpty)
+    }
+
+    func testTheRenewalReminderNamesTheWeeklyAlarmWhenOnlyASkipMadeThePlan() {
+        XCTAssertEqual("\(CalendarCoverageReminder.copyKeys(keepsWeeklyAlarm: true).title)",
+                       "\(String.LocalizationValue("alarm_renew_title"))")
+        XCTAssertEqual("\(CalendarCoverageReminder.copyKeys(keepsWeeklyAlarm: false).title)",
+                       "\(String.LocalizationValue("calendar_renew_title"))")
+    }
 }

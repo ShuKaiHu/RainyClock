@@ -416,6 +416,154 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         XCTAssertFalse(armedStatus.isEmpty)
     }
 
+    // MARK: - Master switch (1.8.0)
+
+    private func makeSwitchViewModel(spy: SchedulerSpy, weather: RouteWeatherService = MockRouteWeatherService(),
+                                     holdsAlarms: @escaping @MainActor () -> Bool = { false }) -> AlarmViewModel {
+        let model = AlarmViewModel(routeWeatherService: weather, notificationScheduler: spy, settingsStorage: storage,
+                                   autoRefreshDebounce: .milliseconds(80), systemHoldsAlarms: holdsAlarms)
+        model.settings.homeAddress = "Clear Street"
+        model.settings.workAddress = "Work Street 2"
+        model.settings.alarmTime = Date().addingTimeInterval(3 * 3_600)
+        return model
+    }
+
+    func testTurningOffRemovesAndNothingReArms() async throws {
+        let spy = SchedulerSpy()
+        let model = makeSwitchViewModel(spy: spy)
+        await model.evaluateRouteAndScheduleAlarm()
+        XCTAssertTrue(model.hasScheduledAlarm)
+        let registered = spy.scheduleCalls.count
+        let cancelled = spy.cancelCount
+
+        await model.turnAlarmOff()
+        XCTAssertFalse(model.hasScheduledAlarm)
+        XCTAssertGreaterThan(spy.cancelCount, cancelled, "Cancelled at once, then swept again")
+        XCTAssertFalse(model.canSchedule)
+        XCTAssertFalse(model.isAlarmSwitchOn())
+        XCTAssertEqual(model.statusMessage, String(localized: "status_alarm_turned_off"))
+
+        model.settings.alarmTime = model.settings.alarmTime.addingTimeInterval(600)
+        model.settings.selectedWeekdays = [2, 3]
+        model.settings.alarmSound = .softPiano
+        await model.evaluateRouteAndScheduleAlarm()
+        await model.applyCalendarSettings()
+        _ = await model.refreshScheduledAlarmUnattended()
+        await model.refreshScheduledAlarmIfWeatherIsStale()
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(spy.scheduleCalls.count, registered, "Nothing may re-arm an alarm the user turned off")
+
+        let relaunched = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: spy,
+                                        settingsStorage: storage, autoRefreshDebounce: .milliseconds(80))
+        XCTAssertFalse(relaunched.settings.isAlarmEnabled)
+        relaunched.activateAutomaticScheduling()
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(spy.scheduleCalls.count, registered)
+        XCTAssertFalse(relaunched.hasScheduledAlarm)
+    }
+
+    func testTurningBackOnArmsImmediately() async throws {
+        let spy = SchedulerSpy()
+        let model = makeSwitchViewModel(spy: spy)
+        await model.evaluateRouteAndScheduleAlarm()
+        await model.turnAlarmOff()
+        let before = spy.scheduleCalls.count
+        await model.turnAlarmOn()
+        XCTAssertTrue(model.settings.isAlarmEnabled)
+        XCTAssertTrue(model.hasScheduledAlarm)
+        XCTAssertEqual(spy.scheduleCalls.count, before + 1)
+        XCTAssertTrue(model.isAlarmSwitchOn())
+    }
+
+    func testTurningOnOfflineStillArmsAtTheUsualTime() async throws {
+        let spy = SchedulerSpy()
+        let model = makeSwitchViewModel(spy: spy, weather: OfflineSwitchWeather())
+        await model.turnAlarmOff()
+        await model.turnAlarmOn()
+        XCTAssertTrue(model.hasScheduledAlarm, "On means armed, like the Clock app")
+        let call = try XCTUnwrap(spy.scheduleCalls.last)
+        XCTAssertEqual(call.date, call.normalAlarmDate, "No rain decision was possible, so the usual time")
+        XCTAssertEqual(model.scheduleErrorMessage, String(localized: "alarm_on_without_forecast"))
+    }
+
+    func testTurningOnInsideThisMorningsCheckWindowKeepsThisMorningsRing() async throws {
+        let spy = SchedulerSpy()
+        let model = makeSwitchViewModel(spy: spy)
+        model.settings.homeAddress = "Rain Street"
+        model.settings.alarmTime = Date().addingTimeInterval(10 * 60)
+        await model.turnAlarmOff()
+        await model.turnAlarmOn()
+        let call = try XCTUnwrap(spy.scheduleCalls.last)
+        let untilRing = call.normalAlarmDate.timeIntervalSinceNow
+        XCTAssertTrue(untilRing > 0 && untilRing <= 11 * 60,
+                      "A rainy tomorrow must not replace the ring due in 10 minutes (got \(untilRing) s)")
+        XCTAssertEqual(call.date, call.normalAlarmDate)
+    }
+
+    func testOffOnOffEndsOff() async throws {
+        let spy = SchedulerSpy()
+        let model = makeSwitchViewModel(spy: spy)
+        await model.evaluateRouteAndScheduleAlarm()
+        await model.turnAlarmOff()
+        await model.turnAlarmOn()
+        await model.turnAlarmOff()
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertFalse(model.settings.isAlarmEnabled)
+        XCTAssertFalse(model.hasScheduledAlarm)
+    }
+
+    /// Turned off while a registration's forecast was still loading: that run must not
+    /// arm anything when it finishes (adversarial review).
+    func testARegistrationStillLoadingWhenTurnedOffArmsNothing() async throws {
+        let spy = SchedulerSpy()
+        let weather = GatedSwitchWeather()
+        let model = makeSwitchViewModel(spy: spy, weather: weather)
+        let evaluating = Task { await model.evaluateRouteAndScheduleAlarm() }
+        await weather.waitUntilStarted()
+        let turningOff = Task { await model.turnAlarmOff() }
+        try await Task.sleep(for: .milliseconds(100))
+        await weather.release()
+        await evaluating.value
+        await turningOff.value
+        XCTAssertTrue(spy.scheduleCalls.isEmpty, "Nothing may be armed after the switch went off")
+        XCTAssertFalse(model.hasScheduledAlarm)
+    }
+
+    /// The app was suspended before a turn-off finished: the stored registration survived.
+    /// A background run must finish removing it instead of leaving the alarm armed.
+    func testABackgroundRunFinishesAnInterruptedTurnOff() async throws {
+        let spy = SchedulerSpy()
+        let first = makeSwitchViewModel(spy: spy)
+        await first.evaluateRouteAndScheduleAlarm()
+        XCTAssertTrue(first.hasScheduledAlarm)
+        // Simulate the interruption: "off" persisted, the removal never ran.
+        var stored = try JSONDecoder().decode(CommuteAlarmSettings.self,
+                                              from: XCTUnwrap(storage.data(forKey: "commuteAlarmSettings")))
+        stored.isAlarmEnabled = false
+        storage.set(try JSONEncoder().encode(stored), forKey: "commuteAlarmSettings")
+        let relaunched = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: spy,
+                                        settingsStorage: storage, autoRefreshDebounce: .milliseconds(80))
+        XCTAssertTrue(relaunched.hasScheduledAlarm)
+        let cancelled = spy.cancelCount
+        let rescheduled = await relaunched.refreshScheduledAlarmUnattended()
+        XCTAssertFalse(rescheduled)
+        XCTAssertFalse(relaunched.hasScheduledAlarm)
+        XCTAssertGreaterThan(spy.cancelCount, cancelled)
+    }
+
+    func testAlarmsLeftBehindAfterTurningOffAreReportedAndRetried() async throws {
+        final class Holds { var value = true }
+        let holds = Holds()
+        let spy = SchedulerSpy()
+        let model = makeSwitchViewModel(spy: spy, holdsAlarms: { holds.value })
+        await model.evaluateRouteAndScheduleAlarm()
+        await model.turnAlarmOff()
+        XCTAssertEqual(model.scheduleErrorMessage, String(localized: "alarm_off_failed"))
+        holds.value = false
+        await model.turnAlarmOff()
+        XCTAssertNil(model.scheduleErrorMessage)
+    }
+
     private func waitUntil(
         _ what: String,
         timeout: TimeInterval = 5,
@@ -549,4 +697,32 @@ private struct AutomaticPreviewScheduler: EveningPreviewScheduling {
     func cancelPreviews() async {}
     func showSample(_ preview: EveningPreview) async {}
     func notifyDecisionChange(_ change: AlarmDecisionChange) async {}
+}
+
+private struct OfflineSwitchWeather: RouteWeatherService {
+    func fetchRouteWeather(from homeAddress: String, homeLocation: ResolvedMapLocation?, to workAddress: String,
+                           workLocation: ResolvedMapLocation?, mode: CommuteAlarmSettings.CommuteMode,
+                           around commuteTime: Date) async throws -> RouteWeatherSnapshot {
+        throw URLError(.notConnectedToInternet)
+    }
+}
+
+private actor GatedSwitchWeather: RouteWeatherService {
+    private var started = false
+    private var startWaiter: CheckedContinuation<Void, Never>?
+    private var gate: CheckedContinuation<Void, Never>?
+    func waitUntilStarted() async {
+        if started { return }
+        await withCheckedContinuation { startWaiter = $0 }
+    }
+    func release() { gate?.resume(); gate = nil }
+    func fetchRouteWeather(from homeAddress: String, homeLocation: ResolvedMapLocation?, to workAddress: String,
+                           workLocation: ResolvedMapLocation?, mode: CommuteAlarmSettings.CommuteMode,
+                           around commuteTime: Date) async throws -> RouteWeatherSnapshot {
+        started = true
+        startWaiter?.resume(); startWaiter = nil
+        await withCheckedContinuation { gate = $0 }
+        return .init(checkedAt: Date(), forecastAt: commuteTime,
+                     segments: [.init(name: "Home", condition: .clear, precipitationProbability: 0.1)])
+    }
 }

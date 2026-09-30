@@ -29,6 +29,9 @@ struct EveningPreview: Equatable, Sendable {
         /// A later selected weekday; the morning's refresh will decide it.
         case upcoming(normalAlarmDate: Date)
         case dayOff(normalAlarmDate: Date)
+        /// The user turned off only this morning's alarm: a quiet reminder the evening
+        /// before, in case the skip was a slip.
+        case skippedOnce(normalAlarmDate: Date)
     }
 
     let identifier: String
@@ -117,7 +120,11 @@ enum EveningPreviewPlanner {
                 calendar.isDate($0.normalDate, equalTo: alarm, toGranularity: .minute)
             }
             let silent = disasterSilent || (calendarSettings.isActive && !calendarSettings.decision(on: alarm, weekdays: weekdays, holidays: holidays, calendar: calendar).rings)
-            let kind: EveningPreview.Kind = silent ? .dayOff(normalAlarmDate: alarm) : isArmedRing
+            let skippedByUser = summary.userSkippedNormalDate.map {
+                calendar.isDate($0, equalTo: alarm, toGranularity: .minute)
+            } ?? false
+            let kind: EveningPreview.Kind = skippedByUser ? .skippedOnce(normalAlarmDate: alarm)
+                : silent ? .dayOff(normalAlarmDate: alarm) : isArmedRing
                 ? .decision(
                     rain: summary.exceedsRainThreshold,
                     normalAlarmDate: summary.normalAlarmDate,
@@ -226,6 +233,9 @@ enum EveningPreviewText {
 
         case .dayOff:
             return String(localized: "evening_preview_day_off")
+
+        case .skippedOnce:
+            return String(localized: "evening_preview_skip_once")
 
         case let .upcoming(normalAlarmDate):
             let key = preview.canRefreshInBackground
@@ -402,15 +412,22 @@ struct UserNotificationEveningPreviewScheduler: EveningPreviewScheduling {
 /// for iOS to manufacture new alarms after this boundary.
 enum CalendarCoverageReminder {
     static let identifier = "commute-calendar-renewal"
-    static func replace(coveredUntil: Date) async {
+    /// A plan that exists only because of a one-time skip is the user's weekly alarm, not
+    /// calendar rules, and must say so if it is about to run out.
+    static func copyKeys(keepsWeeklyAlarm: Bool) -> (title: String.LocalizationValue, body: String.LocalizationValue) {
+        keepsWeeklyAlarm ? ("alarm_renew_title", "alarm_renew_body") : ("calendar_renew_title", "calendar_renew_body")
+    }
+
+    static func replace(coveredUntil: Date, keepsWeeklyAlarm: Bool = false) async {
         guard !AppEnvironment.isRunningTests else { return }
         let center = UNUserNotificationCenter.current()
         guard await center.notificationSettings().authorizationStatus == .authorized else { return }
         let fire = coveredUntil.addingTimeInterval(-7 * 86_400 + 18 * 3_600)
         guard fire > Date() else { return }
         let content = UNMutableNotificationContent()
-        content.title = String(localized: "calendar_renew_title")
-        content.body = String(localized: "calendar_renew_body")
+        let keys = copyKeys(keepsWeeklyAlarm: keepsWeeklyAlarm)
+        content.title = String(localized: keys.title)
+        content.body = String(localized: keys.body)
         let trigger = UNCalendarNotificationTrigger(dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fire), repeats: false)
         try? await center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
     }

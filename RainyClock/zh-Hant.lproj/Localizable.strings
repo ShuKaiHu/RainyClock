@@ -463,3 +463,24 @@
 "ux_weather_fetching" = "正在取得預報…";
 
 "membership_title" = "會員方案";
+
+/* Master alarm switch (1.8.0) */
+"ux_alarm_off_title" = "關閉鬧鐘";
+"ux_alarm_skip_next" = "僅關閉下一次鬧鐘";
+"ux_alarm_turn_off" = "關閉，直到我重新開啟";
+"ux_alarm_off_message_next" = "下一次鬧鐘：%@。只關閉這一次的話，之後的鬧鐘照常響。";
+"ux_alarm_off_message_after_early_ring" = "今天的鬧鐘已提早響過，%@ 之後才能只關閉下一次。";
+"ux_alarm_off_message_in_progress" = "鬧鐘正在響或賴床中，先停止它才能只關閉下一次。";
+"ux_alarm_off_message_only" = "鬧鐘會保持關閉，直到你重新開啟。";
+"ux_alarm_switch_skip_value" = "只關閉 %@ 這一次";
+"ux_alarm_off" = "鬧鐘已關閉";
+"ux_alarm_off_reason" = "打開上方開關即可恢復";
+"ux_skip_once_reason" = "只關閉這一次，之後的鬧鐘照常響";
+"ux_skip_once_resume" = "只關閉這一次，%@ 恢復響鈴";
+"ux_skip_later" = "%@ 的鬧鐘只關閉這一次";
+"alarm_off_failed" = "有些鬧鐘沒有關閉成功，請再試一次。";
+"alarm_on_without_forecast" = "鬧鐘已開啟，先以原本時間響鈴。雨天檢查暫時無法完成，可按「重試」，稍後也會自動再試。";
+"status_alarm_turned_off" = "鬧鐘已關閉，直到你重新開啟。";
+"evening_preview_skip_once" = "依你的選擇，明天的鬧鐘只關閉這一次，之後的鬧鐘照常響。";
+"alarm_renew_title" = "讓鬧鐘繼續響";
+"alarm_renew_body" = "已排程的鬧鐘將在一週後到期。請開啟雨天鬧鐘，讓每週鬧鐘繼續響鈴。";

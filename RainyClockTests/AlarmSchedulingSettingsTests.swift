@@ -258,3 +258,170 @@ final class AlarmSchedulingSettingsTests: XCTestCase {
         XCTAssertNotEqual(settings.scheduleFingerprint(), before)
     }
 }
+
+/// The master switch (1.8.0): what is stored, what the plan leaves out, and which ring
+/// the system holds. Pure; the view-model flows are in AlarmViewModelSchedulingTests and
+/// CalendarSchedulingTests.
+final class AlarmSwitchModelTests: XCTestCase {
+    private var calendar: Calendar { DisasterNoticeParser.taipeiCalendar }
+    /// 2026-09-29 is a Tuesday.
+    private func date(_ day: Int, _ hour: Int = 7, _ minute: Int = 30) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 9, day: day, hour: hour, minute: minute))!
+    }
+    private func settings(weekdays: Set<Int> = Set(1...7)) -> CommuteAlarmSettings {
+        var value = CommuteAlarmSettings()
+        value.homeAddress = "Home"; value.workAddress = "Work"
+        value.alarmTime = date(15)
+        value.selectedWeekdays = weekdays
+        value.rainLeadTimeMinutes = 30
+        return value
+    }
+
+    func testSettingsStoredBefore180DecodeAsOnWithoutSkip() throws {
+        let decoded = try JSONDecoder().decode(CommuteAlarmSettings.self, from: Data("{}".utf8))
+        XCTAssertTrue(decoded.isAlarmEnabled)
+        XCTAssertNil(decoded.skippedAlarmDay)
+        var value = settings()
+        value.isAlarmEnabled = false
+        value.skippedAlarmDay = "2026-09-30"
+        let roundTrip = try JSONDecoder().decode(CommuteAlarmSettings.self, from: JSONEncoder().encode(value))
+        XCTAssertFalse(roundTrip.isAlarmEnabled)
+        XCTAssertEqual(roundTrip.skippedAlarmDay, "2026-09-30")
+    }
+
+    func testFingerprintStoredBeforeTheSkipEqualsUntouchedSettings() throws {
+        let value = settings()
+        let stored = try JSONEncoder().encode(value.scheduleFingerprint(calendar: calendar))
+        XCTAssertFalse(String(decoding: stored, as: UTF8.self).contains("skippedAlarmDay"), "Nil is not written")
+        XCTAssertEqual(try JSONDecoder().decode(AlarmScheduleFingerprint.self, from: stored), value.scheduleFingerprint(calendar: calendar))
+    }
+
+    func testSkipIsInTheFingerprintAndTheSwitchIsNot() {
+        let base = settings()
+        var off = base
+        off.isAlarmEnabled = false
+        XCTAssertEqual(off.scheduleFingerprint(calendar: calendar), base.scheduleFingerprint(calendar: calendar),
+                       "Off removes the registration instead of changing it")
+        var skipping = base
+        skipping.skippedAlarmDay = "2026-09-30"
+        XCTAssertNotEqual(skipping.scheduleFingerprint(calendar: calendar), base.scheduleFingerprint(calendar: calendar))
+        XCTAssertFalse(base.usesDatedSchedule)
+        XCTAssertTrue(skipping.usesDatedSchedule, "A repeating weekly alarm cannot leave out one morning")
+    }
+
+    func testDayForKeyRoundTripsAndRejectsGarbage() {
+        XCTAssertEqual(AlarmCalendarSettings.day(forKey: "2026-09-30", calendar: calendar), date(30, 0, 0))
+        for bad in ["", "2026-9", "2026-02-31", "abcd-ef-gh", "2026-09-30-01"] {
+            XCTAssertNil(AlarmCalendarSettings.day(forKey: bad, calendar: calendar), bad)
+        }
+    }
+
+    private func oct(_ day: Int, _ hour: Int = 7, _ minute: Int = 30) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour, minute: minute))!
+    }
+
+    func testPlanLeavesOutExactlyTheSkippedDay() {
+        var free = settings()
+        free.skippedAlarmDay = "2026-09-30"
+        let plan = CalendarAlarmPlan.make(settings: free, holidays: .init(), rain: false, now: date(29, 12), days: 5, calendar: calendar)
+        XCTAssertEqual(plan.occurrences.map(\.normalDate), [oct(1), oct(2), oct(3)], "9/29 has passed and 9/30 is skipped")
+        var ringOverride = free
+        ringOverride.calendarSettings = .init(isEnabled: true, source: .weekly, overrides: ["2026-09-30": .ring])
+        XCTAssertFalse(CalendarAlarmPlan.make(settings: ringOverride, holidays: .init(), rain: false, now: date(29, 12), days: 5,
+                                              calendar: calendar).occurrences.contains { $0.normalDate == date(30) },
+                       "The newer, explicit skip outranks a paid manual ring")
+        var midnight = free
+        midnight.alarmTime = date(15, 0, 15)
+        let rainy = CalendarAlarmPlan.make(settings: midnight, holidays: .init(), rain: true, now: date(29, 12), days: 3, calendar: calendar)
+        XCTAssertFalse(rainy.occurrences.contains { $0.normalDate == date(30, 0, 15) },
+                       "Keyed by the normal day even when the rain ring falls the evening before")
+    }
+
+    func testSkippedNormalDateNeedsARingingFutureMorning() {
+        var value = settings()
+        value.skippedAlarmDay = "2026-09-30"
+        XCTAssertEqual(CalendarAlarmPlan.skippedNormalDate(settings: value, holidays: .init(), now: date(29, 21), calendar: calendar), date(30))
+        XCTAssertNil(CalendarAlarmPlan.skippedNormalDate(settings: value, holidays: .init(), now: date(30, 7, 30), calendar: calendar),
+                     "Spent at the normal time")
+        var weekend = settings(weekdays: [2, 3, 5, 6, 7])
+        weekend.skippedAlarmDay = "2026-09-30" // a Wednesday, deselected
+        XCTAssertNil(CalendarAlarmPlan.skippedNormalDate(settings: weekend, holidays: .init(), now: date(29, 21), calendar: calendar))
+        XCTAssertNil(CalendarAlarmPlan.skippedNormalDate(settings: settings(), holidays: .init(), now: date(29, 21), calendar: calendar))
+    }
+
+    func testClosureOnTheSkippedDayRecordsNoClosureSkipAndRebuildsEqual() {
+        var value = settings()
+        value.skippedAlarmDay = "2026-09-30"
+        value.isDisasterSuspensionEnabled = true
+        value.homeSuspensionRegion = .init(county: "臺北市", district: "信義區")
+        let now = date(29, 21)
+        let feed = DisasterFeed(checkedAt: now, notices: [.init(id: "n", sentAt: now,
+            description: "[停班停課通知]臺北市:明天停止上班、停止上課。行政院人事行政總處。", severity: "Extreme")])
+        let first = DisasterAlarmPlan.filtering(CalendarAlarmPlan.make(settings: value, holidays: .init(), rain: false, now: now,
+                                                                       days: 5, calendar: calendar), settings: value, feed: feed, now: now)
+        let again = DisasterAlarmPlan.filtering(CalendarAlarmPlan.make(settings: value, holidays: .init(), rain: false, now: now,
+                                                                       days: 5, calendar: calendar), settings: value, feed: feed, now: now)
+        XCTAssertTrue(first.skips.isEmpty, "The user already turned that morning off; no closure skip to re-apply")
+        XCTAssertEqual(first.skips, again.skips)
+        XCTAssertEqual(first.plan, again.plan)
+    }
+
+    func testNextRegisteredRingForDatedAndWeeklyRegistrations() {
+        var dated = ScheduledAlarmSummary(normalAlarmDate: date(30), scheduledAlarmDate: date(30, 7, 0), weatherRefreshDate: date(30, 7, 0),
+            exceedsRainThreshold: true, leadTimeMinutes: 30, rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0.8)
+        dated.calendarPlan = .init(occurrences: [.init(normalDate: date(29), ringDate: date(29, 7, 0)), .init(normalDate: date(30), ringDate: date(30))],
+                                   coveredUntil: oct(20, 0, 0), timeZoneID: calendar.timeZone.identifier)
+        XCTAssertEqual(dated.nextRegisteredRing(settings: settings(), holidays: .init(), now: date(29, 7, 10), calendar: calendar)?.normalDate,
+                       date(30), "Today's early ring already went off")
+        let rainyWeekly = ScheduledAlarmSummary(normalAlarmDate: date(29), scheduledAlarmDate: date(29, 7, 0), weatherRefreshDate: date(29, 7, 0),
+            exceedsRainThreshold: true, leadTimeMinutes: 30, rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0.8)
+        let next = rainyWeekly.nextRegisteredRing(settings: settings(), holidays: .init(), now: date(29, 7, 10), calendar: calendar)
+        XCTAssertEqual(next?.normalDate, date(30))
+        XCTAssertEqual(next?.ringDate, date(30, 7, 0), "The repeating alarm keeps one clock time")
+        let dryWeekly = ScheduledAlarmSummary(normalAlarmDate: date(29), scheduledAlarmDate: date(29), weatherRefreshDate: date(29, 7, 0),
+            exceedsRainThreshold: false, leadTimeMinutes: 0, rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0.1)
+        XCTAssertEqual(dryWeekly.nextRegisteredRing(settings: settings(), holidays: .init(), now: date(29, 7, 10), calendar: calendar)?.ringDate,
+                       date(29), "Dry: today's 07:30 is still ahead")
+        let tuesdaysOnly = dryWeekly.nextRegisteredRing(settings: settings(weekdays: [3]), holidays: .init(), now: date(29, 8), calendar: calendar)
+        XCTAssertEqual(tuesdaysOnly?.normalDate, oct(6), "Next week's Tuesday")
+    }
+
+    func testFiredEarlyRingForWeeklyDatedAndRecordedRings() {
+        let rainyWeekly = ScheduledAlarmSummary(normalAlarmDate: date(29), scheduledAlarmDate: date(29, 7, 0), weatherRefreshDate: date(29, 7, 0),
+            exceedsRainThreshold: true, leadTimeMinutes: 30, rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0.8)
+        XCTAssertTrue(rainyWeekly.hasFiredEarlyRing(forMorning: date(29), now: date(29, 7, 10)))
+        XCTAssertFalse(rainyWeekly.hasFiredEarlyRing(forMorning: date(29), now: date(29, 6, 50)))
+        XCTAssertFalse(rainyWeekly.hasFiredEarlyRing(forMorning: date(30), now: date(29, 7, 10)), "A summary for another morning")
+        var recorded = rainyWeekly
+        recorded.calendarPlan = .init(occurrences: [], coveredUntil: oct(20, 0, 0), timeZoneID: calendar.timeZone.identifier)
+        recorded.firedEarlyRing = .init(normalDate: date(29), ringDate: date(29, 7, 0))
+        XCTAssertTrue(recorded.hasFiredEarlyRing(forMorning: date(29), now: date(29, 7, 10)))
+        var dated = rainyWeekly
+        dated.calendarPlan = .init(occurrences: [.init(normalDate: date(29), ringDate: date(29, 7, 0))], coveredUntil: oct(20, 0, 0),
+                                   timeZoneID: calendar.timeZone.identifier)
+        XCTAssertTrue(dated.hasFiredEarlyRing(forMorning: date(29), now: date(29, 7, 10)))
+    }
+
+    func testUserSkipIsMirroredApartFromClosureSkips() {
+        var summary = ScheduledAlarmSummary(normalAlarmDate: oct(1), scheduledAlarmDate: oct(1), weatherRefreshDate: oct(1, 7),
+            exceedsRainThreshold: false, leadTimeMinutes: 0, rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0)
+        summary.calendarPlan = .init(occurrences: [.init(normalDate: oct(1), ringDate: oct(1))], coveredUntil: oct(20, 0, 0),
+                                     timeZoneID: calendar.timeZone.identifier)
+        summary.userSkippedNormalDate = date(30)
+        let dates = summary.dayOffAlarmDates(after: date(29, 21))
+        XCTAssertEqual(dates.userSkipped, [date(30)])
+        XCTAssertEqual(dates.skipped, [])
+        XCTAssertEqual(dates.upcoming, [date(30), oct(1)])
+    }
+
+    func testFreePlanKeepsTheSwitchAndTheSkip() {
+        var value = settings()
+        value.isAlarmEnabled = false
+        value.skippedAlarmDay = "2026-09-30"
+        let free = MembershipEntitlements(removeBanner: false, calendar: false, temporaryClosures: false,
+                                          dailyAI: false, subscriptionActive: false, lifetimeActive: false)
+        let effective = MembershipSchedulingAccess.effectiveSettings(value, entitlements: free)
+        XCTAssertFalse(effective.isAlarmEnabled)
+        XCTAssertEqual(effective.skippedAlarmDay, "2026-09-30")
+    }
+}

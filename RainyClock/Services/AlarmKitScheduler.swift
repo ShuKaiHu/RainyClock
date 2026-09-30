@@ -268,12 +268,33 @@ struct AlarmKitScheduler: NotificationScheduling {
         ((try? AlarmManager.shared.alarms) ?? []).map(\.id)
     }
 
+    /// An alarm of ours is alerting, counting down a snooze, or paused — anything but
+    /// merely scheduled. A weekly relative alarm in that state survives a calendar
+    /// re-registration (which retires `.scheduled` only), so a one-time skip waits.
+    static func hasAlarmInProgress() -> Bool {
+        ((try? AlarmManager.shared.alarms) ?? []).contains { $0.state != .scheduled }
+    }
+
+    /// Whether any alarm of ours may still be registered. A list that cannot be read
+    /// counts as "yes": turning the alarm off must never claim success it cannot see.
+    static func mayHoldAlarms() -> Bool {
+        do { return try !AlarmManager.shared.alarms.isEmpty } catch { return true }
+    }
+
+    /// Cancels every alarm this app owns. One failed cancel must not leave the rest armed
+    /// — turning the alarm off depends on this — so each is tried, and a second pass
+    /// catches what the first missed.
     func cancelScheduledAlarms() async {
         try? await Self.registrationQueue.run {
             try Task.checkCancellation()
-            let identifiers = try AlarmManager.shared.alarms.map(\.id)
-            for identifier in identifiers { try AlarmManager.shared.cancel(id: identifier) }
-            UserDefaults.standard.removeObject(forKey: Self.calendarRegistrationsKey)
+            var unreadable = false
+            for _ in 0..<2 {
+                guard let identifiers = try? AlarmManager.shared.alarms.map(\.id) else { unreadable = true; break }
+                if identifiers.isEmpty { break }
+                for identifier in identifiers { try? AlarmManager.shared.cancel(id: identifier) }
+            }
+            // Keep the bookkeeping while the list could not be read: a later pass needs it.
+            if !unreadable { UserDefaults.standard.removeObject(forKey: Self.calendarRegistrationsKey) }
         }
     }
 

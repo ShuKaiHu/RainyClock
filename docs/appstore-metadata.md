@@ -289,8 +289,8 @@ rain alarm,weather alarm,commute alarm,smart alarm,rain,weather,alarm clock,comm
 ## Version 1.8.0 (38) “What’s New” — LOCAL DRAFT
 
 Local draft written 2026-09-28, before any archive or upload; 1.7.1 (37) is the live build.
-One new feature leads — the typhoon / disaster closure rule — because it is the whole
-release. The plan was decided on 2026-09-28 ([PRODUCT_DECISIONS](PRODUCT_DECISIONS.md)): the
+The typhoon / disaster closure rule leads. The free alarm switch added on 2026-09-30 follows
+as its own bullet (owner request: off for the next alarm only, or until turned back on). The plan was decided on 2026-09-28 ([PRODUCT_DECISIONS](PRODUCT_DECISIONS.md)): the
 rule is included with **both** the monthly subscription and the one-time purchase, and not with
 the free plan. The copy states that and names no price. (The earlier draft said only
 "Availability follows your plan settings" while the decision was open.) Nothing here claims
@@ -308,6 +308,7 @@ Sleep in when the government calls a day off.
 • An optional notification can tell you when an announcement changes. It is checked against your districts on your phone — nothing about where you live is uploaded — and the alarm is only ever silenced after the app has verified the announcement.
 • A township map shows today's and tomorrow's announcements for all 22 cities and counties and 368 townships and districts.
 • If no announcement can be confirmed, or the network is down, the alarm rings as usual.
+• New switch next to the Alarm title: turn off only the next alarm (it comes back on by itself after that morning), or turn the alarm off until you turn it back on. Free on every plan.
 ```
 
 ### 繁體中文
@@ -320,6 +321,7 @@ Sleep in when the government calls a day off.
 ・選用的通知可以在公告更新時提醒你。比對行政區在你的手機上完成，不會上傳你的所在地；鬧鐘只會在 App 確認公告後才靜音。
 ・鄉鎮市區地圖可查看今天與明天的公告，涵蓋 22 縣市、368 鄉鎮市區。
 ・無法確認公告或網路異常時，鬧鐘照常響鈴。
+・鬧鐘頁標題旁新增開關：可以只關閉下一次鬧鐘（那次過後自動恢復），或關閉到你重新開啟為止。所有方案都能使用。
 ```
 
 ## Version 1.7.0 (29) “What’s New” — LOCAL DRAFT
@@ -594,10 +596,9 @@ the one-time purchase, not the free plan ([PRODUCT_DECISIONS](PRODUCT_DECISIONS.
 bracketed internal notes that stood in for that decision have been removed. The PURCHASES
 section of the 1.7.1 note ("Both remove banner ads, unlock calendar features … the one-time plan
 provides these benefits permanently") is now consistent with this build; it may be left as is,
-or its benefit list may add temporary disaster closures when the note is pasted. Requires the
-production membership service to be redeployed first — until then it returns
-`temporaryClosures=false` for one-time-purchase owners, and a reviewer testing with the
-one-time purchase would see the switch locked.
+or its benefit list may add temporary disaster closures when the note is pasted. The production
+membership service was redeployed on 2026-09-30, so a reviewer testing with the one-time purchase
+gets the closure rule. Paste the ALARM SWITCH paragraph below as well.
 
 ```
 TEMPORARY DISASTER CLOSURES (new in 1.8.0)
@@ -607,7 +608,10 @@ The rule depends on live government announcements. Taiwan's Directorate-General 
 
 To see what a closure looks like without waiting for a typhoon, open the Settings tab, choose "Calendar" at the top, and tap "View map demo" in the card below the "Use temporary closure rules" switch. The row is there whether or not the switch is on, and it needs no subscription or purchase. The demo is labelled "Demo data · Not live" at the top and shows fictional sample announcements (for example Taipei City closed city-wide, and Xindian District of New Taipei City closed at district level); it carries no government source credit or source update time, since the announcements are made up. It does not fetch or store announcements and never changes the alarm or push registration.
 
-Notifications: when the feature is on, the app registers for push. Our service sends the same short, location-free notification to every registered device when the announcements change; the bundled Notification Service Extension (com.shukaihu.RainyClock.DayOffNotification) then reads the home and workplace districts, which are stored only in the app's App Group on the device, fetches the announcements and rewrites the notification locally: with sound when the user's district has a new announcement, silently when the announcements do not concern them. If the extension cannot decide (for example no upcoming alarm, no district for the addresses, or its own fetch fails), the generic notification is shown as sent, with sound. The push is informational. The alarm is silenced only by the app itself, after it has fetched and verified a matching announcement and successfully rescheduled; a notification alone never cancels anything. If the announcement cannot be verified or the network is unavailable, the alarm rings as usual.
+Notifications: when the feature is on, the app registers for push. Our service sends the same short, location-free notification to every registered device when the announcements change; the bundled Notification Service Extension (com.shukaihu.RainyClock.DayOffNotification) then reads the home and workplace districts, which are stored only in the app's App Group on the device, fetches the announcements and rewrites the notification locally: with sound when the user's district has a new announcement, silently when the announcements do not concern them or the user has turned the alarm off. If the extension cannot decide (for example no upcoming alarm, no district for the addresses, or its own fetch fails), the generic notification is shown as sent, with sound. The push is informational. The alarm is silenced only by the app itself, after it has fetched and verified a matching announcement and successfully rescheduled; a notification alone never cancels anything. If the announcement cannot be verified or the network is unavailable, the alarm rings as usual.
+
+ALARM SWITCH (new in 1.8.0, free on every plan)
+The Alarm tab has a switch next to its title. Turning it off asks for one of two choices: "Turn Off Next Alarm Only" — only the next scheduled alarm is removed and every later one stays registered, so the switch turns back on by itself after that morning — or "Turn Off Until I Turn It Back On", which removes all alarms until the switch is turned on again. Turning it on re-arms immediately. To test: with a route set and an alarm scheduled, turn the switch off and choose either option; the card below shows "Skipped" (only the next alarm) or "Alarm Off".
 
 Data: the phone sends our service a random installation identifier, the APNs token and a hash of a device-held credential, and after processing an announcement it reports the announcement revision, timestamps and an applied / no-alarm result. Home and workplace addresses, districts, routes, alarm times and skipped dates are never uploaded. There is no location permission request for this feature. Details are in the "Temporary disaster closures" section of the privacy policy.
 ```
@@ -622,7 +626,10 @@ Data: the phone sends our service a random installation identifier, the APNs tok
 
 不必等颱風也能看到停班停課的樣子：打開「設定」分頁，上方選「日曆」，點「使用臨時放假規則」開關下方卡片裡的「查看地圖示範」。不論開關是否打開都有這一列，也不需要訂閱或購買。示範畫面頂端標示「示範資料・非即時公告」，顯示虛構的範例公告（例如臺北市全市停班停課、新北市新店區停班停課），因為是虛構內容，不標示政府資料來源或來源更新時間；不會抓取或儲存公告，也不會改變鬧鐘或推播註冊。
 
-通知：功能開啟時 App 會註冊推播。公告變更時，我們的服務對所有已註冊裝置送出同一則簡短、不含位置的通知；隨附的通知擴充功能（com.shukaihu.RainyClock.DayOffNotification）讀取只存在手機 App Group 的住家與公司行政區，自行取得公告後在本機改寫通知：使用者的行政區有新公告時有聲，公告與其無關時靜音；擴充功能無法判斷時（例如沒有即將響的鬧鐘、地址沒有對應的行政區或自己的抓取失敗），會照原樣顯示有聲的通用通知。推播只是資訊。鬧鐘只會由 App 本身在取得並確認相符公告、成功重新排程後才靜音；通知本身不會取消任何鬧鐘。無法確認公告或網路異常時，鬧鐘照常響鈴。
+通知：功能開啟時 App 會註冊推播。公告變更時，我們的服務對所有已註冊裝置送出同一則簡短、不含位置的通知；隨附的通知擴充功能（com.shukaihu.RainyClock.DayOffNotification）讀取只存在手機 App Group 的住家與公司行政區，自行取得公告後在本機改寫通知：使用者的行政區有新公告時有聲，公告與其無關或使用者已關閉鬧鐘時靜音；擴充功能無法判斷時（例如沒有即將響的鬧鐘、地址沒有對應的行政區或自己的抓取失敗），會照原樣顯示有聲的通用通知。推播只是資訊。鬧鐘只會由 App 本身在取得並確認相符公告、成功重新排程後才靜音；通知本身不會取消任何鬧鐘。無法確認公告或網路異常時，鬧鐘照常響鈴。
+
+鬧鐘開關（1.8.0 新增，所有方案皆可使用）
+「鬧鐘」分頁標題旁有一個開關。關閉時會請使用者二選一：「僅關閉下一次鬧鐘」——只移除下一次排定的鬧鐘，之後的鬧鐘都保留，那天早上過後開關自動恢復——或「關閉，直到我重新開啟」，移除所有鬧鐘直到再次打開開關。打開開關會立刻重新排定。測試方式：設定好路線並排定鬧鐘後，關閉開關並選任一選項，下方卡片會顯示「略過鬧鐘」（僅下一次）或「鬧鐘已關閉」。
 
 資料：手機傳給服務的是隨機安裝識別碼、APNs token 與裝置持有 credential 的雜湊；處理完公告後回報公告版本、時間戳與「已處理／未設鬧鐘」結果。住家與公司地址、行政區、路線、鬧鐘時間與略過日期都不會上傳。此功能不要求定位權限。詳見隱私政策「天災臨時放假」一節。
 ```
