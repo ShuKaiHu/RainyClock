@@ -17,7 +17,7 @@
 <body>
 
 <h1>Rainy Clock</h1>
-<p class="subtitle">Privacy Policy · Last updated 28 September 2026</p>
+<p class="subtitle">Privacy Policy · Last updated 1 October 2026</p>
 
 <h2>Overview</h2>
 <p>Rainy Clock is an iOS app that automatically adjusts your alarm time
@@ -92,9 +92,9 @@ The app does not read your personal system calendars.</p>
 <h2 id="closures">Temporary disaster closures (iOS 1.8.0 and later)</h2>
 <p>Rainy Clock can skip an alarm on a day when the government suspends work or school for the district of your home or workplace. When you turn this on, the app downloads the public work and school closure announcements of the Directorate-General of Personnel Administration (行政院人事行政總處), as published by the National Science and Technology Center for Disaster Reduction (NCDR) and obtained through the data.gov.tw open-data feed, from a small service we run on Google Cloud Run in Taiwan (asia-east1). The service keeps one shared, verified copy of the announcements so that every phone does not have to contact the government site itself. Matching the announcements against your districts, and any change to your alarm, happen on your phone.</p>
 <ul>
-  <li><strong>What the phone registers:</strong> a random installation identifier generated on the device, the Apple push token for this app, and a hash of a credential that stays in your phone's Keychain. We store only the hash, never the credential. This registration is what lets the service send the update notification described below.</li>
+  <li><strong>What the phone registers:</strong> a random installation identifier generated on the device, the Apple push token for this app, and a random credential kept in your phone's Keychain, sent over an encrypted connection. The service stores only a hash of the credential, never the credential itself. This registration is what lets the service send the update notification described below.</li>
   <li><strong>What the phone reports:</strong> after it has processed an announcement, the announcement's public revision identifier, the time the data was checked and the time it was processed, and whether a local alarm plan was applied or no alarm was configured. Only the latest report per device is kept.</li>
-  <li><strong>What is never sent:</strong> your home and destination addresses, the districts you chose, your route, your alarm times and the dates that were skipped. The service cannot tell where you live and does not decide for you whether you are off.</li>
+  <li><strong>What is never sent to this service:</strong> your home and destination addresses, the districts you chose, your route, your alarm times and the dates that were skipped. The service cannot tell where you live and does not decide for you whether you are off.</li>
   <li><strong>Notifications:</strong> when the announcements change, the service sends the same short, location-free notification to every registered device through Apple Push Notification service, so Apple receives the push token. On your phone, a notification extension reads the districts you confirmed in the app, which are kept only in the app's shared storage on the device, fetches the announcements and decides locally whether to show the notification with sound, quietly, or with the generic text. The notification is informational: the alarm is only ever silenced by the app itself after it has verified an announcement, and if the network is unavailable the alarm rings as usual.</li>
   <li><strong>Retention:</strong> registrations expire after 90 days without renewal (the app renews when you open it) and are removed by database expiry. When a notification cannot be delivered, the push token may also be held in a delivery-retry record for up to seven days. Turning the feature off deletes the registration and any pending report from the service; if you are offline, the deletion is retried the next time the app runs.</li>
   <li><strong>Rate limiting and diagnostics:</strong> the service temporarily counts requests by network address to limit abuse, and its hosting logs are covered by <em>Service Diagnostics</em> above. None of this data is used for advertising.</li>
@@ -250,9 +250,9 @@ shukaihu@icloud.com.</p>
 <h2 id="closures-zh">天災臨時放假（iOS 1.8.0 以上）</h2>
 <p>當政府宣布你住家或公司所在行政區停止上班或上課，Rainy Clock 可以略過當天的鬧鐘。開啟後，App 會從我們在 Google Cloud Run（台灣 asia-east1）營運的小型服務下載行政院人事行政總處的公開停班停課公告；公告由國家災害防救科技中心（NCDR）發布，我們經政府資料開放平臺 data.gov.tw 的開放資料介面取得。服務只保存一份共用、已驗證的公告快取，讓每支手機不必各自連線官方網站。公告與你的行政區比對，以及任何鬧鐘變更，都在你的手機上完成。</p>
 <ul>
-  <li><strong>手機註冊什麼：</strong>裝置產生的隨機安裝識別碼、這個 App 的 Apple 推播 token，以及保存在手機 Keychain 的 credential 的雜湊。我們只保存雜湊，不保存 credential 原文。這筆註冊是服務能發送下述更新通知的依據。</li>
+  <li><strong>手機註冊什麼：</strong>裝置產生的隨機安裝識別碼、這個 App 的 Apple 推播 token，以及保存在手機 Keychain 的隨機 credential（經加密連線傳送）。服務只保存 credential 的雜湊，不保存 credential 原文。這筆註冊是服務能發送下述更新通知的依據。</li>
   <li><strong>手機回報什麼：</strong>手機處理完公告後，回報公告的公開版本識別碼、資料檢查時間與處理時間，以及「已處理本機排程」或「尚未設定鬧鐘」的結果。每台裝置只保留最新一筆回報。</li>
-  <li><strong>絕不傳送什麼：</strong>住家與目的地地址、你選擇的行政區、路線、鬧鐘時間與略過的日期。服務不知道你住哪裡，也不替你判斷是否放假。</li>
+  <li><strong>絕不傳給這個服務的：</strong>住家與目的地地址、你選擇的行政區、路線、鬧鐘時間與略過的日期。服務不知道你住哪裡，也不替你判斷是否放假。</li>
   <li><strong>通知：</strong>公告變更時，服務透過 Apple 推播通知服務對所有已註冊裝置送出同一則簡短、不含位置的通知，因此 Apple 會收到推播 token。在你的手機上，通知擴充功能讀取你在 App 內確認的行政區（只存在手機上 App 的共用儲存區）、自行取得公告，並在本機決定要有聲顯示、安靜顯示，還是保留通用文字。這則通知只是資訊：鬧鐘只會由 App 本身在確認公告後才靜音；網路異常時鬧鐘照常響鈴。</li>
   <li><strong>保留多久：</strong>註冊在 90 天沒有續期後失效（開啟 App 時會續期），由資料庫到期清理刪除。通知投遞失敗時，推播 token 可能另外保存在投遞重試紀錄中最多七天。關閉功能會向服務刪除註冊與待送回報；離線時會在下次 App 執行時重試。</li>
   <li><strong>限流與診斷：</strong>服務會暫時依網路位址計算請求次數以防止濫用；主機日誌依上方「服務診斷」處理。這些資料都不用於廣告。</li>

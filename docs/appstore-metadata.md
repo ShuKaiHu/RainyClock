@@ -632,6 +632,15 @@ AdMob and `npa=1`, which `1.6.7` replaced with Unity LevelPlay.
 
 ### Version-specific note for 1.8.0 (38) — LOCAL DRAFT
 
+**Paste this, not the facts below: [`appstore-review-notes-1.8.0-38.txt`](appstore-review-notes-1.8.0-38.txt)**
+(3,916 characters, under the 4,000 limit; written 2026-10-01). One note for the whole version: the
+widget, typhoon closures with the no-purchase "View map demo" path, the alarm switch, then the 1.7.1
+essentials (tracking 2.1, location 2.1(a), purchases, calendar, AI voice, sandbox) compressed. Three
+drafts from different priorities were scored by two judges, the winner was merged with the others'
+best parts, and every claim (27) was checked against the code; afterwards the consent regions were
+widened to Switzerland and the closure switch's notification prompt was added, to match the 1.8.0
+fixes. The facts-only material below stays as the record it was condensed from.
+
 **The one 1.8.0 review-note draft** (2026-10-01, `ios/widget` merged into the 1.8.0 line): the
 closure and alarm-switch sections below (`ios/main`, 2026-09-28 / 09-30) plus the widget section
 from `ios/widget` (2026-09-24), which follows them. It keeps the facts only: pasted on top of the
@@ -674,7 +683,7 @@ Notifications: when the feature is on, the app registers for push. On iOS 26 and
 ALARM SWITCH (new in 1.8.0, free on every plan)
 The Alarm tab has a switch next to its title. Turning it off asks for one of two choices: "Turn Off Next Alarm Only" — only the next scheduled alarm is removed and every later one stays registered, so the switch turns back on by itself after that morning — or "Turn Off Until I Turn It Back On", which removes all alarms until the switch is turned on again. Turning it on re-arms immediately. To test: with a route set and an alarm scheduled, turn the switch off and choose either option; the card below shows "Skipped" (only the next alarm) or "Alarm Off".
 
-Data: the phone sends our service a random installation identifier, the APNs token and a hash of a device-held credential, and after processing an announcement it reports the announcement revision, timestamps and an applied / no-alarm result. Home and workplace addresses, districts, routes, alarm times and skipped dates are never uploaded. There is no location permission request for this feature. Details are in the "Temporary disaster closures" section of the privacy policy.
+Data: the phone sends our service a random installation identifier, the APNs token and a device-held credential (the service stores only its SHA-256 hash), and after processing an announcement it reports the announcement revision, timestamps and an applied / no-alarm result. Home and workplace addresses, districts, routes, alarm times and skipped dates are never uploaded. There is no location permission request for this feature. Details are in the "Temporary disaster closures" section of the privacy policy.
 ```
 
 繁體中文（同一段的中文版，供繁中審查說明使用）：
@@ -692,7 +701,7 @@ Data: the phone sends our service a random installation identifier, the APNs tok
 鬧鐘開關（1.8.0 新增，所有方案皆可使用）
 「鬧鐘」分頁標題旁有一個開關。關閉時會請使用者二選一：「僅關閉下一次鬧鐘」——只移除下一次排定的鬧鐘，之後的鬧鐘都保留，那天早上過後開關自動恢復——或「關閉，直到我重新開啟」，移除所有鬧鐘直到再次打開開關。打開開關會立刻重新排定。測試方式：設定好路線並排定鬧鐘後，關閉開關並選任一選項，下方卡片會顯示「略過鬧鐘」（僅下一次）或「鬧鐘已關閉」。
 
-資料：手機傳給服務的是隨機安裝識別碼、APNs token 與裝置持有 credential 的雜湊；處理完公告後回報公告版本、時間戳與「已處理／未設鬧鐘」結果。住家與公司地址、行政區、路線、鬧鐘時間與略過日期都不會上傳。此功能不要求定位權限。詳見隱私政策「天災臨時放假」一節。
+資料：手機傳給服務的是隨機安裝識別碼、APNs token 與裝置持有的 credential（服務只保存它的 SHA-256 雜湊）；處理完公告後回報公告版本、時間戳與「已處理／未設鬧鐘」結果。住家與公司地址、行政區、路線、鬧鐘時間與略過日期都不會上傳。此功能不要求定位權限。詳見隱私政策「天災臨時放假」一節。
 ```
 
 The widget section (from `ios/widget`'s draft, with the closure and the alarm switch's faces added on 2026-10-01):
@@ -969,7 +978,7 @@ that mode. We kindly ask that this functionality be reviewed on an iPhone runnin
 | --- | --- |
 | Membership | Automatically recognized with verified Apple app/purchase data; no RainyClock email/password. In-app deletion, separate from Apple subscription cancellation |
 | User ID | Internal member, Apple app/purchase identity mapping and reward identity; App Functionality; linked to identity; first-party use is not tracking |
-| Device ID | App Attest key/device-verification binding and session security; **plus (1.8.0) closure updates:** a random installation identifier generated on the device, the APNs push token and a hash of a device-held credential, registered only while temporary closure rules are on (expires after 90 days without renewal; turning the rule off deletes it). App Functionality; **linked** (one answer per data type, and the membership use is linked, so the stricter answer covers both); first-party use is not tracking |
+| Device ID | App Attest key/device-verification binding and session security; **plus (1.8.0) closure updates:** a random installation identifier generated on the device, the APNs push token and a device-held credential (the service stores only its SHA-256 hash), registered only while temporary closure rules are on (expires after 90 days without renewal; turning the rule off deletes it). App Functionality; **linked** (one answer per data type, and the membership use is linked, so the stricter answer covers both); first-party use is not tracking |
 | Purchase History | Verified transactions, subscription state and refunds; App Functionality; linked; not used for first-party tracking |
 | Other User Content / Audio Data | AI script sent to Google and generated audio temporarily saved for retry; App Functionality; linked to member; not used for first-party tracking |
 | Product Interaction | Daily usage, reservations and generation outcomes; App Functionality; linked; not used for first-party tracking |

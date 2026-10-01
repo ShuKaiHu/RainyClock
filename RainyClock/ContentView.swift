@@ -406,9 +406,9 @@ private struct AlarmHomeView: View {
                                  tomorrow.reason == .rain ? "rain" : nil)
                 } label: {
                     HStack(spacing: 6) {
-                        // A carried-over lead waits for its own forecast: not a rain icon (until it
-                        // has rung; then the line says 因雨提早 too, see `reason`).
-                        Image(systemName: tomorrow.rainLeadIsCarriedOver && !tomorrow.hasRung ? "hourglass"
+                        // A carried-over lead waits for its own forecast: not a rain icon. Once it
+                        // has rung there is no reason line at all (see `reason`).
+                        Image(systemName: tomorrow.rainLeadIsCarriedOver ? "hourglass"
                               : tomorrow.reason == .rain ? "cloud.rain" : (tomorrow.expectedRingDate == nil ? "bell.slash" : "calendar"))
                             .foregroundStyle(Color.accentColor)
                         Text(reason).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
@@ -489,10 +489,10 @@ private struct AlarmHomeView: View {
             String.localizedStringWithFormat(String(localized: "ux_rain_applied_forecast"), percent, minutes)
         case .rainEarlier(let minutes): String.localizedStringWithFormat(String(localized: "ux_rain_applied"), minutes)
         case .awaitingForecast:
-            // Card only: a carried-over lead that has rung waits for nothing any more, and no
+            // Card only: a carried-over lead that has rung was not this morning's rain decision,
+            // so the card says 已響鈴 at its time and gives no reason (owner, 2026-10-01). No
             // widget entry describes a morning after its ring.
-            tomorrow.hasRung
-                ? String.localizedStringWithFormat(String(localized: "ux_rain_applied"), tomorrow.leadTimeMinutes)
+            tomorrow.hasRung ? nil
                 : String(localized: today ? "ux_today_awaiting_forecast" : "ux_tomorrow_awaiting_forecast")
         case .holidayNamed(let name):
             String.localizedStringWithFormat(String(localized: today ? "ux_today_holiday_named" : "ux_tomorrow_holiday_named"), name)
