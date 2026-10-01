@@ -1,6 +1,12 @@
 # Rainy Clock App Store Metadata
 
-## 1.8.0 (38) — DRAFT, not approved: What's New — typhoon closures, alarm switch, Next Alarm widget
+## 1.8.0 (38) — What's New — typhoon closures, alarm switch, Next Alarm widget
+
+> **Pasted into App Store Connect on 2026-10-02** (version 1.8.0, both localizations, saved and read
+> back; not submitted), after the owner approved the text. One change from the drafts below, made
+> before pasting: "nothing about where you live is uploaded" → "nothing about where you live is sent
+> to Rainy Clock", and 「不會上傳你的所在地」→「不會把你的所在地傳給雨天鬧鐘」 — the addresses do go to
+> Apple Maps for geocoding, just never to Rainy Clock's own service. The drafts below now carry it.
 
 > **DRAFT.** Nothing in this section has been approved, pasted into App Store Connect or
 > submitted; the owner approves the final text. One draft since 2026-10-01, when `ios/widget`
@@ -35,7 +41,7 @@ Sleep in when the government calls a day off, and see your next alarm on your Ho
 
 • Typhoon and disaster closures: when a city or county government suspends work or school for the district of your home or workplace, Rainy Clock skips that day's alarm. Announcements come from the Directorate-General of Personnel Administration's open data, and the app shows the source and its update time next to any closure it reports.
 • Choose whether work closures, school closures, or both count, and confirm your home and workplace districts in Settings → Calendar. Closure rules are included with a monthly subscription or a one-time purchase.
-• An optional notification can tell you when an announcement changes. It is checked against your districts on your phone — nothing about where you live is uploaded — and the alarm is only ever silenced after the app has verified the announcement.
+• An optional notification can tell you when an announcement changes. It is checked against your districts on your phone — nothing about where you live is sent to Rainy Clock — and the alarm is only ever silenced after the app has verified the announcement.
 • A township map shows today's and tomorrow's announcements for all 22 cities and counties and 368 townships and districts.
 • If no announcement can be confirmed, or the network is down, the alarm rings as usual.
 • New switch next to the Alarm title: turn off only the next alarm (it comes back on by itself after that morning), or turn the alarm off until you turn it back on. Free on every plan.
@@ -52,7 +58,7 @@ Sleep in when the government calls a day off, and see your next alarm on your Ho
 
 ・颱風與天災停班停課：當縣市政府宣布你住家或公司所在行政區停止上班或上課，雨天鬧鐘會略過當天的鬧鐘。公告來自行政院人事行政總處的開放資料，App 顯示任何停班停課結果時都會標示資料來源與更新時間。
 ・可選擇只看停班、只看停課或兩者皆算，並在「設定 → 日曆」確認住家與公司所在行政區。月訂閱或買斷可使用臨時放假規則。
-・選用的通知可以在公告更新時提醒你。比對行政區在你的手機上完成，不會上傳你的所在地；鬧鐘只會在 App 確認公告後才靜音。
+・選用的通知可以在公告更新時提醒你。比對行政區在你的手機上完成，不會把你的所在地傳給雨天鬧鐘；鬧鐘只會在 App 確認公告後才靜音。
 ・鄉鎮市區地圖可查看今天與明天的公告，涵蓋 22 縣市、368 鄉鎮市區。
 ・無法確認公告或網路異常時，鬧鐘照常響鈴。
 ・鬧鐘頁標題旁新增開關：可以只關閉下一次鬧鐘（那次過後自動恢復），或關閉到你重新開啟為止。所有方案都能使用。

@@ -234,9 +234,13 @@ Last updated: 2026-10-01.
 - **2026-10-02 03:43：1.8.0（38）已上傳 App Store Connect（只進 TestFlight，未送審）。** Xcode 27.0（iOS 27 SDK）從 `3cf0fab`
   archive；本機 App Store 匯出逐項檢查（三個 bundle 都是 1.8.0（38）、正式推播與 App Attest、widget 也簽上 App Group——
   automatic signing 已替 widget 的 App ID 開好，**不用再到開發者網站手動開**、三個隱私清單、正式網址、只有 IronSource）後上傳，
-  Apple 處理中。上傳前完整測試見下一點的「測試（2026-10-02…）」。**下一步：**①Apple 處理完後在 iPhone 上用 TestFlight 跑本節各點的
-  「手機待確認」；②App Store Connect 建 1.8.0 版本、貼 What's New 與 [審查說明](appstore-review-notes-1.8.0-38.txt)、選 build 38
-  （不送審）；③送審當天：發布 App 隱私問卷更新（Device ID、Other Diagnostic Data 加上停班停課用途，見 `appstore-metadata.md`）；
+  Apple 已處理完成。上傳前完整測試見下一點的「測試（2026-10-02…）」。
+  **App Store Connect（2026-10-02 04:0x，擁有者核准內容後由 Claude 填入，未送審）：** 已建立 1.8.0 版本（「準備提交」），
+  繁中與英文 What's New 已貼上並儲存（614／2,020 字；與 `appstore-metadata.md` 草稿只差一處：「不會上傳你的所在地」改為
+  「不會把你的所在地傳給雨天鬧鐘」／「…is sent to Rainy Clock」，因為地址會送 Apple 地圖做地理編碼），審查備註換成
+  [審查說明](appstore-review-notes-1.8.0-38.txt)（3,916 字），選 build 38 並儲存；重新整理後讀回三者皆正確。發佈方式仍為手動。
+  審查資訊的附件欄是空的（1.7.1 的 ATT 錄影沒有沿用；新審查說明沒有提到附件）。
+  **下一步：**①在 iPhone 上用 TestFlight 跑本節各點的「手機待確認」；②（原為建版本與貼文字，已完成）；③送審當天：發布 App 隱私問卷更新（Device ID、Other Diagnostic Data 加上停班停課用途，見 `appstore-metadata.md`）；
   ④上架當天：買斷改 US$15／NT$150。隱私權政策的停班停課一節已於 10/1 發布到公開網站（`main` `b4d2c65`）。
 
 - **2026-10-01：1.8.0（38）修正系列（`f77a4ec`…`24cf509`，9 個 commit）與其審查修正（「Review fixes for the 1.8.0
