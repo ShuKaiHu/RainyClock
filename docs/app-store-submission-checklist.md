@@ -11,8 +11,8 @@ Ongoing state and the backlog live in `docs/STATUS-IOS.md`; this file is the sub
 
 | Item | Status |
 | --- | --- |
-| App version | `1.7.0` — membership, calendar and redesigned alarm/settings |
-| Build number | `1.7.1 (37)` — address suggestions restored and typed-address confirmation surfaced, on top of 36; uploaded 2026-09-24 15:00:13. Previously `36` — App Attest recovery after a reinstall and iOS 27 TestFlight price fallback, on top of 35's location, ATT timing and notification crash fixes; 387 tests passed; uploaded 2026-09-24 12:49:53, Apple processing. |
+| App version | `1.8.0` — typhoon closures, alarm master switch, Next Alarm widget (1.7.1 is live) |
+| Build number | `1.8.0 (38)` — uploaded 2026-10-02 03:43:06 (Asia/Taipei), built with Xcode 27.0 / iOS 27 SDK from `3cf0fab`; TestFlight only, not submitted. Previously `1.7.1 (37)` — address suggestions restored and typed-address confirmation surfaced, on top of 36; uploaded 2026-09-24 15:00:13. Previously `36` — App Attest recovery after a reinstall and iOS 27 TestFlight price fallback, on top of 35's location, ATT timing and notification crash fixes; 387 tests passed; uploaded 2026-09-24 12:49:53, Apple processing. |
 | Review status | 1.7.1 (37) approved and live on the App Store 2026-09-26 05:33 UTC (TW and US). Before that: Waiting for Review since 2026-09-25 00:10 (resubmission of the 1.7.0 (34) rejection). Earlier: 1.7.0 (34) rejected 2026-09-23: 6.5-inch screenshots, location lookup, and missing ATT prompt/recording. Build 35 uploaded to TestFlight, not resubmitted. zh-Hant 6.5-inch media verified inheriting the new 6.9-inch screenshots; en-US cleanup still unverified. iOS 27 physical-device validation and recording remain pending. |
 | Last released | `1.6.9` — public listing confirmed 2026-09-10 |
 | Bundle identifier | `com.shukaihu.RainyClock` |
@@ -255,6 +255,22 @@ The 使用者指標 / user metrics panel in AdMob shows zeros because the app in
 or Google Analytics SDK. It is not a signal about real usage; App Store Connect's 分析 tab is.
 
 ## Archiving and Uploading
+
+**`1.8.0 (38)` uploaded 2026-10-02 03:43:06 (Asia/Taipei).** First build made with **Xcode 27.0
+(27A266a, iOS 27 SDK)**, which the Mac App Store installed over Xcode 26 on 2026-10-01 04:15; its
+licence had to be accepted with `sudo xcodebuild -license accept` before any `xcodebuild` (and the
+`/usr/bin/git` shim) worked again. Archived from `3cf0fab` (archive `CreationDate` 03:39:44, after
+the last commit). Local App Store export checked before upload: app, `RainyClockAlarmWidget.appex`
+and `RainyClockDayOffNotification.appex` all `1.8.0 (38)`, `DTSDKName iphoneos27.0`; app
+`aps-environment production`, App Attest production, App Group; **the widget appex now carries the
+App Group too** (automatic signing with `-allowProvisioningUpdates` enabled it on the
+`com.shukaihu.RainyClock.AlarmWidget` App ID, so no manual portal step was needed); privacy
+manifests in all three bundles (app `UserDefaults` CA92.1 + 1C8F.1, both extensions 1C8F.1),
+`NSPrivacyTracking` false, production service URLs, `GooglePlacesAPIKey` empty, the `rainyclock`
+URL scheme, three BG task identifiers, `IronSource.framework` the only framework, no `.storekit`,
+no DEBUG widget demo, the `-ObjC` selector present. Upload by the usual CLI path; the IronSource
+dSYM warning again, non-blocking. Logs: session scratchpad `archive-180-38-x27.log`,
+`upload-180-38.log`.
 
 **`1.7.0 (31)` uploaded 2026-09-21 20:57:26 (Asia/Taipei).** Membership startup failures
 are now visible, unknown membership is not labeled Free plan, and manual actions show

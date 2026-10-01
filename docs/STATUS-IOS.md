@@ -231,9 +231,17 @@ Last updated: 2026-10-01.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-10-02 03:43：1.8.0（38）已上傳 App Store Connect（只進 TestFlight，未送審）。** Xcode 27.0（iOS 27 SDK）從 `3cf0fab`
+  archive；本機 App Store 匯出逐項檢查（三個 bundle 都是 1.8.0（38）、正式推播與 App Attest、widget 也簽上 App Group——
+  automatic signing 已替 widget 的 App ID 開好，**不用再到開發者網站手動開**、三個隱私清單、正式網址、只有 IronSource）後上傳，
+  Apple 處理中。上傳前完整測試見下一點的「測試（2026-10-02…）」。**下一步：**①Apple 處理完後在 iPhone 上用 TestFlight 跑本節各點的
+  「手機待確認」；②App Store Connect 建 1.8.0 版本、貼 What's New 與 [審查說明](appstore-review-notes-1.8.0-38.txt)、選 build 38
+  （不送審）；③送審當天：發布 App 隱私問卷更新（Device ID、Other Diagnostic Data 加上停班停課用途，見 `appstore-metadata.md`）；
+  ④上架當天：買斷改 US$15／NT$150。隱私權政策的停班停課一節已於 10/1 發布到公開網站（`main` `b4d2c65`）。
+
 - **2026-10-01：1.8.0（38）修正系列（`f77a4ec`…`24cf509`，9 個 commit）與其審查修正（「Review fixes for the 1.8.0
   fix series」）。** 合併 `ios/widget` 後的對抗式審查找到的 9 項各自一個 commit；再審一輪找到 27 項（1 項 major），全在審查修正
-  commit 處理。版本仍是 1.8.0（38），**尚未上傳**。
+  commit 處理。版本仍是 1.8.0（38）（10/2 已上傳，見上一點）。
   **`build/` 裡 10/1 00:33 的 1.8.0（38）archive 早於整個修正系列**，已改名為
   `build/RainyClock-1.8.0-38-STALE-pre-review-fixes-do-not-upload.xcarchive`，**不可匯出上傳**：測試全過後從整合後的 HEAD 重新
   archive，上傳前確認 archive 的 `CreationDate` 晚於最後一個 commit（38 一旦上傳就不能再用）。
