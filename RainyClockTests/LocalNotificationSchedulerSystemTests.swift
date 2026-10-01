@@ -49,14 +49,17 @@ final class LocalNotificationSchedulerSystemTests: XCTestCase {
         return dates.filter { $0 > now && $0 < now.addingTimeInterval(600) }.sorted()
     }
 
+    /// Without permission the queue refuses requests, and how differs by release (iOS 18:
+    /// `.notificationsNotAllowed`; iOS 27: UNErrorDomain 2003), so ask the status instead.
+    private func requirePermission() async throws {
+        let status = await center.notificationSettings().authorizationStatus
+        try XCTSkipUnless(status == .authorized, "This simulator has not allowed Rainy Clock to post notifications")
+    }
+
     /// A weekly alarm two seconds from now, one-minute follow-ups: seven of them on seven days.
     private func scheduleWeekly(ringingAt ring: Date) async throws {
-        do {
-            try await scheduler.scheduleAlarm(at: ring, normalAlarmDate: ring, weekdays: CommuteAlarmSettings.allWeekdays,
-                sound: .rainyClock, soundFileNameOverride: nil, snoozeMinutes: 1, title: "Alarm", body: "Wake up")
-        } catch let error as UNError where error.code == .notificationsNotAllowed {
-            throw XCTSkip("This simulator refuses notification requests without permission")
-        }
+        try await scheduler.scheduleAlarm(at: ring, normalAlarmDate: ring, weekdays: CommuteAlarmSettings.allWeekdays,
+            sound: .rainyClock, soundFileNameOverride: nil, snoozeMinutes: 1, title: "Alarm", body: "Wake up")
     }
 
     private func letTheRingPass(_ ring: Date) async throws {
@@ -64,10 +67,10 @@ final class LocalNotificationSchedulerSystemTests: XCTestCase {
     }
 
     func testAnUnstoppedChainSurvivesReRegistrationUntilStopped() async throws {
+        try await requirePermission()
         let ring = Date().addingTimeInterval(2).rounded()
         try await scheduleWeekly(ringingAt: ring)
         let registered = await alarms()
-        try XCTSkipIf(registered.isEmpty, "This simulator dropped notification requests without permission")
         XCTAssertEqual(registered.count, 56)
         try await letTheRingPass(ring)
         let chain = (1...7).map { ring.addingTimeInterval(Double($0) * 60) }
@@ -101,6 +104,7 @@ final class LocalNotificationSchedulerSystemTests: XCTestCase {
     /// minutes, so it runs only with `TEST_RUNNER_RAINYCLOCK_LIVE_NOTIFICATIONS=1`.
     func testDeliveredFollowUpsOutliveAReRegistrationAndStopAtStop() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["RAINYCLOCK_LIVE_NOTIFICATIONS"] != nil)
+        try await requirePermission()
         center.removeAllDeliveredNotifications()
         let ring = Date().addingTimeInterval(3).rounded()
         try await scheduleWeekly(ringingAt: ring)
@@ -139,10 +143,10 @@ final class LocalNotificationSchedulerSystemTests: XCTestCase {
     }
 
     func testAnUnstoppedChainSurvivesASwitchToTheDatedPlan() async throws {
+        try await requirePermission()
         let ring = Date().addingTimeInterval(2).rounded()
         try await scheduleWeekly(ringingAt: ring)
         let registered = await alarms()
-        try XCTSkipIf(registered.isEmpty, "This simulator dropped notification requests without permission")
         try await letTheRingPass(ring)
 
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: ring)!

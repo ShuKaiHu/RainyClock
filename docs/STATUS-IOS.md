@@ -300,12 +300,18 @@ Last updated: 2026-10-01.
      EEA/UK」改成「In the EEA, the UK and Switzerland」。
   - **字串（待擁有者看過，已列入本節 ③）：** `evening_preview_closure`（中英）、預覽的來源兩行、相關推播的來源行、推播理由
     「公告日期超出可判斷範圍，維持原鬧鐘」＋英文、`ux_closure_notifications_denied`／`ux_closure_notifications_open_settings`（中英）。
-  - **測試：Xcode 建置與 XCTest 尚未執行**——這台 Mac 的 Xcode 27 授權條款尚未同意（`xcodebuild` 回「You have not agreed to the
-    Xcode license agreements」，需擁有者在終端機執行 `sudo xcodebuild -license`）。已做的驗證：以 Xcode 27 的 `swiftc`（Swift 6、
-    iOS 17 模擬器 SDK）對 App、測試、widget 與通知擴充功能做型別檢查，0 錯誤；在 macOS 上單獨編譯 `DisasterSuspensionEvaluator` 與
-    `DayOffPushContent`，跑 33 組共用 fixture 與新增的斷言：0 失敗（同一組對 cf7c7c0 的 v3 評估器 13 項失敗、對審查前的 v4 5 項失敗）。
-    同意授權後照慣例跑（`RainyClock Membership Local`、簽章、`-parallel-testing-worker-count 1`、略過 `MembershipStoreKitTests`、
-    iPhone 17 Pro iOS 26.5 與 iPhone 16 Pro iOS 18.6）；預期 619 項（cf7c7c0 為 569），18.6 上 `AlarmKitSchedulerTests` 13 項會自行略過。
+  - **測試（2026-10-02，Xcode 27.0／iOS 27 SDK，擁有者同意授權後）：** `25074ac` 起建置 0 錯誤（警告都是既有的：測試檔
+    actor 隔離、即時動態 `Text +` 在 iOS 26 deprecated、SDK 標頭 nullability）。完整測試（`RainyClock Membership Local`、簽章、
+    `-parallel-testing-worker-count 1`、略過 `MembershipStoreKitTests`），每台 619 項、**0 失敗**：
+    iPhone 17 Pro iOS 26.5 615 過 4 略過（真實佇列通知測試沒有通知權限）；iPhone 16 Pro iOS 18.6 604 過 15 略過
+    （`AlarmKitSchedulerTests` 13 項只在 iOS 26 以上、2 項環境變數控制的輔助測試；真實佇列測試在這台有權限，照常通過）；
+    **iPhone 17 Pro iOS 27.0（新增）**615 過 4 略過。iOS 27 第一次執行在最後一個類別前卡住（測試行程結束後 xcodebuild 沒再啟動
+    App），重跑沒有再出現；同一次執行另揭露 iOS 27 拒收未授權通知的錯誤是 UNErrorDomain 2003（iOS 18 是
+    `.notificationsNotAllowed`），真實佇列測試改為先查授權狀態再略過。`MembershipStoreKitTests`（iOS 26.2 暫時模擬器）：
+    其他 5 項（購買、恢復、續訂、過期、退款、Ask to Buy）每次都過；`testVerifiedRenewalCancellationKeepsMonthlyAccessUntilExpiry`
+    **不穩定**：Xcode 26 建置 4 次中 3 次過、Xcode 27 建置 3 次中 1 次過，失敗都在同一步——`enableAutoRenewForTransaction` 之後
+    8 秒內讀不到 `willAutoRenew = true`（之前的取消、到期維持權益都正確）。偶發而非每次，判斷是本機 StoreKit 測試服務的狀態
+    更新延遲，不是 App 的邏輯；送審不受影響，之後可以把那一步的等待放寬。
   - 手機待確認（38 上傳前）：①iOS 26：7:30 響、賴床，7:31 開 App（判斷已過期），7:35 照響；在鎖定畫面按停止、App 留在前景，隔天
     （選定日）舊時間不再多響一次。②賴床中改地址或清空重複星期，賴床照響完；關閉鬧鐘則立刻結束。③iOS 17–25（iPhone 16 Pro 18.6
     模擬器）：逐日排程 7:00 響、點通知停止並打開 App（rearm），7:05 不再響；賴床中改地址，補響照常到按停止。④iOS 26、晚上預覽關閉：
