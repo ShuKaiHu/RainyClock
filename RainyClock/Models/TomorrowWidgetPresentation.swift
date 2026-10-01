@@ -32,12 +32,15 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
         /// The same reason about today (D-C): every line that names 明天 names 今天 instead.
         case todayReason(TomorrowWidgetSnapshot.ReasonLine)
         case notice(TomorrowWidgetSnapshot.WeatherNotice)
+        /// The same notice about today's forecast, in the medium's weather column only
+        /// (2026-10-02): the lines that name 明天 name 今天 instead.
+        case todayNotice(TomorrowWidgetSnapshot.WeatherNotice)
         /// A normal ringing day: 照常響鈴 / Rings as usual.
         case ringsAsUsual
 
         var isWarning: Bool {
             switch self {
-            case .issue, .notice(.failed), .notice(.stale): true
+            case .issue, .notice(.failed), .notice(.stale), .todayNotice(.failed), .todayNotice(.stale): true
             default: false
             }
         }
@@ -94,6 +97,15 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 case .routeNeeded: LocalizedLine(key: "ux_route_needed")
                 case .noForecast: LocalizedLine(key: "ux_tomorrow_weather_unavailable")
                 }
+            case .todayNotice(let notice):
+                switch notice {
+                // The app's own 今天天氣更新失敗, as the card says it after midnight.
+                case .failed: LocalizedLine(key: "ux_today_weather_failed")
+                // Not the card's 正在取得今天天氣⋯: the widget cannot fetch anything.
+                case .noForecast: LocalizedLine(key: "widget_today_weather_unavailable")
+                // These name no day.
+                case .stale, .routeNeeded: Line.notice(notice).full
+                }
             case .ringsAsUsual: LocalizedLine(key: "widget_rings_as_usual")
             }
         }
@@ -129,6 +141,8 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 case .stale: LocalizedLine(key: "widget_weather_stale_short")
                 case .routeNeeded: full
                 }
+            // Every short notice already names no day.
+            case .todayNotice(let notice): Line.notice(notice).short
             case .ringsAsUsual: full
             }
         }
@@ -147,18 +161,26 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
 
     var glyph: Glyph
     var hero: Hero
-    /// Small footer and rectangular line 3.
+    /// Small footer and rectangular line 3. On a today entry it never carries a weather
+    /// notice other than "complete your route" (D-C): today's stale, failed or missing
+    /// forecast is the medium's weather column's to say (`weatherColumnNotice`).
     var line: Line?
     /// The medium widget's left footer: `line`, unless it repeats the weather notice the
     /// medium's weather column already shows (the notice's own text, or "waiting for the
     /// forecast" beside "no forecast yet"); then the next priority, which is none.
     var mediumLine: Line?
     /// The medium widget draws its weather column (endpoints, footer,  Weather mark, and
-    /// the link to Apple's legal page). Not for a today entry: it carries no forecast
-    /// (`TomorrowWidgetSnapshotBuilder.todayWeatherNotice`), and the left side takes the
-    /// width. Not for the open-the-app faces either.
+    /// the link to Apple's legal page): on every tomorrow entry, and on a today entry that
+    /// has something to show there, a forecast or a notice (2026-10-02). A today entry with
+    /// neither (a snapshot written by build 38, or past today's normal time once the app has
+    /// moved on to tomorrow's forecast) lets the left side take the width, as build 38 did.
+    /// Not for the open-the-app faces either.
     var showsWeatherColumn: Bool
-    /// A warning exists that the footer line is not already showing.
+    /// The weather column's footer notice, in place of 天氣更新於…: `.todayNotice` on a
+    /// today entry (今天), `.notice` on a tomorrow entry. nil without the column.
+    var weatherColumnNotice: Line?
+    /// A warning exists that the footer line is not already showing. Today's weather
+    /// warnings are the column's own (its footer carries the triangle), not the badge's.
     var showsWarningBadge: Bool
     var hasIssue: Bool
     /// The medium widget's sky, from the forecast (weather data: medium only); nil when
@@ -212,6 +234,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             line = nil
             mediumLine = nil
             showsWeatherColumn = false
+            weatherColumnNotice = nil
             showsWarningBadge = false
             hasIssue = false
             home = nil
@@ -247,6 +270,11 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 }
             }
 
+            // The notice the alarm's own lines and badge may carry. A today entry keeps D-C on
+            // every face: only "complete your route" (what build 38 stored for today). Today's
+            // stale, failed or missing forecast is said in the medium's weather column only
+            // (owner, 2026-10-02), worded 今天 there (`weatherColumnNotice`).
+            let alarmNotice = entry.isToday && entry.weatherNotice != .routeNeeded ? nil : entry.weatherNotice
             // First match wins: an issue, the reason, the freshness notice (data age, not
             // weather), then 照常響鈴 for a day that simply rings.
             func lines(withWeather: Bool) -> [Line] {
@@ -257,25 +285,31 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                     if !withWeather, case .rainForecast(_, let minutes) = reason { reason = .rainEarlier(minutes: minutes) }
                     lines.append(entry.isToday ? .todayReason(reason) : .reason(reason))
                 }
-                if let notice = entry.weatherNotice { lines.append(.notice(notice)) }
+                if let notice = alarmNotice { lines.append(.notice(notice)) }
                 if entry.reasonLine == nil, entry.expectedRingDate != nil { lines.append(.ringsAsUsual) }
                 return lines
             }
             line = lines(withWeather: false).first
-            showsWeatherColumn = !entry.isToday
+            // A today entry draws the column when it has something there to attribute or say;
+            // without either (a build-38 snapshot) it stays as build 38 drew it.
+            showsWeatherColumn = !entry.isToday || entry.forecast != nil || entry.weatherNotice != nil
             // The weather column prints the notice's own text (stale, failed, no forecast,
             // or route needed, which is also the route-incomplete reason's text).
-            let columnNotice = showsWeatherColumn ? entry.weatherNotice : nil
-            let columnText = columnNotice.map { Line.notice($0).full }
+            weatherColumnNotice = showsWeatherColumn
+                ? entry.weatherNotice.map { entry.isToday ? .todayNotice($0) : .notice($0) } : nil
+            let columnText = weatherColumnNotice?.full
+            let columnSaysNoForecast = weatherColumnNotice == .notice(.noForecast) || weatherColumnNotice == .todayNotice(.noForecast)
             // Without the column there is no  Weather mark either, so no percentage.
             mediumLine = lines(withWeather: showsWeatherColumn).first { line in
-                // "Waiting for tomorrow's forecast" beside "tomorrow's forecast is not available
-                // yet" says the same thing twice; the column keeps it.
-                if case .reason(.awaitingForecast) = line, columnNotice == .noForecast { return false }
+                // "Waiting for tomorrow's (today's) forecast" beside "tomorrow's (today's)
+                // forecast is not available yet" says the same thing twice; the column keeps it.
+                if line == .reason(.awaitingForecast) || line == .todayReason(.awaitingForecast), columnSaysNoForecast {
+                    return false
+                }
                 return line.full != columnText
             }
 
-            let weatherWarning = entry.weatherNotice == .failed || entry.weatherNotice == .stale
+            let weatherWarning = alarmNotice == .failed || alarmNotice == .stale
             showsWarningBadge = (weatherWarning || entry.scheduleIssue != nil) && line?.isWarning != true
             hasIssue = entry.scheduleIssue != nil
             // The medium's sky is weather data too: only beside the column that attributes it.
@@ -428,6 +462,8 @@ enum TomorrowWidgetStrings {
         "commute_mode_car", "commute_mode_scooter", "commute_mode_walking", "commute_mode_public_transit",
         // The master switch (1.8.0).
         "ux_alarm_off", "ux_alarm_off_message_only", "ux_skip_once_reason",
+        // The medium's weather column on a today entry (2026-10-02), as the card says it.
+        "ux_today_weather_failed",
     ]
 
     static let widgetOnlyKeys: [String] = [
@@ -450,6 +486,8 @@ enum TomorrowWidgetStrings {
         "widget_today_holiday_named", "widget_today_holiday", "widget_today_manual_skip", "widget_today_manual_ring",
         "widget_today_weekend", "widget_today_unselected", "widget_today_closure",
         "widget_inline_today_ring", "widget_inline_today_rain", "widget_inline_today_skipped",
+        // The medium's weather column on a today entry without a forecast (2026-10-02).
+        "widget_today_weather_unavailable",
         // The medium's weather column is a link to Apple's legal attribution page (D-A).
         "widget_weather_legal_hint",
         // The master switch (1.8.0): the circular word, and the rectangular's short lines.
@@ -470,6 +508,7 @@ enum TomorrowWidgetSamples {
              scheduleUpdateNeeded, schedulingFailed, alarmKitReschedule, closureUncertain, closureUpdateFailed,
              ringPreviousDay, carriedOver, todayRain, todayNormal, todaySkipped, todayCarriedOver,
              todayHolidayNamed, todayHolidayUnnamed, todayManualSkip, todayManualRing, todayUnselectedWeekday, todayClosure,
+             todayStale, todayWeatherFailed, todayForecastUnavailable,
              expired, missing
     }
 
@@ -579,35 +618,55 @@ enum TomorrowWidgetSamples {
             return make(ring: lateNormal.addingTimeInterval(-30 * 60), reason: .rain,
                         line: .rainForecast(percent: 70, minutes: 30), lead: 30, normalDate: lateNormal,
                         forecast: forecast(.rain, 70, .rain, 60))
-        // Today's entries never carry a forecast (the builder's rule): the one that decided
-        // today is last evening's, and the medium drops its weather column for them.
+        // Today's entries carry this morning's forecast (2026-10-02): after midnight the coming
+        // morning the app fetches IS today. The medium shows it in its weather column with the
+        //  Weather mark; every other face shows the decision only, as on tomorrow's entries.
         case .todayRain:
-            // 今天 上午7:00 因雨提早 30 分鐘: decided last evening, registered, still ahead.
-            return make(ring: todayEarly, reason: .rain, line: .rainEarlier(minutes: 30), lead: 30, normalDate: todayNormal,
-                        forecast: nil, isToday: true)
+            // 今天 上午7:00 因雨提早 30 分鐘, decided by a forecast fetched after midnight that is
+            // still fresh: the medium names the route's rain chance, as the builder writes it.
+            return make(ring: todayEarly, reason: .rain, line: .rainForecast(percent: 80, minutes: 30), lead: 30,
+                        normalDate: todayNormal, forecast: forecast(.rain, 80, .rain, 70), isToday: true)
         case .todayNormal:
-            return make(ring: todayNormal, reason: .normal, normalDate: todayNormal, forecast: nil, isToday: true)
+            return make(ring: todayNormal, reason: .normal, normalDate: todayNormal, forecast: forecast(.clear, 10, .cloudy, 20),
+                        isToday: true)
         case .todaySkipped:
-            return make(ring: nil, reason: .weekend, line: .weekend, normalDate: todayNormal, forecast: nil, isToday: true)
+            return make(ring: nil, reason: .weekend, line: .weekend, normalDate: todayNormal,
+                        forecast: forecast(.clear, 0, .clear, 10), isToday: true)
         case .todayCarriedOver:
             // Yesterday's rain lead, repeated this morning; no forecast has decided today.
             return make(ring: todayEarly, reason: .rain, line: .awaitingForecast, lead: 30, normalDate: todayNormal,
-                        forecast: nil, isToday: true)
+                        forecast: nil, notice: .noForecast, isToday: true)
         case .todayHolidayNamed:
-            return make(ring: nil, reason: .holiday, line: .holidayNamed(name), normalDate: todayNormal, forecast: nil,
-                        isToday: true)
+            return make(ring: nil, reason: .holiday, line: .holidayNamed(name), normalDate: todayNormal,
+                        forecast: forecast(.clear, 10, .cloudy, 20), isToday: true)
         case .todayHolidayUnnamed:
-            return make(ring: nil, reason: .holiday, line: .holiday, normalDate: todayNormal, forecast: nil, isToday: true)
+            return make(ring: nil, reason: .holiday, line: .holiday, normalDate: todayNormal,
+                        forecast: forecast(.cloudy, 20, .cloudy, 30), isToday: true)
         case .todayManualSkip:
-            return make(ring: nil, reason: .manual, line: .manualSkip, normalDate: todayNormal, forecast: nil, isToday: true)
+            return make(ring: nil, reason: .manual, line: .manualSkip, normalDate: todayNormal,
+                        forecast: forecast(.rain, 60, .cloudy, 40), isToday: true)
         case .todayManualRing:
-            return make(ring: todayNormal, reason: .manual, line: .manualRing, normalDate: todayNormal, forecast: nil,
-                        isToday: true)
+            return make(ring: todayNormal, reason: .manual, line: .manualRing, normalDate: todayNormal,
+                        forecast: forecast(.clear, 10, .clear, 10), isToday: true)
         case .todayUnselectedWeekday:
             return make(ring: nil, reason: .unselectedWeekday, line: .unselectedWeekday, normalDate: todayNormal,
-                        forecast: nil, isToday: true)
+                        forecast: forecast(.cloudy, 30, .clear, 10), isToday: true)
         case .todayClosure:
-            return make(ring: nil, reason: .disaster, line: .closure, normalDate: todayNormal, forecast: nil, isToday: true)
+            return make(ring: nil, reason: .disaster, line: .closure, normalDate: todayNormal,
+                        forecast: forecast(.rain, 90, .rain, 95), isToday: true)
+        // Today's three weather notices, said in the medium's column only (今天 there).
+        case .todayStale:
+            // Last evening's forecast, more than 3 hours old: 天氣資料需要更新.
+            return make(ring: todayNormal, reason: .normal, normalDate: todayNormal,
+                        forecast: forecast(.cloudy, 30, .clear, 10, checkedAt: old), notice: .stale, isToday: true)
+        case .todayWeatherFailed:
+            // 今天天氣更新失敗, beside the last good forecast.
+            return make(ring: todayNormal, reason: .normal, normalDate: todayNormal,
+                        forecast: forecast(.cloudy, 20, .clear, 10, checkedAt: old), notice: .failed, isToday: true)
+        case .todayForecastUnavailable:
+            // 尚未取得今天天氣.
+            return make(ring: todayNormal, reason: .normal, normalDate: todayNormal, forecast: nil, notice: .noForecast,
+                        isToday: true)
         case .carriedOver:
             // Tuesday's 07:00 rain ring has fired; the weekly repeat rings Wednesday at 07:00
             // too, but no forecast for Wednesday has decided that yet.

@@ -346,6 +346,16 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         unpublished.publishedAt = snapshot.publishedAt.addingTimeInterval(-1)
         XCTAssertFalse(loads(try JSONEncoder().encode(unpublished)))
         XCTAssertTrue(loads(try JSONEncoder().encode(snapshot)))
+
+        // A today entry carrying its morning's forecast (2026-10-02) is the same shape: still
+        // version 4, and it round-trips well under the size limit.
+        XCTAssertEqual(Snapshot.currentVersion, 4)
+        let (withToday, _, _) = mondayEveningWithToday()
+        XCTAssertNotNil(withToday.entries.first { $0.isToday && $0.forecast != nil })
+        XCTAssertTrue(store.save(withToday))
+        XCTAssertEqual(store.load(), withToday)
+        XCTAssertLessThan(try JSONEncoder().encode(withToday).count, Snapshot.maximumBytes / 4)
+        store.clear()
     }
 
     // MARK: Builder timeline
@@ -556,23 +566,33 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
 
     // MARK: Today before the ring (D-C)
 
-    /// Monday 21:00 as in `mondayEvening`, with the today provider the app passes.
-    private func mondayEveningWithToday() -> (Snapshot, (Date) -> TomorrowAlarmStatus, (Date) -> TomorrowAlarmStatus) {
+    /// Monday 21:00 as in `mondayEvening`, with the today provider the app passes. `failed`:
+    /// the refresh of Tuesday's forecast failed (the request that, after midnight, is today's).
+    private func mondayEveningWithToday(failed: Bool = false)
+        -> (Snapshot, (Date) -> TomorrowAlarmStatus, (Date) -> TomorrowAlarmStatus) {
         let now = date(14, 21)
         let value = settings()
-        let weather = record(value, requestedAt: now, checkedAt: now)
+        let weather = mondayEveningRecord()
         let registered = summary(normal: date(15, 7, 30), ring: date(15, 7))
-        let tomorrow = statusProvider(value, weather: weather, summary: registered)
-        let today = statusProvider(value, weather: weather, summary: registered, dayOffset: 0)
+        let failedRequest = failed ? weather.request : nil
+        let tomorrow = statusProvider(value, weather: weather, summary: registered, failedRequest: failedRequest)
+        let today = statusProvider(value, weather: weather, summary: registered, failedRequest: failedRequest, dayOffset: 0)
         return (Builder.snapshot(now: now, context: context(value, summary: registered), status: tomorrow, today: today),
                 tomorrow, today)
+    }
+
+    /// `mondayEveningWithToday`'s forecast: Tuesday's morning (rain 80%), checked Monday 21:00.
+    private func mondayEveningRecord() -> TomorrowWeatherRecord {
+        record(settings(), requestedAt: date(14, 21), checkedAt: date(14, 21))
     }
 
     func testTodayRainEntryRunsFromMidnightThroughItsRing() throws {
         let (snapshot, tomorrow, _) = mondayEveningWithToday()
         XCTAssertTrue(snapshot.isValid)
-        XCTAssertEqual(snapshot.entries.map(\.validFrom), [date(14, 21), date(14, 21, 30, 1), date(15, 0), date(15, 7, 0, 1)])
-        XCTAssertEqual(snapshot.entries.map(\.isToday), [false, false, true, false])
+        // 00:00:01: Monday 21:00's forecast, now today's, passes the widget's 3 hours (D-B).
+        XCTAssertEqual(snapshot.entries.map(\.validFrom),
+                       [date(14, 21), date(14, 21, 30, 1), date(15, 0), date(15, 0, 0, 1), date(15, 7, 0, 1)])
+        XCTAssertEqual(snapshot.entries.map(\.isToday), [false, false, true, true, false])
         XCTAssertEqual(snapshot.expiresAt, date(16, 0))
 
         // Midnight: still Tuesday's 07:00, now called today, with the evening's decision.
@@ -582,9 +602,25 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(today.expectedRingDate, date(15, 7), "What AlarmKit's registration rings")
         XCTAssertEqual(today.reason, .rain)
         XCTAssertEqual(today.reasonLine, .rainEarlier(minutes: 30), "Decided by Tuesday's forecast: 因雨提早")
-        XCTAssertNil(today.weatherNotice, "Nothing can refresh a forecast for a morning that has begun")
         XCTAssertNil(today.scheduleIssue)
-        XCTAssertNil(today.forecast, "Last evening's forecast, hours old and beyond refreshing: the medium drops its column")
+        // Owner 2026-10-02: today's entry carries this morning's forecast, the one last
+        // evening's fetch was for. Exactly three hours old at midnight: not yet stale (strict >).
+        XCTAssertEqual(today.forecast, Builder.forecast(from: mondayEveningRecord().snapshot))
+        XCTAssertNil(today.weatherNotice)
+        let stale = try XCTUnwrap(entry(snapshot, at: date(15, 0, 0, 1)))
+        XCTAssertTrue(stale.isToday)
+        XCTAssertEqual(stale.weatherNotice, .stale)
+        XCTAssertEqual(stale.forecast, today.forecast)
+        XCTAssertEqual(stale.expectedRingDate, date(15, 7))
+        XCTAssertEqual(stale.reasonLine, .rainEarlier(minutes: 30), "The 30-minute decision rule is unchanged")
+        XCTAssertNil(stale.scheduleIssue)
+        let face = TomorrowWidgetPresentation(.status(stale), language: "zh-Hant")
+        XCTAssertEqual(face.line, .todayReason(.rainEarlier(minutes: 30)), "Small and Lock Screen: the decision only (D-C)")
+        XCTAssertFalse(face.showsWarningBadge)
+        XCTAssertTrue(face.showsWeatherColumn)
+        XCTAssertEqual(face.weatherColumnNotice, .todayNotice(.stale), "The medium's column: 天氣資料需要更新")
+        XCTAssertEqual(face.home, .rain)
+        XCTAssertEqual(face.mediumLine, .todayReason(.rainEarlier(minutes: 30)))
         // The widget's tomorrow is calendar tomorrow, Wednesday; the card describes Tuesday
         // too after midnight (the coming morning), under 下次鬧鐘.
         XCTAssertEqual(tomorrow(date(15, 0)).day, date(16, 0))
@@ -625,7 +661,12 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(first.expectedRingDate, date(15, 7))
         XCTAssertEqual(first.reasonLine, .rainEarlier(minutes: 30))
         XCTAssertNil(first.forecast)
-        XCTAssertNil(first.weatherNotice, "Not 尚未取得明天天氣: that names tomorrow")
+        XCTAssertEqual(first.weatherNotice, .noForecast)
+        let face = TomorrowWidgetPresentation(.status(first), language: "zh-Hant")
+        XCTAssertEqual(face.line, .todayReason(.rainEarlier(minutes: 30)), "No weather notice outside the medium (D-C)")
+        XCTAssertEqual(face.weatherColumnNotice, .todayNotice(.noForecast))
+        XCTAssertEqual(face.weatherColumnNotice?.full.key, "widget_today_weather_unavailable",
+                       "尚未取得今天天氣, not 尚未取得明天天氣")
 
         // Wednesday before its ring: the same 07:00, but only the weekly repeat of Tuesday's rain.
         let wednesday = try XCTUnwrap(entry(snapshot, at: date(16, 0)))
@@ -634,6 +675,23 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(wednesday.reasonLine, .awaitingForecast)
         XCTAssertFalse(wednesday.appliesRainLead)
         XCTAssertNil(wednesday.scheduleIssue)
+        XCTAssertNil(wednesday.forecast)
+        XCTAssertEqual(wednesday.weatherNotice, .noForecast)
+
+        // The same publish after the app fetched Tuesday's forecast at 03:00: Tuesday's today
+        // entry carries it; Wednesday's has none (the app never fetches a morning but the coming one).
+        let fetched = record(value, requestedAt: now, checkedAt: now)
+        let refreshed = Builder.snapshot(now: now, context: context(value, summary: registered),
+                                         status: statusProvider(value, weather: fetched, summary: registered),
+                                         today: statusProvider(value, weather: fetched, summary: registered, dayOffset: 0))
+        XCTAssertTrue(refreshed.isValid)
+        XCTAssertTrue(refreshed.entries[0].isToday)
+        XCTAssertEqual(refreshed.entries[0].forecast, Builder.forecast(from: fetched.snapshot))
+        XCTAssertNil(refreshed.entries[0].weatherNotice)
+        XCTAssertEqual(refreshed.entries[0].reasonLine, .rainForecast(percent: 80, minutes: 30))
+        let nextToday = try XCTUnwrap(refreshed.entries.first { $0.isToday && $0.day == date(16, 0) })
+        XCTAssertNil(nextToday.forecast)
+        XCTAssertEqual(nextToday.weatherNotice, .noForecast)
     }
 
     func testSkippedTodayRunsUntilItsNormalTime() throws {
@@ -651,7 +709,7 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertNil(saturday.expectedRingDate)
         XCTAssertEqual(saturday.reason, .weekend)
         XCTAssertEqual(saturday.reasonLine, .weekend)
-        XCTAssertNil(saturday.weatherNotice)
+        XCTAssertEqual(saturday.weatherNotice, .noForecast, "The medium's column: 尚未取得今天天氣 (fetched even on a skipped day)")
         XCTAssertEqual(snapshot.entries[2].day, date(20, 0), "After its normal time: Sunday, as tomorrow")
     }
 
@@ -1149,10 +1207,10 @@ extension TomorrowWidgetSnapshotTests {
             let oldRing = date(15, old.0, old.1)
             let registered = summary(normal: oldRing, ring: oldRing)
             let fingerprint = before.scheduleFingerprint(calendar: calendar)
-            func provider(_ offset: Int) -> (Date) -> TomorrowAlarmStatus {
+            func provider(_ offset: Int, weather: TomorrowWeatherRecord? = nil) -> (Date) -> TomorrowAlarmStatus {
                 { t in
                     TomorrowAlarmStatus.resolve(
-                        settings: after, holidays: .init(), weatherRecord: nil, weatherRefreshFailed: false,
+                        settings: after, holidays: .init(), weatherRecord: weather, weatherRefreshFailed: false,
                         summary: registered.rollingForwardAsPair(selectedWeekdays: fingerprint.selectedWeekdays, now: t, calendar: self.calendar),
                         registeredFingerprint: fingerprint, disasterFeed: nil, disasterSourceFailed: false,
                         now: t, calendar: self.calendar, dayOffset: offset)
@@ -1174,6 +1232,37 @@ extension TomorrowWidgetSnapshotTests {
             XCTAssertFalse(afterRing.isToday, "\(label): the old alarm rang, and nothing else rings today")
             XCTAssertEqual(afterRing.day, date(16, 0), label)
             XCTAssertEqual(afterRing.scheduleIssue, .updateNeeded, label)
+
+            // Today's weather column (2026-10-02), with no forecast fetched for Tuesday.
+            let early = try XCTUnwrap(shownEntry(snapshot, at: date(15, 7, 15)), label)
+            XCTAssertTrue(early.isToday, label)
+            XCTAssertNil(early.forecast, label)
+            XCTAssertEqual(early.weatherNotice, .noForecast, "\(label): 尚未取得今天天氣 before today's normal time")
+            guard old > new else { continue }
+            // The old ring is later than the new normal time. Past that normal time the app has
+            // moved on to Wednesday's forecast and never fetches Tuesday's again: no "not
+            // available yet" that would never come true, and so no column at all.
+            let late = try XCTUnwrap(shownEntry(snapshot, at: date(15, 7, 45)), label)
+            XCTAssertTrue(late.isToday, label)
+            XCTAssertEqual(late.expectedRingDate, oldRing, label)
+            XCTAssertNil(late.forecast, label)
+            XCTAssertNil(late.weatherNotice, label)
+            XCTAssertFalse(TomorrowWidgetPresentation(.status(late)).showsWeatherColumn, label)
+            XCTAssertEqual(shownEntry(snapshot, at: date(15, 7, 30))?.weatherNotice, .noForecast,
+                           "\(label): at the normal time itself the request is still today's (strict >)")
+            // A forecast the app did fetch for Tuesday still matches today's request then: the
+            // column keeps showing it, with its age.
+            let tuesday = record(after, requestedAt: date(14, 22), checkedAt: date(14, 22))
+            let fetched = Builder.snapshot(now: date(14, 22),
+                                           context: context(after, summary: registered, flags: .init(isScheduleStale: true)),
+                                           status: provider(1, weather: tuesday), today: provider(0, weather: tuesday))
+            XCTAssertTrue(fetched.isValid, label)
+            let shown = try XCTUnwrap(shownEntry(fetched, at: date(15, 7, 45)), label)
+            XCTAssertTrue(shown.isToday, label)
+            XCTAssertEqual(shown.expectedRingDate, oldRing, label)
+            XCTAssertEqual(shown.forecast, Builder.forecast(from: tuesday.snapshot), label)
+            XCTAssertEqual(shown.weatherNotice, .stale, label)
+            XCTAssertTrue(TomorrowWidgetPresentation(.status(shown)).showsWeatherColumn, label)
         }
     }
 
@@ -1460,6 +1549,218 @@ extension TomorrowWidgetSnapshotTests {
         XCTAssertEqual(Builder.reasonLine(for: rang), .rainForecast(percent: 80, minutes: 30))
         rang.hasRung = true
         XCTAssertEqual(Builder.reasonLine(for: rang), .rainEarlier(minutes: 30))
+    }
+}
+
+/// Owner 2026-10-02: the medium widget shows the weather column on today's entries too, from
+/// midnight until the alarm rings. The forecast is the coming morning's (`dayOffset` nil), which
+/// after midnight IS today's; request equality pins it to that morning, route and lead.
+extension TomorrowWidgetSnapshotTests {
+    /// The owner's report: at 04:00 the medium said 今天 · 10月2日 上午7:30 照常響鈴 with no weather.
+    /// The dry forecast fetched the evening before is that morning's: at 04:00 the column shows
+    /// it, with its age (D-B); a failed refresh for it says so from midnight, worded 今天.
+    func testTodayEntryShowsTheEveningsForecastAndItsAge() throws {
+        let evening = date(14, 21)
+        let value = settings()
+        let dry = record(value, requestedAt: evening, checkedAt: evening, probability: 0.1)
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7, 30))
+        for failed in [false, true] {
+            let failedRequest = failed ? dry.request : nil
+            let snapshot = Builder.snapshot(
+                now: evening, context: context(value, summary: registered),
+                status: statusProvider(value, weather: dry, summary: registered, failedRequest: failedRequest),
+                today: statusProvider(value, weather: dry, summary: registered, failedRequest: failedRequest, dayOffset: 0))
+            XCTAssertTrue(snapshot.isValid)
+            let label = failed ? "failed" : "stale"
+            let shown = try XCTUnwrap(shownEntry(snapshot, at: date(15, 4)), label)
+            XCTAssertTrue(shown.isToday, label)
+            XCTAssertEqual(shown.expectedRingDate, date(15, 7, 30), label)
+            XCTAssertEqual(shown.forecast, Builder.forecast(from: dry.snapshot), label)
+            XCTAssertEqual(shown.weatherNotice, failed ? .failed : .stale, label)
+            let face = TomorrowWidgetPresentation(.status(shown), language: "zh-Hant")
+            XCTAssertEqual(face.line, .ringsAsUsual, "\(label): small and Lock Screen as in build 38")
+            XCTAssertFalse(face.showsWarningBadge, label)
+            XCTAssertTrue(face.showsWeatherColumn, label)
+            XCTAssertEqual(face.weatherColumnNotice, .todayNotice(failed ? .failed : .stale), label)
+            XCTAssertEqual(face.mediumLine, .ringsAsUsual, label)
+            if failed {
+                XCTAssertEqual(face.weatherColumnNotice?.full.key, "ux_today_weather_failed")
+                XCTAssertEqual(entry(snapshot, at: date(15, 0))?.weatherNotice, .failed, "From midnight, not by age")
+            }
+        }
+    }
+
+    /// After midnight the app fetches today's forecast (when opened, or from the background),
+    /// and the publish that follows carries it into today's column: the decision reads it for
+    /// half an hour, the column shows it until the ring.
+    func testAfterMidnightRefreshFeedsTodaysColumn() throws {
+        let now = date(15, 4)
+        let value = settings()
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7))
+        let fetched = record(value, requestedAt: now, checkedAt: now)
+        let snapshot = Builder.snapshot(now: now, context: context(value, summary: registered),
+                                        status: statusProvider(value, weather: fetched, summary: registered),
+                                        today: statusProvider(value, weather: fetched, summary: registered, dayOffset: 0))
+        XCTAssertTrue(snapshot.isValid)
+        XCTAssertEqual(Array(snapshot.entries.prefix(3).map(\.validFrom)), [now, date(15, 4, 30, 1), date(15, 7, 0, 1)])
+        XCTAssertEqual(Array(snapshot.entries.prefix(3).map(\.isToday)), [true, true, false], "Today runs to the 07:00 ring")
+
+        let first = snapshot.entries[0]
+        XCTAssertEqual(first.forecast, Builder.forecast(from: fetched.snapshot))
+        XCTAssertNil(first.weatherNotice)
+        XCTAssertEqual(first.expectedRingDate, date(15, 7))
+        XCTAssertEqual(first.reasonLine, .rainForecast(percent: 80, minutes: 30))
+        let face = TomorrowWidgetPresentation(.status(first), language: "zh-Hant")
+        XCTAssertEqual(face.mediumLine, .todayReason(.rainForecast(percent: 80, minutes: 30)), "Beside the  Weather mark")
+        XCTAssertEqual(face.line, .todayReason(.rainEarlier(minutes: 30)), "Every other face: the decision, no percentage (D-A)")
+        XCTAssertTrue(face.showsWeatherColumn)
+        XCTAssertNil(face.weatherColumnNotice, "天氣更新於 上午4:00")
+        XCTAssertEqual(face.home, .rain)
+
+        let decided = snapshot.entries[1]
+        XCTAssertTrue(decided.isToday)
+        XCTAssertEqual(decided.reasonLine, .rainEarlier(minutes: 30), "Half an hour old: the decision stops reading it")
+        XCTAssertEqual(decided.forecast, first.forecast)
+        XCTAssertNil(decided.weatherNotice, "The widget warns only after 3 hours (D-B)")
+        XCTAssertEqual(decided.expectedRingDate, date(15, 7))
+        let after = snapshot.entries[2]
+        XCTAssertEqual(after.day, date(16, 0))
+        XCTAssertNil(after.forecast, "Wednesday's forecast is not fetched until Tuesday's normal time")
+    }
+
+    /// A today entry only ever shows its own morning's forecast: never the day before's, and
+    /// never one fetched for another lead, address or commute mode.
+    func testTodayNeverShowsAnotherMorningsForecast() throws {
+        let value = settings()
+        // Monday 06:00: the coming morning is Monday's, and so is the forecast.
+        let monday = date(14, 6)
+        let mondayRegistration = summary(normal: date(14, 7, 30), ring: date(14, 7))
+        let mondays = record(value, requestedAt: monday, checkedAt: monday)
+        XCTAssertEqual(mondays.request.normalAlarmDate, date(14, 7, 30))
+        let snapshot = Builder.snapshot(now: monday, context: context(value, summary: mondayRegistration),
+                                        status: statusProvider(value, weather: mondays, summary: mondayRegistration),
+                                        today: statusProvider(value, weather: mondays, summary: mondayRegistration, dayOffset: 0))
+        XCTAssertTrue(snapshot.isValid)
+        XCTAssertTrue(snapshot.entries[0].isToday)
+        XCTAssertEqual(snapshot.entries[0].day, date(14, 0))
+        XCTAssertEqual(snapshot.entries[0].forecast, Builder.forecast(from: mondays.snapshot))
+        for entry in snapshot.entries where entry.day != date(14, 0) {
+            XCTAssertNil(entry.forecast, "\(entry.validFrom): Monday's forecast shown for \(entry.day)")
+        }
+        let tuesday = try XCTUnwrap(snapshot.entries.first { $0.isToday && $0.day == date(15, 0) })
+        XCTAssertEqual(tuesday.validFrom, date(15, 0))
+        XCTAssertNil(tuesday.forecast)
+        XCTAssertEqual(tuesday.weatherNotice, .noForecast)
+
+        // A forecast made under another lead, home address or commute mode is another request's.
+        var otherLead = value
+        otherLead.rainLeadTimeMinutes = 45
+        var otherHome = value
+        otherHome.homeAddress = "Elsewhere"
+        var otherMode = value
+        otherMode.commuteMode = .walking
+        let evening = date(14, 21)
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7))
+        for (label, other) in [("lead", otherLead), ("home", otherHome), ("mode", otherMode)] {
+            let foreign = record(other, requestedAt: evening, checkedAt: evening)
+            let published = Builder.snapshot(now: evening, context: context(value, summary: registered),
+                                             status: statusProvider(value, weather: foreign, summary: registered),
+                                             today: statusProvider(value, weather: foreign, summary: registered, dayOffset: 0))
+            XCTAssertTrue(published.isValid, label)
+            XCTAssertTrue(published.entries.contains { $0.isToday }, label)
+            XCTAssertTrue(published.entries.allSatisfy { $0.forecast == nil }, label)
+        }
+    }
+
+    /// D-B on every entry, today's included: an entry that shows a forecast without a warning
+    /// never outlives that forecast's 3 hours, because the stale second is always a boundary.
+    func testNoForecastIsSilentlyStale() {
+        let value = settings()
+        let weekly = summary(normal: date(15, 7, 30), ring: date(15, 7))
+        for publish in [date(14, 18), date(14, 21), date(14, 23, 59), date(15, 3), date(15, 6, 50)] {
+            let ages: [TimeInterval] = [0, 3_600, 2 * 3_600 + 50 * 60, 5 * 3_600]
+            for age in ages {
+                for plan in [weekly, nil] as [ScheduledAlarmSummary?] {
+                    let weather = record(value, requestedAt: publish, checkedAt: publish.addingTimeInterval(-age))
+                    let snapshot = Builder.snapshot(now: publish, context: context(value, summary: plan),
+                                                    status: statusProvider(value, weather: weather, summary: plan),
+                                                    today: statusProvider(value, weather: weather, summary: plan, dayOffset: 0))
+                    let label = "published \(publish), \(Int(age)) s old, registered \(plan != nil)"
+                    XCTAssertTrue(snapshot.isValid, label)
+                    XCTAssertTrue(snapshot.entries.contains { $0.isToday && $0.forecast != nil }, label)
+                    for (index, entry) in snapshot.entries.enumerated() {
+                        guard let forecast = entry.forecast, entry.weatherNotice != .stale, entry.weatherNotice != .failed else {
+                            continue
+                        }
+                        let end = index + 1 < snapshot.entries.count ? snapshot.entries[index + 1].validFrom : snapshot.expiresAt
+                        XCTAssertLessThanOrEqual(end.timeIntervalSince(forecast.checkedAt),
+                                                 Builder.widgetWeatherLifetime + Builder.epsilon,
+                                                 "\(label): \(entry.validFrom) shows it unwarned for too long")
+                    }
+                }
+            }
+        }
+    }
+
+    /// A failed refresh of today's forecast names today in the medium's column (the app's own
+    /// 今天天氣更新失敗) and keeps the last good forecast; the small and Lock Screen faces and the
+    /// badge are as in build 38.
+    func testTodayFailureNamesToday() throws {
+        let (snapshot, _, _) = mondayEveningWithToday(failed: true)
+        XCTAssertTrue(snapshot.isValid)
+        let todays = snapshot.entries.filter(\.isToday)
+        XCTAssertFalse(todays.isEmpty)
+        for entry in todays {
+            XCTAssertEqual(entry.weatherNotice, .failed, "\(entry.validFrom): at once, not by age")
+            XCTAssertEqual(entry.forecast, Builder.forecast(from: mondayEveningRecord().snapshot), "The last good forecast stays")
+            let face = TomorrowWidgetPresentation(.status(entry), language: "zh-Hant")
+            XCTAssertEqual(face.weatherColumnNotice, .todayNotice(.failed))
+            XCTAssertEqual(face.weatherColumnNotice?.full.key, "ux_today_weather_failed", "Not 明天天氣更新失敗")
+            XCTAssertEqual(face.line, .todayReason(.rainEarlier(minutes: 30)))
+            XCTAssertFalse(face.showsWarningBadge)
+        }
+        // The evening before, the same failure is tomorrow's, worded 明天 as before.
+        XCTAssertFalse(snapshot.entries[0].isToday)
+        XCTAssertEqual(snapshot.entries[0].weatherNotice, .failed)
+        XCTAssertEqual(TomorrowWidgetPresentation(.status(snapshot.entries[0])).weatherColumnNotice, .notice(.failed))
+    }
+
+    /// The today path is the tomorrow path for that morning: the same forecast, notice and
+    /// decision, only named 今天, wherever the morning has not reached its normal time or still
+    /// has a forecast. (An outdated or kept registration's ring is shown instead on a today
+    /// entry, and past the normal time without a forecast a today entry has no notice.)
+    func testTodayEntryIsTheTomorrowRuleForItsMorning() {
+        let weekly = summary(normal: date(15, 7, 30), ring: date(15, 7))
+        let weather = mondayEveningRecord()
+        var off = settings()
+        off.isAlarmEnabled = false
+        let cases: [(String, CommuteAlarmSettings, TomorrowWeatherRecord?, ScheduledAlarmSummary?, Bool)] = [
+            ("forecast", settings(), weather, weekly, false),
+            ("failed", settings(), weather, weekly, true),
+            ("none", settings(), nil, weekly, false),
+            ("unregistered", settings(), weather, nil, false),
+            ("no route", settings(home: ""), nil, nil, false),
+            ("off", off, weather, nil, false),
+        ]
+        for (label, value, record, plan, failed) in cases {
+            let context = context(value, summary: plan)
+            let today = statusProvider(value, weather: record, summary: plan,
+                                       failedRequest: failed ? record?.request : nil, dayOffset: 0)
+            var checked = 0
+            for step in 0...50 {
+                let moment = date(15, 0).addingTimeInterval(Double(step) * 600)
+                let status = today(moment)
+                guard status.outdatedRegistrationRingDate == nil, status.keptRingDate == nil,
+                      moment <= status.normalAlarmDate || status.weather != nil else { continue }
+                var asToday = Builder.entry(for: status, context: context, validFrom: moment, isToday: true)
+                let asTomorrow = Builder.entry(for: status, context: context, validFrom: moment, isToday: false)
+                XCTAssertTrue(asToday.isToday, label)
+                asToday.isToday = false
+                XCTAssertEqual(asToday, asTomorrow, "\(label) at \(moment)")
+                checked += 1
+            }
+            XCTAssertGreaterThan(checked, 40, label)
+        }
     }
 }
 

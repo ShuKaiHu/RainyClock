@@ -68,6 +68,11 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             .todayManualRing: (.manualRing, "time", .todayReason(.manualRing)),
             .todayUnselectedWeekday: (.silent, "skipped", .todayReason(.unselectedWeekday)),
             .todayClosure: (.closure, "skipped", .todayReason(.closure)),
+            // Today's weather notices are the medium column's only (2026-10-02): every other
+            // face shows the decision, as build 38 did (D-C).
+            .todayStale: (.alarm, "time", .ringsAsUsual),
+            .todayWeatherFailed: (.alarm, "time", .ringsAsUsual),
+            .todayForecastUnavailable: (.alarm, "time", .ringsAsUsual),
             .expired: (.refresh, "openApp.expired", nil),
             .missing: (.refresh, "openApp.missing", nil),
         ]
@@ -96,7 +101,8 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertEqual(presentation(.rainMixed).decisionSky, .rain)
         XCTAssertEqual(presentation(.todayRain).decisionSky, .rain)
         for scenario in [Scenario.normalClear, .cloudyNormal, .manualSkip, .carriedOver, .weatherFailed, .forecastUnavailable,
-                         .closure, .routeIncomplete, .todayNormal, .todayCarriedOver, .expired, .missing] {
+                         .closure, .routeIncomplete, .todayNormal, .todayCarriedOver, .todayStale, .todayWeatherFailed,
+                         .todayForecastUnavailable, .expired, .missing] {
             XCTAssertNil(presentation(scenario).decisionSky, "\(scenario)")
         }
 
@@ -131,6 +137,20 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         entry.scheduleIssue = .updateNeeded
         XCTAssertFalse(Presentation(.status(entry)).showsWarningBadge)
 
+        // Today's stale or failed forecast is said in the medium's weather column, whose footer
+        // carries its own triangle; the badge, like every other face, keeps D-C (2026-10-02).
+        XCTAssertFalse(presentation(.todayStale).showsWarningBadge)
+        XCTAssertFalse(presentation(.todayWeatherFailed).showsWarningBadge)
+        XCTAssertFalse(presentation(.todayForecastUnavailable).showsWarningBadge)
+        guard case .status(var today) = state(.todayStale) else { return XCTFail("todayStale sample must be a status") }
+        today.scheduleIssue = .updateNeeded
+        XCTAssertEqual(Presentation(.status(today)).line, .issue(.updateNeeded))
+        XCTAssertFalse(Presentation(.status(today)).showsWarningBadge, "The line is the warning; the stale forecast is the column's")
+        XCTAssertTrue(Presentation.Line.todayNotice(.stale).isWarning)
+        XCTAssertTrue(Presentation.Line.todayNotice(.failed).isWarning)
+        XCTAssertFalse(Presentation.Line.todayNotice(.noForecast).isWarning)
+        XCTAssertFalse(Presentation.Line.todayNotice(.routeNeeded).isWarning)
+
         XCTAssertTrue(Presentation.Line.issue(.updateNeeded).isWarning)
         XCTAssertTrue(Presentation.Line.notice(.stale).isWarning)
         XCTAssertFalse(Presentation.Line.notice(.routeNeeded).isWarning)
@@ -146,13 +166,19 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             let value = presentation(scenario)
             guard case .status(let entry) = state(scenario) else {
                 XCTAssertNil(value.mediumLine, "\(scenario)")
+                XCTAssertNil(value.weatherColumnNotice, "\(scenario)")
                 continue
             }
-            if let notice = entry.weatherNotice {
-                XCTAssertNotEqual(value.mediumLine?.full, Presentation.Line.notice(notice).full, "\(scenario) says it twice")
+            // The column's notice is the entry's, named for its day (今天 on a today entry).
+            XCTAssertEqual(value.weatherColumnNotice,
+                           entry.weatherNotice.map { entry.isToday ? .todayNotice($0) : .notice($0) }, "\(scenario)")
+            if let column = value.weatherColumnNotice {
+                XCTAssertNotEqual(value.mediumLine?.full, column.full, "\(scenario) says it twice")
             } else if case .reason(.rainForecast(_, let minutes))? = value.mediumLine {
                 // The medium may name the route's rain chance; the others say the decision.
                 XCTAssertEqual(value.line, .reason(.rainEarlier(minutes: minutes)), "\(scenario)")
+            } else if case .todayReason(.rainForecast(_, let minutes))? = value.mediumLine {
+                XCTAssertEqual(value.line, .todayReason(.rainEarlier(minutes: minutes)), "\(scenario)")
             } else {
                 XCTAssertEqual(value.mediumLine, value.line, "\(scenario)")
             }
@@ -169,6 +195,15 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         // A carried-over lead: 等待明天預報 beside the column's 尚未取得明天天氣 would say it twice.
         XCTAssertEqual(presentation(.carriedOver).line, .reason(.awaitingForecast), "Outside the medium the reason stays")
         XCTAssertNil(presentation(.carriedOver).mediumLine, "The column already says there is no forecast yet")
+        // The same for today (2026-10-02): 等待今天預報 beside 尚未取得今天天氣.
+        XCTAssertEqual(presentation(.todayCarriedOver).line, .todayReason(.awaitingForecast))
+        XCTAssertNil(presentation(.todayCarriedOver).mediumLine, "The column already says there is no forecast for today yet")
+        XCTAssertEqual(presentation(.todayRain).line, .todayReason(.rainEarlier(minutes: 30)))
+        XCTAssertEqual(presentation(.todayRain).mediumLine, .todayReason(.rainForecast(percent: 80, minutes: 30)),
+                       "Beside the column and its mark, today's route rain chance too")
+        for scenario in [Scenario.todayStale, .todayWeatherFailed, .todayForecastUnavailable] {
+            XCTAssertEqual(presentation(scenario).mediumLine, .ringsAsUsual, "\(scenario): the column says it; the footer, the decision")
+        }
 
         guard case .status(var entry) = state(.normalClear) else { return XCTFail("normalClear must be a status") }
         entry.weatherNotice = .stale
@@ -245,7 +280,7 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
 
     /// D-C: today's entry names today everywhere a day is named.
     func testTodayEntriesSayToday() {
-        XCTAssertEqual(todayScenarios.count, 10)
+        XCTAssertEqual(todayScenarios.count, 13)
         for scenario in todayScenarios {
             let value = presentation(scenario)
             XCTAssertTrue(value.isToday, "\(scenario)")
@@ -281,30 +316,162 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertEqual(presentation(.todayRain).relevanceScore, 50)
     }
 
-    /// D-A with D-C: today's entry carries no forecast (last evening's cannot be refreshed),
-    /// so the medium drops its weather column,  Weather mark and link, and with them any
-    /// weather data: no sky, no route rain percentage in the left line.
-    func testTodayEntriesDropTheMediumWeatherColumn() {
+    /// Owner 2026-10-02: today's entries show the medium's weather column too (this morning's
+    /// forecast, the  Weather mark and the link to Apple's legal page) whenever they have a
+    /// forecast or a notice to show. A today entry with neither, as build 38 wrote every one,
+    /// keeps build 38's column-less face, with no weather data at all.
+    func testTodayEntriesShowTheMediumWeatherColumn() {
         for scenario in todayScenarios {
             guard case .status(let entry) = state(scenario) else { return XCTFail("\(scenario) must be a status") }
-            XCTAssertNil(entry.forecast, "\(scenario): the builder never gives a today entry a forecast")
+            XCTAssertTrue(entry.forecast != nil || entry.weatherNotice != nil, "\(scenario): something for the column")
             let value = presentation(scenario)
-            XCTAssertFalse(value.showsWeatherColumn, "\(scenario)")
-            XCTAssertNil(value.home, "\(scenario)")
-            XCTAssertNil(value.work, "\(scenario)")
-            XCTAssertEqual(value.mediumLine, value.line, "\(scenario): nothing beside it to repeat")
+            XCTAssertTrue(value.showsWeatherColumn, "\(scenario)")
+            XCTAssertEqual(value.home, entry.forecast?.home.condition, "\(scenario)")
+            XCTAssertEqual(value.work, entry.forecast?.work?.condition, "\(scenario)")
+            if let column = value.weatherColumnNotice, case .notice = column {
+                XCTFail("\(scenario): \(column) would name 明天 on today's column")
+            }
         }
-        // Even handed a forecast and a fresh rain line, a today face shows no weather data.
-        guard case .status(var entry) = state(.todayRain) else { return XCTFail("todayRain must be a status") }
-        entry.forecast = .init(checkedAt: now, home: .init(condition: .rain, percent: 80), work: nil, maximumPercent: 80)
-        entry.reasonLine = .rainForecast(percent: 80, minutes: 30)
-        let handed = Presentation(.status(entry), language: "zh-Hant")
-        XCTAssertFalse(handed.showsWeatherColumn)
-        XCTAssertNil(handed.home)
-        XCTAssertEqual(handed.mediumLine, .todayReason(.rainEarlier(minutes: 30)), "No percentage without the mark")
+        XCTAssertEqual(presentation(.todayRain).home, .rain)
+        XCTAssertEqual(presentation(.todayNormal).home, .clear)
+        XCTAssertEqual(presentation(.todayNormal).work, .cloudy)
+        XCTAssertNil(presentation(.todayNormal).weatherColumnNotice, "A fresh forecast: 天氣更新於…")
+        XCTAssertEqual(presentation(.todayStale).weatherColumnNotice, .todayNotice(.stale))
+        XCTAssertEqual(presentation(.todayWeatherFailed).weatherColumnNotice, .todayNotice(.failed))
+        XCTAssertEqual(presentation(.todayForecastUnavailable).weatherColumnNotice, .todayNotice(.noForecast))
+        XCTAssertEqual(presentation(.todayCarriedOver).weatherColumnNotice, .todayNotice(.noForecast))
+        XCTAssertNil(presentation(.todayForecastUnavailable).home, "No forecast: the endpoints read —, the sky is the brand's")
+
+        // A build-38 today entry (no forecast, no notice): no column, so no mark, no sky, and
+        // no route rain percentage in the left line.
+        for scenario in todayScenarios {
+            guard case .status(var entry) = state(scenario) else { continue }
+            entry.forecast = nil
+            entry.weatherNotice = nil
+            let old = Presentation(.status(entry), language: "zh-Hant")
+            XCTAssertFalse(old.showsWeatherColumn, "\(scenario)")
+            XCTAssertNil(old.weatherColumnNotice, "\(scenario)")
+            XCTAssertNil(old.home, "\(scenario)")
+            XCTAssertNil(old.work, "\(scenario)")
+            XCTAssertEqual(old.mediumLine, old.line, "\(scenario): nothing beside it to repeat")
+        }
+        guard case .status(var bare) = state(.todayRain) else { return XCTFail("todayRain must be a status") }
+        bare.forecast = nil
+        bare.weatherNotice = nil
+        XCTAssertEqual(Presentation(.status(bare), language: "zh-Hant").mediumLine, .todayReason(.rainEarlier(minutes: 30)),
+                       "No percentage without the mark")
+        // Only "complete your route": the column says it, as on tomorrow's entries; the footer does not repeat it.
+        guard case .status(var route) = state(.todayNormal) else { return XCTFail("todayNormal must be a status") }
+        route.reason = .routeIncomplete
+        route.reasonLine = .routeNeeded
+        route.expectedRingDate = nil
+        route.forecast = nil
+        route.weatherNotice = .routeNeeded
+        let routeFace = Presentation(.status(route), language: "zh-Hant")
+        XCTAssertTrue(routeFace.showsWeatherColumn)
+        XCTAssertEqual(routeFace.weatherColumnNotice?.full.key, "ux_route_needed")
+        XCTAssertEqual(routeFace.line, .todayReason(.routeNeeded))
+        XCTAssertNil(routeFace.mediumLine)
         // Every tomorrow face keeps the column; the open-the-app faces have none.
         for scenario in Scenario.allCases where !todayScenarios.contains(scenario) {
             XCTAssertEqual(presentation(scenario).showsWeatherColumn, scenario != .expired && scenario != .missing, "\(scenario)")
+        }
+    }
+
+    /// The column's today notices name 今天; the ones that name no day are shared, short forms
+    /// included, and so is what counts as a warning.
+    func testTodayWeatherNoticesNameToday() {
+        typealias Line = Presentation.Line
+        XCTAssertEqual(Line.todayNotice(.failed).full.key, "ux_today_weather_failed")
+        XCTAssertEqual(Line.todayNotice(.noForecast).full.key, "widget_today_weather_unavailable")
+        XCTAssertEqual(Line.notice(.failed).full.key, "ux_tomorrow_weather_failed")
+        XCTAssertEqual(Line.notice(.noForecast).full.key, "ux_tomorrow_weather_unavailable")
+        for notice in [TomorrowWidgetSnapshot.WeatherNotice.stale, .routeNeeded] {
+            XCTAssertEqual(Line.todayNotice(notice).full, Line.notice(notice).full, "\(notice)")
+        }
+        for notice in TomorrowWidgetSnapshot.WeatherNotice.allCases {
+            XCTAssertEqual(Line.todayNotice(notice).short, Line.notice(notice).short, "\(notice)")
+            XCTAssertEqual(Line.todayNotice(notice).isWarning, Line.notice(notice).isWarning, "\(notice)")
+            XCTAssertEqual(Line.todayNotice(notice).leadingSymbol, Line.notice(notice).leadingSymbol, "\(notice)")
+        }
+    }
+
+    /// D-A: weather data on the medium (its sky, the route's rain chance) only ever appears
+    /// beside the column that draws the  Weather mark and the legal link, and so does a
+    /// column notice; whatever forecast, notice or rain line the entry carries.
+    func testWeatherDataOnlyBesideTheMark() {
+        let forecasts: [TomorrowWidgetSnapshot.RouteForecast?] = [
+            nil, .init(checkedAt: now, home: .init(condition: .rain, percent: 80), work: .init(condition: .clear, percent: 10),
+                       maximumPercent: 80)]
+        let notices: [TomorrowWidgetSnapshot.WeatherNotice?] = [nil] + TomorrowWidgetSnapshot.WeatherNotice.allCases
+        func carriesPercentage(_ line: Presentation.Line?) -> Bool {
+            switch line {
+            case .reason(.rainForecast)?, .todayReason(.rainForecast)?: true
+            default: false
+            }
+        }
+        for scenario in Scenario.allCases {
+            guard case .status(let base) = state(scenario) else { continue }
+            for forecast in forecasts {
+                for notice in notices {
+                    for reasonLine in [base.reasonLine, .rainForecast(percent: 80, minutes: 30)] {
+                        var entry = base
+                        entry.forecast = forecast
+                        entry.weatherNotice = notice
+                        entry.reasonLine = reasonLine
+                        let face = Presentation(.status(entry), language: "zh-Hant")
+                        let label = "\(scenario) forecast \(forecast != nil) notice \(String(describing: notice))"
+                        if face.home != nil || face.work != nil || carriesPercentage(face.mediumLine) {
+                            XCTAssertTrue(face.showsWeatherColumn, label)
+                        }
+                        if face.weatherColumnNotice != nil { XCTAssertTrue(face.showsWeatherColumn, label) }
+                        XCTAssertFalse(carriesPercentage(face.line), "\(label): never outside the medium")
+                    }
+                }
+            }
+        }
+    }
+
+    /// D-C kept outside the medium (2026-10-02): a today entry's forecast and weather notices
+    /// change nothing that small, StandBy, rectangular, circular or inline read. Every such
+    /// field is what the same entry gives as build 38 stored it: no forecast, and no notice
+    /// but "complete your route".
+    func testTodayChangesNothingOutsideTheMedium() {
+        let forecast = TomorrowWidgetSnapshot.RouteForecast(
+            checkedAt: now, home: .init(condition: .rain, percent: 90), work: .init(condition: .rain, percent: 80), maximumPercent: 90)
+        for scenario in todayScenarios {
+            guard case .status(let sample) = state(scenario) else { return XCTFail("\(scenario) must be a status") }
+            var variants = [sample]
+            for notice in TomorrowWidgetSnapshot.WeatherNotice.allCases where notice != .routeNeeded {
+                for withForecast in [false, true] {
+                    var entry = sample
+                    entry.weatherNotice = notice
+                    entry.forecast = withForecast ? forecast : nil
+                    variants.append(entry)
+                }
+            }
+            for entry in variants {
+                var stored = entry
+                stored.forecast = nil
+                stored.weatherNotice = entry.weatherNotice == .routeNeeded ? .routeNeeded : nil
+                let shown = Presentation(.status(entry), language: "zh-Hant")
+                let was = Presentation(.status(stored), language: "zh-Hant")
+                let label = "\(scenario) notice \(String(describing: entry.weatherNotice)) forecast \(entry.forecast != nil)"
+                XCTAssertEqual(shown.line, was.line, label)
+                XCTAssertEqual(shown.showsWarningBadge, was.showsWarningBadge, label)
+                XCTAssertEqual(shown.glyph, was.glyph, label)
+                XCTAssertEqual(shown.accessoryGlyph, was.accessoryGlyph, label)
+                XCTAssertEqual(shown.hero, was.hero, label)
+                XCTAssertEqual(shown.decisionSky, was.decisionSky, label)
+                XCTAssertEqual(shown.ringDay, was.ringDay, label)
+                XCTAssertEqual(shown.skipLabelKey, was.skipLabelKey, label)
+                XCTAssertEqual(shown.inlineSkippedText, was.inlineSkippedText, label)
+                XCTAssertEqual(shown.hasIssue, was.hasIssue, label)
+                XCTAssertEqual(shown.relevanceScore, was.relevanceScore, label)
+                XCTAssertEqual(shown.day, was.day, label)
+                XCTAssertEqual(shown.dayWordKey, was.dayWordKey, label)
+                XCTAssertEqual(shown.closureSource, was.closureSource, label)
+            }
         }
     }
 

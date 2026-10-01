@@ -20,9 +20,13 @@ import Foundation
 ///   (`calendarTomorrowStatus(now:)`). The card now also describes today after midnight
 ///   (the coming morning), but under the header 下次鬧鐘 / Next alarm, and it stays on today
 ///   until the NORMAL time, saying 已響鈴 / Rang at between an early ring and it; the
-///   widget has moved on to tomorrow by then. Today's entries carry no forecast (see
-///   `todayWeatherNotice`), and the time is what AlarmKit will ring: the registered ring,
-///   or an outdated registration's still armed for today, flagged "update needed".
+///   widget has moved on to tomorrow by then. The time is what AlarmKit will ring: the
+///   registered ring, or an outdated registration's still armed for today, flagged "update
+///   needed". Today's entries carry this morning's forecast (owner, 2026-10-02): after
+///   midnight the coming morning, the only one the app fetches, is today, and the request's
+///   equality pins the forecast to that morning. The medium shows it with the  Weather mark
+///   and today's notices in its weather column; every other family keeps D-C and shows no
+///   weather notice on a today entry (`TomorrowWidgetPresentation`, `todayWeatherNotice`).
 /// - A ring that already fired the evening before its day (a rain lead across midnight,
 ///   e.g. 00:10 rung at 23:40) is not replaced by a later time AlarmKit will not fire;
 ///   until midnight the widget keeps the entry it showed before that ring.
@@ -177,14 +181,20 @@ enum TomorrowWidgetSnapshotBuilder {
                      maximumPercent: percent(weather.maximumPrecipitationProbability))
     }
 
-    /// Today's entries carry no forecast and no weather notice except "complete your route".
-    /// The app only ever fetches tomorrow's forecast: the one that decided today is last
-    /// evening's, hours old by midnight, and nothing can refresh it (a stale warning nobody
-    /// could clear), while the card's other notices name 明天. Today's decision is the
-    /// registration's, which the reason line already states; the medium drops its weather
-    /// column for these entries.
-    static func todayWeatherNotice(for status: TomorrowAlarmStatus, addressesMissing: Bool) -> TomorrowWidgetSnapshot.WeatherNotice? {
-        status.weather == nil && addressesMissing ? .routeNeeded : nil
+    /// A today entry's notice (owner, 2026-10-02): the widget's own (`widgetWeatherNotice`,
+    /// D-B's 3 hours), about this morning's forecast, which after midnight is the coming
+    /// morning the app fetches (when it is opened, and from the background), so a stale
+    /// warning can be cleared. The medium's weather column says it, worded 今天; every other
+    /// face shows only "complete your route" on a today entry (`TomorrowWidgetPresentation`).
+    ///
+    /// Past today's normal time (strictly: at it the request is still today's) the app has
+    /// moved on to tomorrow's morning and fetches nothing for today again. Only an outdated
+    /// registration's later ring keeps a today entry there; without a forecast it gets no
+    /// notice, so no column, rather than "not available yet", which would never come true.
+    static func todayWeatherNotice(for status: TomorrowAlarmStatus, addressesMissing: Bool,
+                                   at moment: Date) -> TomorrowWidgetSnapshot.WeatherNotice? {
+        if status.weather == nil, !addressesMissing, moment > status.normalAlarmDate { return nil }
+        return widgetWeatherNotice(for: status, addressesMissing: addressesMissing, at: moment)
     }
 
     /// The last moment a today entry is shown, for `status` = today's status at that moment.
@@ -227,6 +237,7 @@ enum TomorrowWidgetSnapshotBuilder {
             // AlarmKit still holds the old registration and rings at its time today; the new
             // settings' decision is not registered. Show the ring that will happen, flagged.
             // The same for a kept early ring past today's check point under a raised lead.
+            // The forecast and its notice stay: they describe this morning's weather.
             entry.expectedRingDate = outdated
             entry.ringIsOnAnotherDay = !context.calendar.isDate(outdated, inSameDayAs: status.day)
             entry.reason = .normal
@@ -251,7 +262,7 @@ enum TomorrowWidgetSnapshotBuilder {
         case .alarmOff: .alarmOff
         case .skippedOnce: .skippedOnce
         }
-        var weatherNotice = isToday ? todayWeatherNotice(for: status, addressesMissing: context.addressesMissing)
+        var weatherNotice = isToday ? todayWeatherNotice(for: status, addressesMissing: context.addressesMissing, at: validFrom)
             : widgetWeatherNotice(for: status, addressesMissing: context.addressesMissing, at: validFrom)
         // Off (2026-10-01): only a failure to turn off warns. Stale or failed weather is about
         // a decision nobody asked for; it would put an orange badge on 鬧鐘已關閉.
@@ -260,7 +271,8 @@ enum TomorrowWidgetSnapshotBuilder {
                      expectedRingDate: status.expectedRingDate,
                      ringIsOnAnotherDay: status.expectedRingDate.map { !context.calendar.isDate($0, inSameDayAs: status.day) } ?? false,
                      reason: reason, reasonLine: snapshotReasonLine(for: status), leadTimeMinutes: status.leadTimeMinutes,
-                     forecast: isToday ? nil : forecast(from: status.weather),
+                     // Today's too (2026-10-02): `status.weather` is only ever this morning's.
+                     forecast: forecast(from: status.weather),
                      weatherNotice: weatherNotice,
                      scheduleIssue: scheduleIssue(for: status, flags: context.flags),
                      closureSourceUpdatedAt: status.reason == .disaster ? context.closureSourceUpdatedAt : nil)

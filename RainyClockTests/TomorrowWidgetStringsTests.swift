@@ -24,6 +24,7 @@ final class TomorrowWidgetStringsTests: XCTestCase {
     private var everyLine: [Line] {
         var lines: [Line] = TomorrowWidgetSnapshot.ScheduleIssue.allCases.map { .issue($0) }
         lines += TomorrowWidgetSnapshot.WeatherNotice.allCases.map { .notice($0) }
+        lines += TomorrowWidgetSnapshot.WeatherNotice.allCases.map { .todayNotice($0) }
         lines += [.ringsAsUsual]
         let reasons: [TomorrowWidgetSnapshot.ReasonLine] = [
             .rainForecast(percent: 80, minutes: 30), .rainEarlier(minutes: 30), .awaitingForecast, .holidayNamed("國慶日"), .holiday,
@@ -41,8 +42,9 @@ final class TomorrowWidgetStringsTests: XCTestCase {
     }
 
     func testSharedKeysMatchAppTablesExactly() throws {
-        // 33 for the widget, plus the master switch's three (1.8.0).
-        XCTAssertEqual(TomorrowWidgetStrings.sharedAppKeys.count, 36)
+        // 33 for the widget, plus the master switch's three (1.8.0), plus today's failed weather
+        // in the medium's column (2026-10-02).
+        XCTAssertEqual(TomorrowWidgetStrings.sharedAppKeys.count, 37)
         XCTAssertEqual(Set(TomorrowWidgetStrings.sharedAppKeys).count, TomorrowWidgetStrings.sharedAppKeys.count)
         for language in languages {
             let widget = try widgetTable(language)
@@ -61,8 +63,9 @@ final class TomorrowWidgetStringsTests: XCTestCase {
             keys.insert(line.short.key)
         }
         // 44 for the widget, plus the master switch's circular word and two short lines (1.8.0),
-        // plus the inline one-time skip (today, tomorrow) and the closure source credit and time.
-        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 51)
+        // plus the inline one-time skip (today, tomorrow) and the closure source credit and time,
+        // plus today's "no forecast yet" in the medium's column (2026-10-02).
+        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 52)
         XCTAssertEqual(Set(TomorrowWidgetStrings.widgetOnlyKeys).count, TomorrowWidgetStrings.widgetOnlyKeys.count)
         for language in languages {
             let widget = try widgetTable(language)
@@ -106,6 +109,23 @@ final class TomorrowWidgetStringsTests: XCTestCase {
             XCTAssertFalse(chinese[key]?.contains("明天") ?? true, key)
         }
         XCTAssertEqual(specifiers(english["widget_inline_today_rain"] ?? ""), ["%1$@", "%2$d"])
+        // The medium's weather column on a today entry (2026-10-02): every notice it can show,
+        // both lengths, never says tomorrow; the two that name a day say today.
+        for notice in TomorrowWidgetSnapshot.WeatherNotice.allCases {
+            for localized in [Line.todayNotice(notice).full, Line.todayNotice(notice).short] {
+                for (language, table) in [("en", english), ("zh-Hant", chinese)] {
+                    let value = try XCTUnwrap(table[localized.key], "\(language): \(localized.key)")
+                    XCTAssertFalse(value.localizedCaseInsensitiveContains("tomorrow"), "\(language): \(localized.key)")
+                    XCTAssertFalse(value.contains("明天"), "\(language): \(localized.key)")
+                }
+            }
+        }
+        for key in ["ux_today_weather_failed", "widget_today_weather_unavailable"] {
+            XCTAssertTrue(english[key]?.contains("Today") ?? false, key)
+            XCTAssertTrue(chinese[key]?.contains("今天") ?? false, key)
+        }
+        XCTAssertEqual(chinese["widget_today_weather_unavailable"], "尚未取得今天天氣")
+        XCTAssertEqual(english["widget_today_weather_unavailable"], "Today's forecast is not available yet")
         // The inline one-time skip names its morning.
         XCTAssertTrue(english["widget_inline_skip_once"]?.contains("Tomorrow") ?? false)
         XCTAssertTrue(chinese["widget_inline_skip_once"]?.contains("明天") ?? false)

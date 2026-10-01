@@ -39,6 +39,8 @@
 "ux_alarm_off" = "鬧鐘已關閉";
 "ux_alarm_off_message_only" = "鬧鐘會保持關閉，直到你重新開啟。";
 "ux_skip_once_reason" = "只關閉這一次，之後的鬧鐘照常響";
+/* The medium's weather column on a today entry (2026-10-02), as the card says it after midnight. */
+"ux_today_weather_failed" = "今天天氣更新失敗";
 
 /* Widget only */
 /* The gallery name. Not 明天: between midnight and the ring the widget shows today's alarm. */
@@ -85,7 +87,9 @@
 "widget_skip_other" = "不響";
 
 /* Today, between midnight and today's ring (D-C). The card describes the same morning then,
-   under the header 下次鬧鐘, until its normal time. */
+   under the header 下次鬧鐘, until its normal time. Since 2026-10-02 the medium's weather column
+   shows today's forecast too; widget_today_weather_unavailable is its footer without one (not the
+   card's 正在取得今天天氣⋯: the widget cannot fetch anything). */
 "widget_today" = "今天";
 "widget_today_awaiting_forecast" = "等待今天預報";
 "widget_today_holiday_named" = "今天放假：%@";
@@ -98,6 +102,7 @@
 "widget_inline_today_ring" = "今天 %@";
 "widget_inline_today_rain" = "今天 %1$@，提早 %2$d 分鐘";
 "widget_inline_today_skipped" = "今天略過鬧鐘";
+"widget_today_weather_unavailable" = "尚未取得今天天氣";
 
 /* VoiceOver hint on the medium widget's weather column, which links to Apple's legal attribution page. */
 "widget_weather_legal_hint" = "開啟 Apple 天氣的資料來源與法律聲明";

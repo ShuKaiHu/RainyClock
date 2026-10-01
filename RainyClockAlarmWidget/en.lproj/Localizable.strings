@@ -39,6 +39,8 @@
 "ux_alarm_off" = "Alarm Off";
 "ux_alarm_off_message_only" = "The alarm stays off until you turn it back on.";
 "ux_skip_once_reason" = "Off just this once; later alarms ring as usual";
+/* The medium's weather column on a today entry (2026-10-02), as the card says it after midnight. */
+"ux_today_weather_failed" = "Today's weather could not be updated";
 
 /* Widget only */
 /* The gallery name. Not "Tomorrow": between midnight and the ring the widget shows today's alarm. */
@@ -84,7 +86,9 @@
 "widget_skip_other" = "Skipped";
 
 /* Today, between midnight and today's ring (D-C). The card describes the same morning then,
-   under the header "Next alarm", until its normal time. */
+   under the header "Next alarm", until its normal time. Since 2026-10-02 the medium's weather column
+   shows today's forecast too; widget_today_weather_unavailable is its footer without one (not the
+   card's "Loading today's forecast…": the widget cannot fetch anything). */
 "widget_today" = "Today";
 "widget_today_awaiting_forecast" = "Waiting for today's forecast";
 "widget_today_holiday_named" = "Today is a holiday: %@";
@@ -97,6 +101,7 @@
 "widget_inline_today_ring" = "Today %@";
 "widget_inline_today_rain" = "Today %1$@ · %2$d min earlier";
 "widget_inline_today_skipped" = "Today: skipped";
+"widget_today_weather_unavailable" = "Today's forecast is not available yet";
 
 /* VoiceOver hint on the medium widget's weather column, which links to Apple's legal attribution page. */
 "widget_weather_legal_hint" = "Opens Apple Weather's data sources and legal attribution";

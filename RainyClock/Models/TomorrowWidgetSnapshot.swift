@@ -16,6 +16,9 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
     /// 3: `Reason` / `ReasonLine` `.alarmOff` and `.skippedOnce` (the 1.8.0 master switch).
     /// 4: `Entry.closureSourceUpdatedAt`, so a closure names its source and the source's
     /// update time (DAYOFF-SPEC §7; 1.8.0 merge review).
+    /// Still 4 in 1.8.0 (39), whose today entries carry their morning's forecast: the shape
+    /// is unchanged, and a build-38 today entry (no forecast, no notice) draws no weather
+    /// column, as it did in 38, until the app next publishes.
     /// A snapshot of another version reads as "open the app" until the app republishes.
     static let currentVersion = 4
     static let maximumBytes = 64_000
@@ -73,7 +76,9 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
         var reason: Reason
         var reasonLine: ReasonLine?
         var leadTimeMinutes: Int
-        var forecast: RouteForecast?                    // present even when stale (the card shows it); nil when isToday
+        /// Present even when stale (the card shows it). A today entry carries its morning's
+        /// forecast too since 1.8.0 (39); build 38 wrote nil there.
+        var forecast: RouteForecast?
         var weatherNotice: WeatherNotice?
         var scheduleIssue: ScheduleIssue?
         /// A closure entry (`reason == .disaster`): the closure feed's own update time, which

@@ -196,16 +196,17 @@ struct WidgetStyle {
     }
 
     /// The medium's weather column, read as the link it is: each endpoint, the footer, and
-    /// the Apple Weather attribution the link leads to.
-    func weatherAccessibilityLabel(_ status: TomorrowWidgetSnapshot.Entry) -> String {
+    /// the Apple Weather attribution the link leads to. `notice` is the column's own
+    /// (`TomorrowWidgetPresentation.weatherColumnNotice`), which names 今天 on a today entry.
+    func weatherAccessibilityLabel(_ status: TomorrowWidgetSnapshot.Entry, notice: TomorrowWidgetPresentation.Line?) -> String {
         var pieces: [String] = []
         for (key, endpoint) in [("ux_weather_home", status.forecast?.home), ("ux_weather_work", status.forecast?.work)] {
             guard let endpoint else { continue }
             pieces.append([text(key), conditionName(endpoint.condition),
                            text(LocalizedLine(key: "ux_rain_chance", arguments: [.int(endpoint.percent)]))].joined(separator: " "))
         }
-        if let notice = status.weatherNotice {
-            pieces.append(text(TomorrowWidgetPresentation.Line.notice(notice).full))
+        if let notice {
+            pieces.append(text(notice.full))
         } else if let forecast = status.forecast {
             pieces.append(text(LocalizedLine(key: "ux_weather_updated", arguments: [.string(time(forecast.checkedAt))])))
         }
@@ -472,11 +473,13 @@ private struct MediumTomorrowView: View {
                     weatherColumn(status)
                 }
                 .frame(width: 148)
-                .accessibilityLabel(Text(verbatim: style.weatherAccessibilityLabel(status)))
+                .accessibilityLabel(Text(verbatim: style.weatherAccessibilityLabel(
+                    status, notice: presentation.weatherColumnNotice)))
                 .accessibilityHint(Text(verbatim: style.text("widget_weather_legal_hint")))
                 .accessibilityAddTraits(.isLink)
             } else {
-                // Today's entry (no forecast) or an open-the-app face: the alarm takes the width.
+                // An open-the-app face, or a today entry with nothing to attribute (no forecast
+                // and no notice): the alarm takes the width.
                 left.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
@@ -528,7 +531,7 @@ private struct MediumTomorrowView: View {
         }
     }
 
-    /// A mini weather card without addresses; skipped days still show tomorrow's weather.
+    /// A mini weather card without addresses; skipped days still show that morning's weather.
     private func weatherColumn(_ status: TomorrowWidgetSnapshot.Entry) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 5) {
@@ -593,10 +596,10 @@ private struct MediumTomorrowView: View {
         }
     }
 
+    /// The column's notice (today's names 今天) in place of the time the weather was checked.
     @ViewBuilder
     private func weatherFooter(_ status: TomorrowWidgetSnapshot.Entry) -> some View {
-        if let notice = status.weatherNotice {
-            let line = TomorrowWidgetPresentation.Line.notice(notice)
+        if let line = presentation.weatherColumnNotice {
             ViewThatFits(in: .horizontal) {
                 LineView(line: line, text: style.text(line.full), style: style)
                 LineView(line: line, text: style.text(line.short), style: style)

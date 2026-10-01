@@ -7,6 +7,9 @@
 > before pasting: "nothing about where you live is uploaded" → "nothing about where you live is sent
 > to Rainy Clock", and 「不會上傳你的所在地」→「不會把你的所在地傳給雨天鬧鐘」 — the addresses do go to
 > Apple Maps for geocoding, just never to Rainy Clock's own service. The drafts below now carry it.
+>
+> Still accurate for 1.8.0 (39), whose medium widget also shows weather on today's entry (2026-10-02):
+> neither language ever limited the weather to tomorrow. Not re-pasted.
 
 > **DRAFT.** Nothing in this section has been approved, pasted into App Store Connect or
 > submitted; the owner approves the final text. One draft since 2026-10-01, when `ios/widget`
@@ -27,9 +30,9 @@ Where the draft stands:
   adding the closure rule there is an owner edit (see the StoreKit products section below).
 - **The alarm switch** (2026-09-30, owner request) is free on every plan.
 - **The widget is iOS 26+ only** (it lives in the AlarmKit Live Activity extension); the app stays
-  iOS 17+, iPhone only. Only the medium widget shows weather, with Apple's  Weather mark under its
-  weather column and a link (through the app) to Apple's legal page (decision D-A); confirm on the
-  submitted build, on a device.
+  iOS 17+, iPhone only. Only the medium widget shows weather (today's entry too, from 1.8.0 (39),
+  2026-10-02), with Apple's  Weather mark under its weather column and a link (through the app) to
+  Apple's legal page (decision D-A); confirm on the submitted build, on a device.
 - The 1.7.0 (30) review note's "not a Home Screen widget", line 3 of
   `appstore-review-notes-1.7.0-34.txt` and the 1.6.x 2.1(a) replies below all say the app has no Home
   Screen widget; **from 1.8.0 that is false and must not be reused.**
