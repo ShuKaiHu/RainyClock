@@ -17,7 +17,7 @@
 <body>
 
 <h1>Rainy Clock</h1>
-<p class="subtitle">Privacy Policy · Last updated 21 September 2026</p>
+<p class="subtitle">Privacy Policy · Last updated 1 October 2026</p>
 
 <h2>Overview</h2>
 <p>Rainy Clock is an iOS app that automatically adjusts your alarm time
@@ -43,8 +43,9 @@ your privacy. This policy explains what data is used and how.</p>
   <li>Alarm time, rain lead time, and rain probability threshold</li>
   <li>How many AI voice alarms you have generated, so the free allowance can be counted</li>
   <li>The words you last typed for an AI voice alarm, so the screen reopens on them</li>
+  <li>Whether temporary closure rules are on, whether they watch work or school closures, and the home and workplace districts you confirmed for them (iOS 1.8.0 and later). These districts are also mirrored into the app's own shared storage on the device (an App Group) so the notification extension can read them; they are not uploaded</li>
 </ul>
-<p>Settings remain local. Address lookup uses the mapping services below, and AI generation sends the words you enter. Membership-backed generation also uses a verified membership session and usage records; see the membership section below.</p>
+<p>Settings remain local. Address lookup uses the mapping services below, and AI generation sends the words you enter. Membership-backed generation also uses a verified membership session and usage records; see the membership section below. When you turn on temporary closure updates, the app also creates a random installation identifier and a random credential in your phone's Keychain; see <a href="#closures">Temporary disaster closures</a>.</p>
 
 <h2 id="ai-voice">AI Voice Alarm</h2>
 <p>Rainy Clock can wake you with a spoken line instead of a tone. The words entered for this feature are sent for processing when you tap <em>Generate</em>. Playing an already saved sound does not submit a new generation request.</p>
@@ -86,7 +87,19 @@ The Taiwan office calendar downloads public calendar files from data.gov.tw and 
 of Personnel Administration (www.dgpa.gov.tw), without sending your manual dates or preferences.
 The United States calendar calculates recurring federal holidays and standard observed dates on the
 device using published Office of Personnel Management rules; it does not make a calendar network request.
-The app does not read your personal system calendars. Temporary disaster-closure rules are not publicly available in iOS 1.7.0.</p>
+The app does not read your personal system calendars.</p>
+
+<h2 id="closures">Temporary disaster closures (iOS 1.8.0 and later)</h2>
+<p>Rainy Clock can skip an alarm on a day when the government suspends work or school for the district of your home or workplace. When you turn this on, the app downloads the public work and school closure announcements of the Directorate-General of Personnel Administration (行政院人事行政總處), as published by the National Science and Technology Center for Disaster Reduction (NCDR) and obtained through the data.gov.tw open-data feed, from a small service we run on Google Cloud Run in Taiwan (asia-east1). The service keeps one shared, verified copy of the announcements so that every phone does not have to contact the government site itself. Matching the announcements against your districts, and any change to your alarm, happen on your phone.</p>
+<ul>
+  <li><strong>What the phone registers:</strong> a random installation identifier generated on the device, the Apple push token for this app, and a random credential kept in your phone's Keychain, sent over an encrypted connection. The service stores only a hash of the credential, never the credential itself. This registration is what lets the service send the update notification described below.</li>
+  <li><strong>What the phone reports:</strong> after it has processed an announcement, the announcement's public revision identifier, the time the data was checked and the time it was processed, and whether a local alarm plan was applied or no alarm was configured. Only the latest report per device is kept.</li>
+  <li><strong>What is never sent to this service:</strong> your home and destination addresses, the districts you chose, your route, your alarm times and the dates that were skipped. The service cannot tell where you live and does not decide for you whether you are off.</li>
+  <li><strong>Notifications:</strong> when the announcements change, the service sends the same short, location-free notification to every registered device through Apple Push Notification service, so Apple receives the push token. On your phone, a notification extension reads the districts you confirmed in the app, which are kept only in the app's shared storage on the device, fetches the announcements and decides locally whether to show the notification with sound, quietly, or with the generic text. The notification is informational: the alarm is only ever silenced by the app itself after it has verified an announcement, and if the network is unavailable the alarm rings as usual.</li>
+  <li><strong>Retention:</strong> registrations expire after 90 days without renewal (the app renews when you open it) and are removed by database expiry. When a notification cannot be delivered, the push token may also be held in a delivery-retry record for up to seven days. Turning the feature off deletes the registration and any pending report from the service; if you are offline, the deletion is retried the next time the app runs.</li>
+  <li><strong>Rate limiting and diagnostics:</strong> the service temporarily counts requests by network address to limit abuse, and its hosting logs are covered by <em>Service Diagnostics</em> above. None of this data is used for advertising.</li>
+</ul>
+<p>The announcements are used under the Open Government Data License v1.0. Local government announcements prevail; the app shows the source and the source's own update time next to any closure it reports.</p>
 
 <h2>Third-Party Services</h2>
 <p>When you enter addresses or tap "Schedule Smart Alarm," the app contacts
@@ -155,7 +168,13 @@ at any time through <em>Ad privacy options</em> in the app.</p>
 <p>On iOS 26 and later, alarms are scheduled through Apple's AlarmKit, which is what
 allows the alarm to sound through Silent mode and Focus. On iOS 17 through 25, alarms
 are scheduled as local notifications instead. Either way, alarms are processed entirely
-on your device and no alarm or notification content is sent to any server.</p>
+on your device and no alarm or notification content is sent to any server. The
+exceptions both belong to the optional feature described under
+<a href="#closures">Temporary disaster closures</a>: our service sends the same
+location-free closure-update notification to every registered device, and your phone
+personalises it locally; and, while closure rules are on, your phone reports whether the
+latest announcement was processed and whether an alarm was set (applied or no alarm
+configured). No alarm times or skipped dates are sent.</p>
 
 <h2>Children's Privacy</h2>
 <p>This app does not knowingly collect any data from children under 13.</p>
@@ -207,8 +226,9 @@ shukaihu@icloud.com.</p>
   <li>鬧鐘時間、雨天提前時間與降雨機率門檻。</li>
   <li>已經生成過幾次 AI 語音鬧鈴，用於計算免費次數。</li>
   <li>你上次為 AI 語音鬧鈴輸入的文字，讓畫面重新打開時能帶回原本的內容。</li>
+  <li>是否啟用臨時放假規則、看停班還是停課，以及你為此確認的住家與公司行政區（iOS 1.8.0 以上）。這些行政區也會鏡射到 App 在手機上的共用儲存區（App Group），讓通知擴充功能讀取；不會上傳。</li>
 </ul>
-<p>設定保存在手機；查詢地址會使用下述地圖服務，生成 AI 鬧鈴會送出輸入文字。會員生成也使用驗證過的工作階段及用量紀錄，詳見上方會員說明。</p>
+<p>設定保存在手機；查詢地址會使用下述地圖服務，生成 AI 鬧鈴會送出輸入文字。會員生成也使用驗證過的工作階段及用量紀錄，詳見上方會員說明。開啟停班停課更新時，App 另會在手機的 Keychain 建立隨機安裝識別碼與隨機 credential，詳見<a href="#closures-zh">天災臨時放假</a>。</p>
 
 <h2 id="ai-voice-zh">AI 語音鬧鈴</h2>
 <p>Rainy Clock 可以用一段人聲取代鈴聲叫醒你。為此功能輸入的文字會在按下「產生」時送出處理；播放已儲存的音檔不會發出新的生成請求。</p>
@@ -225,7 +245,19 @@ shukaihu@icloud.com.</p>
 <p>行事曆來源、手動響鈴／靜音日期與時間格式保存在手機。台灣辦公日曆會從 data.gov.tw
 及行政院人事行政總處（www.dgpa.gov.tw）下載公開日曆，不會傳送你的手動日期或偏好。
 美國行事曆依美國人事管理局（OPM）公布的規則，在手機離線計算常態聯邦假日與標準補假日，
-不發送日曆網路請求。App 不讀取你的個人系統行事曆。iOS 1.7.0 不公開提供天災臨時放假規則。</p>
+不發送日曆網路請求。App 不讀取你的個人系統行事曆。</p>
+
+<h2 id="closures-zh">天災臨時放假（iOS 1.8.0 以上）</h2>
+<p>當政府宣布你住家或公司所在行政區停止上班或上課，Rainy Clock 可以略過當天的鬧鐘。開啟後，App 會從我們在 Google Cloud Run（台灣 asia-east1）營運的小型服務下載行政院人事行政總處的公開停班停課公告；公告由國家災害防救科技中心（NCDR）發布，我們經政府資料開放平臺 data.gov.tw 的開放資料介面取得。服務只保存一份共用、已驗證的公告快取，讓每支手機不必各自連線官方網站。公告與你的行政區比對，以及任何鬧鐘變更，都在你的手機上完成。</p>
+<ul>
+  <li><strong>手機註冊什麼：</strong>裝置產生的隨機安裝識別碼、這個 App 的 Apple 推播 token，以及保存在手機 Keychain 的隨機 credential（經加密連線傳送）。服務只保存 credential 的雜湊，不保存 credential 原文。這筆註冊是服務能發送下述更新通知的依據。</li>
+  <li><strong>手機回報什麼：</strong>手機處理完公告後，回報公告的公開版本識別碼、資料檢查時間與處理時間，以及「已處理本機排程」或「尚未設定鬧鐘」的結果。每台裝置只保留最新一筆回報。</li>
+  <li><strong>絕不傳給這個服務的：</strong>住家與目的地地址、你選擇的行政區、路線、鬧鐘時間與略過的日期。服務不知道你住哪裡，也不替你判斷是否放假。</li>
+  <li><strong>通知：</strong>公告變更時，服務透過 Apple 推播通知服務對所有已註冊裝置送出同一則簡短、不含位置的通知，因此 Apple 會收到推播 token。在你的手機上，通知擴充功能讀取你在 App 內確認的行政區（只存在手機上 App 的共用儲存區）、自行取得公告，並在本機決定要有聲顯示、安靜顯示，還是保留通用文字。這則通知只是資訊：鬧鐘只會由 App 本身在確認公告後才靜音；網路異常時鬧鐘照常響鈴。</li>
+  <li><strong>保留多久：</strong>註冊在 90 天沒有續期後失效（開啟 App 時會續期），由資料庫到期清理刪除。通知投遞失敗時，推播 token 可能另外保存在投遞重試紀錄中最多七天。關閉功能會向服務刪除註冊與待送回報；離線時會在下次 App 執行時重試。</li>
+  <li><strong>限流與診斷：</strong>服務會暫時依網路位址計算請求次數以防止濫用；主機日誌依上方「服務診斷」處理。這些資料都不用於廣告。</li>
+</ul>
+<p>公告依政府資料開放授權條款第 1 版使用。實際停止上班上課以各縣市政府公告為準；App 在顯示任何停班停課結果時，都會標示資料來源與來源本身的更新時間。</p>
 
 <h2>第三方服務</h2>
 <p>當你輸入地址或點選「排程智慧鬧鐘」時，App 會代表你使用下列服務：</p>
@@ -262,7 +294,7 @@ shukaihu@icloud.com.</p>
 <p>若你位於歐洲經濟區、英國或瑞士，在任何廣告載入前還會出現一個獨立的同意對話框，之後可隨時透過 App 內的<em>「廣告隱私設定」</em>重新調整。</p>
 
 <h2>鬧鐘與通知</h2>
-<p>在 iOS 26 以上，鬧鐘透過 Apple 的 AlarmKit 排程，這也是鬧鐘能穿透靜音與專注模式的原因；在 iOS 17 至 25 則以本機通知排程。兩種方式都完全在你的裝置上處理，鬧鐘與通知內容不會傳送到任何伺服器。</p>
+<p>在 iOS 26 以上，鬧鐘透過 Apple 的 AlarmKit 排程，這也是鬧鐘能穿透靜音與專注模式的原因；在 iOS 17 至 25 則以本機通知排程。兩種方式都完全在你的裝置上處理，鬧鐘與通知內容不會傳送到任何伺服器。例外都屬於<a href="#closures-zh">天災臨時放假</a>所述的選用功能：我們的服務對所有已註冊裝置送出同一則不含位置的停班停課更新通知，再由你的手機在本機改寫；以及在停班停課規則開啟期間，手機會回報最新公告是否已處理、是否有設定鬧鐘（已套用或未設鬧鐘）。鬧鐘時間與略過日期不會傳送。</p>
 
 <h2>兒童隱私</h2>
 <p>本 App 不會刻意收集 13 歲以下兒童的資料。</p>
