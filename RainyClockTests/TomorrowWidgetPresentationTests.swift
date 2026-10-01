@@ -318,8 +318,10 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
 
     /// Owner 2026-10-02: today's entries show the medium's weather column too (this morning's
     /// forecast, the  Weather mark and the link to Apple's legal page) whenever they have a
-    /// forecast or a notice to show. A today entry with neither, as build 38 wrote every one,
-    /// keeps build 38's column-less face, with no weather data at all.
+    /// forecast or a notice to show. A today entry with neither, as build 38 wrote every one
+    /// except a route-incomplete user's, keeps build 38's column-less face, with no weather
+    /// data at all. Build 38's "complete your route" today entry draws the column, as 39
+    /// writes that same entry and as tomorrow's entries draw it.
     func testTodayEntriesShowTheMediumWeatherColumn() {
         for scenario in todayScenarios {
             guard case .status(let entry) = state(scenario) else { return XCTFail("\(scenario) must be a status") }
@@ -342,8 +344,8 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertEqual(presentation(.todayCarriedOver).weatherColumnNotice, .todayNotice(.noForecast))
         XCTAssertNil(presentation(.todayForecastUnavailable).home, "No forecast: the endpoints read —, the sky is the brand's")
 
-        // A build-38 today entry (no forecast, no notice): no column, so no mark, no sky, and
-        // no route rain percentage in the left line.
+        // A build-38 today entry without "complete your route" (no forecast, no notice): no
+        // column, so no mark, no sky, and no route rain percentage in the left line.
         for scenario in todayScenarios {
             guard case .status(var entry) = state(scenario) else { continue }
             entry.forecast = nil
@@ -360,7 +362,29 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         bare.weatherNotice = nil
         XCTAssertEqual(Presentation(.status(bare), language: "zh-Hant").mediumLine, .todayReason(.rainEarlier(minutes: 30)),
                        "No percentage without the mark")
-        // Only "complete your route": the column says it, as on tomorrow's entries; the footer does not repeat it.
+        // A build-38 today entry with "complete your route", the one notice 38 stored on a today
+        // entry (an address missing, so no forecast): the column says it over endpoints —, the
+        // same column as the entry would get as tomorrow's, which is also what 39 writes for it
+        // (TomorrowWidgetSnapshotTests.testRouteIncompleteTodayEntryIsWhatBuild38Stored). 38
+        // drew it full width; 39 does not keep that face.
+        for scenario in todayScenarios {
+            guard case .status(var entry) = state(scenario) else { continue }
+            entry.forecast = nil
+            entry.weatherNotice = .routeNeeded
+            let stored = Presentation(.status(entry), language: "zh-Hant")
+            var asTomorrow = entry
+            asTomorrow.isToday = false
+            let tomorrowFace = Presentation(.status(asTomorrow), language: "zh-Hant")
+            XCTAssertTrue(stored.showsWeatherColumn, "\(scenario)")
+            XCTAssertEqual(stored.showsWeatherColumn, tomorrowFace.showsWeatherColumn, "\(scenario)")
+            XCTAssertEqual(stored.weatherColumnNotice, .todayNotice(.routeNeeded), "\(scenario)")
+            XCTAssertEqual(stored.weatherColumnNotice?.full, tomorrowFace.weatherColumnNotice?.full, "\(scenario)")
+            XCTAssertEqual(stored.weatherColumnNotice?.full.key, "ux_route_needed", "\(scenario)")
+            XCTAssertNil(stored.home, "\(scenario): endpoints —")
+            XCTAssertNil(stored.work, "\(scenario)")
+            XCTAssertNotEqual(stored.mediumLine?.full, stored.weatherColumnNotice?.full, "\(scenario): said once")
+        }
+        // The route-incomplete day itself: the column says it, as on tomorrow's entries; the footer does not repeat it.
         guard case .status(var route) = state(.todayNormal) else { return XCTFail("todayNormal must be a status") }
         route.reason = .routeIncomplete
         route.reasonLine = .routeNeeded
@@ -435,14 +459,14 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
     /// D-C kept outside the medium (2026-10-02): a today entry's forecast and weather notices
     /// change nothing that small, StandBy, rectangular, circular or inline read. Every such
     /// field is what the same entry gives as build 38 stored it: no forecast, and no notice
-    /// but "complete your route".
+    /// but "complete your route", which 38 stored as well (so it is among the variants).
     func testTodayChangesNothingOutsideTheMedium() {
         let forecast = TomorrowWidgetSnapshot.RouteForecast(
             checkedAt: now, home: .init(condition: .rain, percent: 90), work: .init(condition: .rain, percent: 80), maximumPercent: 90)
         for scenario in todayScenarios {
             guard case .status(let sample) = state(scenario) else { return XCTFail("\(scenario) must be a status") }
             var variants = [sample]
-            for notice in TomorrowWidgetSnapshot.WeatherNotice.allCases where notice != .routeNeeded {
+            for notice in TomorrowWidgetSnapshot.WeatherNotice.allCases {
                 for withForecast in [false, true] {
                     var entry = sample
                     entry.weatherNotice = notice

@@ -17,8 +17,11 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
     /// 4: `Entry.closureSourceUpdatedAt`, so a closure names its source and the source's
     /// update time (DAYOFF-SPEC §7; 1.8.0 merge review).
     /// Still 4 in 1.8.0 (39), whose today entries carry their morning's forecast: the shape
-    /// is unchanged, and a build-38 today entry (no forecast, no notice) draws no weather
-    /// column, as it did in 38, until the app next publishes.
+    /// is unchanged. Build 38 stored a today entry with no forecast and no notice, except
+    /// "complete your route" when an address was missing. Until the app next publishes, one
+    /// without a notice draws no weather column, as in 38; one with "complete your route"
+    /// draws the column (endpoints —, 請完成路線, the  Weather mark), exactly as 39 writes
+    /// that same entry and as tomorrow's entries draw it, where 38 drew it full width.
     /// A snapshot of another version reads as "open the app" until the app republishes.
     static let currentVersion = 4
     static let maximumBytes = 64_000

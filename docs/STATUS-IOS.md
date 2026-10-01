@@ -238,7 +238,8 @@ Last updated: 2026-10-02.
   - 程式：`TomorrowWidgetSnapshotBuilder` 不再丟掉今天的預報（`todayStatus` 本來就讀 App 唯一抓的那份「接下來的早上」
     預報，午夜後就是今天的；請求相等保證不會是別的早上的），今天的提示改走 widget 的 3 小時規則（`todayWeatherNotice`；
     原定時間過後沒有預報時不給提示）。`TomorrowWidgetPresentation`：新的 `Line.todayNotice` 與 `weatherColumnNotice`
-    （天氣欄寫「今天」）；今天的項目有預報或提示才畫天氣欄（build 38 寫的 snapshot 兩者都沒有，照 38 畫）；`line` 與警示
+    （天氣欄寫「今天」）；今天的項目有預報或提示才畫天氣欄（build 38 寫的今天項目沒有預報，提示也只有缺地址時的「請完成
+    路線」：沒有提示的照 38 畫；帶「請完成路線」的畫天氣欄，和 39 自己寫的、明天的項目一樣，見下方審查修正）；`line` 與警示
     標記在今天的項目只帶「請完成路線」，所以小型、StandBy 與鎖定畫面不變。widget 天氣欄的頁尾與 VoiceOver 改讀
     `weatherColumnNotice`。抓取、背景工作、排程與主卡都沒改；snapshot 版本仍是 4。
   - 字串：共用鍵 +1 `ux_today_weather_failed`（今天天氣更新失敗，App 主卡已有）；widget 專用 +1
@@ -260,8 +261,26 @@ Last updated: 2026-10-02.
   - 手機待確認（39，TestFlight）：午夜後中型今天的項目有天氣欄、 Weather 標記（圖與文字兩種狀態）、點天氣欄開法律頁；
     前一次抓取 3 小時後出現「天氣資料需要更新」、沒有預報時「尚未取得今天天氣」；VoiceOver 在今天的項目也讀得到連結；
     著色與透明主畫面；中英文標題在 148 pt 天氣欄旁放得下（含因雨提早時的原定時間那一行）；小型與鎖定畫面和 38 一樣。
-    **預期：** 01:00 到 06:15 常會看到前一晚的預報加「天氣資料需要更新」（背景工作何時跑由 iOS 決定），開 App 就會更新；
-    不是改壞了。
+    缺地址時今天的項目也有天氣欄（端點「—」、欄底「請完成路線」），和明天的一樣。
+    **預期：** 01:00 到 06:15 常會看到前一晚的預報加「天氣資料需要更新」（背景工作何時跑由 iOS 決定），打開 App 停在
+    鬧鐘頁就會更新（點天氣欄不算：App 直接轉到 Apple 法律頁）；不是改壞了。
+  - **審查修正（「Review fixes: today's weather on the medium widget」）：** 四項都是說法與程式不一致，行為沒改，補測試把
+    實際行為釘住。①②build 38 對缺地址的使用者在今天的項目存了「請完成路線」（38 的規則：沒有預報且缺地址），所以「38 寫的
+    snapshot 照 38 畫」只對其他今天項目成立；這種項目在 39 會畫天氣欄（端點「—」、欄底「請完成路線」、 Weather 標記），
+    38 是左邊占滿。決定保留：39 對同一個狀態寫出的項目一模一樣、明天的項目也這樣畫，App 重新發布或今天換成明天時都不跳
+    （改成保留 38 的樣子已列入[產品決策](PRODUCT_DECISIONS.md)的否決）。程式註解、產品決策與本節改寫；新增 snapshot 測試
+    `testRouteIncompleteTodayEntryIsWhatBuild38Stored`（缺住家、公司只有空白、缺地址又剛好不選星期二：今天的每一項都等於 38
+    會存的項目，天氣欄寫「請完成路線」，和明天的天氣欄同字），presentation 測試補上 38 存的「請完成路線」今天項目，
+    `testTodayChangesNothingOutsideTheMedium` 不再略過 `.routeNeeded`。③「點中型的天氣欄也會開 App、就會更新」不成立：
+    `WeatherAttributionLink.open` 一拿到法律頁網址就交給 Safari，抓預報只在鬧鐘頁顯示時才跑，進背景時發布的是舊資料；
+    產品決策與本節改成「打開 App 停在鬧鐘頁」。④原定時間的判斷用嚴格大於，理由寫錯成「那一秒仍是今天的請求」：那一秒
+    App 的「接下來的早上」已經是明天；真正的理由是連續（略過的日子今天的項目顯示到原定時間那一秒，天氣欄留到最後一秒）。
+    註解、產品決策與測試訊息改寫；`testSkippedTodayRunsUntilItsNormalTime` 加上那一秒仍是午夜那一項、仍有天氣欄，而
+    `TomorrowWeatherRequest` 已是星期日。測試（同上設定）：每台 **629 項（628 ＋ 新增 1）、0 失敗**、625 過 4 略過（同上：
+    真實佇列通知測試）——iPhone 17 Pro iOS 26.5（`B521C391`）與 iOS 27.0（`C2F654DB`）。突變檢查：判斷改成 `>=` 有 5 項失敗
+    （含 `testSkippedTodayRunsUntilItsNormalTime`）；改成「請完成路線」的今天項目不畫天氣欄有 2 項失敗（新測試與
+    `testTodayEntriesShowTheMediumWeatherColumn`）。xcresult：`DerivedData/Logs/Test/Test-39-review-fixes-ios265-20261002-050819.xcresult`、
+    `DerivedData/Logs/Test/Test-39-review-fixes-ios270-20261002-050819.xcresult`。
 
 - **2026-10-02 03:43：1.8.0（38）已上傳 App Store Connect（只進 TestFlight，未送審）。** Xcode 27.0（iOS 27 SDK）從 `3cf0fab`
   archive；本機 App Store 匯出逐項檢查（三個 bundle 都是 1.8.0（38）、正式推播與 App Attest、widget 也簽上 App Group——

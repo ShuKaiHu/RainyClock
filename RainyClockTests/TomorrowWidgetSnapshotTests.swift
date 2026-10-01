@@ -711,6 +711,17 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(saturday.reasonLine, .weekend)
         XCTAssertEqual(saturday.weatherNotice, .noForecast, "The medium's column: 尚未取得今天天氣 (fetched even on a skipped day)")
         XCTAssertEqual(snapshot.entries[2].day, date(20, 0), "After its normal time: Sunday, as tomorrow")
+        // Its last shown second is its normal time, and the column stays through it (the
+        // builder's strict >), with no one-second entry without it before Sunday, although the
+        // app's coming morning is already Sunday's at that second.
+        XCTAssertEqual(TomorrowWeatherRequest(settings: value, now: date(19, 7, 30), calendar: calendar).normalAlarmDate,
+                       date(20, 7, 30))
+        XCTAssertNil(entry(snapshot, at: date(19, 7, 30)), "No one-second entry at the normal time: midnight's runs on")
+        let last = try XCTUnwrap(shownEntry(snapshot, at: date(19, 7, 30)))
+        XCTAssertTrue(last.isToday)
+        XCTAssertEqual(last.day, date(19, 0))
+        XCTAssertEqual(last.weatherNotice, .noForecast)
+        XCTAssertTrue(TomorrowWidgetPresentation(.status(last)).showsWeatherColumn)
     }
 
     func testNoTodayEntryOnceTodaysRingHasPassed() {
@@ -1248,8 +1259,12 @@ extension TomorrowWidgetSnapshotTests {
             XCTAssertNil(late.forecast, label)
             XCTAssertNil(late.weatherNotice, label)
             XCTAssertFalse(TomorrowWidgetPresentation(.status(late)).showsWeatherColumn, label)
+            // Strictly past: at the normal time itself the entry keeps its notice, for continuity,
+            // although the app's coming morning has already moved on to Wednesday then.
             XCTAssertEqual(shownEntry(snapshot, at: date(15, 7, 30))?.weatherNotice, .noForecast,
-                           "\(label): at the normal time itself the request is still today's (strict >)")
+                           "\(label): the normal-time second keeps the column (strict >)")
+            XCTAssertEqual(TomorrowWeatherRequest(settings: after, now: date(15, 7, 30), calendar: calendar).normalAlarmDate,
+                           date(16, 7, 30), "\(label): not because the coming morning is still Tuesday's")
             // A forecast the app did fetch for Tuesday still matches today's request then: the
             // column keeps showing it, with its age.
             let tuesday = record(after, requestedAt: date(14, 22), checkedAt: date(14, 22))
@@ -1590,7 +1605,7 @@ extension TomorrowWidgetSnapshotTests {
         }
     }
 
-    /// After midnight the app fetches today's forecast (when opened, or from the background),
+    /// After midnight the app fetches today's forecast (on its Alarm page, or from the background),
     /// and the publish that follows carries it into today's column: the decision reads it for
     /// half an hour, the column shows it until the ring.
     func testAfterMidnightRefreshFeedsTodaysColumn() throws {
@@ -1760,6 +1775,56 @@ extension TomorrowWidgetSnapshotTests {
                 checked += 1
             }
             XCTAssertGreaterThan(checked, 40, label)
+        }
+    }
+
+    /// Build 38 stored every today entry without a forecast, and with no notice except
+    /// "complete your route" (its rule: `status.weather == nil && addressesMissing`). For a
+    /// route-incomplete user 39 writes exactly that entry, so a 38 snapshot draws on 39 as
+    /// 39's own publish will: the medium's column with 請完成路線 over endpoints —, as on the
+    /// tomorrow entry after it, where 38 drew today full width. Nothing changes when the app
+    /// republishes, and the column does not appear when today's entry gives way to tomorrow's.
+    func testRouteIncompleteTodayEntryIsWhatBuild38Stored() throws {
+        var skipped = settings(home: "")
+        skipped.selectedWeekdays = [1, 2, 4, 5, 6, 7]                    // not Tuesday
+        let cases: [(String, CommuteAlarmSettings)] = [
+            ("no home", settings(home: "")), ("blank work", settings(work: "  ")), ("skipped, no home", skipped)]
+        for (name, value) in cases {
+            for publish in [date(14, 21), date(15, 3)] {
+                let label = "\(name), published \(publish)"
+                let snapshot = Builder.snapshot(now: publish, context: context(value, summary: nil),
+                                                status: statusProvider(value, weather: nil, summary: nil),
+                                                today: statusProvider(value, weather: nil, summary: nil, dayOffset: 0))
+                XCTAssertTrue(snapshot.isValid, label)
+                let todays = snapshot.entries.filter { $0.isToday && $0.day == date(15, 0) }
+                XCTAssertFalse(todays.isEmpty, label)
+                for entry in todays {
+                    var asBuild38Stored = entry
+                    asBuild38Stored.forecast = nil
+                    asBuild38Stored.weatherNotice = .routeNeeded
+                    XCTAssertEqual(entry, asBuild38Stored, "\(label) at \(entry.validFrom)")
+                    let face = TomorrowWidgetPresentation(.status(entry), language: "zh-Hant")
+                    XCTAssertTrue(face.showsWeatherColumn, label)
+                    XCTAssertEqual(face.weatherColumnNotice, .todayNotice(.routeNeeded), label)
+                    XCTAssertEqual(face.weatherColumnNotice?.full.key, "ux_route_needed", label)
+                    XCTAssertNil(face.home, "\(label): endpoints —")
+                    XCTAssertNil(face.work, label)
+                    XCTAssertNotEqual(face.mediumLine?.full, face.weatherColumnNotice?.full, "\(label): said once")
+                    if entry.reason == .routeIncomplete {
+                        XCTAssertEqual(face.line, .todayReason(.routeNeeded), "\(label): small and Lock Screen as in 38")
+                        XCTAssertNil(face.mediumLine, label)
+                    } else {
+                        XCTAssertEqual(entry.reason, .unselectedWeekday, label)
+                        XCTAssertEqual(face.line, .todayReason(.unselectedWeekday), label)
+                        XCTAssertEqual(face.mediumLine, .todayReason(.unselectedWeekday), label)
+                    }
+                }
+                let tomorrow = try XCTUnwrap(snapshot.entries.first { !$0.isToday && $0.day == date(16, 0) }, label)
+                let tomorrowFace = TomorrowWidgetPresentation(.status(tomorrow), language: "zh-Hant")
+                XCTAssertTrue(tomorrowFace.showsWeatherColumn, label)
+                XCTAssertEqual(tomorrowFace.weatherColumnNotice?.full,
+                               TomorrowWidgetPresentation.Line.todayNotice(.routeNeeded).full, "\(label): the same column")
+            }
         }
     }
 }

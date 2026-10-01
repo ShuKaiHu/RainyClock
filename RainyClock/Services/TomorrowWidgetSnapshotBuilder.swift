@@ -183,14 +183,21 @@ enum TomorrowWidgetSnapshotBuilder {
 
     /// A today entry's notice (owner, 2026-10-02): the widget's own (`widgetWeatherNotice`,
     /// D-B's 3 hours), about this morning's forecast, which after midnight is the coming
-    /// morning the app fetches (when it is opened, and from the background), so a stale
-    /// warning can be cleared. The medium's weather column says it, worded 今天; every other
-    /// face shows only "complete your route" on a today entry (`TomorrowWidgetPresentation`).
+    /// morning the app fetches (while its Alarm page is open, and from the background), so a
+    /// stale warning can be cleared. Tapping the medium's weather column is not such a fetch:
+    /// the app hands the tap straight on to Apple's legal page (`WeatherAttributionLink`).
+    /// The medium's weather column says it, worded 今天; every other face shows only
+    /// "complete your route" on a today entry (`TomorrowWidgetPresentation`).
     ///
-    /// Past today's normal time (strictly: at it the request is still today's) the app has
-    /// moved on to tomorrow's morning and fetches nothing for today again. Only an outdated
-    /// registration's later ring keeps a today entry there; without a forecast it gets no
-    /// notice, so no column, rather than "not available yet", which would never come true.
+    /// Past today's normal time the app has moved on to tomorrow's morning and fetches
+    /// nothing for today again. Only an outdated registration's later ring keeps a today
+    /// entry there; without a forecast it gets no notice, so no column, rather than "not
+    /// available yet", which would never come true.
+    ///
+    /// Strictly past, for continuity, although at the normal time itself the app's coming
+    /// morning (`TomorrowWeatherRequest`, `dayOffset` nil) is already tomorrow's: a today
+    /// entry that ends at its normal time (a skipped day, shown through that second) keeps
+    /// its column through its last shown second instead of losing it for one second.
     static func todayWeatherNotice(for status: TomorrowAlarmStatus, addressesMissing: Bool,
                                    at moment: Date) -> TomorrowWidgetSnapshot.WeatherNotice? {
         if status.weather == nil, !addressesMissing, moment > status.normalAlarmDate { return nil }

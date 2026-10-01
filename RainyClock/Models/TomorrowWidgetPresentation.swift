@@ -172,8 +172,10 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     /// The medium widget draws its weather column (endpoints, footer,  Weather mark, and
     /// the link to Apple's legal page): on every tomorrow entry, and on a today entry that
     /// has something to show there, a forecast or a notice (2026-10-02). A today entry with
-    /// neither (a snapshot written by build 38, or past today's normal time once the app has
-    /// moved on to tomorrow's forecast) lets the left side take the width, as build 38 did.
+    /// neither (one written by build 38 without "complete your route", or past today's
+    /// normal time once the app has moved on to tomorrow's forecast) lets the left side take
+    /// the width, as build 38 did. A build-38 today entry with "complete your route" gets the
+    /// column: 39 writes that same entry, and tomorrow's entry draws it the same way.
     /// Not for the open-the-app faces either.
     var showsWeatherColumn: Bool
     /// The weather column's footer notice, in place of 天氣更新於…: `.todayNotice` on a
@@ -290,8 +292,10 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 return lines
             }
             line = lines(withWeather: false).first
-            // A today entry draws the column when it has something there to attribute or say;
-            // without either (a build-38 snapshot) it stays as build 38 drew it.
+            // A today entry draws the column when it has something there to attribute or say.
+            // Without either (build 38's today entries, bar "complete your route") it stays as
+            // build 38 drew it; "complete your route" draws it as 39 writes it and as tomorrow's
+            // entries do, so a route-incomplete widget does not change when the app republishes.
             showsWeatherColumn = !entry.isToday || entry.forecast != nil || entry.weatherNotice != nil
             // The weather column prints the notice's own text (stale, failed, no forecast,
             // or route needed, which is also the route-incomplete reason's text).
