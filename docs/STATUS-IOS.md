@@ -24,7 +24,7 @@ Last updated: 2026-10-02.
 > 保留原文，一律讀成 1.8.0；現況見「1.8.0 準備中」一節。
 >
 > **1.8.0（39）= 颱風停班停課 ＋ 鬧鐘總開關 ＋ 主畫面／鎖定畫面「下次鬧鐘」widget**（39 比 38 多了中型 widget
-> 今天的項目也顯示天氣，超過 3 小時的預報寫「預報時間」、不警告，2026-10-02）。38 已上傳 TestFlight（10/2，擁有者手機測試完成，widget 天氣是那時發現的）；**39 已於 10/2 08:27 上傳**，App Store Connect 要改選 39。
+> 今天的項目也顯示天氣，超過 3 小時的預報寫「預報時間」、不警告，2026-10-02）。38 已上傳 TestFlight（10/2，擁有者手機測試完成，widget 天氣是那時發現的）；**39 已於 10/2 08:27 上傳**，08:50 前後在 App Store Connect 改選 build 39、審查說明第一行改成 (39) 並儲存（讀回正確；仍未送審）。
 > `ios/widget`（worktree `RainyClock-widget`，`ad0b628`）已於 **2026-10-01** 依擁有者決定以合併 commit 合入
 > 1.8.0 線。合併時統一的規則見「1.8.0 準備中」的「`ios/widget` 合入 1.8.0 線」一點，
 > 送審前欠項見同一點與該節末的 widget 小節。
@@ -240,6 +240,8 @@ Last updated: 2026-10-02.
   之後的建置以 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` 執行；要恢復預設請擁有者執行
   `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`。審查說明的 build 39 版：
   [`appstore-review-notes-1.8.0-39.txt`](appstore-review-notes-1.8.0-39.txt)（只改第一行，3,916 字）。
+  **App Store Connect（10/2 08:50 前後）：** 1.8.0 版本的 build 由 38 換成 39，審查備註換成 build 39 版並儲存，重新整理後讀回：build 39、
+  備註第一行 (39)、3,916 字、What's New 不變；39 也已在內部測試群組 SKHU tester。仍未送審。
   擁有者 10/2 已用 TestFlight 38 跑完手機測試；39 只多中型 widget 今天的天氣欄，**手機待確認**：凌晨看中型，今天的天氣欄有天氣、
   超過 3 小時寫「預報時間 22:00」不帶警示、 Weather 標示在且點了開 Apple 的法律頁。
 
