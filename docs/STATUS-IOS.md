@@ -24,7 +24,7 @@ Last updated: 2026-10-02.
 > 保留原文，一律讀成 1.8.0；現況見「1.8.0 準備中」一節。
 >
 > **1.8.0（39）= 颱風停班停課 ＋ 鬧鐘總開關 ＋ 主畫面／鎖定畫面「下次鬧鐘」widget**（39 比 38 多了中型 widget
-> 今天的項目也顯示天氣，超過 3 小時的預報寫「預報時間」、不警告，2026-10-02）。38 已上傳 TestFlight（10/2）；39 尚未 archive，App Store Connect 要改選 39。
+> 今天的項目也顯示天氣，超過 3 小時的預報寫「預報時間」、不警告，2026-10-02）。38 已上傳 TestFlight（10/2，擁有者手機測試完成，widget 天氣是那時發現的）；**39 已於 10/2 08:27 上傳**，App Store Connect 要改選 39。
 > `ios/widget`（worktree `RainyClock-widget`，`ad0b628`）已於 **2026-10-01** 依擁有者決定以合併 commit 合入
 > 1.8.0 線。合併時統一的規則見「1.8.0 準備中」的「`ios/widget` 合入 1.8.0 線」一點，
 > 送審前欠項見同一點與該節末的 widget 小節。
@@ -231,6 +231,17 @@ Last updated: 2026-10-02.
   ATT 真機錄影與英文 6.5 吋素材核對尚未完成；build 35 交付進度見上方最新紀錄。
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
+
+- **2026-10-02 08:27：1.8.0（39）已上傳 App Store Connect（只進 TestFlight，未送審）。** Xcode 27.0 從 `4e218c2` archive
+  （`CreationDate` 08:24，晚於 08:22 的 commit）。本機 App Store 匯出檢查同 38：三個 bundle 都是 1.8.0（39）、iOS 27 SDK，正式推播／
+  App Attest、三個 bundle 都有 App Group 與隱私清單、正式網址、只有 IronSource、`-ObjC` 在、widget 帶新字 `widget_forecast_as_of`。
+  上傳前完整測試：iOS 26.5 與 27.0 各 633 項、0 失敗、4 略過（`26623f4`；之後 `4e218c2` 只改註解與文件，重新編譯通過）。
+  **注意：** 這台 Mac 的 `xcode-select` 在 10/2 08:22 左右被切到 `/Library/Developer/CommandLineTools`（不是這個 session 改的），
+  之後的建置以 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` 執行；要恢復預設請擁有者執行
+  `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`。審查說明的 build 39 版：
+  [`appstore-review-notes-1.8.0-39.txt`](appstore-review-notes-1.8.0-39.txt)（只改第一行，3,916 字）。
+  擁有者 10/2 已用 TestFlight 38 跑完手機測試；39 只多中型 widget 今天的天氣欄，**手機待確認**：凌晨看中型，今天的天氣欄有天氣、
+  超過 3 小時寫「預報時間 22:00」不帶警示、 Weather 標示在且點了開 Apple 的法律頁。
 
 - **2026-10-02：中型 widget 今天的項目也顯示天氣（擁有者決定，隨 1.8.0（39））。** 擁有者 04:00 看到中型寫
   「Today · Fri, Oct 2 7:30 AM／Rings as usual」、沒有天氣。改為：從午夜到今天的鬧鐘響，中型也畫天氣欄（住家／公司
