@@ -11,8 +11,8 @@
 > Still accurate for 1.8.0 (39), whose medium widget also shows weather on today's entry (2026-10-02):
 > neither language ever limited the weather to tomorrow. Not re-pasted.
 >
-> Still accurate for 1.8.0 (40) too — the build to submit; not archived or uploaded yet, App Store
-> Connect still has 39. Its small widget's background follows the forecast and carries the  Weather
+> Still accurate for 1.8.0 (40) too — the build submitted for review on 2026-10-03 00:14 (uploaded
+> 2026-10-02 21:44; App Store Connect has build 40 and the (40) note). Its small widget's background follows the forecast and carries the  Weather
 > mark (owner's decision, 2026-10-02 evening), but the small's text is still the decision only, with no
 > condition name or rain chance, so "The medium widget also shows home and work weather" /
 > 「中型另外顯示住家與公司天氣」 holds as written. No store-facing text is re-pasted; only the App Review
@@ -658,8 +658,8 @@ AdMob and `npa=1`, which `1.6.7` replaced with Unity LevelPlay.
 ### Version-specific note for 1.8.0 (38) — LOCAL DRAFT
 
 **Paste this, not the facts below: [`appstore-review-notes-1.8.0-40.txt`](appstore-review-notes-1.8.0-40.txt)**
-(3,997 characters, under the 4,000 limit) — build 40 is the one to submit; it is not archived or
-uploaded yet, and App Store Connect still holds build 39 and the (39) note. It is the 2026-10-01 note
+(3,997 characters, under the 4,000 limit) — pasted into App Store Connect on 2026-10-03 and submitted
+with build 40 (read back: 3,996 characters, the file without its final newline). It is the 2026-10-01 note
 with line 1 changed and one sentence rewritten on 2026-10-02 evening: "Only medium shows weather, with
 the Apple Weather mark; …" became "Small (forecast background) and medium (weather column) show the
 Apple Weather mark. Tapping that column opens Apple's legal page via the app; small opens the app's
