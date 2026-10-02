@@ -13,10 +13,15 @@ struct TomorrowWidgetView: View {
 
     @Environment(\.widgetFamily) private var family
     @Environment(\.widgetRenderingMode) private var renderingMode
+    @Environment(\.showsWidgetContainerBackground) private var showsBackground
 
     var body: some View {
         let presentation = TomorrowWidgetPresentation(entry.state, clockFormat: entry.clockFormat)
         let style = WidgetStyle(entry: entry, fullColor: renderingMode == .fullColor, family: family)
+        // The small's sky is the forecast's, so it carries Apple's mark wherever that sky is
+        // drawn. StandBy and a tinted or clear Home Screen remove the background, and with it
+        // the only weather data on this face.
+        let smallShowsSky = presentation.hasForecastSky && showsBackground
         Group {
             switch family {
             case .systemMedium:
@@ -34,19 +39,22 @@ struct TomorrowWidgetView: View {
                 InlineTomorrowView(entry: entry, presentation: presentation, style: style)
                     .containerBackground(for: .widget) { Color.clear }
             default:
-                // The decision's sky, never the forecast's: only the medium shows weather (D-A).
-                SmallTomorrowView(entry: entry, presentation: presentation, style: style)
+                // The medium's sky (owner, 2026-10-02): the two faces sit side by side. A tap
+                // opens the Alarm tab, whose weather card carries the mark and the legal link,
+                // wherever the app was left.
+                SmallTomorrowView(entry: entry, presentation: presentation, style: style, showsWeatherMark: smallShowsSky)
                     .containerBackground(for: .widget) {
-                        TomorrowSkyBackground(home: presentation.decisionSky, work: presentation.decisionSky, layout: .ambient)
+                        TomorrowSkyBackground(home: presentation.home, work: presentation.work, layout: .ambient)
                     }
+                    .widgetURL(TomorrowWidgetSnapshot.alarmTabURL)
             }
         }
         // White ink over the sky in full colour; the system's own scheme otherwise.
         .environment(\.colorScheme, style.fullColor ? .dark : systemColorScheme)
         // One label for the whole widget, except where the medium's weather column is a link
         // of its own (to Apple's legal page): VoiceOver must reach it, so the medium labels
-        // its two halves itself.
-        .modifier(CombinedAccessibility(label: style.accessibilityLabel(presentation),
+        // its two halves itself. The small reads its sky and the attribution after the alarm.
+        .modifier(CombinedAccessibility(label: style.accessibilityLabel(presentation, withSky: family == .systemSmall && smallShowsSky),
                                         isEnabled: !(family == .systemMedium && presentation.showsWeatherColumn)))
     }
 
@@ -151,8 +159,9 @@ struct WidgetStyle {
     private var listSeparator: String { isChinese ? "，" : ", " }
 
     /// The alarm's label: header, expected ring (or the hero) and footer. The whole widget's,
-    /// or the medium's left half when its weather column is a separate link.
-    func accessibilityLabel(_ presentation: TomorrowWidgetPresentation) -> String {
+    /// or the medium's left half when its weather column is a separate link. `withSky` adds
+    /// what the small's forecast sky shows and the Apple Weather attribution under it.
+    func accessibilityLabel(_ presentation: TomorrowWidgetPresentation, withSky: Bool = false) -> String {
         var pieces = [mediumHeader(presentation, separator: ", ")]
         switch presentation.hero {
         case .time(let ring, _):
@@ -168,6 +177,9 @@ struct WidgetStyle {
         if let line = presentation.line { pieces.append(text(line.full)) }
         // A closure is never read out without its source and the source's time (§7).
         if let source = presentation.closureSource { pieces += closureSourceLines(source) }
+        if withSky, let sky = presentation.skyAccessibilityLabel(separator: listSeparator, text: { line in text(line) }) {
+            pieces.append(sky)
+        }
         return pieces.joined(separator: listSeparator)
     }
 
@@ -218,18 +230,29 @@ private struct HeroTime: View {
     let parts: ClockTimeFormat.Parts
     let digitSize: CGFloat
     let style: WidgetStyle
+    /// false where the face has no height to spare (the small under its  Weather row): the
+    /// digits shrink in the row instead of the period taking a line of its own.
+    var stacksPeriod = true
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                if parts.periodLeads, let period = parts.period { periodText(period) }
-                digits
-                if !parts.periodLeads, let period = parts.period { periodText(period) }
+        if stacksPeriod {
+            ViewThatFits(in: .horizontal) {
+                row
+                VStack(alignment: .leading, spacing: 0) {
+                    if let period = parts.period { periodText(period) }
+                    digits
+                }
             }
-            VStack(alignment: .leading, spacing: 0) {
-                if let period = parts.period { periodText(period) }
-                digits
-            }
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
+            if parts.periodLeads, let period = parts.period { periodText(period) }
+            digits
+            if !parts.periodLeads, let period = parts.period { periodText(period) }
         }
     }
 
@@ -346,7 +369,7 @@ private struct GlyphBadge: View {
 }
 
 /// The small header; gives up the weekday rather than truncate. StandBy drops the sky
-/// and shows no weather symbol in its place (D-A): the glyph beside it is the reason's.
+/// and shows no weather symbol in its place: the glyph beside it is the reason's.
 private struct HeaderText: View {
     let text: String
     let short: String
@@ -369,26 +392,41 @@ private struct SmallTomorrowView: View {
     let entry: TomorrowWidgetEntry
     let presentation: TomorrowWidgetPresentation
     let style: WidgetStyle
+    /// The sky behind this face is the forecast's: Apple's mark goes under the alarm.
+    let showsWeatherMark: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center) {
-                HeaderText(text: style.smallHeader(presentation), short: style.smallHeaderShort(presentation),
-                           presentation: presentation, style: style)
-                Spacer(minLength: 4)
-                GlyphBadge(glyph: presentation.glyph, showsBadge: presentation.showsWarningBadge, style: style)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .center) {
+                    HeaderText(text: style.smallHeader(presentation), short: style.smallHeaderShort(presentation),
+                               presentation: presentation, style: style)
+                    Spacer(minLength: 4)
+                    GlyphBadge(glyph: presentation.glyph, showsBadge: presentation.showsWarningBadge, style: style)
+                }
+                Spacer(minLength: 2)
+                SmallHero(presentation: presentation, style: style, digitSize: 44, stacksPeriod: !showsWeatherMark)
+                Spacer(minLength: 2)
+                if let line = presentation.line {
+                    FittedLineView(line: line, style: style).font(.caption)
+                }
+                if let source = presentation.closureSource {
+                    ClosureSourceView(source: source, style: style).padding(.top, 2)
+                }
             }
-            Spacer(minLength: 2)
-            SmallHero(presentation: presentation, style: style, digitSize: 44)
-            Spacer(minLength: 2)
-            if let line = presentation.line {
-                FittedLineView(line: line, style: style).font(.caption)
-            }
-            if let source = presentation.closureSource {
-                ClosureSourceView(source: source, style: style).padding(.top, 2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            if showsWeatherMark {
+                // The last row, and the one that keeps its height: a tight face shrinks the
+                // alarm above before it would lose the attribution. The link is the medium's
+                // (through the app to Apple's legal page) where the system honours a `Link` on
+                // this family; elsewhere a tap opens the app, whose weather card carries it.
+                Link(destination: WeatherAttributionMarkStore.legalLinkURL) {
+                    WeatherAttributionMark(style: style)
+                }
+                .padding(.top, 3)
+                .layoutPriority(1)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -396,12 +434,13 @@ private struct SmallHero: View {
     let presentation: TomorrowWidgetPresentation
     let style: WidgetStyle
     let digitSize: CGFloat
+    var stacksPeriod = true
 
     var body: some View {
         switch presentation.hero {
         case .time(let ring, _):
             VStack(alignment: .leading, spacing: 0) {
-                HeroTime(parts: style.parts(ring), digitSize: digitSize, style: style)
+                HeroTime(parts: style.parts(ring), digitSize: digitSize, style: style, stacksPeriod: stacksPeriod)
                 if presentation.ringIsOnAnotherDay {
                     Text(verbatim: style.longDate(ring))
                         .font(.caption2)
@@ -451,7 +490,7 @@ private struct MediumTomorrowView: View {
                 left.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(Text(verbatim: style.accessibilityLabel(presentation)))
-                // The only family with WeatherKit data, so it carries the  Weather mark, and
+                // The family that prints WeatherKit data, so it carries the  Weather mark, and
                 // the column links (through the app) to Apple's legal attribution page. Its
                 // own accessibility element, so VoiceOver can follow the link too.
                 Link(destination: WeatherAttributionMarkStore.legalLinkURL) {

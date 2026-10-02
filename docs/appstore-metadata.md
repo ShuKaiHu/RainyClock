@@ -10,6 +10,13 @@
 >
 > Still accurate for 1.8.0 (39), whose medium widget also shows weather on today's entry (2026-10-02):
 > neither language ever limited the weather to tomorrow. Not re-pasted.
+>
+> Still accurate for 1.8.0 (40) too — the build to submit; not archived or uploaded yet, App Store
+> Connect still has 39. Its small widget's background follows the forecast and carries the  Weather
+> mark (owner's decision, 2026-10-02 evening), but the small's text is still the decision only, with no
+> condition name or rain chance, so "The medium widget also shows home and work weather" /
+> 「中型另外顯示住家與公司天氣」 holds as written. No store-facing text is re-pasted; only the App Review
+> note changes ([`appstore-review-notes-1.8.0-40.txt`](appstore-review-notes-1.8.0-40.txt)).
 
 > **DRAFT.** Nothing in this section has been approved, pasted into App Store Connect or
 > submitted; the owner approves the final text. One draft since 2026-10-01, when `ios/widget`
@@ -30,9 +37,16 @@ Where the draft stands:
   adding the closure rule there is an owner edit (see the StoreKit products section below).
 - **The alarm switch** (2026-09-30, owner request) is free on every plan.
 - **The widget is iOS 26+ only** (it lives in the AlarmKit Live Activity extension); the app stays
-  iOS 17+, iPhone only. Only the medium widget shows weather (today's entry too, from 1.8.0 (39),
-  2026-10-02), with Apple's  Weather mark under its weather column and a link (through the app) to
-  Apple's legal page (decision D-A); confirm on the submitted build, on a device.
+  iOS 17+, iPhone only. The medium widget shows the weather details (today's entry too, from
+  1.8.0 (39), 2026-10-02), with Apple's  Weather mark under its weather column and a link (through
+  the app) to Apple's legal page (decision D-A). **Changed 2026-10-02 evening (owner's decision,
+  build 40): no longer only the medium.** The small widget's background follows the same forecast
+  and its last row is the  Weather mark; its text stays the decision only. A tap on the small opens
+  the app on its Alarm tab, whose weather card carries the mark and the legal link (the mark is a `Link` like the
+  medium's, for wherever iOS honours one on the small size). With no forecast, or where iOS removes
+  the widget background (StandBy; expected on a tinted or clear Home Screen too, unverified), the
+  small shows neither sky nor mark. Lock Screen sizes show no weather. Confirm on the submitted build, on a device: so far the
+  small is checked on simulators with the text mark only.
 - The 1.7.0 (30) review note's "not a Home Screen widget", line 3 of
   `appstore-review-notes-1.7.0-34.txt` and the 1.6.x 2.1(a) replies below all say the app has no Home
   Screen widget; **from 1.8.0 that is false and must not be reused.**
@@ -74,7 +88,9 @@ Sleep in when the government calls a day off, and see your next alarm on your Ho
 ### Before pasting — internal, not App Store copy
 
 - [ ] The Apple Weather treatment in the build matches the widget lines above (medium widget), or the
-      lines are rewritten.
+      lines are rewritten. From build 40 the small widget carries the  Weather mark too, under a
+      background that follows the forecast (2026-10-02 evening); the lines above do not mention it and
+      stay true, so check the mark on both sizes and that the review note describes both.
 - [ ] The widget App ID has the App Group enabled and the archived `.appex` carries it; otherwise the
       widget never leaves "Open the app…" and the reviewer's widget steps fail.
 - [ ] The review note (below, under App Review Notes) is rewritten to fit 4,000 characters.
@@ -641,8 +657,16 @@ AdMob and `npa=1`, which `1.6.7` replaced with Unity LevelPlay.
 
 ### Version-specific note for 1.8.0 (38) — LOCAL DRAFT
 
-**Paste this, not the facts below: [`appstore-review-notes-1.8.0-38.txt`](appstore-review-notes-1.8.0-38.txt)**
-(3,916 characters, under the 4,000 limit; written 2026-10-01). One note for the whole version: the
+**Paste this, not the facts below: [`appstore-review-notes-1.8.0-40.txt`](appstore-review-notes-1.8.0-40.txt)**
+(3,997 characters, under the 4,000 limit) — build 40 is the one to submit; it is not archived or
+uploaded yet, and App Store Connect still holds build 39 and the (39) note. It is the 2026-10-01 note
+with line 1 changed and one sentence rewritten on 2026-10-02 evening: "Only medium shows weather, with
+the Apple Weather mark; …" became "Small (forecast background) and medium (weather column) show the
+Apple Weather mark. Tapping that column opens Apple's legal page via the app; small opens the app's
+Alarm tab, whose weather card links to it." (To make room, the sentence before it lost "It" and
+"e.g. … or".) Kept as pasted at the time, not for reuse:
+[`-38`](appstore-review-notes-1.8.0-38.txt) (3,916 characters, written 2026-10-01) and
+[`-39`](appstore-review-notes-1.8.0-39.txt) (the same text with line 1 changed). One note for the whole version: the
 widget, typhoon closures with the no-purchase "View map demo" path, the alarm switch, then the 1.7.1
 essentials (tracking 2.1, location 2.1(a), purchases, calendar, AI voice, sandbox) compressed. Three
 drafts from different priorities were scored by two judges, the winner was merged with the others'
@@ -713,7 +737,7 @@ Data: the phone sends our service a random installation identifier, the APNs tok
 資料：手機傳給服務的是隨機安裝識別碼、APNs token 與裝置持有的 credential（服務只保存它的 SHA-256 雜湊）；處理完公告後回報公告版本、時間戳與「已處理／未設鬧鐘」結果。住家與公司地址、行政區、路線、鬧鐘時間與略過日期都不會上傳。此功能不要求定位權限。詳見隱私政策「天災臨時放假」一節。
 ```
 
-The widget section (from `ios/widget`'s draft, with the closure and the alarm switch's faces added on 2026-10-01):
+The widget section (from `ios/widget`'s draft, with the closure and the alarm switch's faces added on 2026-10-01; its weather paragraph, in both languages, rewritten on 2026-10-02 evening for build 40 — it used to read "Only the medium size shows weather … Other sizes: no weather."):
 
 ```
 NEW: HOME SCREEN AND LOCK SCREEN WIDGET
@@ -721,7 +745,7 @@ Earlier notes said there was no Home Screen widget; there now is one, "Next Alar
 
 Sizes: small, medium; Lock Screen rectangular, circular, inline. Each shows the next alarm and why (earlier for rain on the route; skipped for a holiday, non-repeat day, closure or silent date): today's from midnight until it rings, then tomorrow's. A repeated early ring awaiting its own morning's forecast reads "Waiting for tomorrow's forecast". With the alarm switch off it reads "Alarm Off" ("Off" on the circular Lock Screen widget); with only the next alarm off, "Off just this once; later alarms ring as usual" (shorter on the Lock Screen). A closure is shown on the small, medium and rectangular widgets with its source and the source's own update time; the circular and inline widgets have no room for the source, so they show that day only as skipped.
 
-Only the medium size shows weather (conditions, rain chance), with the Apple Weather mark under it; tapping that column opens Apple's legal attribution page via the app. Other sizes: no weather.
+The medium size shows weather details (conditions, rain chance), with the Apple Weather mark under them; tapping that column opens Apple's legal attribution page via the app. The small size has no weather text, but its background follows the same forecast and it carries the Apple Weather mark; tapping the small widget opens the app, whose weather card shows the mark linked to the same page. Lock Screen sizes: no weather.
 
 No network, no ads: it reads a snapshot (no addresses) the app writes to its App Group, also from background refresh.
 
@@ -740,7 +764,7 @@ To test:
 
 尺寸：主畫面小型、中型；鎖定畫面長方形、圓形、inline。每個尺寸都顯示下一次鬧鐘與原因（路線可能下雨而提早；因假日、非重複日、停班停課或手動靜音而略過）：午夜到今天的鬧鐘響之前是今天的，響過之後是明天的。因雨提早響過後、隔天自己的預報還沒決定的重複提早，顯示「等待明天預報」。鬧鐘總開關關閉時顯示「鬧鐘已關閉」（鎖定畫面圓形顯示「關閉」），只關閉下一次時顯示「只關閉這一次，之後的鬧鐘照常響」（鎖定畫面為較短的版本）。停班停課在小型、中型與長方形小工具上會同時標示資料來源與來源本身的更新時間；圓形與 inline 放不下資料來源，那天只顯示為略過。
 
-只有中型顯示天氣（天氣狀況、降雨機率），下方有 Apple 天氣標記；點天氣欄會經由 App 開啟 Apple 的法律聲明頁。其他尺寸不顯示天氣。
+中型顯示天氣（天氣狀況、降雨機率），下方有 Apple 天氣標記；點天氣欄會經由 App 開啟 Apple 的法律聲明頁。小型不寫天氣文字，但背景跟著同一份預報變化，並有 Apple 天氣標記；點小型會開啟 App，App 的天氣卡有同一個標記，連到同一頁。鎖定畫面的尺寸不顯示天氣。
 
 不連網、無廣告：小工具只讀 App 寫進 App Group 的資料（不含地址），背景更新時也會寫入。
 

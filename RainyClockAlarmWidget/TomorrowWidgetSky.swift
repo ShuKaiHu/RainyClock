@@ -3,10 +3,10 @@ import WidgetKit
 
 /// The widget's sky: the app's CommuteSky colours and particles, frozen at time 0.
 ///
-/// `.ambient` (small, StandBy) keeps particles quiet and full-bleed so the digits stay
-/// readable; `.scene` (medium) draws the card's clouds and rain in the right half, behind
-/// the mini weather card (its sun is drawn by the column itself, `ColumnSun`, in the gap
-/// its text leaves). Particles are static `Canvas` drawings, never a `TimelineView`, and
+/// Both faces draw the forecast's sky (nil conditions: the brand navy). `.ambient` (small)
+/// keeps particles quiet and full-bleed so the digits stay readable; `.scene` (medium) draws
+/// the card's clouds and rain in the right half, behind the mini weather card (its sun is
+/// drawn by the column itself, `ColumnSun`, in the gap its text leaves). Particles are static `Canvas` drawings, never a `TimelineView`, and
 /// appear only in full colour.
 struct TomorrowSkyBackground: View {
     enum Layout { case ambient, scene }

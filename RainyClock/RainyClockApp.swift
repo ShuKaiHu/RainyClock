@@ -37,7 +37,7 @@ struct RainyClockApp: App {
                 standardContent
                 #endif
             }
-            // The medium widget's  Weather column: open Apple's legal attribution page.
+            // The widgets'  Weather attribution: open Apple's legal attribution page.
             .onOpenURL { url in WeatherAttributionLink.open(url) }
         }
         .onChange(of: scenePhase) { _, newPhase in

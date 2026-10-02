@@ -9,7 +9,7 @@ import WidgetKit
 ///     -widget-demo-scenario <name>|tour     a TomorrowWidgetSamples.Scenario raw value, or the tour
 ///     -widget-demo-clock 12h|24h            clock format written into the snapshot (default 12h)
 ///     -widget-demo-tour-spacing <seconds>   tour step (default 30)
-///     -widget-demo-mark image|text          the medium's  Weather row: fetch Apple's mark into the
+///     -widget-demo-mark image|text          the widgets'  Weather mark: fetch Apple's mark into the
 ///                                           App Group (needs WeatherKit), or delete it (text fallback)
 enum TomorrowWidgetDemo {
     static let launchArgument = "-widget-demo"
@@ -53,7 +53,7 @@ enum TomorrowWidgetDemo {
 
     enum MarkState: String { case image, text }
 
-    /// The medium widget's  Weather row in either state App Review can meet: Apple's image
+    /// The widgets'  Weather mark in either state App Review can meet: Apple's image
     /// (fetched through WeatherKit, as the app does for real) or the text fallback (no image
     /// in the App Group). Returns whether the requested state is now in place.
     @MainActor
@@ -118,7 +118,7 @@ struct TomorrowWidgetDemoHost: View {
                     Button { setMark(.image) } label: { row("mark: Apple image", detail: nil) }
                     Button { setMark(.text) } label: { row("mark: text fallback", detail: nil) }
                 } header: {
-                    Text(verbatim: "Medium  Weather row")
+                    Text(verbatim: "Widget  Weather mark")
                 } footer: {
                     Text(verbatim: markStatus)
                 }

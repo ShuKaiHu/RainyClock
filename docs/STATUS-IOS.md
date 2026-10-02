@@ -25,8 +25,9 @@ Last updated: 2026-10-02.
 >
 > **1.8.0（39）= 颱風停班停課 ＋ 鬧鐘總開關 ＋ 主畫面／鎖定畫面「下次鬧鐘」widget**（39 比 38 多了中型 widget
 > 今天的項目也顯示天氣，超過 3 小時的預報寫「預報時間」、不警告，2026-10-02）。38 已上傳 TestFlight（10/2，擁有者手機測試完成，widget 天氣是那時發現的）；**39 已於 10/2 08:27 上傳**，08:50 前後在 App Store Connect 改選 build 39、審查說明第一行改成 (39) 並儲存（讀回正確；仍未送審）。
-> **10/2 傍晚起工作樹的 build 號是 40**（停班停課輪詢改每 30 分鐘，App 的公告新鮮度上限改 1 小時）：40 尚未 archive、尚未上傳，
-> App Store Connect 仍選 39；要送審的是 40，見「1.8.0 準備中」最上方一點。
+> **10/2 傍晚起工作樹的 build 號是 40**（停班停課輪詢改每 30 分鐘，App 的公告新鮮度上限改 1 小時；10/2 晚再加：小型 widget 的
+> 天空和中型一樣跟著預報，並帶  Weather 標記）：40 尚未 archive、尚未上傳，
+> App Store Connect 仍選 39；要送審的是 40，見「1.8.0 準備中」最上方兩點。
 > `ios/widget`（worktree `RainyClock-widget`，`ad0b628`）已於 **2026-10-01** 依擁有者決定以合併 commit 合入
 > 1.8.0 線。合併時統一的規則見「1.8.0 準備中」的「`ios/widget` 合入 1.8.0 線」一點，
 > 送審前欠項見同一點與該節末的 widget 小節。
@@ -234,6 +235,62 @@ Last updated: 2026-10-02.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-10-02 晚：小型 widget 的天空和中型一樣跟著預報，並帶  Weather 標記（擁有者決定；併入 1.8.0（40），build 號不變，
+  40 尚未 archive、尚未上傳）。** 擁有者把小型與中型並排放在主畫面（TestFlight 1.8.0（39），週末、預報晴天）：小型品牌深藍、
+  中型亮藍，問「不是應該一樣嗎？」。四個選項裡選了「兩個都跟天氣，小型也帶標記」，取代 D-A（9/24）的「只有 medium 顯示天氣」。
+  理由、Apple 的規定原文、否決的選項、放棄的東西與擁有者接受的審查風險見[產品決策](PRODUCT_DECISIONS.md)最上方。
+  - 現在的行為：小型的背景和中型是同一片預報天空；沒有預報、「開啟 App 更新」、路線未完成時兩個都是品牌深藍。小型的**文字**
+    沒改（只寫決定，不寫降雨機率與天氣名稱）。小型畫預報天空時，最下面一列是  Weather 標記；不畫就沒有。標記跟著
+    `showsWidgetContainerBackground`：StandBy 沒有背景（Apple 文件），著色／透明主畫面預期也沒有（未驗證），那時小型沒有天空、
+    也沒有標記。小型有 `widgetURL`（`rainyclock://alarm`）：點小型開 App 並切到鬧鐘頁，不管上次停在哪一頁（天氣卡的
+    `WeatherAttributionView` 連到 Apple 法律頁）；中型的點按不變。標記本身是 `Link`，系統在 systemSmall 接受的話，點標記就和中型的天氣欄一樣
+    經 App 開法律頁。有標記時小型的 VoiceOver 最後多念天空與標示（例：“Home Sunny, Work Rainy, Apple Weather”）。
+  - 程式：`RainyClockAlarmWidget/TomorrowWidgetViews.swift`（小型的 `containerBackground` 改用 `presentation.home`／`work`；
+    `SmallTomorrowView` 的 `showsWeatherMark`：`hasForecastSky` 且 `showsWidgetContainerBackground`，標記列 `layoutPriority(1)`，
+    上面的內容包進可以讓出高度的內層 `VStack`；有標記時 `HeroTime` 不把上午／下午疊到數字上面，改成同一行、數字縮小；小型加
+    `.widgetURL(TomorrowWidgetSnapshot.alarmTabURL)`）；`RainyClock/ContentView.swift`（`onOpenURL` 收到 `rainyclock://alarm`
+    就選鬧鐘頁）；`RainyClock/Models/TomorrowWidgetSnapshot.swift`（`alarmTabURL`）；
+    `RainyClock/Models/TomorrowWidgetPresentation.swift`（拿掉 `decisionSky`，新增
+    `hasForecastSky` 與 `skyAccessibilityLabel`；`home`／`work` 的規則沒改）。只改註解：`TomorrowWidgetSky.swift`、
+    `TomorrowWidgetSnapshot.swift`、`WeatherAttributionView.swift`、`RainyClockApp.swift`、`BackgroundWeatherRefresh.swift`、
+    `TomorrowWidgetDemo.swift`（另改 DEBUG 範例畫面上的一個標題：「Medium  Weather row」→「Widget  Weather mark」，不進 Release）、
+    `TomorrowWidgetSnapshotTests.swift`。沒有新字串，snapshot 版本仍是 4；中型、鎖定畫面三種與
+    天空上的 legibility overlay 都沒動。
+  - 測試：`TomorrowWidgetPresentationTests` 改 3 項（`testGlyphHeroAndLinePerScenario`、`testTodayChangesNothingOutsideTheMedium`，
+    以及 `testNoWeatherDataOutsideTheMedium` 改名 `testNoWeatherTextOutsideTheMedium`）。四個 widget 測試類別共 73 項通過。
+    完整測試（審查修正之後，`RainyClock Membership Local` scheme、已簽章、1 個 worker、排除 `MembershipStoreKitTests`）：
+    iOS 26.5 與 27.0 各 **631 通過、0 失敗、4 略過**。
+  - 模擬器畫面（把 widget 寫進 SpringBoard 的 `IconState.plist`，用 DEBUG 範例 `-widget-demo -widget-demo-scenario <name>
+    -widget-demo-clock 12h -widget-demo-mark text`，**只看了文字標記**）：iPhone 17 Pro iOS 26.5 繁中 13 個情境（`weekend`、
+    `normalClear`、`cloudyNormal`、`rainForecast`、`rainMixed`、`closure`、`ringPreviousDay`、`alarmOff`、`forecastUnavailable`、
+    `weatherFailed`、`todayClosure`、`todayRain`、`routeIncomplete`）；iPhone SE（第 3 代）iOS 26.5 繁中與英文各 6 個
+    （`normalClear`、`rainForecast`、`closure`、`ringPreviousDay`、`alarmOff`、`weatherFailed`）。每一個小型的天空都和中型相同、
+    標記列完整、沒有東西被裁掉；沒有預報的項目兩個都是深藍，小型沒有標記。放不下時 SwiftUI 讓出高度的方式：縮小時間數字
+    （`ringPreviousDay`），或欄底改用短字（`closure`：「停班停課略過」／“Work or school closed”，來源兩行都還在）。
+    SE 繁中的 `normalClear` 那張被系統通知橫幅蓋住標題列，標題要看英文那張或下面的重拍。
+  - 同晚審查（四個獨立審查者：版面、模型與測試、標示合規、文件）之後改的：(1) 第一版在 `ringPreviousDay` 把「下午」疊在數字
+    上面，標題與標記被擠到內容邊界外（沒有裁掉，但進了邊距），12 小時制 10:00–12:59 的一般鬧鐘在 SE 上推算也會；改成有標記時
+    不疊、同一行縮小數字，重拍 iPhone 17 Pro 繁中與 SE 英文的 `ringPreviousDay`、`normalClear`、`closure`，都在邊界內。
+    (2) App 停在設定頁時點小型只會把 App 叫回前景、看不到標記與連結；加 `widgetURL` 切到鬧鐘頁。(3) 測試：把一條永遠成立的
+    斷言換成對照輸入預報的斷言，補單一端點預報、兩種語言的 VoiceOver 文字、`alarmTabURL`。四個 widget 測試類別 74 項通過。
+    審查另外指出、這次沒有處理的既有問題：晚間預覽與「鬧鐘已調整」通知的文字直接寫降雨機率而沒有 Apple Weather 標示；
+    「因雨提早 N 分鐘」在沒有標記的面（StandBy、鎖定畫面）是否算 value-added（D-A 已記為殘餘風險）；鬧鐘頁在最小機型上
+    標記是否不用捲動就看得到（要在裝置上看）。
+  - **沒有驗證：** 小型上的 Apple 官方標記圖（要在裝置上連 WeatherKit）、StandBy、著色／透明主畫面、iOS 26 在 systemSmall 是否
+    接受 `Link`、真機。
+  - 還沒做：
+    1. （已完成：完整測試結果見上。）
+    2. 40 的 archive 與上傳，步驟同下一點「還沒做」第 1 項。
+    3. 審查備註的 widget 句子「Only medium shows weather, with the Apple Weather mark; tapping it opens Apple's legal attribution
+       page via the app.」不再成立。`appstore-review-notes-1.8.0-40.txt` 已在同一晚改寫成「Small (forecast background) and medium
+       (weather column) show the Apple Weather mark. Tapping that column opens Apple's legal page via the app; small opens the
+       app's Alarm tab, whose weather card links to it.」（3,997 字，仍在 4,000 以內；為了騰出字數，前一句拿掉 “It” 與
+       “e.g. … or”；`appstore-metadata.md` 的 widget 段落也已同步）。**新句子貼上 App Store Connect 之前要擁有者看過。****App Store Connect 上仍是 (39) 版的舊句子**：40 上傳後整份重貼（不是只改第一行）並讀回。What's New 的「中型另外顯示
+       住家與公司天氣」說的是天氣文字，照舊成立，不用重貼。
+    4. 手機待確認（TestFlight 的 40）：小型與中型並排、全彩，天空相同、小型有標記；著色與透明主畫面（小型沒有天空也沒有標記）；
+       StandBy；標記的官方圖與文字兩種狀態；停班停課的日子（短字、來源兩行、標記都在）；點小型的標記是開 Apple 法律頁，
+       還是只開 App。
+
 - **2026-10-02 18:27–18:31：停班停課輪詢改為每 30 分鐘、會員刪除改為每天兩次；App 的公告新鮮度上限 15 分鐘 → 1 小時，
   工作樹的 build 號改為 40（擁有者決定；40 尚未 archive、尚未上傳）。**
   - 原因（9 月帳單）：Cloud Run 用量 US$5.64、免費額度折抵 −US$4.62、實付 US$1.02，全部是 Cloud Run。Cloud Run **Job** 以
@@ -274,10 +331,11 @@ Last updated: 2026-10-02.
     **1.8.0（40）尚未 archive、尚未上傳；App Store Connect
     選的仍是 build 39，TestFlight 上也還是 39。** 審查說明的 build 40 版已備好：
     [`appstore-review-notes-1.8.0-40.txt`](appstore-review-notes-1.8.0-40.txt)（只改第一行，3,916 字；內文沒有寫輪詢頻率或
-    新鮮度時間，不用改）。
+    新鮮度時間，不用改）。（2026-10-02 晚：這份檔案又改了 widget 的天氣句子「Only medium shows weather…」（小型的天空），不再是
+    「只改第一行，3,916 字」，見本節最上方一點。）
   - 還沒做：
     1. 40 的 archive 與上傳；上傳後 App Store Connect 改選 build 40，審查備註換成 (40) 版並讀回，`docs/appstore-metadata.md`
-       指向審查備註檔與 build 的兩處也跟著改成 40。
+       指向審查備註檔與 build 的兩處也跟著改成 40。（2026-10-02 晚：指向審查備註檔的那一處已先改成 -40，上傳後只剩 build 的那一處。）
     2. absence 告警在 2 小時視窗下還沒重做「暫停 Scheduler」的端到端測試（9/24 那次測的是 15 分鐘視窗）。
     3. TestFlight 的 39 仍用 15 分鐘判斷：輪詢改成 30 分鐘後，地圖大約一半時間顯示「公告待更新」、行政區轉灰，下載到的資料
        超過 15 分鐘時也不送 sync receipt；略過鬧鐘的判斷不受影響（18 小時）。40 取代 39 之前都會這樣，不是壞了。
@@ -306,7 +364,8 @@ Last updated: 2026-10-02.
     原定時間過後沒有預報時不給提示）。`TomorrowWidgetPresentation`：新的 `Line.todayNotice` 與 `weatherColumnNotice`
     （天氣欄寫「今天」）；今天的項目有預報或提示才畫天氣欄（build 38 寫的今天項目沒有預報，提示也只有缺地址時的「請完成
     路線」：沒有提示的照 38 畫；帶「請完成路線」的畫天氣欄，和 39 自己寫的、明天的項目一樣，見下方審查修正）；`line` 與警示
-    標記在今天的項目只帶「請完成路線」，所以小型、StandBy 與鎖定畫面不變。widget 天氣欄的頁尾與 VoiceOver 改讀
+    標記在今天的項目只帶「請完成路線」，所以小型、StandBy 與鎖定畫面不變（2026-10-02 晚起小型的天空改跟預報並帶標記，
+    見本節最上方一點）。widget 天氣欄的頁尾與 VoiceOver 改讀
     `weatherColumnNotice`。抓取、背景工作、排程與主卡都沒改；snapshot 版本仍是 4。
   - 字串：共用鍵 +1 `ux_today_weather_failed`（今天天氣更新失敗，App 主卡已有）；widget 專用 +1
     `widget_today_weather_unavailable`——新字「尚未取得今天天氣」／“Today's forecast is not available yet”，**擁有者已核准
@@ -315,7 +374,7 @@ Last updated: 2026-10-02.
   - 版本：build 38 → **39**（`Info.plist` 的 `CFBundleVersion` 與 11 個 `CURRENT_PROJECT_VERSION`；`MARKETING_VERSION`
     仍是 1.8.0）。App Store Connect：39 上傳後改選 build 39；審查備註第一行「RAINY CLOCK 1.8.0 (38)」改成 (39) 再貼一次
     （字數不變，3,916；[審查說明](appstore-review-notes-1.8.0-38.txt) 保留當時貼上的原文）。What's New 與審查備註的天氣句子
-    本來就沒限定明天，照舊成立、不用重貼。
+    本來就沒限定明天，照舊成立、不用重貼。（2026-10-02 晚改：審查備註的 widget 句子已不成立，40 要整份重貼，見本節最上方「小型 widget 的天空」一點。）
   - 測試（Xcode 27.0、簽章的 `RainyClock Membership Local`、`-parallel-testing-worker-count 1`、略過 `MembershipStoreKitTests`）：
     每台 628 項（619 ＋ 新增 9）、**0 失敗**、624 過 4 略過（同 38：真實佇列通知測試沒有通知權限）——iPhone 17 Pro iOS 26.5
     （`B521C391`）與 iPhone 17 Pro iOS 27.0（`C2F654DB`）。新增 presentation 3 項（今天的提示寫「今天」、天氣資料只出現在標記
@@ -327,7 +386,8 @@ Last updated: 2026-10-02.
   - 手機待確認（39，TestFlight）：午夜後中型今天的項目有天氣欄、 Weather 標記（圖與文字兩種狀態）、點天氣欄開法律頁；
     前一次抓取 3 小時後今天的項目寫「預報時間 22:00」（沒有三角形、沒有標記，12／24 小時制各看一次；明天的項目仍是
     「天氣資料需要更新」，見下方「預報時間」一點）、沒有預報時「尚未取得今天天氣」；VoiceOver 在今天的項目也讀得到連結與預報時間；
-    著色與透明主畫面；中英文標題在 148 pt 天氣欄旁放得下（含因雨提早時的原定時間那一行）；小型與鎖定畫面和 38 一樣。
+    著色與透明主畫面；中英文標題在 148 pt 天氣欄旁放得下（含因雨提早時的原定時間那一行）；小型與鎖定畫面和 38 一樣
+    （39 是這樣；40 起小型的天空跟預報並帶標記，要看的項目見本節最上方一點）。
     缺地址時今天的項目也有天氣欄（端點「—」、欄底「請完成路線」），和明天的一樣。
     **預期：** 01:00 到 06:15 常會看到前一晚的預報加「預報時間 22:00」（背景工作何時跑由 iOS 決定；原本是「天氣資料需要
     更新」，擁有者 2026-10-02 改成不警告），打開 App 停在鬧鐘頁就會更新成「天氣更新於 …」（點天氣欄不算：App 直接轉到
@@ -353,7 +413,8 @@ Last updated: 2026-10-02.
     今天的項目（午夜到響鈴）預報超過 widget 的 3 小時（D-B）時，中型天氣欄不再寫「⚠ 天氣資料需要更新」、也沒有警示標記，
     改寫中性的「預報時間 22:00」／“Forecast as of 10:00 PM”，時間照 App 的 12／24 小時設定，VoiceOver 讀同一行。理由
     （擁有者）：預報通常是前一晚抓的、鬧鐘還沒響，04:00 看到前一晚的預報是預期中的事。不變：明天的項目超過 3 小時仍警告；
-    抓取失敗兩者都警告；沒有預報仍寫「尚未取得今天天氣」（已核准）；小型、StandBy、鎖定畫面不變；標記與法律頁連結跟著天氣欄。
+    抓取失敗兩者都警告；沒有預報仍寫「尚未取得今天天氣」（已核准）；小型、StandBy、鎖定畫面不變；標記與法律頁連結跟著天氣欄
+    （2026-10-02 晚起小型畫預報天空時自己也帶標記，見本節最上方一點）。
     詳見[產品決策](PRODUCT_DECISIONS.md)最上方。
     - 程式：snapshot 與 builder 的規則不變（今天的項目照樣存 `.stale`，版本 4），widget 在抓取時間 ＋ 3 小時的下一秒自己換字。
       `TomorrowWidgetPresentation`：今天的 `.stale` 不算天氣欄的提示（`weatherColumnNotice` 為空，所以沒有三角形）；新的
@@ -856,6 +917,8 @@ Last updated: 2026-10-02.
     Weather trademark ( Weather), as well as the legal link to other data sources」。其他尺寸（small、
     StandBy、長方形、圓形、inline）只顯示決定：「因雨提早 N 分鐘」（不帶 %）、一般日「照常響鈴」，small
     天空只在因雨提早時下雨、其他時候品牌深藍，StandBy 沒有天氣符號。過期／失敗／尚無預報是資料新舊，保留。
+    （**2026-10-02 晚改：**「只有 medium 顯示天氣資料」與 small 的天空已被取代——small 也依預報畫和 medium 同一片天空，畫的時候帶
+     Weather 標記；small 的文字、StandBy 與鎖定畫面照舊。見「1.8.0 準備中」最上方一點。）
   - **D-B 過期（`48967b9`）。** BGTask 在鬧鐘工作後、發布 widget 前也抓明天天氣
     （`refreshTomorrowWeatherIfNeeded`，只在前 15 秒內開始、逾時一併取消、不登記也不改鬧鐘）。widget 的
     snapshot 在天氣滿 3 小時的那一秒切成「天氣資料需要更新」。
@@ -881,7 +944,7 @@ Last updated: 2026-10-02.
     的週登記藏掉今天真的會響的那一格；今天的項目帶前一晚的預報卻不警告；著色／透明主畫面標記消失
     （改永遠用白字深色版、只下載這一版）；VoiceOver 點不到法律頁連結（天氣欄改成獨立的連結元素＋提示）；
     標記列把太陽光芒擠到「晴天」上（太陽改畫在天氣欄兩列之間的空隙）；送審草稿描述錯誤（已重寫，見下）；
-    small 在非雨天畫晴天（改深藍）；今天的項目天氣欄空白（今天不畫天氣欄；2026-10-02 起改為有預報或提示就畫）；medium 同時寫
+    small 在非雨天畫晴天（改深藍；2026-10-02 晚起改跟預報並帶標記）；今天的項目天氣欄空白（今天不畫天氣欄；2026-10-02 起改為有預報或提示就畫）；medium 同時寫
     「等待明天預報」與「尚未取得明天天氣」（左邊不再重複）；widget 叫「明天的鬧鐘」卻顯示今天（改名）；
     DEBUG 範例看不到標記兩種狀態與今天的其他原因（已補）。
   - 重複：第 14 項「VoiceOver 點不到法律頁」與第 7 項同一件事，一起修。
@@ -906,7 +969,8 @@ Last updated: 2026-10-02.
   2. **真機驗證（TestFlight 1.8.0）。** 開一次 App 後 small／medium／鎖定畫面顯示真實鬧鐘；改時間、背景
      更新後會變；午夜後顯示「今天」、響過換明天（39 起中型今天的項目也有天氣欄）；medium 看得到  Weather（官方圖下載前後各一次）、點天氣欄
      開 Apple 法律頁、VoiceOver 讀得到連結；著色／透明圖示下標記仍在；gallery 兩種語言、五個尺寸、
-     StandBy 日夜（紅）、12／24 小時、換時區。
+     StandBy 日夜（紅）、12／24 小時、換時區。（40 起 small 畫預報天空時也有標記，著色／透明與 StandBy 下 small 沒有天空也沒有
+     標記；要看的項目見「1.8.0 準備中」最上方一點。）
   3. **（你要核准）送審草稿。** `appstore-review-notes-1.8.0-DRAFT.txt` 與 `appstore-metadata.md` 的 1.8.0
      節已依 D-A～D-D 重寫：widget 叫「Next Alarm」、今天／明天、「等待明天預報」、天氣只在 medium、標記在
      天氣欄下方、點天氣欄開法律頁；What's New 兩種語言也提今天與等待明天預報。備註 3,824 字（含開閘段落
@@ -914,10 +978,12 @@ Last updated: 2026-10-02.
      **（2026-10-01 起這段過時：）**審查備註草稿只有 `appstore-metadata.md`「Version-specific note for 1.8.0 (38)」
      一份，是事實版、超過 4,000 字（含停班停課、總開關、widget 三段），要另外重寫再核准；`.txt` 已標 SUPERSEDED、
      還寫著停班停課沒開閘，不要貼。上面的 3,824／3,994 字是 `.txt` 當時的字數。
+     **（2026-10-02 晚：）**「天氣只在 medium、標記在天氣欄下方」也不再成立：small 畫預報的天空並帶標記，審查備註那一句已在 build 40 版改寫，
+     見「1.8.0 準備中」最上方一點。
   4. **`MembershipStoreKitTests`（7 項）在 iOS 26.2 模擬器或真機補跑。** 在 26.5 模擬器第一項就彈 Apple 帳號
      登入、xcodebuild 無限等待（見上）；會員程式與 `ios/main` 相同。
   - 其他：Apple 對「value-added」產品另要求標  Weather 並註明資料已修改；非 medium 的「因雨提早」是否算，
-    依 D-A 不加標記，送審被問再議。1.7.1 與 1.8.0 的送審順序（build 38 兩種都成立；**已過時**：1.7.1 已於 9/26 上架）。Archive 後 Organizer →
+    依 D-A 不加標記，送審被問再議。（2026-10-02 晚起 small 畫預報天空時已帶標記；沒有天空的 small 與鎖定畫面仍照本句。）1.7.1 與 1.8.0 的送審順序（build 38 兩種都成立；**已過時**：1.7.1 已於 9/26 上架）。Archive 後 Organizer →
     Generate Privacy Report 確認三份 manifest。ASC 新增 1.8.0 版本頁。選擇性：`privacy-policy.html` 加一句
     widget 只顯示本機資料；`.disfavoredLocations([.carPlay], for: [.systemSmall])`。
 

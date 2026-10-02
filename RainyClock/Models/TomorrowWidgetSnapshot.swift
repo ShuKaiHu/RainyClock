@@ -12,6 +12,9 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
     static let appGroupIdentifier = "group.com.shukaihu.RainyClock"   // same group as DayOffSharedState
     static let storageKey = "tomorrowWidgetSnapshot.v1"              // != DayOffSharedState.storageKey
     static let kind = "RainyClockTomorrow"                           // never rename after shipping
+    /// The small widget's tap: the app shows its Alarm tab, where the weather card carries the
+    ///  Weather mark and the legal link, whichever tab it was left on.
+    static let alarmTabURL = URL(string: "rainyclock://alarm")!
     /// 2: `Entry.isToday` and `ReasonLine.awaitingForecast` (1.8.0 (38) widget decisions).
     /// 3: `Reason` / `ReasonLine` `.alarmOff` and `.skippedOnce` (the 1.8.0 master switch).
     /// 4: `Entry.closureSourceUpdatedAt`, so a closure names its source and the source's
@@ -220,8 +223,9 @@ enum TomorrowWidgetTimeline {
     }
 }
 
-/// Apple's combined " Weather" mark for the medium widget, the only family that shows
-/// WeatherKit data (D-A). The widget cannot reach the network, so the app downloads the
+/// Apple's combined " Weather" mark for the home-screen widgets, the faces that show
+/// WeatherKit data (the medium's weather column, and the forecast's sky on both). The widget
+/// cannot reach the network, so the app downloads the
 /// mark from `WeatherService.shared.attribution` where it already talks to WeatherKit
 /// (`WeatherAttributionMarkCache`) and leaves the PNG in the App Group container; the
 /// widget draws it, or `fallbackText` until the first download lands.
@@ -229,8 +233,9 @@ enum TomorrowWidgetTimeline {
 /// Apple's requirement (developer.apple.com/weatherkit/get-started, "Apple Weather and
 /// third-party attribution"): an app that displays weather data from Apple must clearly
 /// display the Apple Weather trademark ( Weather) and the legal link to the other data
-/// sources. The medium widget's weather column links (`legalLinkURL`) to the app, which
-/// opens `WeatherAttribution.legalPageURL`.
+/// sources. The medium widget's weather column, and the small's mark where the system
+/// honours a `Link` there, link (`legalLinkURL`) to the app, which opens
+/// `WeatherAttribution.legalPageURL`.
 struct WeatherAttributionMarkStore: Sendable {
     enum Variant: String, CaseIterable, Sendable {
         /// For light backgrounds (`combinedMarkLightURL`).

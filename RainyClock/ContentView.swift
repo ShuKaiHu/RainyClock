@@ -38,6 +38,12 @@ struct ContentView: View {
         // Use normal tab containment while keeping our existing bottom controls.
         .tabViewStyle(.automatic)
         .toolbar(.hidden, for: .tabBar)
+        // The small widget's tap (`TomorrowWidgetSnapshot.alarmTabURL`).
+        .onOpenURL { url in
+            if url.scheme == TomorrowWidgetSnapshot.alarmTabURL.scheme, url.host == TomorrowWidgetSnapshot.alarmTabURL.host {
+                selectedTab = .alarm
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomControls
         }

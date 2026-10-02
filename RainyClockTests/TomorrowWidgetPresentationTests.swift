@@ -30,7 +30,7 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
 
     func testGlyphHeroAndLinePerScenario() {
         let table: [Scenario: (Presentation.Glyph, String, Presentation.Line?)] = [
-            // D-A: outside the medium, the decision only: no route rain %, no percentage in the rain line.
+            // Outside the medium, the text is the decision only: no route rain %, no percentage in the rain line.
             .normalClear: (.alarm, "time", .ringsAsUsual),
             .cloudyNormal: (.alarm, "time", .ringsAsUsual),
             .rainForecast: (.rain, "time+original", .reason(.rainEarlier(minutes: 30))),
@@ -93,18 +93,32 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertNil(presentation(.alarmOff).day)
         XCTAssertNil(presentation(.alarmOff).dayWordKey)
         XCTAssertNotNil(presentation(.skippedOnce).day, "Skipped once is about one morning, which it names")
-        // The medium's sky is the forecast's (weather, attributed there)...
+        // Both home-screen faces draw the forecast's sky (owner, 2026-10-02), attributed on each...
         XCTAssertEqual(presentation(.rainMixed).home, .clear)
         XCTAssertEqual(presentation(.rainMixed).work, .rain)
-        // ...the small's is the decision's: rain for a rain-moved alarm, else the neutral navy
-        // (nil), never a sunny sky nothing decided.
-        XCTAssertEqual(presentation(.rainMixed).decisionSky, .rain)
-        XCTAssertEqual(presentation(.todayRain).decisionSky, .rain)
-        for scenario in [Scenario.normalClear, .cloudyNormal, .manualSkip, .carriedOver, .weatherFailed, .forecastUnavailable,
-                         .closure, .routeIncomplete, .todayNormal, .todayCarriedOver, .todayStale, .todayWeatherFailed,
+        XCTAssertTrue(presentation(.rainMixed).hasForecastSky)
+        XCTAssertEqual(presentation(.normalClear).home, .clear)
+        XCTAssertTrue(presentation(.normalClear).hasForecastSky)
+        XCTAssertEqual(presentation(.cloudyNormal).home, .cloudy)
+        // ...and without a forecast, or on an open-the-app face, the brand navy and no mark:
+        // never a sunny sky nothing forecast.
+        for scenario in [Scenario.carriedOver, .forecastUnavailable, .routeIncomplete, .todayCarriedOver,
                          .todayForecastUnavailable, .expired, .missing] {
-            XCTAssertNil(presentation(scenario).decisionSky, "\(scenario)")
+            XCTAssertFalse(presentation(scenario).hasForecastSky, "\(scenario)")
+            XCTAssertNil(presentation(scenario).skyAccessibilityLabel(separator: ", ", text: { $0.key }), "\(scenario)")
         }
+        // VoiceOver reads the small's sky as the sky draws it (no rain chance), then the attribution.
+        XCTAssertEqual(presentation(.rainMixed).skyAccessibilityLabel(separator: ", ", text: { $0.key }),
+                       "ux_weather_home ux_weather_clear, ux_weather_work ux_weather_rain, Apple Weather")
+        // A forecast with one endpoint still draws a sky, so it still carries the mark.
+        guard case .status(var single) = state(.normalClear) else { return XCTFail("normalClear must be a status") }
+        single.forecast?.work = nil
+        let oneEnded = Presentation(.status(single), language: "zh-Hant")
+        XCTAssertTrue(oneEnded.hasForecastSky)
+        XCTAssertEqual(oneEnded.home, .clear)
+        XCTAssertNil(oneEnded.work)
+        XCTAssertEqual(oneEnded.skyAccessibilityLabel(separator: ", ", text: { $0.key }),
+                       "ux_weather_home ux_weather_clear, Apple Weather")
 
         XCTAssertEqual(presentation(.rainForecast).relevanceScore, 50)
         XCTAssertEqual(presentation(.scheduleUpdateNeeded).relevanceScore, 50)
@@ -244,9 +258,10 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         }
     }
 
-    /// D-A: every family but the medium shows the alarm decision and nothing WeatherKit
-    /// produced: no rain percentage, no condition name, no condition-drawn sky or symbol.
-    func testNoWeatherDataOutsideTheMedium() {
+    /// Every family but the medium prints the alarm decision and no word or number WeatherKit
+    /// produced: no rain percentage, no condition name, no condition-drawn symbol. (The small's
+    /// sky is the forecast's since 2026-10-02, under its own mark: `hasForecastSky`.)
+    func testNoWeatherTextOutsideTheMedium() {
         let weatherKeys: Set<String> = ["ux_rain_applied_forecast", "ux_rain_chance", "ux_weather_clear",
                                         "ux_weather_cloudy", "ux_weather_rain", "ux_weather_updated", "widget_forecast_as_of"]
         let conditions: [TomorrowWidgetSnapshot.Condition] = [.clear, .cloudy, .rain]
@@ -265,18 +280,24 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             var bare = base
             bare.forecast = nil
             faces.append(Presentation(.status(bare), language: "zh-Hant"))
-            for face in faces {
+            for (index, face) in faces.enumerated() {
                 XCTAssertEqual(face.line, faces[0].line, "\(scenario): the line must not follow the forecast")
-                XCTAssertEqual(face.decisionSky, faces[0].decisionSky, "\(scenario): the small sky must not follow the forecast")
                 XCTAssertEqual(face.glyph, faces[0].glyph, "\(scenario)")
-                XCTAssertNotEqual(face.decisionSky, .cloudy, "\(scenario)")
+                // The sky, and with it the mark, is there exactly when the entry carries a
+                // forecast (the last face has none), and it is that forecast's.
+                let carriesForecast = index < faces.count - 1
+                XCTAssertEqual(face.hasForecastSky, carriesForecast, "\(scenario)")
+                if carriesForecast {
+                    XCTAssertEqual(face.home, conditions[index / 3], "\(scenario)")
+                    XCTAssertEqual(face.work, conditions[index / 3], "\(scenario)")
+                }
                 if let line = face.line {
                     XCTAssertFalse(weatherKeys.contains(line.full.key), "\(scenario): \(line.full.key)")
                     XCTAssertFalse(weatherKeys.contains(line.short.key), "\(scenario): \(line.short.key)")
                 }
             }
             let face = faces[0]
-            XCTAssertEqual(face.decisionSky == .rain, base.appliesRainLead, "\(scenario): rain sky only for a rain-moved alarm")
+            XCTAssertFalse(faces.last!.hasForecastSky, "\(scenario): no forecast, no sky and no mark")
             // A normal ringing day says so, unless an issue or a freshness notice comes first.
             if base.reasonLine == nil, base.expectedRingDate != nil, base.scheduleIssue == nil, base.weatherNotice == nil {
                 XCTAssertEqual(face.line, .ringsAsUsual, "\(scenario)")
@@ -432,6 +453,17 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         }
     }
 
+    /// The small's sky as VoiceOver reads it, in the widget's own tables and separators.
+    func testSmallSkyIsSpokenInBothLanguages() throws {
+        let zh = try WidgetStringTable("zh-Hant")
+        let en = try WidgetStringTable("en")
+        let face = presentation(.rainMixed)
+        XCTAssertEqual(face.skyAccessibilityLabel(separator: "，", text: { zh.text($0, timeZone: calendar.timeZone) }),
+                       "住家 晴天，公司 下雨，Apple Weather")
+        XCTAssertEqual(face.skyAccessibilityLabel(separator: ", ", text: { en.text($0, timeZone: calendar.timeZone) }),
+                       "Home Sunny, Work Rainy, Apple Weather")
+    }
+
     // MARK: Today's forecast past 3 hours (owner, 2026-10-02)
 
     /// What VoiceOver reads for the medium's weather column (one link), in `table`'s language,
@@ -574,7 +606,7 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertEqual(footer(none, en), "Today's forecast is not available yet")
     }
 
-    /// D-A: weather data on the medium (its sky, the route's rain chance) only ever appears
+    /// Weather data on the medium (its sky, the route's rain chance) only ever appears
     /// beside the column that draws the  Weather mark and the legal link, and so does a
     /// column notice; whatever forecast, notice or rain line the entry carries.
     func testWeatherDataOnlyBesideTheMark() {
@@ -613,7 +645,8 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
     }
 
     /// D-C kept outside the medium (2026-10-02): a today entry's forecast and weather notices
-    /// change nothing that small, StandBy, rectangular, circular or inline read. Every such
+    /// change nothing that small, StandBy, rectangular, circular or inline print (the small's
+    /// sky alone follows the forecast, under its mark). Every such
     /// field is what the same entry gives as build 38 stored it: no forecast, and no notice
     /// but "complete your route", which 38 stored as well (so it is among the variants).
     func testTodayChangesNothingOutsideTheMedium() {
@@ -642,7 +675,6 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
                 XCTAssertEqual(shown.glyph, was.glyph, label)
                 XCTAssertEqual(shown.accessoryGlyph, was.accessoryGlyph, label)
                 XCTAssertEqual(shown.hero, was.hero, label)
-                XCTAssertEqual(shown.decisionSky, was.decisionSky, label)
                 XCTAssertEqual(shown.ringDay, was.ringDay, label)
                 XCTAssertEqual(shown.skipLabelKey, was.skipLabelKey, label)
                 XCTAssertEqual(shown.inlineSkippedText, was.inlineSkippedText, label)

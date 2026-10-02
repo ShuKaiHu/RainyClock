@@ -4,11 +4,12 @@ import Foundation
 /// footer line. The views only render what this says, so every rule here is
 /// unit-testable from the app's test target.
 ///
-/// WeatherKit (D-A): only the medium family shows weather data (its weather column,
-/// `home`/`work` and the sky drawn from them), and it carries Apple's  Weather mark and
-/// the legal link. Every other family (small, StandBy, rectangular, circular, inline)
-/// shows the alarm decision only: `line` never carries a rain percentage or a condition,
-/// and the small widget's `decisionSky` follows the decision, never the forecast.
+/// WeatherKit: the medium family shows weather data in words (its weather column) and both
+/// home-screen families draw the forecast's sky (`home`/`work`; owner, 2026-10-02: the two
+/// faces sit side by side and must match). Whatever draws that sky carries Apple's  Weather
+/// mark (`hasForecastSky`); the medium's column also links to the legal page. Every text
+/// outside the medium (small, StandBy, rectangular, circular, inline) is still the alarm
+/// decision only: `line` never carries a rain percentage or a condition.
 struct TomorrowWidgetPresentation: Equatable, Sendable {
     enum Glyph: String, Sendable {
         case alarm = "alarm.fill", rain = "cloud.rain.fill", silent = "bell.slash.fill", manualRing = "calendar"
@@ -198,15 +199,15 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     /// triangle), and a stale forecast is no warning, only its time (owner, 2026-10-02).
     var showsWarningBadge: Bool
     var hasIssue: Bool
-    /// The medium widget's sky, from the forecast (weather data: medium only); nil when
-    /// needsApp, without a forecast, or without the weather column.
+    /// The sky of both home-screen families, from the forecast; nil (the brand navy) when
+    /// needsApp, without a forecast, or without the weather column. A kept forecast still
+    /// draws its sky under a stale or failed notice, on a skipped or closure day, and with
+    /// the alarm off: the sky is the forecast's, never the decision's.
     var home: TomorrowWidgetSnapshot.Condition?
     var work: TomorrowWidgetSnapshot.Condition?
-    /// The small widget's sky (D-A): rain only when this day's rain moved the alarm;
-    /// otherwise nil, the neutral brand navy. Never the forecast's condition, and never a
-    /// sunny sky that nothing decided (a failed or missing forecast, a closure, 60% under a
-    /// 70% threshold all look the same).
-    var decisionSky: TomorrowWidgetSnapshot.Condition?
+    /// The sky is weather data, so the face that draws it shows Apple's  Weather mark: the
+    /// medium in its weather column, the small in a row of its own.
+    var hasForecastSky: Bool { home != nil || work != nil }
     var day: Date?
     /// The entry is today's (D-C): headers and lines say 今天 / Today.
     var isToday: Bool
@@ -257,7 +258,6 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             hasIssue = false
             home = nil
             work = nil
-            decisionSky = nil
             day = nil
             isToday = false
             ringIsOnAnotherDay = false
@@ -350,10 +350,10 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             let weatherWarning = alarmNotice == .failed || alarmNotice == .stale
             showsWarningBadge = (weatherWarning || entry.scheduleIssue != nil) && line?.isWarning != true
             hasIssue = entry.scheduleIssue != nil
-            // The medium's sky is weather data too: only beside the column that attributes it.
+            // The sky is weather data too: on the medium only beside the column that
+            // attributes it, and the small draws the same sky under its own mark.
             home = showsWeatherColumn ? entry.forecast?.home.condition : nil
             work = showsWeatherColumn ? entry.forecast?.work?.condition : nil
-            decisionSky = entry.appliesRainLead ? .rain : nil
             // Off names no day: "明天 鬧鐘已關閉" would read as only that morning being off.
             day = entry.reason == .alarmOff ? nil : entry.day
             isToday = entry.isToday
@@ -424,6 +424,20 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                            text(LocalizedLine(key: "ux_rain_chance", arguments: [.int(endpoint.percent)]))].joined(separator: " "))
         }
         if let footer = weatherColumnFooter { pieces.append(text(footer)) }
+        pieces.append("Apple Weather")
+        return pieces.joined(separator: separator)
+    }
+
+    /// What the small's sky says, for VoiceOver: each endpoint's condition as the sky draws
+    /// it (no rain chance: the small prints none), then the Apple Weather attribution its
+    /// mark gives. nil without a forecast sky.
+    func skyAccessibilityLabel(separator: String, text: (LocalizedLine) -> String) -> String? {
+        guard hasForecastSky else { return nil }
+        var pieces: [String] = []
+        for (key, condition) in [("ux_weather_home", home), ("ux_weather_work", work)] {
+            guard let condition else { continue }
+            pieces.append(text(LocalizedLine(key: key)) + " " + text(LocalizedLine(key: Self.conditionKey(condition))))
+        }
         pieces.append("Apple Weather")
         return pieces.joined(separator: separator)
     }
@@ -696,7 +710,8 @@ enum TomorrowWidgetSamples {
                         forecast: forecast(.rain, 70, .rain, 60))
         // Today's entries carry this morning's forecast (2026-10-02): after midnight the coming
         // morning the app fetches IS today. The medium shows it in its weather column with the
-        //  Weather mark; every other face shows the decision only, as on tomorrow's entries.
+        //  Weather mark; the small draws its sky under its own mark, and every face but the
+        // medium prints the decision only, as on tomorrow's entries.
         case .todayRain:
             // 今天 上午7:00 因雨提早 30 分鐘, decided by a forecast fetched after midnight that is
             // still fresh: the medium names the route's rain chance, as the builder writes it.

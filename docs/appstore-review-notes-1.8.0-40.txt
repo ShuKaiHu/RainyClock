@@ -3,7 +3,7 @@ RAINY CLOCK 1.8.0 (40)
 iPhone-only, iOS 17+. Alarms use AlarmKit on iOS 26+, local notifications on iOS 17-25. No login or demo account; Apple-verified purchase data recognize membership.
 
 NEW: "Next Alarm" WIDGET (iOS 26+)
-Small, medium; Lock Screen rectangular, circular, inline. It shows the next alarm (today's from midnight until it rings, then tomorrow's) and why (e.g. rain, a holiday or a closure). Only medium shows weather, with the Apple Weather mark; tapping it opens Apple's legal attribution page via the app. No network or ads; it reads an address-free snapshot from the app.
+Small, medium; Lock Screen rectangular, circular, inline. Shows the next alarm (today's from midnight until it rings, then tomorrow's) and why (rain, a holiday, a closure). Small (forecast background) and medium (weather column) show the Apple Weather mark. Tapping that column opens Apple's legal page via the app; small opens the app's Alarm tab, whose weather card links to it. No network or ads; it reads an address-free snapshot from the app.
 Test on an iPhone (iPad compatibility mode has no widgets). After Route and Time setup, add Rainy Clock from the Home Screen (long-press > Edit > Add Widget) or Lock Screen (long-press > Customize). Before the app first runs it reads "Open the app to show your next alarm".
 
 NEW: TYPHOON CLOSURES (TAIWAN)

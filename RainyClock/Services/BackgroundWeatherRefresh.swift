@@ -166,7 +166,7 @@ enum BackgroundWeatherRefresh {
             if !Task.isCancelled, Date().timeIntervalSince(startedAt) < tomorrowWeatherStartDeadline {
                 await CommuteAlarmRefresher.refreshTomorrowWeather()
             }
-            // The medium widget's  Weather mark, at most weekly, and only with time to spare.
+            // The widgets'  Weather mark, at most weekly, and only with time to spare.
             if !Task.isCancelled, Date().timeIntervalSince(startedAt) < tomorrowWeatherStartDeadline {
                 await WeatherAttributionMarkCache.refreshIfNeeded()
             }

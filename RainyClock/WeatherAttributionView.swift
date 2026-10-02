@@ -29,7 +29,7 @@ struct WeatherAttributionView: View {
         }
         .task {
             attribution = try? await WeatherService.shared.attribution
-            // The same attribution also feeds the medium widget's copy of the mark.
+            // The same attribution also feeds the widgets' copy of the mark.
             if let attribution {
                 await WeatherAttributionMarkCache.refreshIfNeeded(with: attribution)
             }
@@ -43,7 +43,7 @@ struct WeatherAttributionView: View {
     }
 }
 
-/// Keeps Apple's combined Weather mark in the App Group for the medium widget, which
+/// Keeps Apple's combined Weather mark in the App Group for the widgets, which
 /// cannot reach the network (`WeatherAttributionMarkStore`). Runs only where the app
 /// already talks to WeatherKit: the weather card's attribution above, and the
 /// background refresh that fetches tomorrow's forecast. At most weekly.
@@ -82,7 +82,7 @@ enum WeatherAttributionMarkCache {
     }
 }
 
-/// The medium widget's weather column links to `WeatherAttributionMarkStore.legalLinkURL`;
+/// The widgets' Apple Weather attribution links to `WeatherAttributionMarkStore.legalLinkURL`;
 /// the app answers by opening Apple's legal attribution page, the data-source link
 /// WeatherKit requires beside the mark.
 enum WeatherAttributionLink {

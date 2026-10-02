@@ -1730,8 +1730,8 @@ extension TomorrowWidgetSnapshotTests {
     }
 
     /// A failed refresh of today's forecast names today in the medium's column (the app's own
-    /// 今天天氣更新失敗) and keeps the last good forecast; the small and Lock Screen faces and the
-    /// badge are as in build 38.
+    /// 今天天氣更新失敗) and keeps the last good forecast; the small's and Lock Screen faces' line
+    /// and the badge are as in build 38 (the small's sky follows the kept forecast).
     func testTodayFailureNamesToday() throws {
         let (snapshot, _, _) = mondayEveningWithToday(failed: true)
         XCTAssertTrue(snapshot.isValid)
@@ -1975,7 +1975,7 @@ private struct QuietPreviews: EveningPreviewScheduling {
     func notifyDecisionChange(_ change: AlarmDecisionChange) async {}
 }
 
-/// D-A: the medium widget's  Weather mark and its link to Apple's legal page.
+/// The widgets'  Weather mark and its link to Apple's legal page.
 final class WeatherAttributionMarkTests: XCTestCase {
     private var directory: URL!
 
@@ -2034,6 +2034,10 @@ final class WeatherAttributionMarkTests: XCTestCase {
         XCTAssertTrue(WeatherAttributionLink.isAttributionLink(link))
         XCTAssertFalse(WeatherAttributionLink.isAttributionLink(URL(string: "rainyclock://settings")!))
         XCTAssertFalse(WeatherAttributionLink.isAttributionLink(URL(string: "https://weather-attribution/")!))
+        // The small's own tap goes to the Alarm tab (whose weather card carries the mark and
+        // the legal link), in the same scheme, and is not the legal link itself.
+        XCTAssertEqual(TomorrowWidgetSnapshot.alarmTabURL.scheme, link.scheme)
+        XCTAssertFalse(WeatherAttributionLink.isAttributionLink(TomorrowWidgetSnapshot.alarmTabURL))
         // The app claims the scheme, so the widget's link lands in its onOpenURL.
         let types = try XCTUnwrap(Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]])
         let schemes = types.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
