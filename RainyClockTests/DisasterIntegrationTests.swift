@@ -279,7 +279,7 @@ final class DisasterIntegrationTests: XCTestCase {
         let storage = UserDefaults(suiteName: suite)!
         defer { storage.removePersistentDomain(forName: suite) }
         try storage.set(JSONEncoder().encode(settings()), forKey: "commuteAlarmSettings")
-        let provider = FeedStub(value: .success(feed(now: Date().addingTimeInterval(-16 * 60))))
+        let provider = FeedStub(value: .success(feed(now: Date().addingTimeInterval(-61 * 60))))
         let reporter = DisasterReceiptSpy()
         let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
             disasterFeedProvider: provider, disasterSyncReporter: reporter,
@@ -291,6 +291,22 @@ final class DisasterIntegrationTests: XCTestCase {
         await provider.set(.success(legacy))
         _ = await model.refreshDisasterSuspensions(force: true)
         XCTAssertTrue(reporter.receipts.isEmpty)
+    }
+
+    /// The service polls every 30 minutes, so the feed a phone downloads is
+    /// routinely that old and still has to acknowledge.
+    func testFeedFromThePreviousPollStillProducesReceipt() async throws {
+        let suite = "DisasterReceiptHalfHour-\(UUID())"
+        let storage = UserDefaults(suiteName: suite)!
+        defer { storage.removePersistentDomain(forName: suite) }
+        try storage.set(JSONEncoder().encode(settings()), forKey: "commuteAlarmSettings")
+        let provider = FeedStub(value: .success(feed(now: Date().addingTimeInterval(-31 * 60))))
+        let reporter = DisasterReceiptSpy()
+        let model = AlarmViewModel(notificationScheduler: DisasterSchedulerSpy(), settingsStorage: storage,
+            disasterFeedProvider: provider, disasterSyncReporter: reporter,
+            membershipEntitlements: { Self.closureEntitlements }, supportsTemporaryClosures: true)
+        _ = await model.refreshDisasterSuspensions(force: true)
+        XCTAssertEqual(reporter.receipts.map(\.result), [.noAlarm])
     }
 
     func testConcurrentPushWaitsForNewFetchAndAcknowledgesNewestRevision() async throws {

@@ -100,7 +100,9 @@ final class DisasterMapStatusTests: XCTestCase {
 
     func testFailedStaleFutureOrInvalidSourcesNeverProduceGreenOrRed() {
         XCTAssertEqual(resolve([notice()], sourceFailed: true).reason, .sourceUnavailable)
-        XCTAssertEqual(resolve([notice()], checkedAt: now.addingTimeInterval(-901)).reason, .stale)
+        // The poll runs every 30 minutes, so a feed is routinely half an hour old.
+        XCTAssertEqual(resolve([notice()], checkedAt: now.addingTimeInterval(-3600)).state, .closed)
+        XCTAssertEqual(resolve([notice()], checkedAt: now.addingTimeInterval(-3601)).reason, .stale)
         XCTAssertEqual(resolve([notice()], checkedAt: now.addingTimeInterval(1)).reason, .invalid)
         XCTAssertEqual(resolve([notice("今天停止上班、停止上課", sent: "2026-09-15T18:01:00+08:00")]).state, .unknown)
         XCTAssertEqual(resolve([notice("9/15停止上班、停止上課", sent: "2026-09-13T20:00:00+08:00")]).state, .unknown)

@@ -37,7 +37,7 @@ gcloud run deploy "$SERVICE" --region="$R" --image="$IMAGE" --command=node --arg
   --service-account="rainyclock-dayoff-service@$P.iam.gserviceaccount.com" \
   --allow-unauthenticated --ingress=all --cpu=1 --memory=512Mi --concurrency=80 --timeout=30 \
   --min-instances=0 --max-instances=3 \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=$P,DAYOFF_FIRESTORE_DATABASE=$DB,DAYOFF_NAMESPACE=$NS,MAX_CACHE_AGE_MS=900000,SNAPSHOT_CACHE_MS=5000,PUSH_CONFIGURED=1,APNS_PUSH_MODE=alert,TRUST_PROXY=1"
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=$P,DAYOFF_FIRESTORE_DATABASE=$DB,DAYOFF_NAMESPACE=$NS,MAX_CACHE_AGE_MS=3600000,SNAPSHOT_CACHE_MS=5000,PUSH_CONFIGURED=1,APNS_PUSH_MODE=alert,TRUST_PROXY=1"
 URL=$(gcloud run services describe "$SERVICE" --region="$R" --format='value(status.url)')
 echo "sandbox service url: $URL"
 curl -sS -o /dev/null -w "GET /health -> %{http_code}\n" "$URL/health"

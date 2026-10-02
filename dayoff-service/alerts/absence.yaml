@@ -1,4 +1,6 @@
-# Absence of the Job's summary line for 15 minutes. A dead Scheduler, a Job
+# Absence of the Job's summary line for 2 hours: four missed ticks of the
+# 30-minute schedule (the owner's choice on 2026-10-02, when the poll went
+# from every 5 minutes to every 30). A dead Scheduler, a Job
 # that cannot start, or a task killed before its summary produces no failed
 # execution, so this is the one alert that notices "nothing ran". The metric
 # only exists once one summary has been logged: create it, run the Job
@@ -7,10 +9,10 @@
 displayName: rainyclock-dayoff poll absent
 combiner: OR
 conditions:
-  - displayName: no dayoff_job summary in 15 minutes
+  - displayName: no dayoff_job summary in 2 hours
     conditionAbsent:
       filter: resource.type = "cloud_run_job" AND metric.type = "logging.googleapis.com/user/dayoff_job_runs"
-      duration: 900s
+      duration: 7200s
       aggregations:
         - alignmentPeriod: 300s
           perSeriesAligner: ALIGN_DELTA
@@ -21,4 +23,4 @@ alertStrategy:
   autoClose: 1800s
 documentation:
   mimeType: text/markdown
-  content: The poll Job has not logged a summary for 15 minutes. Runbook in dayoff-service/DEPLOYMENT.md (運行手冊).
+  content: The poll Job has not logged a summary for 2 hours (it runs every 30 minutes). Runbook in dayoff-service/DEPLOYMENT.md (運行手冊).

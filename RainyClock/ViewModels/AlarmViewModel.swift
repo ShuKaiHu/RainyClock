@@ -421,8 +421,8 @@ final class AlarmViewModel: ObservableObject {
             await finishTurningOffIfNeeded()
             return false
         }
-        // Disaster updates must precede the weather guard below: a 06:55 notice
-        // can still cancel a 07:00 alarm even though today's rain check has passed.
+        // Disaster updates must precede the weather guard below: a notice fetched
+        // at 06:55 can still cancel a 07:00 alarm even though today's rain check has passed.
         let refreshed = await refreshDisasterSuspensions()
         let disasterChanged = await retireSkipIfSafe() || refreshed
         guard hasScheduledAlarm, canSchedule, !isScheduling else {
@@ -1936,7 +1936,7 @@ final class AlarmViewModel: ObservableObject {
               !pendingForcedDisasterRefresh,
               !isScheduling || committedDuringScheduling,
               let feed, feed == disasterFeed, feed.schemaVersion == 1,
-              now.timeIntervalSince(feed.checkedAt) <= 15 * 60,
+              now.timeIntervalSince(feed.checkedAt) <= DisasterMapStatus.maximumFeedAge,
               feed.checkedAt.timeIntervalSince(now) <= 5 * 60 else { return }
         let result: DisasterSyncReceipt.Result
         if let summary = scheduledAlarmSummary {

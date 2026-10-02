@@ -1,6 +1,6 @@
 # RainyClock 天災停班停課服務（獨立預覽）
 
-Node.js 22 的共用後端，以 NCDR 正式會員 Atom/CAP 介面取得行政院人事行政總處公告，讓所有手機讀取同一份經驗證的快取。它由兩個 Cloud Run 工作組成、共用一個 Firestore 資料庫：`src/job.js` 是 Cloud Scheduler 每 5 分鐘觸發一次的 Cloud Run Job，負責抓取、驗證、寫入 Firestore 並推播；`src/server.js` 是只回應請求的 Cloud Run service，從 Job 寫好的文件回覆手機，本身沒有輪詢、沒有金鑰、沒有磁碟。**此目錄已可執行與測試，但沒有部署、沒有建立 NCDR 會員，也沒有取得／使用真實 API Key 或 APNs 金鑰。** 正式憑證連線與真機背景喚醒仍須驗證。
+Node.js 22 的共用後端，以 NCDR 正式會員 Atom/CAP 介面取得行政院人事行政總處公告，讓所有手機讀取同一份經驗證的快取。它由兩個 Cloud Run 工作組成、共用一個 Firestore 資料庫：`src/job.js` 是 Cloud Scheduler 每 30 分鐘觸發一次的 Cloud Run Job，負責抓取、驗證、寫入 Firestore 並推播；`src/server.js` 是只回應請求的 Cloud Run service，從 Job 寫好的文件回覆手機，本身沒有輪詢、沒有金鑰、沒有磁碟。**2026-09-24 起已部署在 Cloud Run：來源是免金鑰的 `open-data`（沒有 NCDR 會員金鑰），APNs 金鑰放在 Secret Manager；資源與驗證紀錄見 `DEPLOYMENT.md`。** NCDR 會員來源的正式憑證連線仍未驗證。
 
 服務不直接判斷某位使用者是否放假。手機依公告原文、公告發送日、鬧鐘日期、鄉鎮市區與停班／停課設定判斷；原文不明確便維持鬧鐘。住家、工作地址、路線及行政區不會傳給此服務。
 
@@ -57,7 +57,7 @@ Firestore（Job 與 service 共用）：
 | 環境變數 | 預設／用途 |
 |---|---|
 | `PORT` / `HOST` | `8080` / `0.0.0.0`；Cloud Run 會自行注入 `PORT` |
-| `MAX_CACHE_AGE_MS` | `900000`，`checkedAt` 超過 15 分鐘時回 503 `stale_cache` |
+| `MAX_CACHE_AGE_MS` | 預設 `900000`（15 分鐘，允許 60000–86400000）；`checkedAt` 超過這個時間就回 503 `stale_cache`。正式與 sandbox 部署都明確設為 `3600000`：快照超過 1 小時（連續漏兩次輪詢）才算過期 |
 | `SNAPSHOT_CACHE_MS` | `5000`，每個 instance 每 5 秒最多讀一次 `state/current`，吸收推播後擴充功能的同時讀取 |
 | `PUSH_CONFIGURED` | `1` 表示 Job 有 APNs 憑證：`/health` 的 `pushConfigured` 與 `POST /v1/devices` 的 503 `push_not_configured` 都由它決定，service 本身不持有金鑰 |
 | `APNS_PUSH_MODE` | `alert`（預設）或 `background`，只在 `PUSH_CONFIGURED=1` 時回報，須與 Job 一致 |
@@ -69,7 +69,7 @@ Firestore（Job 與 service 共用）：
 |---|---|
 | `NCDR_SOURCE` | `member`（預設，需 `NCDR_API_KEY`）、`open-data`（免金鑰，用 data.gov.tw 資料集 20457 登錄的 `RssAtomFeed.ashx?AlertType=33`）或 `fixture`（不連 NCDR，把同一 namespace 的 `fixture/current` 文件當成已解析的 Feed；只允許名稱含 `sandbox` 的 `DAYOFF_NAMESPACE`，否則啟動即 `fixture_not_allowed`，見下方「Sandbox 測試堆疊」）。明確設定，不是備援；摘要、`state/current.source` 與 `/health/details` 都會標示 |
 | `NCDR_API_KEY` | `member` 來源的 NCDR 會員金鑰，由 Secret Manager 注入，只在 Job；`open-data` 與 `fixture` 時必須留白 |
-| `POLL_INTERVAL_MS` | `300000`；成功後下一次允許抓取的時間，也是 Scheduler 的節奏；最低 1 分鐘 |
+| `POLL_INTERVAL_MS` | 預設 `300000`（允許 60000–3600000）；正式部署明確設為 `1800000`，與 Scheduler 的 30 分鐘節奏一致。在 Job 裡它只決定成功後寫進 `state/current`、由 `/health` 回報的 `nextAttemptAt`，不會擋下一次執行（何時執行由 Scheduler 決定，只有失敗後的退避會擋）；`src/local.js` 的常駐程序才真的以它為輪詢間隔 |
 | `REQUEST_TIMEOUT_MS` | `10000`，包括回應串流的每次請求期限；整輪最長 60 秒 |
 | `BROADCAST_CONCURRENCY` | `16`（1–64）個並行 APNs 請求 |
 | `BROADCAST_PAGE_SIZE` | `200`（50–500）台裝置一頁，每頁送完才寫入游標 |
@@ -83,7 +83,7 @@ Firestore（Job 與 service 共用）：
 | `APNS_PUSH_MODE` | `alert`（預設）：對所有裝置送同一則可見推播，由手機的通知擴充功能比對本機行政區後改寫；`background`：舊的靜默同步提示 |
 | `CLOUD_RUN_EXECUTION` | Cloud Run 注入的 execution 名稱，作為租約擁有者；只在測試覆寫 |
 
-`src/local.js` 讀取 Job 的 `NCDR_API_KEY`（可留白）、`POLL_INTERVAL_MS`、`REQUEST_TIMEOUT_MS` 與 APNs 設定，service 的 `PORT`、`MAX_CACHE_AGE_MS`、`SNAPSHOT_CACHE_MS`，以及 `BROADCAST_CONCURRENCY`（本機預設 4）。`NCDR_SOURCE=fixture` 在本機也受 namespace 限制：設了 `FIRESTORE_EMULATOR_HOST` 時用 `DAYOFF_NAMESPACE`（預設是正式名稱，所以要設成含 `sandbox` 的名稱），記憶體模式預設 `local_sandbox`。
+`src/local.js` 讀取 Job 的 `NCDR_API_KEY`（可留白）、`POLL_INTERVAL_MS`、`REQUEST_TIMEOUT_MS` 與 APNs 設定，service 的 `PORT`、`MAX_CACHE_AGE_MS`、`SNAPSHOT_CACHE_MS`，以及 `BROADCAST_CONCURRENCY`（本機預設 4）。本機模式另外要求 `MAX_CACHE_AGE_MS` 不小於 `POLL_INTERVAL_MS`，否則啟動即 `invalid_configuration`；要在本機重現正式節奏，兩個都要設（`1800000` 與 `3600000`）。`NCDR_SOURCE=fixture` 在本機也受 namespace 限制：設了 `FIRESTORE_EMULATOR_HOST` 時用 `DAYOFF_NAMESPACE`（預設是正式名稱，所以要設成含 `sandbox` 的名稱），記憶體模式預設 `local_sandbox`。
 
 ## HTTP 契約
 
@@ -117,11 +117,11 @@ Firestore（Job 與 service 共用）：
 - `geocodes` 只取 `Taiwan_Geocode_103` 的字串；保留縣市、鄉鎮市區及更細碼，不做錯誤截斷。
 - `references` 是 CAP 參照舊公告的 identifier 陣列，用於更新／撤銷關係。`Cancel` 可沒有 `info`，此時文字與 geocodes 為空，不能拿來确认放假。
 - `status` 仍保留 Test／Exercise 等狀態；手機只能採用 Actual。`severity` 不等於完整停班／停課判斷。
-- 正常空 Feed 為 `notices: []`；來源出錯、部分 CAP 無法取得、XML 不合法或快取過期，回 **503** `{ "error": "安全的固定錯誤碼" }`，不提供看似成功的空結果。Job 抓取失敗時只改寫 `state/current` 的錯誤欄位、不動快照本身，service 讀到後立即以該錯誤碼回 503，直到下一次成功抓取；`checkedAt` 每次成功都會重寫，所以只有 Job 停止運作超過 `MAX_CACHE_AGE_MS` 才會出現 `stale_cache`。Firestore 沒有文件（Job 從未成功執行）時為 `not_configured`，Firestore 本身讀不到時為 `storage_unavailable`。
+- 正常空 Feed 為 `notices: []`；來源出錯、部分 CAP 無法取得、XML 不合法或快取過期，回 **503** `{ "error": "安全的固定錯誤碼" }`，不提供看似成功的空結果。Job 抓取失敗時只改寫 `state/current` 的錯誤欄位、不動快照本身，service 讀到後立即以該錯誤碼回 503，直到下一次成功抓取（正式環境每 30 分鐘才輪詢一次，所以一次失敗的 503 通常約 30 分鐘；退避上限也是 30 分鐘，連續失敗第 7 次起或來源要求 30 分鐘以上的 `Retry-After` 時，下一次排程會以 `skipped:"backoff"` 跳過，503 可能再多 30–60 分鐘）；`checkedAt` 每次成功都會重寫，所以只有 Job 停止運作超過 `MAX_CACHE_AGE_MS`（正式為 1 小時）才會出現 `stale_cache`。Firestore 沒有文件（Job 從未成功執行）時為 `not_configured`，Firestore 本身讀不到時為 `storage_unavailable`。
 
 `GET /health`：可用回 200，未配置或來源異常回 503。回應包括 `configured`、`available`、`state`、`errorCode`、`lastAttemptAt`、`lastSuccessAt`、`nextAttemptAt`、`pushConfigured` 及 `pushMode`（未配置推播時為 `null`）。健康狀態不表示每支手機已收到更新。
 
-`GET /health/details`：給值班用的診斷，永遠 200（Firestore 讀不到時 503 `storage_unavailable`）。在 `/health` 欄位之外多回 `revision`、`checkedAt`、`noticeCount`、`ageMs`、`sourceUpdatedAt`、`job`（最後一次 Job 執行的 `owner`、`finishedAt`、`durationMs`、`code`、`changed`）、`lease`（輪詢租約的 `owner`、`leaseUntil`）、`broadcast`（待送或最近一個 revision 的推播 claim：`state`、`attempts`、`accepted`、`failed`、`unregistered`、`retryPending`、`finishedAt`）、`storage` 與 `serverTime`。每次都直接讀 Firestore、不經快取，內容不含任何 token 或 installationId。iOS 不讀這兩個介面；`/health` 的九個欄位是固定契約，新欄位只加在 `/health/details`。判讀方式：`state: "ready"`、`ageMs` 小於 10 分鐘、`job.finishedAt` 在 6 分鐘內、`broadcast` 為 `null` 或 `state: "done"` 即正常。
+`GET /health/details`：給值班用的診斷，永遠 200（Firestore 讀不到時 503 `storage_unavailable`）。在 `/health` 欄位之外多回 `revision`、`checkedAt`、`noticeCount`、`ageMs`、`sourceUpdatedAt`、`job`（最後一次 Job 執行的 `owner`、`finishedAt`、`durationMs`、`code`、`changed`）、`lease`（輪詢租約的 `owner`、`leaseUntil`）、`broadcast`（待送或最近一個 revision 的推播 claim：`state`、`attempts`、`accepted`、`failed`、`unregistered`、`retryPending`、`finishedAt`）、`storage` 與 `serverTime`。每次都直接讀 Firestore、不經快取，內容不含任何 token 或 installationId。iOS 不讀這兩個介面；`/health` 的九個欄位是固定契約，新欄位只加在 `/health/details`。判讀方式（正式環境每 30 分鐘輪詢一次）：`state: "ready"`、`ageMs` 小於 35 分鐘、`job.finishedAt` 在 35 分鐘內、`broadcast` 為 `null` 或 `state: "done"` 即正常；`ageMs` 介於 35 分鐘與 1 小時之間代表漏了一次輪詢，滿 1 小時就是 `stale_cache`。
 
 ### 選用的裝置註冊
 
@@ -141,9 +141,9 @@ Firestore（Job 與 service 共用）：
 
 限制：JSON 上限 1 KiB、最多 10,000 個有效 installation（在建立交易之外計算 90 天內更新過的文件——交易內的聚合計數會讓同時建立的註冊互相衝突、重跑到 503——所以同時大量建立時可能少量超過）、90 天未更新即視為不存在並由 Firestore TTL 清除；App 每次啟用／前景應更新註冊。寫入每個用戶端每分鐘 30 次，限速表放在各 instance 的記憶體、上限 10,000 筆（滿了就整表清空重數，不拒絕新手機）：`TRUST_PROXY=1` 時以 `X-Forwarded-For` 最後一個位址（Cloud Run 接在客戶端自填值後面的真正來源）為鍵，否則用 socket 位址；Cloud Run 最多 3 個 instance，所以實際上限約每分鐘 90 次，這是防濫用的緩衝而非安全機制。每個 instance 同時進行中的寫入（含建立前的讀取與計數）上限 128 筆，滿載回 503 `device_registry_busy`，可稍後重試。目前不是付費權益驗證或 App Attest 方案。
 
-每當公告內容 revision 改變，Job 在同一筆 Firestore 交易裡寫入新快照與 `broadcasts/<revision>` 的推播 claim，再由同一次執行以 `BROADCAST_CONCURRENCY`（預設 16）個並行請求通知所有註冊裝置同步。只變動 checkedAt 不會每 5 分鐘推一次；重啟或重複執行時以 Firestore 裡的 revision 字串比對，相同就不推。較新的 revision 會取代尚未送完的舊批次（舊的在下一頁停下，claim 標為 `superseded`）；失效 token 依 APNs 410 的時間戳做條件刪除，較新的重新註冊會保留；重複 token 每次只送一次。
+每當公告內容 revision 改變，Job 在同一筆 Firestore 交易裡寫入新快照與 `broadcasts/<revision>` 的推播 claim，再由同一次執行以 `BROADCAST_CONCURRENCY`（預設 16）個並行請求通知所有註冊裝置同步。Job 每 30 分鐘才執行一次，所以公告出現在來源之後，推播最晚約 30 分鐘才送出。只變動 checkedAt 不會每 30 分鐘推一次；重啟或重複執行時以 Firestore 裡的 revision 字串比對，相同就不推。較新的 revision 會取代尚未送完的舊批次（舊的在下一頁停下，claim 標為 `superseded`）；失效 token 依 APNs 410 的時間戳做條件刪除，較新的重新註冊會保留；重複 token 每次只送一次。
 
-推播 claim 是可續傳的：每送完一頁才寫入游標，Job 因預算、SIGTERM 或當機中斷時，下一次執行從游標繼續（最多重送一頁，手機端由 `apns-collapse-id` 去重）；APNs 回 429／5xx／逾時的 token 記在 `broadcasts/<revision>/retries/` 下，同一 revision 的下一次執行只補送這些；同一 revision 最多嘗試 3 次，用盡時把 claim 標為 `exhausted`、清掉 `pendingBroadcastRevision`，只告警一次（之後的 tick 不再認領，claim 被 TTL 清掉後也不會重送整輪）；一輪裡可重試的失敗超過一半（至少 100 筆之後）會由斷路器停下。APNs 憑證被拒（403 `InvalidProviderToken` 等）時立即中止並以 exit 1 告警；那一次不計入嘗試次數，換鑰後的執行從游標續傳。這仍只是更新提示：新裝置在 revision 未變時註冊不會因為同一 revision 收到補送，APNs 拒絕的其他錯誤不重送，發送結果只留下匿名計數。手機註冊完成後須立即 GET 同步，並在前景／背景執行機會時再次同步；iOS 背景執行仍無法保證。
+推播 claim 是可續傳的：每送完一頁才寫入游標，Job 因預算、SIGTERM 或當機中斷時，下一次執行從游標繼續（最多重送一頁，手機端由 `apns-collapse-id` 去重）；APNs 回 429／5xx／逾時的 token 記在 `broadcasts/<revision>/retries/` 下，同一 revision 的下一次執行只補送這些；同一 revision 最多嘗試 3 次，用盡時把 claim 標為 `exhausted`、清掉 `pendingBroadcastRevision`，只告警一次（之後的 tick 不再認領，claim 被 TTL 清掉後也不會重送整輪）；還有可重送 token 的執行以 exit 0 結束，補送要等下一個 tick，正式節奏下每次相隔 30 分鐘；一輪裡可重試的失敗超過一半（至少 100 筆之後）會由斷路器停下。APNs 憑證被拒（403 `InvalidProviderToken` 等）時立即中止並以 exit 1 告警；那一次不計入嘗試次數，換鑰後的執行從游標續傳。這仍只是更新提示：新裝置在 revision 未變時註冊不會因為同一 revision 收到補送，APNs 拒絕的其他錯誤不重送，發送結果只留下匿名計數。手機註冊完成後須立即 GET 同步，並在前景／背景執行機會時再次同步；iOS 背景執行仍無法保證。
 
 `alert` 模式（預設，2026-09-23 決定）的 payload 為 `aps.alert` 的 `title-loc-key: dayoff_push_title`／`body-loc-key: dayoff_push_body`、`sound: default`、`mutable-content: 1`、`thread-id: dayoff`，加上 `type: "dayoff-sync"` 與 `revision`；使用 `apns-push-type: alert`、優先序 10、`apns-collapse-id: dayoff-sync`（每台裝置永遠只有一則，新版本取代舊的）、10 小時後過期。**伺服器對所有裝置送完全相同的內容，payload 裡沒有任何縣市或行政區**；手機上的 Notification Service Extension 在 App 未執行時也會被系統喚醒，讀取 App 存在 App Group 的住家／目的地行政區、自行 GET `/v1/suspensions`，再把通知改寫成「符合、相關但不略過、無關（靜音）」三種之一。擴充功能失敗或逾時，系統就照 loc-key 顯示 App 本地化的通用文字。
 
@@ -209,15 +209,15 @@ Firestore（Job 與 service 共用）：
 
 來源只允許固定官方 Feed，以及 `alerts.ncdr.nat.gov.tw/Capstorage/DGPA/<year>/workschoolclose_cap/*.cap` 的 HTTPS 路徑；禁止重新導向、其他主機、URL 金鑰傳播、DOCTYPE／ENTITY、過深 XML、超量項目與過大串流。每次請求預設 10 秒、整輪最長 60 秒、CAP 最多 4 個並行下載，與原本相同。
 
-**Job `rainyclock-dayoff-poll`**（`node src/job.js`，Cloud Scheduler `*/5 * * * *` Asia/Taipei 觸發，1 task、`--task-timeout 600s`、`--max-retries 1`）：驗證設定 → 取租約 → 讀 `state/current` 的退避 → 抓取驗證 → 一筆交易寫入快照（revision 改變時同時建立 claim 並把 `pendingBroadcastRevision` 指向它）→ 有 `DAYOFF_SERVICE_URL` 且內容改變時先 GET 一次暖機 → 續傳待送的 claim → `finally` 釋放租約、關閉 APNs HTTP/2 連線與 Firestore client → stdout 只印一行 `{"event":"dayoff_job", "severity", "ok", "skipped", "refreshed", "changed", "revision", "noticeCount", "errorCode", "warmup", "broadcast", "durationMs"}`，永遠不含金鑰、token、installationId 或原始錯誤文字 → 明確 `process.exit`。退出碼：租約被占、退避中、來源失敗（退避就是它的重試）、推播 `done`、已跑完裝置但還有可重送的 token、嘗試次數用盡（`ok:false`，由 log 指標告警）都是 0；設定錯誤、Firestore 不可用、租約遺失、APNs 憑證被拒、推播未跑完（預算／斷路器／SIGTERM）是 1，Cloud Run 的 task 重試從游標續傳。只有 Job 拿得到 `NCDR_API_KEY`（Secret Manager 環境變數）與 `.p8`（Secret Manager 掛載到 `APNS_PRIVATE_KEY_PATH`）。
+**Job `rainyclock-dayoff-poll`**（`node src/job.js`，Cloud Scheduler `5,35 * * * *` Asia/Taipei 觸發，即每 30 分鐘一次、避開整點，1 task、`--task-timeout 600s`、`--max-retries 1`）：驗證設定 → 取租約 → 讀 `state/current` 的退避 → 抓取驗證 → 一筆交易寫入快照（revision 改變時同時建立 claim 並把 `pendingBroadcastRevision` 指向它）→ 有 `DAYOFF_SERVICE_URL` 且內容改變時先 GET 一次暖機 → 續傳待送的 claim → `finally` 釋放租約、關閉 APNs HTTP/2 連線與 Firestore client → stdout 只印一行 `{"event":"dayoff_job", "severity", "ok", "skipped", "refreshed", "changed", "revision", "noticeCount", "errorCode", "warmup", "broadcast", "durationMs"}`，永遠不含金鑰、token、installationId 或原始錯誤文字 → 明確 `process.exit`。退出碼：租約被占、退避中、來源失敗（退避就是它的重試）、推播 `done`、已跑完裝置但還有可重送的 token、嘗試次數用盡（`ok:false`，由 log 指標告警）都是 0；設定錯誤、Firestore 不可用、租約遺失、APNs 憑證被拒、推播未跑完（預算／斷路器／SIGTERM）是 1，Cloud Run 的 task 重試從游標續傳。只有 Job 拿得到 `NCDR_API_KEY`（Secret Manager 環境變數）與 `.p8`（Secret Manager 掛載到 `APNS_PRIVATE_KEY_PATH`）。
 
 **Service `rainyclock-dayoff`**（`node src/server.js`，`--cpu 1 --memory 512Mi --concurrency 80 --timeout 30 --min-instances 0 --max-instances 3`）：每個 instance 每 `SNAPSHOT_CACHE_MS` 最多讀一次 `state/current`，但每個請求都以當下時間重新判斷可用性，快取不會把 503 變成過期的 200。沒有任何 secret，`PUSH_CONFIGURED`／`APNS_PUSH_MODE` 只是宣告 Job 的設定。`min-instances 1`（約 US$5–8／月）是文件化的付費升級選項，只在真正警報期間 p95 延遲超過 3 秒時才考慮。收到 SIGTERM 時停止接受新連線、等進行中的請求最多 8 秒後結束。
 
-兩個工作使用同一個不可變的映像 digest（`Dockerfile`：Node 22 alpine、不以 root 執行、只複製 `src/` 與 `apns.js`；`.gcloudignore` 排除 `test/`、`.env*` 與任何 `.p8`）。Service 與 Job 各用自己的 service account，只在 `dayoff-production` 上有條件式的 `roles/datastore.user`；Scheduler 的 service account 只有該 Job 的 `roles/run.invoker`。成本以免費額度為目標（具名 Firestore 資料庫沒有免費額度；估計每月約 US$0.50）。上線前必須先建立通知管道與告警：`dayoff_job` 摘要事件 15 分鐘沒出現（Scheduler 死掉不會產生失敗的 execution）、execution 失敗、推播未完成。
+兩個工作使用同一個不可變的映像 digest（`Dockerfile`：Node 22 alpine、不以 root 執行、只複製 `src/` 與 `apns.js`；`.gcloudignore` 排除 `test/`、`.env*` 與任何 `.p8`）。Service 與 Job 各用自己的 service account，只在 `dayoff-production` 上有條件式的 `roles/datastore.user`；Scheduler 的 service account 只有該 Job 的 `roles/run.invoker`。成本以免費額度為目標，而且取決於 Job 的執行次數而不是執行時間：Cloud Run Job 每次執行至少計費 1 分鐘（實際只跑十幾秒也一樣），整個帳單帳戶共用的免費額度是每月 240,000 vCPU-seconds，約 4,000 次單 vCPU 執行（每天約 129 次）。每 30 分鐘一次是每天 48 次，加上會員刪除 Job 每天 2 次，31 天約 93,000 vCPU-seconds，在免費額度內，Cloud Run Job 為 US$0；原本兩個排程各每 5 分鐘一次（每天共 576 次）整月約 US$15，這是 2026-10-02 改成 30 分鐘的原因。具名 Firestore 資料庫沒有免費額度，每月約 US$0.10。上線前必須先建立通知管道與告警：`dayoff_job` 摘要事件 2 小時沒出現（連續漏四次輪詢；Scheduler 死掉不會產生失敗的 execution）、execution 失敗、2 小時內三次以上 `ok:false` 或推播未完成。`MAX_CACHE_AGE_MS`、`POLL_INTERVAL_MS`、這些告警的時間窗，以及 iOS App 的 `DisasterMapStatus.maximumFeedAge`（1 小時）都跟著 Scheduler 的節奏走，改節奏時要一起改。
 
-實際部署指令、資源名稱、映像 digest 與驗證紀錄放在 `DEPLOYMENT.md`；目前尚未部署。
+實際部署指令、資源名稱、映像 digest 與驗證紀錄放在 `DEPLOYMENT.md`。
 
-後續可申請 NCDR 官方 HTTPS 推送，以減少輪詢延遲並保留輪詢補漏；目前沒有啟用該端點、申請審核或對外发送任何資料。
+後續可申請 NCDR 官方 HTTPS 推送，以減少輪詢延遲（目前最長約 30 分鐘）並保留輪詢補漏；目前沒有啟用該端點、申請審核或對外發送任何資料。
 
 ## Sandbox 測試堆疊
 
@@ -269,7 +269,7 @@ geocode 預設是縣市的 Taiwan_Geocode_103 五碼（CLI 內建 22 個），�
 （TestFlight／App Store build 走 production APNs，對 sandbox Job 而言是無效 token，不要混用）。
 `deploy/sandbox.sh` 印出的網址要等於 `DayOffSandboxServiceURL`；不同時更新的是那個鍵。通知擴充功能用 App
 註冊時寫進 `DayOffSharedState.serviceURL` 的同一個網址。以 Debug 裝到真機、註冊後執行一次 `deploy/fixture.sh set …`，Job 立即推播，通知擴充功能自己 GET `/v1/suspensions` 拿到這則
-fixture 公告並改寫橫幅。沒有 Scheduler，所以最後一次執行 15 分鐘後 sandbox service 會回 503 `stale_cache`
+fixture 公告並改寫橫幅。沒有 Scheduler，所以最後一次執行 1 小時後 sandbox service 會回 503 `stale_cache`
 （手機退回保守規則、鬧鐘照響）——這正是設計行為；要再看一次就再執行一次 Job。
 
 ## 驗證

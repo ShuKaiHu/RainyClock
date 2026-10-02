@@ -11,7 +11,7 @@
 ```text
 行政院人事行政總處公告
        ↓ NCDR 正式會員 Atom / CAP
-單一共用服務，每 5 分鐘查詢、驗證、快取
+單一共用服務，每 30 分鐘查詢、驗證、快取
        ├─ GET /v1/suspensions → 手機主動同步
        └─ 公告變更 → 同一則可見推播廣播給所有裝置（無位置資料）
               → 手機的通知擴充功能讀本機行政區、拉同一 API、改寫通知
@@ -51,7 +51,7 @@ POST /v1/devices/sync-receipt → 回報已處理的公告版本與時間
 
 iOS 不保證靜默推播或背景更新會執行；一支整晚沒被碰過的手機可能到早上都沒醒來。使用者選定的做法是**讓通知本身把話說完，而不是指望 App 醒來**：
 
-- 伺服器一有新公告，就對**所有**登記的裝置送同一則可見推播（`APNS_PUSH_MODE=alert`），內容只有本地化的通用文字與公告版本號。伺服器不知道、也不保存任何人的縣市或行政區。
+- 伺服器一有新公告，就對**所有**登記的裝置送同一則可見推播（`APNS_PUSH_MODE=alert`），內容只有本地化的通用文字與公告版本號。伺服器每 30 分鐘查一次來源（2026-10-02 起，之前每 5 分鐘），所以推播最晚在公告出現後約 30 分鐘送出；APNs 重試也是每次查詢前進一步。伺服器不知道、也不保存任何人的縣市或行政區。
 - App 把使用者在設定裡確認過的住家／目的地行政區、停班／停課開關、下一次鬧鐘的原定日期與服務網址，鏡射到 App Group（`group.com.shukaihu.RainyClock`，`DayOffSharedState`）。只有這些；沒有地址、路線、推播 token 或 credential。鏡射用的是**有效**設定，所以 1.7.0 的 release gate 和會員閘門在擴充功能裡同樣生效。
   - 欄位：`enabled`、`observesWork`、`observesSchool`、`home`、`destination`（縣市＋區）、`normalAlarmDate`（下一次**會響**的鬧鐘原定時間，為相容保留）、`serviceURL`、`updatedAt`，以及 1.8.0 (38) 起的兩個選填欄位：
     - `upcomingNormalAlarmDates`：排程視窗內接下來最多 7 個原定鬧鐘時間（由早到晚），**包含**已因停班停課略過的日子。取自 App 實際送出的 `ScheduledAlarmSummary`（`calendarPlan` 的 occurrences 加上 `disasterSkips`），不另行重算；沒有日曆計畫的每週排程就只有 `normalAlarmDate` 一筆。
@@ -98,7 +98,7 @@ AlarmKit 更新重用未變動日期的 UUID，只新增／淘汰有變化的日
 ## 開發與啟用
 
 1. 開啟 `RainyClock-iOS/RainyClock.xcodeproj`，選 RainyClock scheme。Debug／模擬器 build 無需連線天災後端即可檢視設定及明確標示的地圖範例。
-2. 部署 [dayoff-service/](../dayoff-service/)：2026-09-24 起它已是無狀態設計（做法一）——Cloud Scheduler 每 5 分鐘觸發 Cloud Run Job `rainyclock-dayoff-poll` 抓 NCDR、寫 Firestore `dayoff-production`、推播；request-only Cloud Run 服務 `rainyclock-dayoff` 只讀寫 Firestore。指令、環境變數、runbook 與實際執行紀錄在 [dayoff-service/DEPLOYMENT.md](../dayoff-service/DEPLOYMENT.md)；NCDR key 與 APNs 金鑰放 Secret Manager，權限授予由 `dayoff-service/deploy/iam.sh` 手動執行。
+2. 部署 [dayoff-service/](../dayoff-service/)：2026-09-24 起它已是無狀態設計（做法一）——Cloud Scheduler 每 30 分鐘（每小時的 :05、:35；2026-10-02 18:35 起，之前是每 5 分鐘）觸發 Cloud Run Job `rainyclock-dayoff-poll` 抓 NCDR、寫 Firestore `dayoff-production`、推播；request-only Cloud Run 服務 `rainyclock-dayoff` 只讀寫 Firestore，快取超過 1 小時（連漏兩次查詢；之前是 15 分鐘）就回 503。指令、環境變數、runbook 與實際執行紀錄在 [dayoff-service/DEPLOYMENT.md](../dayoff-service/DEPLOYMENT.md)；NCDR key 與 APNs 金鑰放 Secret Manager，權限授予由 `dayoff-service/deploy/iam.sh` 手動執行。
 3. **1.8.0 起 gate 已開：** `AppEnvironment.supportsTemporaryClosures = true`，設定 → 日曆的「使用臨時放假規則」開關、天災設定與地圖都隨之出現；規則是否生效仍由會員權益（`MembershipSchedulingAccess.effectiveSettings`）決定。權益：月訂閱與買斷都包含、免費不含（2026-09-28 擁有者決定，見 [PRODUCT_DECISIONS](PRODUCT_DECISIONS.md)）。
 4. **服務網址已填：** `RainyClock/Info.plist` 的 `DayOffServiceURL` = `https://rainyclock-dayoff-510427696731.asia-east1.run.app`（正式），另有 `DayOffSandboxServiceURL` = `https://rainyclock-dayoff-sandbox-510427696731.asia-east1.run.app`。兩者都是公開根網址，不是機密；NCDR/APNs key 絕對不要放這裡。`AppEnvironment.dayOffServiceURL` 依 APNs 簽章環境選擇，**不**沿用會員 sandbox 規則：所有 `#if DEBUG` 建置（日常的 `RainyClock` scheme／`Debug`、`RainyClock Membership Local`、Debug Sandbox）都簽 `aps-environment = development`，token 屬 APNs sandbox，正式堆疊會回 `BadDeviceToken` 且不會清掉，所以 Debug 一律走 sandbox 堆疊；Release 永遠正式；sandbox 值缺少或格式不對時得到 nil，不會退回正式。XCTest 下永遠 nil。同一個網址經 `DayOffSharedState.serviceURL` 鏡射到 App Group，所以通知擴充功能跟 App 連同一個堆疊。因此 DEPLOYMENT.md「手機端」第 1 步（手改 `Info.plist` 指向 sandbox）已不需要：用任何 Debug scheme 裝真機即可。若將來要從 Debug 讀正式公告，應加明確的啟動參數並同時關掉推播註冊，不能讓正式成為預設。
 5. 要啟用推播，需替正式 App bundle ID `com.shukaihu.RainyClock` 核對 Apple Push Notifications capability、有效簽章與 provisioning profile；伺服器設定獨立 APNs key、team、key ID、topic 與 sandbox／production 環境。目前天災 entitlements 宣告 development；TestFlight/App Store 前須確認正式簽章環境。Xcode Debug 裝置的 token 在 APNs sandbox，正式堆疊（`APNS_PRODUCTION=true`）會拒收，所以 Debug 真機一律走 sandbox 堆疊（`APNS_PRODUCTION=false`）。sandbox 堆疊的部署腳本 `dayoff-service/deploy/sandbox.sh` 截至 2026-09-28 尚未對專案執行，見 DEPLOYMENT.md「執行紀錄（sandbox）」。原獨立預覽的 APNs topic 不可直接沿用到本專案。

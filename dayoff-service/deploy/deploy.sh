@@ -45,13 +45,13 @@ gcloud run deploy rainyclock-dayoff --region="$R" --image="$IMAGE" --command=nod
   --service-account="rainyclock-dayoff-service@$P.iam.gserviceaccount.com" \
   --allow-unauthenticated --ingress=all --cpu=1 --memory=512Mi --concurrency=80 --timeout=30 \
   --min-instances=0 --max-instances=3 \
-  --set-env-vars="GOOGLE_CLOUD_PROJECT=$P,DAYOFF_FIRESTORE_DATABASE=$DB,DAYOFF_NAMESPACE=$NS,MAX_CACHE_AGE_MS=900000,SNAPSHOT_CACHE_MS=5000,PUSH_CONFIGURED=$([ -n "${APNS_KEY_ID:-}" ] && echo 1 || echo 0),APNS_PUSH_MODE=alert,TRUST_PROXY=1"
+  --set-env-vars="GOOGLE_CLOUD_PROJECT=$P,DAYOFF_FIRESTORE_DATABASE=$DB,DAYOFF_NAMESPACE=$NS,MAX_CACHE_AGE_MS=3600000,SNAPSHOT_CACHE_MS=5000,PUSH_CONFIGURED=$([ -n "${APNS_KEY_ID:-}" ] && echo 1 || echo 0),APNS_PUSH_MODE=alert,TRUST_PROXY=1"
 URL=$(gcloud run services describe rainyclock-dayoff --region="$R" --format='value(status.url)')
 echo "service url: $URL"
 curl -sS -o /dev/null -w "GET /health -> %{http_code}\n" "$URL/health"
 
 echo "== job rainyclock-dayoff-poll"
-JOB_ENV="GOOGLE_CLOUD_PROJECT=$P,DAYOFF_FIRESTORE_DATABASE=$DB,DAYOFF_NAMESPACE=$NS,NCDR_SOURCE=$NCDR_SOURCE,POLL_INTERVAL_MS=300000,REQUEST_TIMEOUT_MS=10000,BROADCAST_CONCURRENCY=16,BROADCAST_PAGE_SIZE=200,LEASE_MS=120000,LEASE_RENEW_MS=30000,RUN_BUDGET_MS=420000,DAYOFF_SERVICE_URL=$URL$APNS_ENV"
+JOB_ENV="GOOGLE_CLOUD_PROJECT=$P,DAYOFF_FIRESTORE_DATABASE=$DB,DAYOFF_NAMESPACE=$NS,NCDR_SOURCE=$NCDR_SOURCE,POLL_INTERVAL_MS=1800000,REQUEST_TIMEOUT_MS=10000,BROADCAST_CONCURRENCY=16,BROADCAST_PAGE_SIZE=200,LEASE_MS=120000,LEASE_RENEW_MS=30000,RUN_BUDGET_MS=420000,DAYOFF_SERVICE_URL=$URL$APNS_ENV"
 # --set-env-vars and --set-secrets each replace the whole set, so a redeploy
 # never keeps a stale key; an empty secret set has to be cleared explicitly.
 if gcloud run jobs describe rainyclock-dayoff-poll --region="$R" >/dev/null 2>&1; then
@@ -70,10 +70,13 @@ gcloud run jobs execute rainyclock-dayoff-poll --region="$R" --wait
 curl -sS -o /dev/null -w "GET /health -> %{http_code}\n" "$URL/health"
 curl -sS "$URL/health/details" | head -c 600; echo
 
-echo "== scheduler rainyclock-dayoff-poll (*/5, Asia/Taipei)"
+# Every 30 minutes, off the hour: a Job execution is billed a full minute
+# however briefly it runs, and the free tier covers about 129 of them a day.
+# MAX_CACHE_AGE_MS above (one hour) and the alerts follow this cadence.
+echo "== scheduler rainyclock-dayoff-poll (5,35 past the hour, Asia/Taipei)"
 if ! gcloud scheduler jobs describe rainyclock-dayoff-poll --location="$R" >/dev/null 2>&1; then
   gcloud scheduler jobs create http rainyclock-dayoff-poll --location="$R" \
-    --schedule='*/5 * * * *' --time-zone=Asia/Taipei \
+    --schedule='5,35 * * * *' --time-zone=Asia/Taipei \
     --uri="https://run.googleapis.com/v2/projects/$P/locations/$R/jobs/rainyclock-dayoff-poll:run" \
     --http-method=POST --message-body='{}' --headers=Content-Type=application/json \
     --oauth-service-account-email="rainyclock-dayoff-scheduler@$P.iam.gserviceaccount.com" \

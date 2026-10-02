@@ -20,7 +20,10 @@ struct DisasterMapStatus: Equatable, Sendable {
     let dayPart: DisasterNoticeParser.DayPart?
     let startsAtMinute: Int?
 
-    static let maximumFeedAge: TimeInterval = 15 * 60
+    /// How old `checkedAt` may be before the feed stops counting as current, for
+    /// the map and for the sync receipt alike. It is the service's own limit: the
+    /// poll runs every 30 minutes and `MAX_CACHE_AGE_MS` answers 503 past an hour.
+    static let maximumFeedAge: TimeInterval = 60 * 60
 
     private struct Candidate: Sendable {
         let notice: DisasterNotice

@@ -3,7 +3,7 @@
   "combiner": "OR",
   "conditions": [
     {
-      "displayName": "3 or more broadcasts not done in 20 minutes",
+      "displayName": "3 or more broadcasts not done in 2 hours",
       "conditionThreshold": {
         "filter": "resource.type = \"cloud_run_job\" AND metric.type = \"logging.googleapis.com/user/dayoff_broadcast_incomplete\"",
         "comparison": "COMPARISON_GT",
@@ -11,7 +11,7 @@
         "duration": "0s",
         "aggregations": [
           {
-            "alignmentPeriod": "1200s",
+            "alignmentPeriod": "7200s",
             "perSeriesAligner": "ALIGN_DELTA",
             "crossSeriesReducer": "REDUCE_SUM"
           }
@@ -19,7 +19,7 @@
       }
     },
     {
-      "displayName": "3 or more runs with ok=false in 20 minutes",
+      "displayName": "3 or more runs with ok=false in 2 hours",
       "conditionThreshold": {
         "filter": "resource.type = \"cloud_run_job\" AND metric.type = \"logging.googleapis.com/user/dayoff_job_failures\"",
         "comparison": "COMPARISON_GT",
@@ -27,7 +27,7 @@
         "duration": "0s",
         "aggregations": [
           {
-            "alignmentPeriod": "1200s",
+            "alignmentPeriod": "7200s",
             "perSeriesAligner": "ALIGN_DELTA",
             "crossSeriesReducer": "REDUCE_SUM"
           }

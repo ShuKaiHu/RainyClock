@@ -4,7 +4,7 @@ import { healthFrom } from './service.js';
 // The request-only service never polls; it reads the document the Job wrote.
 // One read per instance per cacheMs absorbs the burst of Notification Service
 // Extensions that follows a broadcast, while availability is judged against
-// the clock on every call so a cached document cannot outlive its 15 minutes.
+// the clock on every call so a cached document cannot outlive maxCacheAgeMs.
 function wellFormed(doc) {
   return doc?.schemaVersion === 1 && (doc.checkedAt === null || typeof doc.checkedAt === 'string') && (doc.noticesJSON === null || typeof doc.noticesJSON === 'string');
 }

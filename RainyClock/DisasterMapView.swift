@@ -95,7 +95,8 @@ struct DisasterMapView: View {
     private var sourceLabel: String {
         if isDemo { return String(localized: "disaster_map_demo_source") }
         if sourceFailed || activeFeed == nil { return String(localized: "disaster_map_source_unavailable") }
-        guard let checked = activeFeed?.checkedAt, now.timeIntervalSince(checked) <= 900 else {
+        guard let checked = activeFeed?.checkedAt,
+              now.timeIntervalSince(checked) <= DisasterMapStatus.maximumFeedAge else {
             return String(localized: "disaster_map_source_stale")
         }
         return String.localizedStringWithFormat(String(localized: "disaster_map_updated"),

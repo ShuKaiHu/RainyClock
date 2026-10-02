@@ -2,13 +2,15 @@
 
 2026-09-24：程式與測試完成（`npm test` 100 通過、7 個 Emulator 測試略過；Firestore Emulator 全套 107 通過）。
 資料庫、TTL、索引豁免、secret、映像、service、Job、Scheduler 與 APNs 推播都已就緒並以 `open-data` 來源運行中；告警通道與三個 policy 已建，absence 告警實測寄達；只剩真機推播驗證，見最下方「執行紀錄」。
+2026-10-02：為了成本，輪詢由每 5 分鐘改為每 30 分鐘，快照上限改為 1 小時，absence 告警改為 2 小時（新視窗尚未重測）；程式與映像沒有變，見「成本」與「執行紀錄」。
 每一步實際執行後，把讀回的結果寫進最下方的「執行紀錄」，沒做過的不要寫成做過。
 設計依據見 `docs/DISASTER-PREVIEW.md` 與 `README.md`；本頁只講怎麼部署、怎麼看、怎麼救。
 
 ## 形狀
 
-Cloud Scheduler 每 5 分鐘啟動 Cloud Run **Job** `rainyclock-dayoff-poll`（`node src/job.js`）：
+Cloud Scheduler 每 30 分鐘（每小時的 5 分與 35 分）啟動 Cloud Run **Job** `rainyclock-dayoff-poll`（`node src/job.js`）：
 取租約、抓 NCDR、一筆交易寫入 Firestore、續傳推播、釋放租約、印一行摘要、`process.exit`。
+頻率是成本決定的（見「成本」）：公告出現在來源後，最慢約 30 分鐘才會被抓到並推播。
 Cloud Run **service** `rainyclock-dayoff`（`node src/server.js`）只讀 Job 寫好的 `state/current`
 回覆手機，本身沒有輪詢、沒有金鑰、沒有磁碟。兩者用**同一個映像 digest**、各自的 service
 account，只在具名資料庫 `dayoff-production` 上有權限。沿用 `weather-proxy/membership/MAINTENANCE.md`
@@ -23,7 +25,7 @@ account，只在具名資料庫 `dayoff-production` 上有權限。沿用 `weath
 | 文件前綴 | `dayoffNamespaces/dayoff_production_v1/` |
 | Service | `rainyclock-dayoff` |
 | Job | `rainyclock-dayoff-poll`（1 task、`--task-timeout 600s`、`--max-retries 1`） |
-| Scheduler | `rainyclock-dayoff-poll`（`*/5 * * * *`、`Asia/Taipei`） |
+| Scheduler | `rainyclock-dayoff-poll`（`5,35 * * * *`、`Asia/Taipei`，每 30 分鐘） |
 | Service account | `rainyclock-dayoff-service@`、`rainyclock-dayoff-job@`、`rainyclock-dayoff-scheduler@`（皆 `rainyclock.iam.gserviceaccount.com`） |
 | Secrets | `dayoff-ncdr-api-key`（環境變數）、`dayoff-apns-key`（`.p8` 檔案掛載） |
 | 映像 | `asia-east1-docker.pkg.dev/rainyclock/cloud-run-source-deploy/rainyclock-dayoff@sha256:<digest>` |
@@ -130,7 +132,7 @@ gcloud run deploy rainyclock-dayoff --region=asia-east1 --image="$IMAGE" --comma
   --service-account=rainyclock-dayoff-service@rainyclock.iam.gserviceaccount.com \
   --allow-unauthenticated --ingress=all --cpu=1 --memory=512Mi --concurrency=80 --timeout=30 \
   --min-instances=0 --max-instances=3 \
-  --set-env-vars=GOOGLE_CLOUD_PROJECT=rainyclock,DAYOFF_FIRESTORE_DATABASE=dayoff-production,DAYOFF_NAMESPACE=dayoff_production_v1,MAX_CACHE_AGE_MS=900000,SNAPSHOT_CACHE_MS=5000,PUSH_CONFIGURED=1,APNS_PUSH_MODE=alert,TRUST_PROXY=1
+  --set-env-vars=GOOGLE_CLOUD_PROJECT=rainyclock,DAYOFF_FIRESTORE_DATABASE=dayoff-production,DAYOFF_NAMESPACE=dayoff_production_v1,MAX_CACHE_AGE_MS=3600000,SNAPSHOT_CACHE_MS=5000,PUSH_CONFIGURED=1,APNS_PUSH_MODE=alert,TRUST_PROXY=1
 URL=$(gcloud run services describe rainyclock-dayoff --region=asia-east1 --format='value(status.url)')
 curl -sS -i "$URL/health"          # 第一次 Job 跑完前是 503 not_configured，pushConfigured:true、pushMode:"alert"
 curl -sS -i -X DELETE "$URL/v1/devices" -H 'Content-Type: application/json' --data '{"x":1}'   # 預期 400 invalid_device_request
@@ -144,7 +146,7 @@ curl -sS -i -X DELETE "$URL/v1/devices" -H 'Content-Type: application/json' --da
 gcloud run jobs create rainyclock-dayoff-poll --region=asia-east1 --image="$IMAGE" --command=node --args=src/job.js \
   --service-account=rainyclock-dayoff-job@rainyclock.iam.gserviceaccount.com \
   --tasks=1 --parallelism=1 --max-retries=1 --task-timeout=600s --cpu=1 --memory=512Mi \
-  --set-env-vars=GOOGLE_CLOUD_PROJECT=rainyclock,DAYOFF_FIRESTORE_DATABASE=dayoff-production,DAYOFF_NAMESPACE=dayoff_production_v1,POLL_INTERVAL_MS=300000,REQUEST_TIMEOUT_MS=10000,BROADCAST_CONCURRENCY=16,BROADCAST_PAGE_SIZE=200,LEASE_MS=120000,LEASE_RENEW_MS=30000,RUN_BUDGET_MS=420000,DAYOFF_SERVICE_URL=$URL,APNS_TEAM_ID=MQJ88U9NAJ,APNS_KEY_ID=<APNS_KEY_ID>,APNS_TOPIC=com.shukaihu.RainyClock,APNS_PRODUCTION=<true|false>,APNS_PUSH_MODE=alert,APNS_PRIVATE_KEY_PATH=/secrets/apns/AuthKey.p8 \
+  --set-env-vars=GOOGLE_CLOUD_PROJECT=rainyclock,DAYOFF_FIRESTORE_DATABASE=dayoff-production,DAYOFF_NAMESPACE=dayoff_production_v1,POLL_INTERVAL_MS=1800000,REQUEST_TIMEOUT_MS=10000,BROADCAST_CONCURRENCY=16,BROADCAST_PAGE_SIZE=200,LEASE_MS=120000,LEASE_RENEW_MS=30000,RUN_BUDGET_MS=420000,DAYOFF_SERVICE_URL=$URL,APNS_TEAM_ID=MQJ88U9NAJ,APNS_KEY_ID=<APNS_KEY_ID>,APNS_TOPIC=com.shukaihu.RainyClock,APNS_PRODUCTION=<true|false>,APNS_PUSH_MODE=alert,APNS_PRIVATE_KEY_PATH=/secrets/apns/AuthKey.p8 \
   --set-secrets=NCDR_API_KEY=dayoff-ncdr-api-key:latest,/secrets/apns/AuthKey.p8=dayoff-apns-key:latest
 gcloud run jobs execute rainyclock-dayoff-poll --region=asia-east1 --wait
 gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="rainyclock-dayoff-poll" AND jsonPayload.event="dayoff_job"' --limit=3 --format=json
@@ -162,7 +164,7 @@ gcloud run jobs execute rainyclock-dayoff-poll --region=asia-east1 --wait; wait 
 gcloud run jobs add-iam-policy-binding rainyclock-dayoff-poll --region=asia-east1 \
   --member="serviceAccount:rainyclock-dayoff-scheduler@rainyclock.iam.gserviceaccount.com" --role=roles/run.invoker
 gcloud scheduler jobs create http rainyclock-dayoff-poll --location=asia-east1 \
-  --schedule='*/5 * * * *' --time-zone=Asia/Taipei \
+  --schedule='5,35 * * * *' --time-zone=Asia/Taipei \
   --uri=https://run.googleapis.com/v2/projects/rainyclock/locations/asia-east1/jobs/rainyclock-dayoff-poll:run \
   --http-method=POST --message-body='{}' --headers=Content-Type=application/json \
   --oauth-service-account-email=rainyclock-dayoff-scheduler@rainyclock.iam.gserviceaccount.com \
@@ -174,6 +176,11 @@ gcloud run jobs executions list --job=rainyclock-dayoff-poll --region=asia-east1
 
 用的是 Scheduler SA 的 **OAuth access token**（scope `cloud-platform`）打管理 API，不是打 Cloud Run
 公開網址的 OIDC token。Scheduler 回 200 只代表 execution 啟動了，抓取成功與否看 Job 的摘要。
+排程是每 30 分鐘，選每小時的 5 分與 35 分而不是 0 分與 30 分：改頻率前 9 天裡僅有的兩次
+`upstream_rate_limited` 都發生在整點（2026-09-29 15:00 與 20:00）。已存在的 Scheduler 改排程用
+`gcloud scheduler jobs update http rainyclock-dayoff-poll --location=asia-east1 --schedule='5,35 * * * *'`。
+`POLL_INTERVAL_MS`（§7）、`MAX_CACHE_AGE_MS`（§6）、告警視窗（§9）與 App 的 `DisasterMapStatus.maximumFeedAge`
+都跟著這個頻率，要改就一起改，並先重算「成本」。
 
 ### 9. 告警（1.8.0 翻開開關之前必須存在）
 
@@ -184,6 +191,7 @@ gcloud beta monitoring channels list --format='value(name)'   # 取 <CHANNEL_ID>
 #   TOKEN=$(gcloud auth print-access-token); curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
 #     https://monitoring.googleapis.com/v3/projects/rainyclock/notificationChannels --data '{"type":"email","displayName":"owner-email","labels":{"email_address":"<OWNER_EMAIL>"},"enabled":true}'
 #   curl -X POST ... https://monitoring.googleapis.com/v3/projects/rainyclock/alertPolicies --data @dayoff-service/alerts/<name>.json
+#   改既有 policy（2026-10-02 改視窗時採用）：curl -X PATCH ... https://monitoring.googleapis.com/v3/projects/rainyclock/alertPolicies/<POLICY_ID> --data @dayoff-service/alerts/<name>.json
 gcloud logging metrics create dayoff_job_runs --description='day-off poll executions' \
   --log-filter='resource.type="cloud_run_job" AND resource.labels.job_name="rainyclock-dayoff-poll" AND jsonPayload.event="dayoff_job"'
 gcloud logging metrics create dayoff_job_failures --description='day-off poll runs with ok=false' \
@@ -197,10 +205,14 @@ gcloud alpha monitoring policies create --policy-from-file=dayoff-service/alerts
 gcloud billing budgets create --billing-account=<BILLING_ACCOUNT_ID> --display-name=rainyclock-dayoff --budget-amount=5USD --threshold-rule=percent=1.0
 ```
 
-三個告警裡 `absence.yaml` 是唯一不可省的：Scheduler 死掉不會產生失敗的 execution，只有「15 分鐘沒有
-摘要」看得出來。來源失敗（`upstream_*`）退出碼是 0，也不會是失敗的 execution，靠
-`dayoff_job_failures`。三份 YAML 沒有對著 Monitoring API 驗證過：建立時 `gcloud` 拒絕就改欄位，
-建立後要用 `gcloud scheduler jobs pause` 停 20 分鐘，確認 absence 告警真的寄信，再 `resume`。
+三個告警裡 `absence.yaml` 是唯一不可省的：Scheduler 死掉不會產生失敗的 execution，只有「2 小時沒有
+摘要」（連續錯過四次輪詢）看得出來。來源失敗（`upstream_*`）退出碼是 0，也不會是失敗的 execution，靠
+`dayoff_job_failures`（`broadcast-incomplete.yaml`：2 小時內多於 2 次，也就是連續四次輪詢裡有三次）。
+`failed-executions.yaml` 的 600 秒視窗與輪詢頻率無關。三份 YAML 沒有對著 Monitoring API 驗證過：建立時
+`gcloud` 拒絕就改欄位，建立後要用 `gcloud scheduler jobs pause` 停超過 2 小時（條件 7200 秒，再加對齊與
+評估延遲），確認 absence 告警真的寄信，再 `resume`。最後一次成功輪詢滿 1 小時起（暫停後 30 分鐘到 1 小時之間）
+service 回 503 `stale_cache`、手機退回保守規則，直到 `resume` 後第一次成功輪詢，所以挑沒有颱風的時段做。
+2 小時視窗還沒有實測過；2026-09-24 的實測是 15 分鐘視窗（約 20 分鐘寄達）。
 
 ### 10. 驗收（記進「執行紀錄」，不能只記「建好了」）
 
@@ -212,7 +224,8 @@ gcloud billing budgets create --billing-account=<BILLING_ACCOUNT_ID> --display-n
       `state/current.revision` 改成任意別的字串再 `execute` 一次：下一次抓取會判定內容改變、建立 claim；
       或等真實公告），log 只有**一個** `push_batch`，通知服務擴充功能改寫了橫幅。
 - [ ] 下一個 execution 的摘要 `changed:false`、`broadcast:null`。
-- [ ] 暫停 Scheduler 20 分鐘，absence 告警寄達；`resume` 後告警自動關閉。
+- [ ] 暫停 Scheduler 超過 2 小時，absence 告警寄達（最後一次成功輪詢滿 1 小時起 service 回 503
+      `stale_cache`，是預期的）；`resume` 後告警自動關閉。
 - [ ] `gcloud firestore fields ttls list` 四筆 ACTIVE；`/health/details` 的 `storage:"firestore"`。
 
 ## 環境變數
@@ -226,7 +239,7 @@ Service（`rainyclock-dayoff`，都不是秘密）：
 | `GOOGLE_CLOUD_PROJECT` | `rainyclock` | `DAYOFF_FIRESTORE_PROJECT` 可覆寫 |
 | `DAYOFF_FIRESTORE_DATABASE` | `dayoff-production` | 必填，`(default)` 被拒 |
 | `DAYOFF_NAMESPACE` | `dayoff_production_v1` | 文件前綴 |
-| `MAX_CACHE_AGE_MS` | `900000` | 超過 15 分鐘的快照回 503 `stale_cache` |
+| `MAX_CACHE_AGE_MS` | `3600000` | 超過 1 小時（連續兩次輪詢沒成功）的快照回 503 `stale_cache`；程式預設仍是 `900000`，所以一定要明設 |
 | `SNAPSHOT_CACHE_MS` | `5000` | 每個 instance 每 5 秒最多讀一次 `state/current` |
 | `PUSH_CONFIGURED` | `1` | 只是宣告 Job 有 APNs；service 本身沒有金鑰 |
 | `APNS_PUSH_MODE` | `alert` | 必須與 Job 相同 |
@@ -237,7 +250,7 @@ Job（`rainyclock-dayoff-poll`）：
 | 變數 | 值 | 說明 |
 | --- | --- | --- |
 | `GOOGLE_CLOUD_PROJECT`、`DAYOFF_FIRESTORE_DATABASE`、`DAYOFF_NAMESPACE` | 同 service | 兩者必須讀同一份文件 |
-| `POLL_INTERVAL_MS` | `300000` | 成功後下一次允許抓取的時間，與排程相同 |
+| `POLL_INTERVAL_MS` | `1800000` | 與排程相同（30 分鐘）。在 Job 裡只決定成功後回報的 `nextAttemptAt`，不會擋下一次執行（擋的只有失敗後的退避）；程式預設仍是 `300000` |
 | `REQUEST_TIMEOUT_MS` | `10000` | 每個 NCDR 請求 |
 | `BROADCAST_CONCURRENCY` | `16` | 1..64；APNs 回 429 時降低 |
 | `BROADCAST_PAGE_SIZE` | `200` | 50..500；一次崩潰最多重送一頁 |
@@ -302,7 +315,7 @@ gcloud secrets versions disable <OLD_VERSION> --secret=dayoff-apns-key
 | `DAYOFF_NAMESPACE` | `dayoff_production_v1` | `dayoff_sandbox_v1`（同一個 `dayoff-production` 資料庫） |
 | `NCDR_SOURCE` | `open-data` | `fixture`：讀 `dayoffNamespaces/dayoff_sandbox_v1/fixture/current`，不連 NCDR |
 | `APNS_PRODUCTION` | `true` | `false`（Xcode Debug 裝置的 token 在 APNs sandbox） |
-| Scheduler | `*/5` | **沒有**；每次輪詢都是 `deploy/fixture.sh` 或手動 `jobs execute` |
+| Scheduler | `5,35 * * * *`（每 30 分鐘） | **沒有**；每次輪詢都是 `deploy/fixture.sh` 或手動 `jobs execute` |
 | Service account、secret、IAM | 相同（`.p8` 掛載同一個 `dayoff-apns-key`；`datastore.user` 條件是整個資料庫） | 相同，不必新增 |
 
 正式環境不受影響：`src/job.js` 在 namespace 不含 `sandbox` 時拒絕 `fixture` 來源，正式 Job 的
@@ -338,7 +351,7 @@ curl -sS "$SANDBOX_URL/v1/suspensions"   # 手機的通知擴充功能讀到的�
 ```
 
 同一份 fixture 再執行一次是 `changed:false`、`broadcast:null`，不會重複推播。沒有 Scheduler，所以最後一次
-執行 15 分鐘後 sandbox service 回 503 `stale_cache`（手機退回保守規則），要再看就再執行一次 Job。
+執行 1 小時後 sandbox service 回 503 `stale_cache`（手機退回保守規則），要再看就再執行一次 Job。
 `gcloud logging read` 用正式的 metric 過濾不到 sandbox Job（`job_name` 不同），三個告警都不會被 sandbox 觸發。
 
 ### 手機端
@@ -357,7 +370,7 @@ curl -sS "$SANDBOX_URL/v1/suspensions"   # 手機的通知擴充功能讀到的�
    腳本印出這次 execution 名稱與它自己的摘要（`skipped changed broadcast.state broadcast.accepted`，
    依 execution 名稱過濾，不會拿到上一次的），應為 `changed:true`、`broadcast.accepted:1`；`skipped` 非空
    （`lease_held`／`backoff`）就是這次沒輪詢。手機在幾秒內收到橫幅，內容由通知擴充功能改寫成
-   符合本機行政區的文字。鬧鐘要等 App 打開才會跟著改；**距上一次 Job 超過 15 分鐘就先重跑一次 Job**
+   符合本機行政區的文字。鬧鐘要等 App 打開才會跟著改；**距上一次 Job 超過 1 小時就先重跑一次 Job**
    （`gcloud run jobs execute rainyclock-dayoff-poll-sandbox --region=asia-east1 --wait`，內容不變不會推播），
    否則 App 拿到 503 會照規則恢復鬧鐘，看起來像沒有套用。
 4. 換 `--scope`／`--when`／`--day-part` 各跑一次，最後 `clear`，確認每次都是新的 revision、都收到一則、
@@ -407,6 +420,8 @@ gcloud run jobs update rainyclock-dayoff-poll --region=asia-east1 --image="$IMAG
 
 兩個工作永遠同一個 digest。改 `state/current` 的欄位時先讀 `README.md` 的 schema 段：service 讀的是
 Job 寫的文件，兩邊的映像不同會讓 `/v1/suspensions` 直接 503 或送出錯的欄位。
+只換 `--image` 不會動環境變數。要重設整組（`--set-env-vars` 會取代全部）就照 §6／§7 或 `deploy/deploy.sh`
+的值：漏掉 `MAX_CACHE_AGE_MS` 會退回程式預設的 15 分鐘，在 30 分鐘的排程下每個週期有一半時間回 503 `stale_cache`。
 
 ## 運行手冊
 
@@ -416,8 +431,8 @@ Job 寫的文件，兩邊的映像不同會讓 `/v1/suspensions` 直接 503 或�
 curl -s $URL/health/details | jq
 ```
 
-可以信任的狀態：`state:"ready"`、`ageMs < 600000`、`job.finishedAt` 在 6 分鐘內、`broadcast` 是
-`null` 或 `state:"done"`。不是的話：
+可以信任的狀態：`state:"ready"`、`ageMs < 2100000`（約 35 分鐘：一個輪詢週期再加一點）、`job.finishedAt`
+在 35 分鐘內、`broadcast` 是 `null` 或 `state:"done"`。不是的話：
 
 ```sh
 gcloud run jobs executions list --job rainyclock-dayoff-poll --region asia-east1 --limit 5
@@ -427,27 +442,48 @@ gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name=
 
 | 看到 | 意思 | 做法 |
 | --- | --- | --- |
-| `errorCode:"upstream_*"`、`invalid_source_*` | NCDR 端的問題 | `nextAttemptAt` 是下一次真正抓取的時間；要立刻重試一次，在 Firestore console 把 `state/current.nextAttemptAt` 改成 `0`（看得到、有稽核），再 `jobs execute` |
+| `errorCode:"upstream_*"`、`invalid_source_*` | NCDR 端的問題；service 立刻回 503，直到下一次成功輪詢（通常是下一個 tick，約 30 分鐘）。退避上限 30 分鐘剛好等於排程間隔：連續失敗第 7 次起（約 3 小時），或來源回 429 且 `Retry-After` 在 30 分鐘以上（上限 1 小時），下一個 tick 會以 `skipped:"backoff"` 跳過，等於每小時才抓一次，503 可能再多拖 30–60 分鐘 | `nextAttemptAt` 是最早可以再抓的時間，排程要到下一個 5／35 分才會再跑；要提早恢復，過了 `nextAttemptAt` 直接 `jobs execute`，還沒到就在 Firestore console 把 `state/current.nextAttemptAt` 改成 `0`（看得到、有稽核），再 `jobs execute` |
 | `skipped:"backoff"` | 上一次失敗的退避還沒到 | 同上；不要把 Cloud Run 的 retry 調高，那只會撞同一個閘門 |
-| `skipped:"lease_held"` 連續出現 | 前一個 execution 還在跑或被殺時沒釋放 | 租約最長 `LEASE_MS`（2 分鐘）自動過期；連續超過 3 次看 executions 是否有卡住的 task |
+| `skipped:"lease_held"` 連續出現 | 前一個 execution 還在跑或被殺時沒釋放 | 租約最長 `LEASE_MS`（2 分鐘）自動過期，而排程相隔 30 分鐘，所以排程的 tick 出現一次就不正常：看 executions 是否有卡住的 task 或有人同時手動執行；連續兩次 service 就會 `stale_cache` |
 | `errorCode:"apns_credentials_rejected"` | APNs 金鑰過期／被撤 | 上面的輪替步驟；被拒的執行不計入嘗試次數，換鑰後 claim 從游標續傳 |
-| `broadcast.state:"partial"` 且 `complete:false` | 預算、斷路器或 SIGTERM | task 重試會從游標續傳；連續三次（`attempts:3`）後下一次認領把 claim 標為 `exhausted`、清掉 `pendingBroadcastRevision`，`ok:false` 只告警一次，看 `failed`／`retryPending` 判斷是 APNs 還是我們 |
+| `broadcast.state:"partial"` 且 `complete:false` | 預算、斷路器或 SIGTERM | task 重試會從游標續傳，之後每個 tick 前進一步（現在相隔 30 分鐘）；連續三次（`attempts:3`）後下一次認領把 claim 標為 `exhausted`、清掉 `pendingBroadcastRevision`，`ok:false` 只告警一次，看 `failed`／`retryPending` 判斷是 APNs 還是我們 |
 | `broadcast.state:"exhausted"` | 三次嘗試都沒送完，已停止 | 要再送：在 Firestore console 把 `broadcasts/<rev>` 的 `attempts` 改成 `0`、`state` 改成 `pending`，並把 `state/current.pendingBroadcastRevision` 改回 `<rev>`（看得到、有稽核），再 `jobs execute`；游標會從上次停的地方續傳 |
-| `stale_cache` 但 execution 都成功 | 時鐘或 `MAX_CACHE_AGE_MS` 與排程不合 | 排程 5 分鐘、上限 15 分鐘；先確認 Scheduler 沒被暫停 |
+| `stale_cache` 但 execution 都成功 | 時鐘或 `MAX_CACHE_AGE_MS` 與排程不合 | 排程 30 分鐘、上限 1 小時；先確認 Scheduler 沒被暫停，再看 service 的 `MAX_CACHE_AGE_MS` 是不是還是 `3600000`（沒設會退回程式預設的 15 分鐘） |
 | `storage_unavailable` | Firestore 不可用或 IAM 條件錯 | `gcloud projects get-iam-policy rainyclock` 看條件表達式的資料庫名 |
 
-暫停整個功能：`gcloud scheduler jobs pause rainyclock-dayoff-poll --location=asia-east1`。手機 15 分鐘後
-收到 503 `stale_cache`，會回到自己的保守規則（不會把舊公告當今天的）。恢復：`resume` 後手動
-`execute` 一次。
+暫停整個功能：`gcloud scheduler jobs pause rainyclock-dayoff-poll --location=asia-east1`。手機在最後一次成功
+輪詢滿 1 小時後（暫停後 30 分鐘到 1 小時之間）收到 503 `stale_cache`，會回到自己的保守規則（不會把舊公告當今天的）；
+暫停超過 2 小時 absence 告警會寄信，那是預期的。恢復：`resume` 後手動 `execute` 一次。
 
 ## 成本
 
-一套正式環境、`min-instances 0`：估計每月約 US$0.50。具名 Firestore 資料庫沒有免費額度（每天
-288 次 Job 各讀寫幾份小文件，手機讀取被 5 秒快取吸收）；Secret Manager 已超過 6 個免費版本
-（約 US$0.12）；Cloud Scheduler 免費額度 3 個 job，這是第 2 個。`min-instances 1`（約 US$5–8／月）
-只在真實警報期間 p95 延遲超過 3 秒時考慮。Sandbox 堆疊（`rainyclock-dayoff-sandbox`、
+成本幾乎全在 Cloud Run **Job**，而且由**執行次數**決定，不是由每次跑多久決定。Cloud Run Job 按 instance
+的整個生命週期計費，**每次執行最少算 1 分鐘**（https://cloud.google.com/run/pricing ）：一次輪詢實際工作約
+12 秒，帳單上是 60 秒。asia-east1 的單價是每 vCPU-秒 US$0.000018、每 GiB-秒 US$0.000002；免費額度是每月
+240,000 vCPU-秒與 450,000 GiB-秒，**整個帳單帳戶共用**。1 vCPU 的 Job 一次執行用掉 60 vCPU-秒，所以免費額度
+約等於每月 4,000 次執行（每天約 129 次），而且是本頁的 `rainyclock-dayoff-poll` 與會員服務的
+`rainyclock-membership-deletion`（`weather-proxy/membership/MAINTENANCE.md`）**兩個排程 Job 合計**；手動
+`jobs execute`、task 重試與 sandbox Job 的執行也算在同一份額度裡。512Mi 的記憶體一次 30 GiB-秒，先用完的是
+vCPU 那一項。
+
+- 2026 年 9 月帳單（實際數字）：Cloud Run 用量 US$5.64，免費額度折抵 US$4.62，實付 US$1.02，全部來自
+  Cloud Run。本頁的排程 09-24 才開始，所以那還不是完整一個月。
+- 舊頻率（兩個排程各每 5 分鐘，合計每天 576 次）：31 天 17,856 次、約 107 萬 vCPU-秒，扣掉免費額度後約
+  US$15／月。這一節在 2026-10-02 之前寫的「每月約 US$0.50」漏算了 1 分鐘下限，是錯的。
+- 現行頻率（本頁每 30 分鐘＝每天 48 次，會員刪除每天 2 次，合計 50 次）：31 天 1,550 次、約 93,000
+  vCPU-秒，在 240,000 之內，Cloud Run Job 是 US$0／月，還剩約 2,400 次給手動執行、重試與 sandbox。
+
+**之後要調高頻率的人必須重算這一段**：兩個排程 Job 的每天次數相加 × 當月天數 × 60 秒（執行超過 1 分鐘就用
+實際秒數），對 240,000 vCPU-秒；超過的部分每 vCPU-秒 US$0.000018。例如只把本頁調回每 5 分鐘（每天 288＋2
+次）約 US$5.4／月。改頻率時 `POLL_INTERVAL_MS`、`MAX_CACHE_AGE_MS`、告警視窗與 App 的新鮮度上限要一起改（§8）。
+
+其餘項目都小到可以忽略：具名 Firestore 資料庫沒有免費額度，全專案四個資料庫合計約 US$0.10／月（本頁的部分是
+每次 Job 讀寫幾份小文件，手機讀取被 5 秒快取吸收）；Secret Manager 免費 6 個啟用中的版本，第 7 個約
+US$0.06／月；Cloud Scheduler 免費額度 3 個 job，目前用了 2 個（本頁與會員刪除）。Service 是 `min-instances 0`；
+`min-instances 1`（約 US$5–8／月）只在真實警報期間 p95 延遲超過 3 秒時考慮。Sandbox 堆疊（`rainyclock-dayoff-sandbox`、
 `rainyclock-dayoff-poll-sandbox`、同一資料庫的 `DAYOFF_NAMESPACE=dayoff_sandbox_v1`、`APNS_PRODUCTION=false`，
-給 Xcode Debug 裝置用，見「Sandbox 堆疊」）沒有 Scheduler、`min-instances 0`，不用時幾乎零成本。
+給 Xcode Debug 裝置用，見「Sandbox 堆疊」）沒有 Scheduler、`min-instances 0`，不用時幾乎零成本；每次手動執行
+sandbox Job 同樣算 1 分鐘。
 
 ## 部署前在本機做的驗證
 
@@ -566,6 +602,50 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
 **未執行**：真機推播驗證（§10，等 1.8.0 開閘）。之後若要輪替 APNs 金鑰，帶新 Key ID 重跑
 `deploy/deploy.sh`（§秘密處理與輪替）。Firestore deny-all rules 未用 firebase-tools 部署（本機未登入）；
 服務帳號走 IAM，rules 只影響手機 SDK。
+
+### 2026-10-02 18:27–18:31（Claude 依擁有者決定降低輪詢頻率，讀回值）
+
+- 原因：9 月帳單 Cloud Run 用量 US$5.64、免費額度折抵 US$4.62、實付 US$1.02，全部來自 Cloud Run。Job 每次
+  執行最少計費 1 分鐘，兩個排程各每 5 分鐘（合計每天 576 次）在完整的 10 月會是約 US$15；「成本」一節原本的
+  「每月約 US$0.50」漏算了這個下限，已改寫。
+- Scheduler `rainyclock-dayoff-poll`：`5,35 * * * *` Asia/Taipei（原 `*/5 * * * *`），ENABLED，每天 48 次。
+  選 5 分與 35 分而不是 0 分與 30 分：之前 9 天僅有的兩次 `upstream_rate_limited` 都在整點（2026-09-29 15:00
+  與 20:00）。最後一次 5 分鐘排程是 18:25，新排程的第一次是 18:35。
+- Job `rainyclock-dayoff-poll`：`POLL_INTERVAL_MS=1800000`（原 `300000`）。映像 digest 不變
+  （`sha256:d4024db9…`），沒有重新部署程式。
+- Service `rainyclock-dayoff`：`MAX_CACHE_AGE_MS=3600000`（原 `900000`）→ revision `rainyclock-dayoff-00006-j42`，
+  100% 流量，同一個 digest，`/health` 200。快照超過 1 小時（連續兩次輪詢沒成功）才回 503 `stale_cache`，
+  原本是 15 分鐘。
+- Sandbox service `rainyclock-dayoff-sandbox`：同樣 `MAX_CACHE_AGE_MS=3600000`（revision
+  `rainyclock-dayoff-sandbox-00002-4c8`），與正式保持一致；仍然沒有 Scheduler，最後一次手動執行 1 小時後
+  （原 15 分鐘）回 503 `stale_cache`。
+- 告警，以 Monitoring REST API `PATCH` 送出 `alerts/absence.json` 與 `alerts/broadcast-incomplete.json`：
+  `…/alertPolicies/6544845589806021377` poll absent 的 `conditionAbsent.duration` 7200s（原 900s）、
+  `alignmentPeriod` 先改成 1800s，審查指出那樣信要到約 2.5 小時才寄（條件加對齊），19:08 前後再 `PATCH` 回 300s，
+  條件名 `no dayoff_job summary in 2 hours`——擁有者要的是兩小時沒反應才寄信，也就是連續錯過四次輪詢，
+  預期在最後一次摘要後 2 小時又幾分鐘寄達。`…/alertPolicies/12166636093063786863` poll degraded 兩個條件的
+  `alignmentPeriod` 7200s（原 1200s），仍是「多於 2 次」（連續四次輪詢裡有三次），條件名改成 `… in 2 hours`。
+  第三個 policy（execution failed，600s 視窗）與頻率無關，沒有動。
+- 程式預設值（`POLL_INTERVAL_MS` 300000、`MAX_CACHE_AGE_MS` 900000）刻意沒改，也沒有重建映像：正式與 sandbox
+  都明設這兩個值，`deploy/deploy.sh`、`deploy/sandbox.sh` 與 `alerts/` 下 absence、broadcast-incomplete 的
+  YAML／JSON 已改成同樣的數字（sandbox Job 的 `POLL_INTERVAL_MS=60000` 不動）。
+- 成本：同時把 `rainyclock-membership-deletion` 的排程降為每天 2 次（細節在
+  `weather-proxy/membership/MAINTENANCE.md`）。合計每天 48＋2＝50 次 Job 執行，31 天約 93,000 vCPU-秒，在免費的
+  240,000 之內，這個頻率下 Cloud Run Job 是 US$0／月。
+- 影響：公告出現在來源後，最慢約 30 分鐘才推到手機（原約 5 分鐘）。一次輪詢失敗後 service 立刻回 503
+  直到下一次成功，這段時間通常約 30 分鐘（原 5 分鐘；長時間故障時見運行手冊的退避說明）；改頻率前 9 天約 2,400 次執行裡來源失敗 3 次。APNs
+  429／5xx 的重送與 3 次嘗試上限每個 tick 前進一步，現在每步相隔 30 分鐘。App 自己的規則只改了新鮮度上限
+  （15 分鐘 → 1 小時，1.8.0 build 40，記在 `docs/STATUS-IOS.md`）：鬧鐘略過仍接受 18 小時內的 Feed，5 分鐘的
+  重抓節流不變。
+
+- 新排程的前兩次自動輪詢（讀回）：`rainyclock-dayoff-poll-d46j6` 18:35:00 建立、18:35:13 摘要 `ok=true
+  refreshed=true changed=false noticeCount=14`；`rainyclock-dayoff-poll-kczt5` 19:05:05 建立、19:05:13 摘要
+  `ok=true refreshed=true changed=false`。18:30 與 18:40 沒有執行。18:56 讀 `/health` 為 `ready`（資料已 21 分鐘，
+  舊的 15 分鐘上限下會是 503），`nextAttemptAt` 落在 30 分鐘後。
+
+**未執行**：absence 告警在 2 小時視窗下的端到端實測（暫停 Scheduler 超過 2 小時看是否寄信）沒有重做；
+09-24 的實測是 15 分鐘視窗。退避上限等於排程間隔的問題（運行手冊 `upstream_*` 一列）要等下次重建映像時把上限
+壓到排程間隔以下，這次沒有動程式。
 
 ### 更早
 第一次執行時，在這裡逐條記錄：日期、指令、讀回的結果（資料庫設定、SA 與 IAM 條件、secret 版本號、

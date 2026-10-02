@@ -25,6 +25,8 @@ Last updated: 2026-10-02.
 >
 > **1.8.0（39）= 颱風停班停課 ＋ 鬧鐘總開關 ＋ 主畫面／鎖定畫面「下次鬧鐘」widget**（39 比 38 多了中型 widget
 > 今天的項目也顯示天氣，超過 3 小時的預報寫「預報時間」、不警告，2026-10-02）。38 已上傳 TestFlight（10/2，擁有者手機測試完成，widget 天氣是那時發現的）；**39 已於 10/2 08:27 上傳**，08:50 前後在 App Store Connect 改選 build 39、審查說明第一行改成 (39) 並儲存（讀回正確；仍未送審）。
+> **10/2 傍晚起工作樹的 build 號是 40**（停班停課輪詢改每 30 分鐘，App 的公告新鮮度上限改 1 小時）：40 尚未 archive、尚未上傳，
+> App Store Connect 仍選 39；要送審的是 40，見「1.8.0 準備中」最上方一點。
 > `ios/widget`（worktree `RainyClock-widget`，`ad0b628`）已於 **2026-10-01** 依擁有者決定以合併 commit 合入
 > 1.8.0 線。合併時統一的規則見「1.8.0 準備中」的「`ios/widget` 合入 1.8.0 線」一點，
 > 送審前欠項見同一點與該節末的 widget 小節。
@@ -232,6 +234,57 @@ Last updated: 2026-10-02.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-10-02 18:27–18:31：停班停課輪詢改為每 30 分鐘、會員刪除改為每天兩次；App 的公告新鮮度上限 15 分鐘 → 1 小時，
+  工作樹的 build 號改為 40（擁有者決定；40 尚未 archive、尚未上傳）。**
+  - 原因（9 月帳單）：Cloud Run 用量 US$5.64、免費額度折抵 −US$4.62、實付 US$1.02，全部是 Cloud Run。Cloud Run **Job** 以
+    instance 的整段生命週期計費、**每次最少 1 分鐘**（[定價](https://cloud.google.com/run/pricing)；asia-east1 每 vCPU-秒
+    US$0.000018、每 GiB-秒 US$0.000002），實際只跑約 12 秒也算 60 秒，所以花費看的是執行**次數**：每月免費 240,000 vCPU-秒
+    （帳單帳戶共用），約等於 4,000 次 1 vCPU 的執行，每天約 129 次。原本兩個 Scheduler 都是每 5 分鐘，合計每天 576 次，
+    10 月整月會是約 US$15。`dayoff-service/DEPLOYMENT.md` 原本的估計（每月約 US$0.50）沒算到 1 分鐘下限。其他項目
+    （Firestore 約 US$0.10／月、Secret Manager 約 US$0.08／月、Vertex／TTS 幾美分、Maps 0）可以忽略。
+  - 雲端新設定（18:27–18:31 套用並從雲端讀回；沒有重新部署程式，映像 digest 不變）：
+    - Scheduler `rainyclock-dayoff-poll`：`5,35 * * * *` Asia/Taipei（原 `*/5 * * * *`），每 30 分鐘、每天 48 次。選 :05／:35
+      而不是 :00／:30：改之前 9 天僅有的兩次 `upstream_rate_limited` 都在整點（9/29 15:00、20:00）。最後一次 5 分鐘排程
+      是 18:25，新排程第一次是 18:35。
+    - Job `rainyclock-dayoff-poll`：`POLL_INTERVAL_MS=1800000`（原 300000）。
+    - 服務 `rainyclock-dayoff`：`MAX_CACHE_AGE_MS=3600000`（原 900000），revision `rainyclock-dayoff-00006-j42`、100% 流量、
+      `/health` 200。snapshot 超過 **1 小時**（連漏兩次輪詢）才回 503 `stale_cache`，原本是 15 分鐘。Sandbox 服務同值
+      （`rainyclock-dayoff-sandbox-00002-4c8`）；sandbox 仍然沒有 Scheduler，所以手動跑 Job 之後 1 小時（原 15 分鐘）回 503。
+    - 告警：「poll absent」改為 **2 小時**沒有 `dayoff_job` summary 才寄信（原 15 分鐘；擁有者：兩個小時沒反應再寄信，等於連漏
+      四次輪詢；`alignmentPeriod` 維持 300s，預期最後一次 summary 後 2 小時又幾分鐘寄達）。「poll degraded」兩個條件的視窗改為 2 小時（原 20 分鐘），仍是「超過 2 次」，也就是連續 4 次裡 3 次。
+      「execution failed」（10 分鐘視窗）和輪詢頻率無關，沒改。
+    - Scheduler `rainyclock-membership-deletion`：`7 4,16 * * *` Asia/Taipei（原 `*/5 * * * *`），每天 04:07、16:07 兩次
+      （擁有者：「這沒這麼重要」）。Job、環境變數與批次上限沒改；下一次是 10/3 04:07。
+    - 現在每天 48 ＋ 2 ＝ 50 次執行，31 天約 93,000 vCPU-秒，在 240,000 的免費額度內：這個頻率下 Cloud Run Job 每月 US$0。
+    - 程式的**預設值**（`POLL_INTERVAL_MS` 300000、`MAX_CACHE_AGE_MS` 900000）刻意沒動：正式與 sandbox 都明確設定這兩個值，
+      也沒有重建映像。工作樹同步改了 `dayoff-service/deploy/deploy.sh`、`deploy/sandbox.sh`（sandbox Job 的
+      `POLL_INTERVAL_MS=60000` 不變）與 `dayoff-service/alerts/` 的 absence、broadcast-incomplete 兩組告警檔。
+  - 行為上的差別：公告出現在來源之後，推播最晚約 30 分鐘到手機（原約 5 分鐘）。輪詢失敗時服務仍然立刻回 503，直到下一次
+    成功為止，這段時間現在通常約 30 分鐘（原 5 分鐘；退避上限等於排程間隔，連續失敗第 7 次起會變成每小時才抓一次，
+    見 `dayoff-service/DEPLOYMENT.md` 運行手冊）；改之前 9 天約 2,400 次執行裡來源失敗 3 次。推播重試（APNs 429／5xx）
+    與廣播最多 3 次的限制每次輪詢前進一步，現在每一步相隔 30 分鐘。App 其他規則不變：略過鬧鐘的判斷仍接受下載後 18 小時內
+    的公告資料，App 自己的 5 分鐘更新節流也不變。
+  - App：地圖與 sync receipt 的新鮮度上限由 15 分鐘改為 **1 小時**，共用常數 `DisasterMapStatus.maximumFeedAge`（`60 * 60`）。
+    `DisasterMapView` 的來源標示與 `AlarmViewModel.reportDisasterSync` 原本各寫一個字面值（`900`、`15 * 60`），現在都讀這個常數。
+    測試改在 `DisasterMapStatusTests`、`DisasterIntegrationTests`，新增 `testFeedFromThePreviousPollStillProducesReceipt`
+    （31 分鐘前檢查的公告資料仍送出 receipt）。
+  - 版本：build 39 → **40**（`Info.plist` 的 `CFBundleVersion` 與 11 個 `CURRENT_PROJECT_VERSION`；`MARKETING_VERSION` 仍是
+    1.8.0）。模擬器上建置通過，完整測試（`RainyClock Membership Local` scheme、已簽章、1 個 worker，依慣例排除在 26.5 runtime
+    會卡住的 `MembershipStoreKitTests`）：iOS 26.5 與 27.0 各 630 項通過、0 失敗、4 略過；`dayoff-service` `npm test` 111 通過、0 失敗、9 略過（Emulator 那組）。
+    **1.8.0（40）尚未 archive、尚未上傳；App Store Connect
+    選的仍是 build 39，TestFlight 上也還是 39。** 審查說明的 build 40 版已備好：
+    [`appstore-review-notes-1.8.0-40.txt`](appstore-review-notes-1.8.0-40.txt)（只改第一行，3,916 字；內文沒有寫輪詢頻率或
+    新鮮度時間，不用改）。
+  - 還沒做：
+    1. 40 的 archive 與上傳；上傳後 App Store Connect 改選 build 40，審查備註換成 (40) 版並讀回，`docs/appstore-metadata.md`
+       指向審查備註檔與 build 的兩處也跟著改成 40。
+    2. absence 告警在 2 小時視窗下還沒重做「暫停 Scheduler」的端到端測試（9/24 那次測的是 15 分鐘視窗）。
+    3. TestFlight 的 39 仍用 15 分鐘判斷：輪詢改成 30 分鐘後，地圖大約一半時間顯示「公告待更新」、行政區轉灰，下載到的資料
+       超過 15 分鐘時也不送 sync receipt；略過鬧鐘的判斷不受影響（18 小時）。40 取代 39 之前都會這樣，不是壞了。
+    4. 會員刪除新排程的第一次派送與 execution 還沒看到（下一次 10/3 04:07）；之後讀回 Scheduler `lastAttemptTime` 與該
+       execution 的 summary。
+    5. 新排程的前兩次停班停課輪詢已讀回（18:35 `d46j6`、19:05 `kczt5`，都是 `ok=true refreshed=true changed=false`）。
+
 - **2026-10-02 08:27：1.8.0（39）已上傳 App Store Connect（只進 TestFlight，未送審）。** Xcode 27.0 從 `4e218c2` archive
   （`CreationDate` 08:24，晚於 08:22 的 commit）。本機 App Store 匯出檢查同 38：三個 bundle 都是 1.8.0（39）、iOS 27 SDK，正式推播／
   App Attest、三個 bundle 都有 App Group 與隱私清單、正式網址、只有 IronSource、`-ObjC` 在、widget 帶新字 `widget_forecast_as_of`。
@@ -342,7 +395,7 @@ Last updated: 2026-10-02.
   [審查說明](appstore-review-notes-1.8.0-38.txt)（3,916 字），選 build 38 並儲存；重新整理後讀回三者皆正確。發佈方式仍為手動。
   審查資訊的附件欄是空的（1.7.1 的 ATT 錄影沒有沿用；新審查說明沒有提到附件）。
   **下一步：**①在 iPhone 上用 TestFlight 跑本節各點的「手機待確認」（**改用 39**，見上一點；38 的結果除了中型今天的天氣欄都適用）；
-  ②（原為建版本與貼文字，已完成；**39 上傳後改選 build 39，審查備註第一行改成 (39)**）；③送審當天：發布 App 隱私問卷更新（Device ID、Other Diagnostic Data 加上停班停課用途，見 `appstore-metadata.md`）；
+  ②（原為建版本與貼文字，已完成；**39 上傳後改選 build 39，審查備註第一行改成 (39)**；**10/2 傍晚起要送審的是 40**：40 上傳後改選 build 40、審查備註換成 (40) 版，見本節最上方一點）；③送審當天：發布 App 隱私問卷更新（Device ID、Other Diagnostic Data 加上停班停課用途，見 `appstore-metadata.md`）；
   ④上架當天：買斷改 US$15／NT$150。隱私權政策的停班停課一節已於 10/1 發布到公開網站（`main` `b4d2c65`）。
 
 - **2026-10-01：1.8.0（38）修正系列（`f77a4ec`…`24cf509`，9 個 commit）與其審查修正（「Review fixes for the 1.8.0

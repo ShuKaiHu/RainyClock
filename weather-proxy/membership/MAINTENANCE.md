@@ -4,6 +4,10 @@
 OAuth 派送及受控 TestFlight 刪除；本頁下方記錄範圍與證據，不代表完整使用者刪帳
 UI 或所有正式會員情境均已驗收。其他發布紀錄見 `docs/MEMBERSHIP-STAGING.md`。
 
+2026-10-02：排程由每 5 分鐘改為每天兩次（`7 4,16 * * *`、`Asia/Taipei`，即 04:07 與
+16:07）。Job、環境變數與批次上限未變；原因與影響見「IAM 與 Cloud Scheduler」及文末
+「排程調整 — 2026-10-02」。
+
 ## 行為
 
 `node membership/maintenance-cli.js` 只處理已有 `deletedAt` 且
@@ -69,11 +73,19 @@ MEMBERSHIP_MAINTENANCE_MAX_BATCHES: "10"
   建立 Scheduler 者需 Scheduler 管理權限及 Scheduler SA 的 actAs。不要把管理權限
   給實際執行排程的 SA。維持 Google 建立的 Cloud Scheduler service agent 所需角色。
 
-Scheduler 建議每 5 分鐘、時區 `Asia/Taipei`，向以下 Google 管理 API 發送 POST，body `{}`：
+Scheduler 目前部署為每天兩次：`7 4,16 * * *`、時區 `Asia/Taipei`（04:07 與 16:07；
+2026-10-02 以前為每 5 分鐘），向以下 Google 管理 API 發送 POST，body `{}`：
 
 ```text
 https://run.googleapis.com/v2/projects/rainyclock/locations/asia-east1/jobs/rainyclock-membership-deletion:run
 ```
+
+頻率的取捨：Cloud Run Job 每次 execution 以 instance 整段存活時間計費、最少 1 分鐘，
+費用取決於執行次數而不是實際工作量；每 5 分鐘（每天 288 次）時，幾乎每次都是
+pending=0、無事可做。使用者的刪除請求本身是同步完成的：先寫入 `deletedAt`，session 與
+後續請求立即失效，再於同一請求內清理資料；本 Job 只補做該請求中途失敗（回 202
+`cleanupPending`）留下的 `pending`。因此降頻不影響存取撤銷，只是中途失敗的清理最久
+可能等到下一次排程，約 12 小時。
 
 使用 Scheduler SA 的 **OAuth access token**，scope `https://www.googleapis.com/auth/cloud-platform`，
 不是打 Cloud Run 公開網址的 OIDC token。Scheduler attempt deadline 可設 `60s`、派送失敗
@@ -149,3 +161,23 @@ node --test test/membership-maintenance.test.js test/membership-domain.test.js t
 - `/tmp/rainyclock-membership-deletion-scheduled-executions.json`
 - `/tmp/rainyclock-membership-deletion-scheduled-summaries.json`
 - `/tmp/rainyclock-membership-deletion-cloud-probe-verification.json`
+
+## 排程調整 — 2026-10-02
+
+- Cloud Scheduler `rainyclock-membership-deletion` 的排程由 `*/5 * * * *` 改為
+  `7 4,16 * * *`、`Asia/Taipei`（每天 04:07 與 16:07），18:27–18:31（台灣時間）之間套用
+  並自雲端讀回。只改這一個排程字串；Job、環境變數與批次上限均未變，沒有重新部署程式。
+- 原因：9 月帳單 Cloud Run 用量 US$5.64、免費額度折抵 US$4.62、實付 US$1.02。
+  [Cloud Run Job](https://cloud.google.com/run/pricing) 每次 execution 最少計費 1 分鐘，
+  同一 billing account 每月共用的 240,000 vCPU-seconds 免費額度約只夠 4,000 次 1 vCPU
+  execution；本排程每 5 分鐘即每天 288 次（31 天約 8,900 次），單獨就超過，且幾乎每次
+  都無待辦。與同樣每 5 分鐘的停班停課輪詢合計每天 576 次，10 月整月估計約 US$15。
+  調整後本 Job 每天 2 次、停班停課輪詢每天 48 次，31 天約 93,000 vCPU-seconds，
+  落在免費額度內。使用者決定：這個清理沒有那麼急。
+- 影響：刪除請求仍同步撤銷存取並清理；只有中途失敗留下的 `pending` 會等到下一次排程，
+  正常最久約 12 小時。該次 execution 若也失敗（含 3 次 task 重試）就再等 12 小時，而本 Job
+  目前仍沒有失敗／backlog 告警（見 2026-09-21 紀錄）；存取權在這段期間一直是撤銷的。
+- Scheduler 的 `description` 同日改成 `Retry pending membership deletion twice a day (04:07 and
+  16:07 Asia/Taipei) in production and TestFlight databases`（原文寫 every five minutes），讀回時
+  URI、OAuth service account 與 scope、POST、body、重試 3 次、deadline 60s 都沒有變。
+- 尚未驗證：新排程的第一次實際派送與對應 execution（下一次為 2026-10-03 04:07）。

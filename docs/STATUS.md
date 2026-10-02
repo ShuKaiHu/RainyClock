@@ -20,7 +20,7 @@ hold the whole repo — the separation is by branch, not by directory.
 
 | Platform | State |
 | --- | --- |
-| **iOS** | `1.7.1 (37)` live on the App Store since 2026-09-26 (TW and US storefronts): RainyClock Plus membership (monthly subscription + one-time purchase), Unity LevelPlay ads, address suggestions. Next is 1.8.0 (39), not yet archived (38 went to TestFlight on 2026-10-02; 39 adds today's weather on the medium widget): typhoon day-off, the master alarm switch and the "Next Alarm" Home/Lock Screen widget (`ios/widget` merged into the 1.8.0 line on 2026-10-01). |
+| **iOS** | `1.7.1 (37)` live on the App Store since 2026-09-26 (TW and US storefronts): RainyClock Plus membership (monthly subscription + one-time purchase), Unity LevelPlay ads, address suggestions. Next is 1.8.0 (40), not yet archived (38 and 39 went to TestFlight on 2026-10-02; 39 adds today's weather on the medium widget and is the build App Store Connect still has selected; 40 raises the app's closure-feed freshness limit from 15 minutes to one hour, because the day-off service has polled every 30 minutes since 2026-10-02): typhoon day-off, the master alarm switch and the "Next Alarm" Home/Lock Screen widget (`ios/widget` merged into the 1.8.0 line on 2026-10-01). |
 | **Android** | Never shipped. The port builds, runs and matches the iOS behaviour, but a weather-provider licensing call and a Play developer account still block a first release. |
 
 ## Shared references
