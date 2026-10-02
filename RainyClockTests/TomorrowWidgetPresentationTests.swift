@@ -137,15 +137,17 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         entry.scheduleIssue = .updateNeeded
         XCTAssertFalse(Presentation(.status(entry)).showsWarningBadge)
 
-        // Today's stale or failed forecast is said in the medium's weather column, whose footer
-        // carries its own triangle; the badge, like every other face, keeps D-C (2026-10-02).
+        // Today's failed forecast is a notice in the medium's weather column, with its own
+        // triangle; today's stale forecast is no notice, only its time in the column's footer
+        // (預報時間…, neutral, no triangle; owner 2026-10-02). The badge, like every other face,
+        // keeps D-C and shows neither.
         XCTAssertFalse(presentation(.todayStale).showsWarningBadge)
         XCTAssertFalse(presentation(.todayWeatherFailed).showsWarningBadge)
         XCTAssertFalse(presentation(.todayForecastUnavailable).showsWarningBadge)
         guard case .status(var today) = state(.todayStale) else { return XCTFail("todayStale sample must be a status") }
         today.scheduleIssue = .updateNeeded
         XCTAssertEqual(Presentation(.status(today)).line, .issue(.updateNeeded))
-        XCTAssertFalse(Presentation(.status(today)).showsWarningBadge, "The line is the warning; the stale forecast is the column's")
+        XCTAssertFalse(Presentation(.status(today)).showsWarningBadge, "The line is the warning; the stale forecast's time is the column's")
         XCTAssertTrue(Presentation.Line.todayNotice(.stale).isWarning)
         XCTAssertTrue(Presentation.Line.todayNotice(.failed).isWarning)
         XCTAssertFalse(Presentation.Line.todayNotice(.noForecast).isWarning)

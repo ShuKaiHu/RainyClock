@@ -310,6 +310,14 @@ Last updated: 2026-10-02.
       `DerivedData/Logs/Test/Test-39-forecast-time-ios270-20261002-080535.xcresult`。
     - 手機待確認（併入上面 39 的清單）：午夜後抓取滿 3 小時，中型今天的天氣欄寫「預報時間 …」、沒有三角形與標記（12／24 小時制
       各一次）；VoiceOver 讀到同一行；明天的項目過期仍是「⚠ 天氣資料需要更新」。
+    - 審查修正（2026-10-02，只改註解與文件，行為不變）：產品決策裡 10/1 一節「仍刻意和主卡不同」的第 1、4 點與 10/2 今天天氣
+      一節的「文字」還寫著今天的天氣欄 3 小時後警告「天氣資料需要更新」，三處都標成已被最上方一節取代，第 1 點也記下新的刻意
+      不同：主卡午夜後超過 30 分鐘照樣警告，widget 今天的天氣欄從不因時間警告。`TomorrowWidgetPresentation`（`line`、
+      `showsWarningBadge`、`alarmNotice`）與 presentation 測試的註解改寫：今天的失敗／沒有預報是天氣欄的提示（失敗帶三角形），
+      今天的過期不是提示，是 `weatherColumnFooter` 的預報時間，中性、不帶三角形。測試同上條件，每台 633 項、0 失敗、629 過
+      4 略過（同上）——iOS 26.5 與 iOS 27.0。xcresult：
+      `DerivedData/Logs/Test/Test-39-forecast-time-review-ios265-20261002-082232.xcresult`、
+      `DerivedData/Logs/Test/Test-39-forecast-time-review-ios270-20261002-082232.xcresult`。
 
 - **2026-10-02 03:43：1.8.0（38）已上傳 App Store Connect（只進 TestFlight，未送審）。** Xcode 27.0（iOS 27 SDK）從 `3cf0fab`
   archive；本機 App Store 匯出逐項檢查（三個 bundle 都是 1.8.0（38）、正式推播與 App Attest、widget 也簽上 App Group——

@@ -164,8 +164,10 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     var glyph: Glyph
     var hero: Hero
     /// Small footer and rectangular line 3. On a today entry it never carries a weather
-    /// notice other than "complete your route" (D-C): today's stale, failed or missing
-    /// forecast is the medium's weather column's to say (`weatherColumnNotice`).
+    /// notice other than "complete your route" (D-C): today's failed or missing forecast is
+    /// a notice in the medium's weather column only (`weatherColumnNotice`; failed with the
+    /// triangle), and today's stale forecast is no notice at all: the column gives its time
+    /// in `weatherColumnFooter` (預報時間…), neutral, with no triangle (owner, 2026-10-02).
     var line: Line?
     /// The medium widget's left footer: `line`, unless it repeats the weather notice the
     /// medium's weather column already shows (the notice's own text, or "waiting for the
@@ -191,8 +193,9 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     /// this morning, and hours old before the ring is expected, not an error. Tomorrow's stale
     /// forecast keeps the warning, and a failed refresh warns on both. nil without the column.
     var weatherColumnFooter: LocalizedLine?
-    /// A warning exists that the footer line is not already showing. Today's weather
-    /// warnings are the column's own (its footer carries the triangle), not the badge's.
+    /// A warning exists that the footer line is not already showing. Today's weather never
+    /// raises it: a failed refresh is the column's own warning (its footer carries the
+    /// triangle), and a stale forecast is no warning, only its time (owner, 2026-10-02).
     var showsWarningBadge: Bool
     var hasIssue: Bool
     /// The medium widget's sky, from the forecast (weather data: medium only); nil when
@@ -287,8 +290,10 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
 
             // The notice the alarm's own lines and badge may carry. A today entry keeps D-C on
             // every face: only "complete your route" (what build 38 stored for today). Today's
-            // stale, failed or missing forecast is said in the medium's weather column only
-            // (owner, 2026-10-02), worded 今天 there (`weatherColumnNotice`).
+            // failed or missing forecast is a notice in the medium's weather column only, worded
+            // 今天 there (`weatherColumnNotice`; failed with the triangle). Today's stale forecast
+            // is no notice: the column gives its time in `weatherColumnFooter` (預報時間…),
+            // neutral, with no triangle (owner, 2026-10-02).
             let alarmNotice = entry.isToday && entry.weatherNotice != .routeNeeded ? nil : entry.weatherNotice
             // First match wins: an issue, the reason, the freshness notice (data age, not
             // weather), then 照常響鈴 for a day that simply rings.
