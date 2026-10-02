@@ -235,6 +235,16 @@ Last updated: 2026-10-02.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-10-02 21:41–21:45：1.8.0（40）已 archive，匯出指令回報成功（destination 是 upload）；App Store Connect 那一端還沒讀回。**
+  從 `8e6228a`（21:40 commit）以 Xcode 27.0 Release archive：`build/RainyClock-1.8.0-40.xcarchive`，`CreationDate` 21:41。封存檢查：
+  App 與兩個 extension 都是 1.8.0（40）、iOS 27 SDK、三個 bundle 都有隱私清單、App Group 在、App Attest `production`、
+  `DayOffServiceURL` 是正式網址、只有 IronSource 一個框架、沒有 `GAD*`、App 與 widget 的執行檔裡都有 `rainyclock://alarm`。
+  接著原本要做「本機匯出檢查」（看正式簽章後的 `aps-environment`），用的 `build/ExportOptions-AppStoreConnect.plist` 其實也是
+  `destination = upload`，所以那一步就是上傳：`xcodebuild -exportArchive` 結束碼 0、印出 `** EXPORT SUCCEEDED **`。
+  **沒有確認的：** 上傳日誌的內容（`/tmp/rainyclock-180-40/export-check.log`，之後讀取被權限分類器擋下，沒有讀到
+  `Upload succeeded` 那一行）、正式簽章後的 `aps-environment`、App Store Connect 是否已處理完 build 40。
+  **還沒做：** 在 App Store Connect／TestFlight 確認 40 出現並處理完成；版本頁的 build 由 39 換成 40；審查備註整份換成
+  [`appstore-review-notes-1.8.0-40.txt`](appstore-review-notes-1.8.0-40.txt)（新的 widget 句子先給擁有者看過）；下一點列的手機檢查。
 - **2026-10-02 晚：小型 widget 的天空和中型一樣跟著預報，並帶  Weather 標記（擁有者決定；併入 1.8.0（40），build 號不變，
   40 尚未 archive、尚未上傳）。** 擁有者把小型與中型並排放在主畫面（TestFlight 1.8.0（39），週末、預報晴天）：小型品牌深藍、
   中型亮藍，問「不是應該一樣嗎？」。四個選項裡選了「兩個都跟天氣，小型也帶標記」，取代 D-A（9/24）的「只有 medium 顯示天氣」。
