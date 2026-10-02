@@ -614,11 +614,17 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(stale.expectedRingDate, date(15, 7))
         XCTAssertEqual(stale.reasonLine, .rainEarlier(minutes: 30), "The 30-minute decision rule is unchanged")
         XCTAssertNil(stale.scheduleIssue)
-        let face = TomorrowWidgetPresentation(.status(stale), language: "zh-Hant")
+        let face = TomorrowWidgetPresentation(.status(stale), clockFormat: snapshot.clockFormat, language: "zh-Hant")
         XCTAssertEqual(face.line, .todayReason(.rainEarlier(minutes: 30)), "Small and Lock Screen: the decision only (D-C)")
         XCTAssertFalse(face.showsWarningBadge)
         XCTAssertTrue(face.showsWeatherColumn)
-        XCTAssertEqual(face.weatherColumnNotice, .todayNotice(.stale), "The medium's column: 天氣資料需要更新")
+        // Owner 2026-10-02: the medium's column gives the forecast's time, no warning.
+        XCTAssertNil(face.weatherColumnNotice, "Not 天氣資料需要更新")
+        XCTAssertEqual(face.weatherColumnFooter,
+                       LocalizedLine(key: "widget_forecast_as_of", arguments: [.time(date(14, 21), .twelveHour)]))
+        XCTAssertEqual(TomorrowWidgetPresentation(.status(today), clockFormat: snapshot.clockFormat).weatherColumnFooter,
+                       LocalizedLine(key: "ux_weather_updated", arguments: [.time(date(14, 21), .twelveHour)]),
+                       "Until the stale second: 天氣更新於")
         XCTAssertEqual(face.home, .rain)
         XCTAssertEqual(face.mediumLine, .todayReason(.rainEarlier(minutes: 30)))
         // The widget's tomorrow is calendar tomorrow, Wednesday; the card describes Tuesday
@@ -1573,7 +1579,8 @@ extension TomorrowWidgetSnapshotTests {
 extension TomorrowWidgetSnapshotTests {
     /// The owner's report: at 04:00 the medium said 今天 · 10月2日 上午7:30 照常響鈴 with no weather.
     /// The dry forecast fetched the evening before is that morning's: at 04:00 the column shows
-    /// it, with its age (D-B); a failed refresh for it says so from midnight, worded 今天.
+    /// it with its time (預報時間, owner 2026-10-02: expected, not a warning); a failed refresh for
+    /// it says so from midnight, worded 今天.
     func testTodayEntryShowsTheEveningsForecastAndItsAge() throws {
         let evening = date(14, 21)
         let value = settings()
@@ -1596,11 +1603,16 @@ extension TomorrowWidgetSnapshotTests {
             XCTAssertEqual(face.line, .ringsAsUsual, "\(label): small and Lock Screen as in build 38")
             XCTAssertFalse(face.showsWarningBadge, label)
             XCTAssertTrue(face.showsWeatherColumn, label)
-            XCTAssertEqual(face.weatherColumnNotice, .todayNotice(failed ? .failed : .stale), label)
+            XCTAssertEqual(face.weatherColumnNotice, failed ? .todayNotice(.failed) : nil, label)
             XCTAssertEqual(face.mediumLine, .ringsAsUsual, label)
             if failed {
                 XCTAssertEqual(face.weatherColumnNotice?.full.key, "ux_today_weather_failed")
+                XCTAssertEqual(face.weatherColumnFooter, face.weatherColumnNotice?.full, label)
                 XCTAssertEqual(entry(snapshot, at: date(15, 0))?.weatherNotice, .failed, "From midnight, not by age")
+            } else {
+                XCTAssertEqual(face.weatherColumnFooter,
+                               LocalizedLine(key: "widget_forecast_as_of", arguments: [.time(evening, .twelveHour)]),
+                               "預報時間 下午 9:00")
             }
         }
     }
@@ -1825,6 +1837,106 @@ extension TomorrowWidgetSnapshotTests {
                 XCTAssertEqual(tomorrowFace.weatherColumnNotice?.full,
                                TomorrowWidgetPresentation.Line.todayNotice(.routeNeeded).full, "\(label): the same column")
             }
+        }
+    }
+
+    // MARK: Today's forecast past 3 hours (owner, 2026-10-02)
+
+    /// Owner 2026-10-02, on a snapshot published the evening before (the app need not be awake
+    /// after midnight): a forecast checked at 22:00 reads 天氣更新於 22:00 on tomorrow's entry and,
+    /// from midnight, on today's, until it is 3 hours old; from the next second (01:00:01, D-B's
+    /// strict >) today's column gives 預報時間 22:00 instead, neutral, through the ring. The time
+    /// follows the snapshot's 12/24-hour setting, and VoiceOver reads the same line.
+    func testTodaysColumnTurnsToTheForecastTimeAtThreeHours() throws {
+        let evening = date(14, 22)
+        let value = settings()
+        let dry = record(value, requestedAt: evening, checkedAt: evening, probability: 0.1)
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7, 30))
+        let zh = try WidgetStringTable("zh-Hant")
+        let en = try WidgetStringTable("en")
+        for clock in ClockTimeFormat.allCases {
+            let snapshot = Builder.snapshot(now: evening, context: context(value, summary: registered, clock: clock),
+                                            status: statusProvider(value, weather: dry, summary: registered),
+                                            today: statusProvider(value, weather: dry, summary: registered, dayOffset: 0))
+            XCTAssertTrue(snapshot.isValid, "\(clock)")
+            XCTAssertEqual(snapshot.clockFormat, clock)
+            XCTAssertEqual(entry(snapshot, at: date(15, 1, 0, 1))?.weatherNotice, .stale, "\(clock): the stale second is precomputed")
+            let twentyFour = clock == .twentyFourHour
+            let checked = twentyFour ? ("天氣更新於 22:00", "Weather checked 22:00") : ("天氣更新於 下午 10:00", "Weather checked 10:00 PM")
+            let asOf = twentyFour ? ("預報時間 22:00", "Forecast as of 22:00") : ("預報時間 下午 10:00", "Forecast as of 10:00 PM")
+            let moments: [(Date, Bool, (String, String))] = [
+                (date(14, 23), false, checked), (date(15, 0), true, checked), (date(15, 1), true, checked),
+                (date(15, 1, 0, 1), true, asOf), (date(15, 4), true, asOf), (date(15, 7, 30), true, asOf),
+            ]
+            for (moment, isToday, (chinese, english)) in moments {
+                let label = "\(clock) at \(moment)"
+                let shown = try XCTUnwrap(shownEntry(snapshot, at: moment), label)
+                XCTAssertEqual(shown.isToday, isToday, label)
+                XCTAssertEqual(shown.forecast, Builder.forecast(from: dry.snapshot), label)
+                let face = TomorrowWidgetPresentation(.status(shown), clockFormat: snapshot.clockFormat, language: "zh-Hant")
+                XCTAssertTrue(face.showsWeatherColumn, label)
+                XCTAssertNil(face.weatherColumnNotice, "\(label): no ⚠, no warning text")
+                XCTAssertEqual(face.weatherColumnFooter.map { zh.text($0, timeZone: calendar.timeZone) }, chinese, label)
+                XCTAssertEqual(face.weatherColumnFooter.map { en.text($0, timeZone: calendar.timeZone) }, english, label)
+                XCTAssertFalse(face.showsWarningBadge, label)
+                XCTAssertEqual(face.line, .ringsAsUsual, label)
+                let spoken = face.weatherColumnAccessibilityLabel(forecast: shown.forecast, separator: "，",
+                                                                  text: { zh.text($0, timeZone: calendar.timeZone) })
+                XCTAssertTrue(spoken.hasSuffix("，\(chinese)，Apple Weather"), "\(label): \(spoken)")
+            }
+            // One second after the ring: Wednesday, whose forecast the app has not fetched.
+            let after = try XCTUnwrap(shownEntry(snapshot, at: date(15, 7, 30, 1)))
+            XCTAssertFalse(after.isToday, "\(clock)")
+            XCTAssertNil(after.forecast, "\(clock)")
+        }
+    }
+
+    /// The same forecast is tomorrow's warning in the evening and today's neutral time after
+    /// midnight. Checked at 18:00, it is stale from 21:00:01 on tomorrow's entry (D-B, unchanged:
+    /// ⚠ 天氣資料需要更新 in the column, and on the small and Lock Screen faces); from midnight,
+    /// when the entry is today's, the column says 預報時間 18:00 and nothing warns.
+    func testTomorrowsStaleWarningGivesWayToTodaysForecastTimeAtMidnight() throws {
+        let afternoon = date(14, 18)
+        let value = settings()
+        let dry = record(value, requestedAt: afternoon, checkedAt: afternoon, probability: 0.1)
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7, 30))
+        let snapshot = Builder.snapshot(now: afternoon, context: context(value, summary: registered, clock: .twentyFourHour),
+                                        status: statusProvider(value, weather: dry, summary: registered),
+                                        today: statusProvider(value, weather: dry, summary: registered, dayOffset: 0))
+        XCTAssertTrue(snapshot.isValid)
+        let zh = try WidgetStringTable("zh-Hant")
+        func shown(at moment: Date) throws -> (TomorrowWidgetSnapshot.Entry, TomorrowWidgetPresentation) {
+            let entry = try XCTUnwrap(shownEntry(snapshot, at: moment), "\(moment)")
+            return (entry, TomorrowWidgetPresentation(.status(entry), clockFormat: snapshot.clockFormat, language: "zh-Hant"))
+        }
+        func footer(_ face: TomorrowWidgetPresentation) -> String? {
+            face.weatherColumnFooter.map { zh.text($0, timeZone: calendar.timeZone) }
+        }
+
+        let (fresh, freshFace) = try shown(at: date(14, 21))
+        XCTAssertFalse(fresh.isToday)
+        XCTAssertNil(fresh.weatherNotice, "Exactly 3 hours: not yet (strict >)")
+        XCTAssertEqual(footer(freshFace), "天氣更新於 18:00")
+
+        for moment in [date(14, 21, 0, 1), date(14, 23, 59, 59)] {
+            let (warned, face) = try shown(at: moment)
+            XCTAssertFalse(warned.isToday, "\(moment)")
+            XCTAssertEqual(warned.weatherNotice, .stale, "\(moment)")
+            XCTAssertEqual(face.weatherColumnNotice, .notice(.stale), "\(moment)")
+            XCTAssertEqual(face.weatherColumnNotice?.leadingSymbol, TomorrowWidgetPresentation.Glyph.warning.rawValue)
+            XCTAssertEqual(footer(face), "天氣資料需要更新", "\(moment)")
+            XCTAssertEqual(face.line, .notice(.stale), "\(moment): tomorrow's small and Lock Screen faces warn, as before")
+        }
+
+        for moment in [date(15, 0), date(15, 4), date(15, 7, 30)] {
+            let (today, face) = try shown(at: moment)
+            XCTAssertTrue(today.isToday, "\(moment)")
+            XCTAssertEqual(today.weatherNotice, .stale, "\(moment): the snapshot still marks its age")
+            XCTAssertEqual(today.forecast, Builder.forecast(from: dry.snapshot), "\(moment)")
+            XCTAssertNil(face.weatherColumnNotice, "\(moment)")
+            XCTAssertEqual(footer(face), "預報時間 18:00", "\(moment)")
+            XCTAssertEqual(face.line, .ringsAsUsual, "\(moment)")
+            XCTAssertFalse(face.showsWarningBadge, "\(moment)")
         }
     }
 }

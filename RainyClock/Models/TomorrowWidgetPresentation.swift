@@ -33,7 +33,9 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
         case todayReason(TomorrowWidgetSnapshot.ReasonLine)
         case notice(TomorrowWidgetSnapshot.WeatherNotice)
         /// The same notice about today's forecast, in the medium's weather column only
-        /// (2026-10-02): the lines that name 明天 name 今天 instead.
+        /// (2026-10-02): the lines that name 明天 name 今天 instead. The presentation never
+        /// makes it `.stale`: today's forecast past 3 hours is no warning, and the column's
+        /// footer gives its time instead (`weatherColumnFooter`, owner 2026-10-02).
         case todayNotice(TomorrowWidgetSnapshot.WeatherNotice)
         /// A normal ringing day: 照常響鈴 / Rings as usual.
         case ringsAsUsual
@@ -179,8 +181,16 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     /// Not for the open-the-app faces either.
     var showsWeatherColumn: Bool
     /// The weather column's footer notice, in place of 天氣更新於…: `.todayNotice` on a
-    /// today entry (今天), `.notice` on a tomorrow entry. nil without the column.
+    /// today entry (今天), `.notice` on a tomorrow entry. nil without the column, and for
+    /// today's stale forecast, which is no notice (`weatherColumnFooter`).
     var weatherColumnNotice: Line?
+    /// What the weather column prints under its endpoints, and VoiceOver reads: the notice's
+    /// text; else, with a forecast, its time. That is 天氣更新於… / Weather checked…, except on a
+    /// today entry whose forecast is past the widget's 3 hours (D-B): 預報時間… / Forecast as
+    /// of…, neutral (owner, 2026-10-02). It is normally last evening's forecast, which decided
+    /// this morning, and hours old before the ring is expected, not an error. Tomorrow's stale
+    /// forecast keeps the warning, and a failed refresh warns on both. nil without the column.
+    var weatherColumnFooter: LocalizedLine?
     /// A warning exists that the footer line is not already showing. Today's weather
     /// warnings are the column's own (its footer carries the triangle), not the badge's.
     var showsWarningBadge: Bool
@@ -227,8 +237,10 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     }
 
     /// `language` is the one the strings resolve in (`LocalizedLine.resolve`'s bundle); it
-    /// names a stored holiday, which the snapshot keeps as DGPA wrote it.
-    init(_ state: TomorrowWidgetTimeline.State, language: String = Bundle.main.preferredLocalizations.first ?? "en") {
+    /// names a stored holiday, which the snapshot keeps as DGPA wrote it. `clockFormat` is the
+    /// snapshot's (`TomorrowWidgetEntry.clockFormat`): the weather column's footer gives a time.
+    init(_ state: TomorrowWidgetTimeline.State, clockFormat: ClockTimeFormat = .twelveHour,
+         language: String = Bundle.main.preferredLocalizations.first ?? "en") {
         switch state {
         case .needsApp(let reason):
             glyph = .refresh
@@ -237,6 +249,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             mediumLine = nil
             showsWeatherColumn = false
             weatherColumnNotice = nil
+            weatherColumnFooter = nil
             showsWarningBadge = false
             hasIssue = false
             home = nil
@@ -298,9 +311,25 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             // entries do, so a route-incomplete widget does not change when the app republishes.
             showsWeatherColumn = !entry.isToday || entry.forecast != nil || entry.weatherNotice != nil
             // The weather column prints the notice's own text (stale, failed, no forecast,
-            // or route needed, which is also the route-incomplete reason's text).
-            weatherColumnNotice = showsWeatherColumn
-                ? entry.weatherNotice.map { entry.isToday ? .todayNotice($0) : .notice($0) } : nil
+            // or route needed, which is also the route-incomplete reason's text), named for its
+            // day. Today's stale forecast is no notice (owner, 2026-10-02): the footer gives its
+            // time instead. Only a forecast goes stale (`widgetWeatherNotice`); a stale today
+            // entry without one, which no build writes, has no time to give, and says so.
+            let todaysOldForecast = entry.isToday && entry.weatherNotice == .stale ? entry.forecast : nil
+            func columnNotice(_ notice: TomorrowWidgetSnapshot.WeatherNotice) -> Line? {
+                guard entry.isToday else { return .notice(notice) }
+                guard notice == .stale else { return .todayNotice(notice) }
+                return todaysOldForecast == nil ? .todayNotice(.noForecast) : nil
+            }
+            weatherColumnNotice = showsWeatherColumn ? entry.weatherNotice.flatMap(columnNotice) : nil
+            if let notice = weatherColumnNotice {
+                weatherColumnFooter = notice.full
+            } else if showsWeatherColumn, let forecast = entry.forecast {
+                weatherColumnFooter = LocalizedLine(key: todaysOldForecast == nil ? "ux_weather_updated" : "widget_forecast_as_of",
+                                                    arguments: [.time(forecast.checkedAt, clockFormat)])
+            } else {
+                weatherColumnFooter = nil
+            }
             let columnText = weatherColumnNotice?.full
             let columnSaysNoForecast = weatherColumnNotice == .notice(.noForecast) || weatherColumnNotice == .todayNotice(.noForecast)
             // Without the column there is no  Weather mark either, so no percentage.
@@ -366,6 +395,33 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
         guard day != nil else { return nil }
         return isToday ? "widget_today" : "ux_tomorrow"
     }
+
+    /// A condition's name: 晴天 / Sunny, 多雲 / Cloudy, 下雨 / Rainy.
+    static func conditionKey(_ condition: TomorrowWidgetSnapshot.Condition) -> String {
+        switch condition {
+        case .clear: "ux_weather_clear"
+        case .cloudy: "ux_weather_cloudy"
+        case .rain: "ux_weather_rain"
+        }
+    }
+
+    /// The medium's weather column as VoiceOver reads it, the column being one link: each
+    /// endpoint with its condition and rain chance, the footer it prints (`weatherColumnFooter`:
+    /// a notice, or the forecast's time), and the Apple Weather attribution the link leads to.
+    /// `forecast` is the entry's; `text` resolves a line in the widget's language
+    /// (`LocalizedLine.resolve`), and `separator` lists the pieces in it.
+    func weatherColumnAccessibilityLabel(forecast: TomorrowWidgetSnapshot.RouteForecast?, separator: String,
+                                         text: (LocalizedLine) -> String) -> String {
+        var pieces: [String] = []
+        for (key, endpoint) in [("ux_weather_home", forecast?.home), ("ux_weather_work", forecast?.work)] {
+            guard let endpoint else { continue }
+            pieces.append([text(LocalizedLine(key: key)), text(LocalizedLine(key: Self.conditionKey(endpoint.condition))),
+                           text(LocalizedLine(key: "ux_rain_chance", arguments: [.int(endpoint.percent)]))].joined(separator: " "))
+        }
+        if let footer = weatherColumnFooter { pieces.append(text(footer)) }
+        pieces.append("Apple Weather")
+        return pieces.joined(separator: separator)
+    }
 }
 
 /// A string-table key plus its format arguments, resolved inside whichever bundle
@@ -374,6 +430,9 @@ struct LocalizedLine: Equatable, Sendable {
     enum Argument: Equatable, Sendable {
         case int(Int)
         case string(String)
+        /// A time (`%@`), written as `ClockTimeFormat` writes it in the language the line
+        /// resolves in: the app's 12/24-hour setting and 上午-first order, as every widget time.
+        case time(Date, ClockTimeFormat)
     }
 
     var key: String
@@ -382,13 +441,20 @@ struct LocalizedLine: Equatable, Sendable {
     /// `bundle.localizedString(forKey:value:table:)`, then, when arguments are
     /// present, `String(format:locale:arguments:)` in the bundle's own localization.
     func resolve(in bundle: Bundle = .main) -> String {
-        let format = bundle.localizedString(forKey: key, value: nil, table: nil)
+        filled(bundle.localizedString(forKey: key, value: nil, table: nil),
+               language: bundle.preferredLocalizations.first ?? "en")
+    }
+
+    /// `format`, this key's string in `language`'s table, with the arguments filled in as that
+    /// language writes them; a time in `timeZone`, the device's on the widget.
+    func filled(_ format: String, language: String, timeZone: TimeZone = .current) -> String {
         guard !arguments.isEmpty else { return format }
-        let locale = Locale(identifier: bundle.preferredLocalizations.first ?? "en")
+        let locale = Locale(identifier: language)
         let values: [any CVarArg] = arguments.map { argument -> any CVarArg in
             switch argument {
             case .int(let value): return value
             case .string(let value): return value
+            case .time(let date, let clock): return clock.time(date, locale: locale, timeZone: timeZone)
             }
         }
         return String(format: format, locale: locale, arguments: values)
@@ -490,8 +556,9 @@ enum TomorrowWidgetStrings {
         "widget_today_holiday_named", "widget_today_holiday", "widget_today_manual_skip", "widget_today_manual_ring",
         "widget_today_weekend", "widget_today_unselected", "widget_today_closure",
         "widget_inline_today_ring", "widget_inline_today_rain", "widget_inline_today_skipped",
-        // The medium's weather column on a today entry without a forecast (2026-10-02).
-        "widget_today_weather_unavailable",
+        // The medium's weather column on a today entry without a forecast (2026-10-02), and with
+        // one past the widget's 3 hours: its time, neutral (owner, 2026-10-02).
+        "widget_today_weather_unavailable", "widget_forecast_as_of",
         // The medium's weather column is a link to Apple's legal attribution page (D-A).
         "widget_weather_legal_hint",
         // The master switch (1.8.0): the circular word, and the rectangular's short lines.
@@ -658,9 +725,9 @@ enum TomorrowWidgetSamples {
         case .todayClosure:
             return make(ring: nil, reason: .disaster, line: .closure, normalDate: todayNormal,
                         forecast: forecast(.rain, 90, .rain, 95), isToday: true)
-        // Today's three weather notices, said in the medium's column only (今天 there).
+        // Today's weather in the medium's column only: a forecast past 3 hours, and two notices (今天 there).
         case .todayStale:
-            // Last evening's forecast, more than 3 hours old: 天氣資料需要更新.
+            // Last evening's forecast, more than 3 hours old: 預報時間 and its time, neutral (owner, 2026-10-02).
             return make(ring: todayNormal, reason: .normal, normalDate: todayNormal,
                         forecast: forecast(.cloudy, 30, .clear, 10, checkedAt: old), notice: .stale, isToday: true)
         case .todayWeatherFailed:

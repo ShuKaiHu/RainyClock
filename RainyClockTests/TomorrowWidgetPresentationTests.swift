@@ -167,11 +167,18 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             guard case .status(let entry) = state(scenario) else {
                 XCTAssertNil(value.mediumLine, "\(scenario)")
                 XCTAssertNil(value.weatherColumnNotice, "\(scenario)")
+                XCTAssertNil(value.weatherColumnFooter, "\(scenario)")
                 continue
             }
-            // The column's notice is the entry's, named for its day (今天 on a today entry).
+            // The column's notice is the entry's, named for its day (今天 on a today entry), except
+            // today's stale forecast, which is no notice: the footer gives its time (2026-10-02).
+            let todayStale = entry.isToday && entry.weatherNotice == .stale
             XCTAssertEqual(value.weatherColumnNotice,
-                           entry.weatherNotice.map { entry.isToday ? .todayNotice($0) : .notice($0) }, "\(scenario)")
+                           todayStale ? nil : entry.weatherNotice.map { entry.isToday ? .todayNotice($0) : .notice($0) },
+                           "\(scenario)")
+            if let notice = value.weatherColumnNotice {
+                XCTAssertEqual(value.weatherColumnFooter, notice.full, "\(scenario): the footer prints the notice")
+            }
             if let column = value.weatherColumnNotice {
                 XCTAssertNotEqual(value.mediumLine?.full, column.full, "\(scenario) says it twice")
             } else if case .reason(.rainForecast(_, let minutes))? = value.mediumLine {
@@ -239,7 +246,7 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
     /// produced: no rain percentage, no condition name, no condition-drawn sky or symbol.
     func testNoWeatherDataOutsideTheMedium() {
         let weatherKeys: Set<String> = ["ux_rain_applied_forecast", "ux_rain_chance", "ux_weather_clear",
-                                        "ux_weather_cloudy", "ux_weather_rain", "ux_weather_updated"]
+                                        "ux_weather_cloudy", "ux_weather_rain", "ux_weather_updated", "widget_forecast_as_of"]
         let conditions: [TomorrowWidgetSnapshot.Condition] = [.clear, .cloudy, .rain]
         for scenario in Scenario.allCases {
             guard case .status(let base) = state(scenario) else { continue }
@@ -338,7 +345,9 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertEqual(presentation(.todayNormal).home, .clear)
         XCTAssertEqual(presentation(.todayNormal).work, .cloudy)
         XCTAssertNil(presentation(.todayNormal).weatherColumnNotice, "A fresh forecast: 天氣更新於…")
-        XCTAssertEqual(presentation(.todayStale).weatherColumnNotice, .todayNotice(.stale))
+        XCTAssertEqual(presentation(.todayNormal).weatherColumnFooter?.key, "ux_weather_updated")
+        XCTAssertNil(presentation(.todayStale).weatherColumnNotice, "Past 3 hours: 預報時間…, no warning (2026-10-02)")
+        XCTAssertEqual(presentation(.todayStale).weatherColumnFooter?.key, "widget_forecast_as_of")
         XCTAssertEqual(presentation(.todayWeatherFailed).weatherColumnNotice, .todayNotice(.failed))
         XCTAssertEqual(presentation(.todayForecastUnavailable).weatherColumnNotice, .todayNotice(.noForecast))
         XCTAssertEqual(presentation(.todayCarriedOver).weatherColumnNotice, .todayNotice(.noForecast))
@@ -353,6 +362,7 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             let old = Presentation(.status(entry), language: "zh-Hant")
             XCTAssertFalse(old.showsWeatherColumn, "\(scenario)")
             XCTAssertNil(old.weatherColumnNotice, "\(scenario)")
+            XCTAssertNil(old.weatherColumnFooter, "\(scenario)")
             XCTAssertNil(old.home, "\(scenario)")
             XCTAssertNil(old.work, "\(scenario)")
             XCTAssertEqual(old.mediumLine, old.line, "\(scenario): nothing beside it to repeat")
@@ -420,6 +430,148 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         }
     }
 
+    // MARK: Today's forecast past 3 hours (owner, 2026-10-02)
+
+    /// What VoiceOver reads for the medium's weather column (one link), in `table`'s language,
+    /// with `WidgetStyle`'s list separator.
+    private func spokenColumn(_ value: Presentation, _ entry: TomorrowWidgetSnapshot.Entry, _ table: WidgetStringTable) -> String {
+        value.weatherColumnAccessibilityLabel(forecast: entry.forecast, separator: table.language == "en" ? ", " : "，",
+                                              text: { table.text($0, timeZone: calendar.timeZone) })
+    }
+
+    /// The column's footer as the widget prints it in `table`'s language.
+    private func footer(_ value: Presentation, _ table: WidgetStringTable) -> String? {
+        value.weatherColumnFooter.map { table.text($0, timeZone: calendar.timeZone) }
+    }
+
+    /// `scenario`'s entry with its forecast checked at 22:00 the evening before (the owner's example).
+    private func checkedLastEvening(_ scenario: Scenario) throws -> (TomorrowWidgetSnapshot.Entry, Date) {
+        let sample: TomorrowWidgetSnapshot.Entry? = if case .status(let entry) = state(scenario) { entry } else { nil }
+        var entry = try XCTUnwrap(sample, "\(scenario) must be a status")
+        let evening = calendar.date(from: DateComponents(year: 2026, month: 9, day: 13, hour: 22))!
+        entry.forecast?.checkedAt = evening
+        return (entry, evening)
+    }
+
+    /// Owner 2026-10-02 (approved wording): a today entry's forecast is normally the one fetched
+    /// the evening before, and the alarm has not rung yet, so at 04:00 an evening forecast is
+    /// expected, not an error. Past the widget's 3 hours (D-B) the medium's column gives its
+    /// time, neutral: 預報時間 22:00 / Forecast as of 10:00 PM, in the app's 12/24-hour format,
+    /// with no 天氣資料需要更新, no triangle and no badge; VoiceOver reads the same line.
+    func testTodaysOldForecastShowsItsTimeNotAWarning() throws {
+        let (entry, evening) = try checkedLastEvening(.todayStale)
+        XCTAssertTrue(entry.isToday)
+        XCTAssertEqual(entry.weatherNotice, .stale, "The snapshot still marks it past the widget's 3 hours")
+        let zh = try WidgetStringTable("zh-Hant")
+        let en = try WidgetStringTable("en")
+        let expected: [(ClockTimeFormat, String, String)] = [
+            (.twentyFourHour, "預報時間 22:00", "Forecast as of 22:00"),
+            (.twelveHour, "預報時間 下午 10:00", "Forecast as of 10:00 PM"),
+        ]
+        for (clock, chinese, english) in expected {
+            let value = Presentation(.status(entry), clockFormat: clock, language: "zh-Hant")
+            let label = "\(clock)"
+            XCTAssertTrue(value.showsWeatherColumn, label)
+            XCTAssertNil(value.weatherColumnNotice, "\(label): no notice, so no ⚠ in the column and no short warning")
+            XCTAssertEqual(value.weatherColumnFooter,
+                           LocalizedLine(key: "widget_forecast_as_of", arguments: [.time(evening, clock)]), label)
+            XCTAssertEqual(footer(value, zh), chinese)
+            XCTAssertEqual(footer(value, en), english)
+            XCTAssertFalse(value.showsWarningBadge, label)
+            XCTAssertEqual(value.line, .ringsAsUsual, "\(label): small, StandBy and Lock Screen as before")
+            XCTAssertEqual(value.mediumLine, .ringsAsUsual, label)
+            XCTAssertNil(value.line?.leadingSymbol, label)
+            XCTAssertNil(value.mediumLine?.leadingSymbol, label)
+            // The forecast is still shown, with the  Weather mark that attributes it.
+            XCTAssertEqual(value.home, .cloudy, label)
+            XCTAssertEqual(value.work, .clear, label)
+            // VoiceOver reads the endpoints, the same neutral line, and the attribution.
+            XCTAssertEqual(spokenColumn(value, entry, zh), "住家 多雲 降雨 30%，公司 晴天 降雨 10%，\(chinese)，Apple Weather")
+            XCTAssertEqual(spokenColumn(value, entry, en), "Home Cloudy Rain 30%, Work Sunny Rain 10%, \(english), Apple Weather")
+            for (table, warnings) in [(zh, ["天氣資料需要更新", "天氣更新於"]),
+                                      (en, ["Weather needs an update", "Weather out of date", "Weather checked"])] {
+                for warning in warnings {
+                    XCTAssertFalse(spokenColumn(value, entry, table).contains(warning), "\(label): \(warning)")
+                    XCTAssertFalse(footer(value, table)?.contains(warning) ?? true, "\(label): \(warning)")
+                }
+            }
+        }
+        // Without a snapshot's own clock (relevance, previews) the presentation takes the widget's default.
+        XCTAssertEqual(Presentation(.status(entry), language: "zh-Hant").weatherColumnFooter?.arguments,
+                       [.time(evening, .twelveHour)])
+        // Only a forecast goes stale (`widgetWeatherNotice`). A stale today entry without one,
+        // which no build writes, has no time to give: it says there is no forecast, never the warning.
+        var bare = entry
+        bare.forecast = nil
+        let bareFace = Presentation(.status(bare), language: "zh-Hant")
+        XCTAssertEqual(bareFace.weatherColumnNotice, .todayNotice(.noForecast))
+        XCTAssertEqual(footer(bareFace, zh), "尚未取得今天天氣")
+        XCTAssertFalse(bareFace.showsWarningBadge)
+    }
+
+    /// The rest of the column is unchanged (owner, 2026-10-02): a fresh forecast gives the time
+    /// it was checked, with no forecast-time line; a failed refresh warns on today and tomorrow
+    /// alike; tomorrow's stale forecast keeps D-B's warning everywhere it had it; and no forecast
+    /// still says 尚未取得今天天氣.
+    func testOnlyTodaysStaleForecastLosesTheWarning() throws {
+        let zh = try WidgetStringTable("zh-Hant")
+        let en = try WidgetStringTable("en")
+        let warning = Presentation.Glyph.warning.rawValue
+
+        // Fresh, today: 天氣更新於, as before.
+        let (fresh, evening) = try checkedLastEvening(.todayNormal)
+        XCTAssertNil(fresh.weatherNotice)
+        for clock in ClockTimeFormat.allCases {
+            let value = Presentation(.status(fresh), clockFormat: clock, language: "zh-Hant")
+            XCTAssertNil(value.weatherColumnNotice, "\(clock)")
+            XCTAssertEqual(value.weatherColumnFooter, LocalizedLine(key: "ux_weather_updated", arguments: [.time(evening, clock)]))
+            XCTAssertEqual(footer(value, zh), clock == .twentyFourHour ? "天氣更新於 22:00" : "天氣更新於 下午 10:00")
+            XCTAssertEqual(footer(value, en), clock == .twentyFourHour ? "Weather checked 22:00" : "Weather checked 10:00 PM")
+            XCTAssertTrue(spokenColumn(value, fresh, zh).hasSuffix("，\(footer(value, zh) ?? "?")，Apple Weather"), "\(clock)")
+            XCTAssertFalse(spokenColumn(value, fresh, en).contains("Forecast as of"), "\(clock)")
+        }
+
+        // Failed, today: still the warning, worded 今天, though the forecast it kept is hours old.
+        let (failed, _) = try checkedLastEvening(.todayWeatherFailed)
+        XCTAssertEqual(failed.weatherNotice, .failed)
+        let failedFace = Presentation(.status(failed), clockFormat: .twentyFourHour, language: "zh-Hant")
+        XCTAssertEqual(failedFace.weatherColumnNotice, .todayNotice(.failed))
+        XCTAssertEqual(failedFace.weatherColumnNotice?.leadingSymbol, warning, "The column's own triangle")
+        XCTAssertEqual(footer(failedFace, zh), "今天天氣更新失敗")
+        XCTAssertEqual(footer(failedFace, en), "Today's weather could not be updated")
+        XCTAssertTrue(spokenColumn(failedFace, failed, zh).hasSuffix("，今天天氣更新失敗，Apple Weather"))
+        XCTAssertFalse(spokenColumn(failedFace, failed, zh).contains("預報時間"))
+
+        // Stale, tomorrow: D-B's warning in the column, and on the small and Lock Screen faces
+        // (a normal ring) or as the badge (behind a rain line), as before.
+        var tomorrow = failed
+        tomorrow.isToday = false
+        tomorrow.weatherNotice = .stale
+        let tomorrowFace = Presentation(.status(tomorrow), clockFormat: .twentyFourHour, language: "zh-Hant")
+        XCTAssertEqual(tomorrowFace.weatherColumnNotice, .notice(.stale))
+        XCTAssertEqual(tomorrowFace.weatherColumnNotice?.leadingSymbol, warning)
+        XCTAssertEqual(footer(tomorrowFace, zh), "天氣資料需要更新")
+        XCTAssertEqual(footer(tomorrowFace, en), "Weather needs an update")
+        XCTAssertTrue(spokenColumn(tomorrowFace, tomorrow, zh).hasSuffix("，天氣資料需要更新，Apple Weather"))
+        XCTAssertEqual(tomorrowFace.line, .notice(.stale), "The small and Lock Screen faces warn too")
+        XCTAssertEqual(presentation(.rainStale).weatherColumnNotice, .notice(.stale))
+        XCTAssertTrue(presentation(.rainStale).showsWarningBadge, "Behind a rain line, the badge")
+        // The same entry as today's (after midnight): the time, no warning anywhere.
+        var asToday = tomorrow
+        asToday.isToday = true
+        let todayFace = Presentation(.status(asToday), clockFormat: .twentyFourHour, language: "zh-Hant")
+        XCTAssertNil(todayFace.weatherColumnNotice)
+        XCTAssertEqual(footer(todayFace, zh), "預報時間 22:00")
+        XCTAssertEqual(todayFace.line, .ringsAsUsual)
+        XCTAssertFalse(todayFace.showsWarningBadge)
+
+        // No forecast, today: 尚未取得今天天氣 (approved), no time.
+        let none = presentation(.todayForecastUnavailable)
+        XCTAssertEqual(none.weatherColumnNotice, .todayNotice(.noForecast))
+        XCTAssertEqual(footer(none, zh), "尚未取得今天天氣")
+        XCTAssertEqual(footer(none, en), "Today's forecast is not available yet")
+    }
+
     /// D-A: weather data on the medium (its sky, the route's rain chance) only ever appears
     /// beside the column that draws the  Weather mark and the legal link, and so does a
     /// column notice; whatever forecast, notice or rain line the entry carries.
@@ -449,6 +601,8 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
                             XCTAssertTrue(face.showsWeatherColumn, label)
                         }
                         if face.weatherColumnNotice != nil { XCTAssertTrue(face.showsWeatherColumn, label) }
+                        // The forecast's time (天氣更新於…, 預報時間…) is the forecast's too.
+                        if face.weatherColumnFooter != nil { XCTAssertTrue(face.showsWeatherColumn, label) }
                         XCTAssertFalse(carriesPercentage(face.line), "\(label): never outside the medium")
                     }
                 }

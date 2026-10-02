@@ -103,6 +103,10 @@
 "widget_inline_today_rain" = "今天 %1$@，提早 %2$d 分鐘";
 "widget_inline_today_skipped" = "今天略過鬧鐘";
 "widget_today_weather_unavailable" = "尚未取得今天天氣";
+/* The medium's weather column on a today entry whose forecast is past the widget's 3 hours: the
+   forecast's time, neutral, not 天氣資料需要更新 (owner, 2026-10-02). It is normally last
+   evening's, which decided this morning. %@ is a time in the app's 12/24-hour format. */
+"widget_forecast_as_of" = "預報時間 %@";
 
 /* VoiceOver hint on the medium widget's weather column, which links to Apple's legal attribution page. */
 "widget_weather_legal_hint" = "開啟 Apple 天氣的資料來源與法律聲明";

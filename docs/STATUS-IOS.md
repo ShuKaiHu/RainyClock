@@ -24,7 +24,7 @@ Last updated: 2026-10-02.
 > 保留原文，一律讀成 1.8.0；現況見「1.8.0 準備中」一節。
 >
 > **1.8.0（39）= 颱風停班停課 ＋ 鬧鐘總開關 ＋ 主畫面／鎖定畫面「下次鬧鐘」widget**（39 比 38 多了中型 widget
-> 今天的項目也顯示天氣，2026-10-02）。38 已上傳 TestFlight（10/2）；39 尚未 archive，App Store Connect 要改選 39。
+> 今天的項目也顯示天氣，超過 3 小時的預報寫「預報時間」、不警告，2026-10-02）。38 已上傳 TestFlight（10/2）；39 尚未 archive，App Store Connect 要改選 39。
 > `ios/widget`（worktree `RainyClock-widget`，`ad0b628`）已於 **2026-10-01** 依擁有者決定以合併 commit 合入
 > 1.8.0 線。合併時統一的規則見「1.8.0 準備中」的「`ios/widget` 合入 1.8.0 線」一點，
 > 送審前欠項見同一點與該節末的 widget 小節。
@@ -243,8 +243,8 @@ Last updated: 2026-10-02.
     標記在今天的項目只帶「請完成路線」，所以小型、StandBy 與鎖定畫面不變。widget 天氣欄的頁尾與 VoiceOver 改讀
     `weatherColumnNotice`。抓取、背景工作、排程與主卡都沒改；snapshot 版本仍是 4。
   - 字串：共用鍵 +1 `ux_today_weather_failed`（今天天氣更新失敗，App 主卡已有）；widget 專用 +1
-    `widget_today_weather_unavailable`——**新字「尚未取得今天天氣」／“Today's forecast is not available yet”，待擁有者核准，
-    核准後才 archive 39**。範例（gallery／DEBUG `-widget-demo` 與 tour）加 `todayStale`、`todayWeatherFailed`、
+    `widget_today_weather_unavailable`——新字「尚未取得今天天氣」／“Today's forecast is not available yet”，**擁有者已核准
+    （2026-10-02）**。範例（gallery／DEBUG `-widget-demo` 與 tour）加 `todayStale`、`todayWeatherFailed`、
     `todayForecastUnavailable`，今天的其他範例也帶預報。
   - 版本：build 38 → **39**（`Info.plist` 的 `CFBundleVersion` 與 11 個 `CURRENT_PROJECT_VERSION`；`MARKETING_VERSION`
     仍是 1.8.0）。App Store Connect：39 上傳後改選 build 39；審查備註第一行「RAINY CLOCK 1.8.0 (38)」改成 (39) 再貼一次
@@ -259,11 +259,13 @@ Last updated: 2026-10-02.
     失敗。xcresult：`DerivedData/Logs/Test/Test-39-today-weather-ios265-20261002-044108.xcresult`、
     `DerivedData/Logs/Test/Test-39-today-weather-ios270-20261002-044108.xcresult`。
   - 手機待確認（39，TestFlight）：午夜後中型今天的項目有天氣欄、 Weather 標記（圖與文字兩種狀態）、點天氣欄開法律頁；
-    前一次抓取 3 小時後出現「天氣資料需要更新」、沒有預報時「尚未取得今天天氣」；VoiceOver 在今天的項目也讀得到連結；
+    前一次抓取 3 小時後今天的項目寫「預報時間 22:00」（沒有三角形、沒有標記，12／24 小時制各看一次；明天的項目仍是
+    「天氣資料需要更新」，見下方「預報時間」一點）、沒有預報時「尚未取得今天天氣」；VoiceOver 在今天的項目也讀得到連結與預報時間；
     著色與透明主畫面；中英文標題在 148 pt 天氣欄旁放得下（含因雨提早時的原定時間那一行）；小型與鎖定畫面和 38 一樣。
     缺地址時今天的項目也有天氣欄（端點「—」、欄底「請完成路線」），和明天的一樣。
-    **預期：** 01:00 到 06:15 常會看到前一晚的預報加「天氣資料需要更新」（背景工作何時跑由 iOS 決定），打開 App 停在
-    鬧鐘頁就會更新（點天氣欄不算：App 直接轉到 Apple 法律頁）；不是改壞了。
+    **預期：** 01:00 到 06:15 常會看到前一晚的預報加「預報時間 22:00」（背景工作何時跑由 iOS 決定；原本是「天氣資料需要
+    更新」，擁有者 2026-10-02 改成不警告），打開 App 停在鬧鐘頁就會更新成「天氣更新於 …」（點天氣欄不算：App 直接轉到
+    Apple 法律頁）；不是改壞了。
   - **審查修正（「Review fixes: today's weather on the medium widget」）：** 四項都是說法與程式不一致，行為沒改，補測試把
     實際行為釘住。①②build 38 對缺地址的使用者在今天的項目存了「請完成路線」（38 的規則：沒有預報且缺地址），所以「38 寫的
     snapshot 照 38 畫」只對其他今天項目成立；這種項目在 39 會畫天氣欄（端點「—」、欄底「請完成路線」、 Weather 標記），
@@ -281,6 +283,33 @@ Last updated: 2026-10-02.
     （含 `testSkippedTodayRunsUntilItsNormalTime`）；改成「請完成路線」的今天項目不畫天氣欄有 2 項失敗（新測試與
     `testTodayEntriesShowTheMediumWeatherColumn`）。xcresult：`DerivedData/Logs/Test/Test-39-review-fixes-ios265-20261002-050819.xcresult`、
     `DerivedData/Logs/Test/Test-39-review-fixes-ios270-20261002-050819.xcresult`。
+  - **今天的預報超過 3 小時寫「預報時間」、不警告（擁有者決定 2026-10-02，文字已核准；仍是 1.8.0（39），build 號不變）。**
+    今天的項目（午夜到響鈴）預報超過 widget 的 3 小時（D-B）時，中型天氣欄不再寫「⚠ 天氣資料需要更新」、也沒有警示標記，
+    改寫中性的「預報時間 22:00」／“Forecast as of 10:00 PM”，時間照 App 的 12／24 小時設定，VoiceOver 讀同一行。理由
+    （擁有者）：預報通常是前一晚抓的、鬧鐘還沒響，04:00 看到前一晚的預報是預期中的事。不變：明天的項目超過 3 小時仍警告；
+    抓取失敗兩者都警告；沒有預報仍寫「尚未取得今天天氣」（已核准）；小型、StandBy、鎖定畫面不變；標記與法律頁連結跟著天氣欄。
+    詳見[產品決策](PRODUCT_DECISIONS.md)最上方。
+    - 程式：snapshot 與 builder 的規則不變（今天的項目照樣存 `.stale`，版本 4），widget 在抓取時間 ＋ 3 小時的下一秒自己換字。
+      `TomorrowWidgetPresentation`：今天的 `.stale` 不算天氣欄的提示（`weatherColumnNotice` 為空，所以沒有三角形）；新的
+      `weatherColumnFooter` 是天氣欄欄底與 VoiceOver 共用的那一行（提示的文字，否則「天氣更新於 …」，今天過期時「預報時間 …」）；
+      `init` 多收 snapshot 的 `clockFormat`；`LocalizedLine.Argument.time` 用 `ClockTimeFormat` 寫時間；天氣欄的 VoiceOver 文字
+      搬進 `weatherColumnAccessibilityLabel`（可測），widget 的 `WidgetStyle` 只呼叫它。widget 畫面：欄底改讀
+      `weatherColumnFooter`，預報時間和「天氣更新於」一樣淡色、不帶符號。builder 只改註解。
+    - 字串：widget 專用 +1 `widget_forecast_as_of`（「預報時間 %@」／“Forecast as of %@”），兩個 widget 字串表都加；
+      `widgetOnlyKeys` 52 → 53。App 的字串表不動。
+    - 測試（Xcode 27.0、簽章的 `RainyClock Membership Local`、`-parallel-testing-worker-count 1`、略過 `MembershipStoreKitTests`）：
+      每台 **633 項（629 ＋ 新增 4）、0 失敗**、629 過 4 略過（同上：真實佇列通知測試）——iPhone 17 Pro iOS 26.5（`B521C391`）
+      與 iOS 27.0（`C2F654DB`）。新增 presentation 2 項（今天過期寫預報時間：沒有提示、三角形與標記，12／24 小時兩種、中英文、
+      VoiceOver 全文；只有今天的過期改：未滿 3 小時仍是「天氣更新於」、失敗仍警告、明天過期仍警告、沒有預報仍是「尚未取得今天天氣」）
+      與 snapshot 2 項（前一晚 22:00 發布的 snapshot：00:00 與 01:00:00 是「天氣更新於 22:00」，01:00:01 起「預報時間 22:00」到
+      07:30 響鈴；18:00 的預報在明天的項目 21:00:01 起警告，午夜變成今天的項目後改寫「預報時間 18:00」）；字串測試加新字的值與
+      參數；原本斷言今天過期是 `.todayNotice(.stale)` 的 4 項改成新行為，另 2 項 presentation 測試把欄底也納入「天氣資料只在
+      標記旁邊」的檢查。突變檢查（只跑三個 widget 測試類別，iOS 26.5）：
+      今天過期改回警告有 8 項失敗；預報時間改回「天氣更新於」有 7 項失敗；時間不照 12／24 小時設定有 4 項失敗。xcresult：
+      `DerivedData/Logs/Test/Test-39-forecast-time-ios265-20261002-080535.xcresult`、
+      `DerivedData/Logs/Test/Test-39-forecast-time-ios270-20261002-080535.xcresult`。
+    - 手機待確認（併入上面 39 的清單）：午夜後抓取滿 3 小時，中型今天的天氣欄寫「預報時間 …」、沒有三角形與標記（12／24 小時制
+      各一次）；VoiceOver 讀到同一行；明天的項目過期仍是「⚠ 天氣資料需要更新」。
 
 - **2026-10-02 03:43：1.8.0（38）已上傳 App Store Connect（只進 TestFlight，未送審）。** Xcode 27.0（iOS 27 SDK）從 `3cf0fab`
   archive；本機 App Store 匯出逐項檢查（三個 bundle 都是 1.8.0（38）、正式推播與 App Attest、widget 也簽上 App Group——

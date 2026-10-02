@@ -102,6 +102,10 @@
 "widget_inline_today_rain" = "Today %1$@ · %2$d min earlier";
 "widget_inline_today_skipped" = "Today: skipped";
 "widget_today_weather_unavailable" = "Today's forecast is not available yet";
+/* The medium's weather column on a today entry whose forecast is past the widget's 3 hours: the
+   forecast's time, neutral, not "Weather needs an update" (owner, 2026-10-02). It is normally last
+   evening's, which decided this morning. %@ is a time in the app's 12/24-hour format. */
+"widget_forecast_as_of" = "Forecast as of %@";
 
 /* VoiceOver hint on the medium widget's weather column, which links to Apple's legal attribution page. */
 "widget_weather_legal_hint" = "Opens Apple Weather's data sources and legal attribution";

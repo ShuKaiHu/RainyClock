@@ -25,7 +25,8 @@ import Foundation
 ///   needed". Today's entries carry this morning's forecast (owner, 2026-10-02): after
 ///   midnight the coming morning, the only one the app fetches, is today, and the request's
 ///   equality pins the forecast to that morning. The medium shows it with the  Weather mark
-///   and today's notices in its weather column; every other family keeps D-C and shows no
+///   and today's notices in its weather column, where a forecast past the 3 hours reads as
+///   its time, not a warning (owner, 2026-10-02); every other family keeps D-C and shows no
 ///   weather notice on a today entry (`TomorrowWidgetPresentation`, `todayWeatherNotice`).
 /// - A ring that already fired the evening before its day (a rain lead across midnight,
 ///   e.g. 00:10 rung at 23:40) is not replaced by a later time AlarmKit will not fire;
@@ -183,11 +184,14 @@ enum TomorrowWidgetSnapshotBuilder {
 
     /// A today entry's notice (owner, 2026-10-02): the widget's own (`widgetWeatherNotice`,
     /// D-B's 3 hours), about this morning's forecast, which after midnight is the coming
-    /// morning the app fetches (while its Alarm page is open, and from the background), so a
-    /// stale warning can be cleared. Tapping the medium's weather column is not such a fetch:
-    /// the app hands the tap straight on to Apple's legal page (`WeatherAttributionLink`).
-    /// The medium's weather column says it, worded 今天; every other face shows only
-    /// "complete your route" on a today entry (`TomorrowWidgetPresentation`).
+    /// morning the app fetches (while its Alarm page is open, and from the background).
+    /// Tapping the medium's weather column is not such a fetch: the app hands the tap straight
+    /// on to Apple's legal page (`WeatherAttributionLink`). The medium's weather column says
+    /// it, worded 今天, except `.stale`, which it gives as the forecast's time (預報時間…),
+    /// neutral: that is normally last evening's forecast, expected to be hours old before the
+    /// ring (owner, 2026-10-02). The snapshot still stores `.stale`, so the column turns at
+    /// the precomputed second without the app. Every other face shows only "complete your
+    /// route" on a today entry (`TomorrowWidgetPresentation`).
     ///
     /// Past today's normal time the app has moved on to tomorrow's morning and fetches
     /// nothing for today again. Only an outdated registration's later ring keeps a today

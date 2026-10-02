@@ -1,6 +1,26 @@
 import XCTest
 @testable import RainyClock
 
+/// The widget extension's own string table in one language, and a line resolved in it the
+/// way the widget resolves it (`LocalizedLine.resolve`): arguments filled in that language,
+/// a time as the app's 12/24-hour setting writes it, in `timeZone`.
+struct WidgetStringTable {
+    let language: String
+    let strings: [String: String]
+
+    init(_ language: String) throws {
+        let appex = try XCTUnwrap(Bundle.main.builtInPlugInsURL).appendingPathComponent("RainyClockAlarmWidget.appex")
+        let url = appex.appendingPathComponent("\(language).lproj/Localizable.strings")
+        strings = try XCTUnwrap(NSDictionary(contentsOf: url) as? [String: String], "missing \(url.path)")
+        self.language = language
+    }
+
+    /// A missing key reads as the key itself, as `Bundle.localizedString` returns it.
+    func text(_ line: LocalizedLine, timeZone: TimeZone) -> String {
+        line.filled(strings[line.key] ?? line.key, language: language, timeZone: timeZone)
+    }
+}
+
 /// The widget extension carries its own string tables. Keys shared with the app must
 /// say exactly what the app says; every key the widget resolves must exist.
 final class TomorrowWidgetStringsTests: XCTestCase {
@@ -8,10 +28,7 @@ final class TomorrowWidgetStringsTests: XCTestCase {
     private let languages = ["en", "zh-Hant"]
 
     private func widgetTable(_ language: String) throws -> [String: String] {
-        let appex = try XCTUnwrap(Bundle.main.builtInPlugInsURL).appendingPathComponent("RainyClockAlarmWidget.appex")
-        let url = appex.appendingPathComponent("\(language).lproj/Localizable.strings")
-        let table = try XCTUnwrap(NSDictionary(contentsOf: url) as? [String: String], "missing \(url.path)")
-        return table
+        try WidgetStringTable(language).strings
     }
 
     private func appTable(_ language: String) throws -> [String: String] {
@@ -64,8 +81,9 @@ final class TomorrowWidgetStringsTests: XCTestCase {
         }
         // 44 for the widget, plus the master switch's circular word and two short lines (1.8.0),
         // plus the inline one-time skip (today, tomorrow) and the closure source credit and time,
-        // plus today's "no forecast yet" in the medium's column (2026-10-02).
-        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 52)
+        // plus today's "no forecast yet" and today's forecast time in the medium's column (2026-10-02).
+        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 53)
+        XCTAssertTrue(TomorrowWidgetStrings.widgetOnlyKeys.contains("widget_forecast_as_of"))
         XCTAssertEqual(Set(TomorrowWidgetStrings.widgetOnlyKeys).count, TomorrowWidgetStrings.widgetOnlyKeys.count)
         for language in languages {
             let widget = try widgetTable(language)
@@ -126,6 +144,15 @@ final class TomorrowWidgetStringsTests: XCTestCase {
         }
         XCTAssertEqual(chinese["widget_today_weather_unavailable"], "尚未取得今天天氣")
         XCTAssertEqual(english["widget_today_weather_unavailable"], "Today's forecast is not available yet")
+        // Today's forecast past the widget's 3 hours (owner, 2026-10-02, approved wording): its time,
+        // one argument, neutral. It names no day and says nothing needs updating.
+        XCTAssertEqual(chinese["widget_forecast_as_of"], "預報時間 %@")
+        XCTAssertEqual(english["widget_forecast_as_of"], "Forecast as of %@")
+        for (table, words) in [(english, ["tomorrow", "update", "out of date", "needs"]), (chinese, ["明天", "更新", "需要"])] {
+            let value = try XCTUnwrap(table["widget_forecast_as_of"])
+            XCTAssertEqual(specifiers(value), ["%@"])
+            for word in words { XCTAssertFalse(value.localizedCaseInsensitiveContains(word), "\(value): \(word)") }
+        }
         // The inline one-time skip names its morning.
         XCTAssertTrue(english["widget_inline_skip_once"]?.contains("Tomorrow") ?? false)
         XCTAssertTrue(chinese["widget_inline_skip_once"]?.contains("明天") ?? false)
