@@ -235,6 +235,22 @@ Last updated: 2026-10-02.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
+- **2026-10-03 00:10：擁有者決定送審 1.8.0（40）；支援頁改正並上線；App Store Connect 的動作還沒開始（內建瀏覽器未登入）。**
+  - 擁有者回報：TestFlight 40 的小型 widget 在手機上看過，OK（未逐項記錄 StandBy、著色／透明主畫面、官方標記圖）。
+  - 上傳已確認成功：送審前檢查的一個代理讀到 `/tmp/rainyclock-180-40/export-check.log` 的 `Upload succeeded`（21:44:23）。
+    App Store Connect 是否處理完、正式簽章後的 `aps-environment` 仍未讀回。
+  - 送審前檢查（四個唯讀代理：ASC 步驟與商店資料、本紀錄的未完成事項、Release 設定、後端與公開頁面）沒有找到會擋送審的問題。
+    要做的只有兩處：版本頁 build 39 → 40、審查備註整份換成 (40) 版；What's New、截圖、隱私問卷不用動，發佈方式維持手動。
+    已告知擁有者、擁有者仍決定送審的風險：臨時放假從未在正式簽章的 build 上對正式服務跑過（正式服務收到的 App 請求只有
+    TestFlight 38 的一筆 `DELETE /v1/devices`；可在等審查期間用 TestFlight 40 補做）；審查附件欄是空的（1.7.1 附了 ATT 錄影）；
+    上架當天調買斷價時，`MembershipListedPrice` 的備用價格仍是 NT$100／US$10。
+  - 支援頁（`docs/support.html`，App Store 上的支援網址）原本寫「App 沒有後端伺服器，也不需要建立帳號」，從 1.6.8 起就不成立。
+    擁有者：「該改就改」。改寫後由三個獨立檢查者對照程式與隱私權政策逐句查證；第一版把會員列為「選用功能」被駁回（App 一開啟就
+    自動連線會員服務、替沒購買的使用者建立免費會員），改成：地址不會傳到我們的服務、不用註冊表單與密碼、會員在開啟 App 時自動
+    建立或辨識、AI 語音鬧鈴與臨時停班停課只在使用時連線。`126311e`（`ios/main`）與 `75ad278`（`main`，已 push）；00:09 讀回線上
+    頁面：新文字在、舊句子不在、隱私權政策連結 200。查證同時確認：三個 iOS target 送往我們服務的請求都不含地址、座標、行政區或路線。
+    查證另外指出、沒有改的：同一頁「升級到 iOS 26」那題仍叫使用者「重新排程一次」，1.8.0 已沒有那個按鈕（提醒上的按鈕是「重試」），
+    App 內的提醒文字與隱私權政策第 105 行也還寫 Schedule Smart Alarm。
 - **2026-10-02 21:41–21:45：1.8.0（40）已 archive，匯出指令回報成功（destination 是 upload）；App Store Connect 那一端還沒讀回。**
   從 `8e6228a`（21:40 commit）以 Xcode 27.0 Release archive：`build/RainyClock-1.8.0-40.xcarchive`，`CreationDate` 21:41。封存檢查：
   App 與兩個 extension 都是 1.8.0（40）、iOS 27 SDK、三個 bundle 都有隱私清單、App Group 在、App Attest `production`、
