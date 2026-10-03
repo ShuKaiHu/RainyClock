@@ -1,6 +1,14 @@
 import SwiftUI
 import UIKit
 import WidgetKit
+#if WIDGET_VIEWS_IN_TESTS
+// Also listed in RainyClockTests, for LockScreenWidgetRenderTests (the Lock Screen faces,
+// which no simulator can place). There the app's types come from the app module, and the
+// body below compiles only for a render run (`WIDGET_RENDER` and IPHONEOS_DEPLOYMENT_TARGET
+// 26.0 on the xcodebuild command line), since the test bundle targets iOS 17.
+@testable import RainyClock
+#endif
+#if !WIDGET_VIEWS_IN_TESTS || WIDGET_RENDER
 
 /// Renders `TomorrowWidgetPresentation`; every display rule lives there.
 ///
@@ -61,6 +69,33 @@ struct TomorrowWidgetView: View {
     @Environment(\.colorScheme) private var systemColorScheme
 }
 
+#if WIDGET_VIEWS_IN_TESTS
+/// Test-only: one Lock Screen face on its own, composed as `TomorrowWidgetView` composes it,
+/// for LockScreenWidgetRenderTests' review sheets. `widgetFamily` cannot be injected through
+/// the environment (it is read-only), so the family is a parameter here.
+struct TomorrowWidgetReviewFace: View {
+    let entry: TomorrowWidgetEntry
+    let family: WidgetFamily
+    /// Where the widget's strings resolve: the embedded extension's bundle.
+    var bundle: Bundle = .main
+
+    var body: some View {
+        let presentation = TomorrowWidgetPresentation(entry.state, clockFormat: entry.clockFormat)
+        let style = WidgetStyle(entry: entry, fullColor: false, family: family, bundle: bundle)
+        switch family {
+        case .accessoryRectangular:
+            RectangularTomorrowView(entry: entry, presentation: presentation, style: style)
+        case .accessoryCircular:
+            CircularTomorrowView(entry: entry, presentation: presentation, style: style)
+        case .accessoryInline:
+            InlineTomorrowView(entry: entry, presentation: presentation, style: style)
+        default:
+            EmptyView()
+        }
+    }
+}
+#endif
+
 private struct CombinedAccessibility: ViewModifier {
     let label: String
     let isEnabled: Bool
@@ -97,8 +132,12 @@ struct WidgetStyle {
     /// Orange only in full colour.
     var warning: AnyShapeStyle { fullColor ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.primary) }
 
-    func text(_ key: String) -> String { LocalizedLine(key: key).resolve() }
-    func text(_ line: LocalizedLine) -> String { line.resolve() }
+    /// The extension's own bundle in the widget; LockScreenWidgetRenderTests passes the
+    /// embedded extension's bundle, since the test host's strings have no widget keys.
+    var bundle: Bundle = .main
+
+    func text(_ key: String) -> String { LocalizedLine(key: key).resolve(in: bundle) }
+    func text(_ line: LocalizedLine) -> String { line.resolve(in: bundle) }
 
     func parts(_ date: Date) -> ClockTimeFormat.Parts { entry.clockFormat.parts(date, locale: locale) }
     func time(_ date: Date) -> String { entry.clockFormat.time(date, locale: locale) }
@@ -929,3 +968,4 @@ private struct InlineTomorrowView: View {
         }
     }
 }
+#endif

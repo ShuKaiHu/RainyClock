@@ -1,5 +1,9 @@
 import SwiftUI
 import WidgetKit
+#if WIDGET_VIEWS_IN_TESTS
+@testable import RainyClock   // see TomorrowWidgetViews.swift
+#endif
+#if !WIDGET_VIEWS_IN_TESTS || WIDGET_RENDER
 
 /// The widget's sky: the app's CommuteSky colours and particles, frozen at time 0.
 ///
@@ -249,3 +253,4 @@ enum SkyParticles {
                                            center: point, startRadius: 0, endRadius: radius))
     }
 }
+#endif

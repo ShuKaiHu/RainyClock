@@ -148,6 +148,10 @@
 		7D1D6E70000000000000002D /* TomorrowWidgetSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E70000000000000000A /* TomorrowWidgetSnapshotTests.swift */; };
 		7D1D6E70000000000000002E /* TomorrowWidgetPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E70000000000000000B /* TomorrowWidgetPresentationTests.swift */; };
 		7D1D6E70000000000000002F /* TomorrowWidgetStringsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E70000000000000000C /* TomorrowWidgetStringsTests.swift */; };
+		7D1D6E700000000000000041 /* TomorrowWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000007 /* TomorrowWidget.swift */; };
+		7D1D6E700000000000000042 /* TomorrowWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000008 /* TomorrowWidgetViews.swift */; };
+		7D1D6E700000000000000043 /* TomorrowWidgetSky.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000009 /* TomorrowWidgetSky.swift */; };
+		7D1D6E700000000000000044 /* LockScreenWidgetRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1D6E700000000000000045 /* LockScreenWidgetRenderTests.swift */; };
 		7D1D6E700000000000000030 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 7D1D6E70000000000000000F /* Localizable.strings */; };
 		7D1D6E700000000000000031 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 7D1D6E70000000000000000E /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
@@ -332,6 +336,7 @@
 		7D1D6E70000000000000000A /* TomorrowWidgetSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetSnapshotTests.swift; sourceTree = "<group>"; };
 		7D1D6E70000000000000000B /* TomorrowWidgetPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetPresentationTests.swift; sourceTree = "<group>"; };
 		7D1D6E70000000000000000C /* TomorrowWidgetStringsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TomorrowWidgetStringsTests.swift; sourceTree = "<group>"; };
+		7D1D6E700000000000000045 /* LockScreenWidgetRenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenWidgetRenderTests.swift; sourceTree = "<group>"; };
 		7D1D6E70000000000000000D /* RainyClockAlarmWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RainyClockAlarmWidget.entitlements; sourceTree = "<group>"; };
 		7D1D6E70000000000000000E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		7D1D6E700000000000000010 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -563,6 +568,7 @@
 				7D1D6E70000000000000000A /* TomorrowWidgetSnapshotTests.swift */,
 				7D1D6E70000000000000000B /* TomorrowWidgetPresentationTests.swift */,
 				7D1D6E70000000000000000C /* TomorrowWidgetStringsTests.swift */,
+				7D1D6E700000000000000045 /* LockScreenWidgetRenderTests.swift */,
 			);
 			path = RainyClockTests;
 			sourceTree = "<group>";
@@ -836,6 +842,10 @@
 				7D1D6E70000000000000002D /* TomorrowWidgetSnapshotTests.swift in Sources */,
 				7D1D6E70000000000000002E /* TomorrowWidgetPresentationTests.swift in Sources */,
 				7D1D6E70000000000000002F /* TomorrowWidgetStringsTests.swift in Sources */,
+				7D1D6E700000000000000041 /* TomorrowWidget.swift in Sources */,
+				7D1D6E700000000000000042 /* TomorrowWidgetViews.swift in Sources */,
+				7D1D6E700000000000000043 /* TomorrowWidgetSky.swift in Sources */,
+				7D1D6E700000000000000044 /* LockScreenWidgetRenderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1354,6 +1364,7 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET_VIEWS_IN_TESTS";
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RainyClock.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RainyClock";
@@ -1375,6 +1386,7 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET_VIEWS_IN_TESTS";
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RainyClock.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RainyClock";

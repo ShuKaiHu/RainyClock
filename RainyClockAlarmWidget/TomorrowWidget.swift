@@ -1,5 +1,9 @@
 import SwiftUI
 import WidgetKit
+#if WIDGET_VIEWS_IN_TESTS
+@testable import RainyClock   // see TomorrowWidgetViews.swift
+#endif
+#if !WIDGET_VIEWS_IN_TESTS || WIDGET_RENDER
 
 /// One moment of the "tomorrow" widget: a state from the shared timeline plan plus
 /// the two display preferences the snapshot carries.
@@ -65,3 +69,4 @@ struct TomorrowAlarmWidget: Widget {
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryCircular, .accessoryInline])
     }
 }
+#endif

@@ -327,6 +327,17 @@ Last updated: 2026-10-03.
     拿掉三個 NEW: 與幾句話騰出空間，剩下的每一句 40 都說過）；What's New 兩種語言各兩點（會員「Your plan hasn't been
     confirmed yet」／「尚未確認你的方案」——這是設定 › 行事曆那一列 `ux_closure_plan_unconfirmed` 的原字——與鎖定畫面英文標題），
     在 [`appstore-metadata.md`](appstore-metadata.md) 最上面。
+  - **2026-10-04 00:xx–01:xx：widget 全情境視覺審查（擁有者要求「中文英文的樣式都給我看一遍」）。** 主畫面小＋中：iPhone 17 Pro
+    iOS 26.5 模擬器以 `-widget-demo` 跑完 39 個情境 × 中英文（Debug build **必須簽章**，`CODE_SIGNING_ALLOWED=NO` 的 build 沒有
+    App Group，widget 永遠停在「開啟 App 以顯示下次鬧鐘」）。鎖定畫面長方形／圓形／inline：Xcode 27 模擬器加不了鎖定畫面
+    widget（Face ID 模擬、長按、進編輯器都做到了，picker 點雨天鬧鐘的 face 只跳 OK 警示），改以
+    `RainyClockTests/LockScreenWidgetRenderTests.swift` 用 `ImageRenderer` 渲染 39 情境 × 3 face × 中英文 × 預設／xxxLarge 字級
+    （三個 widget 檔案列進測試 target，只在 `'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) WIDGET_RENDER'
+    IPHONEOS_DEPLOYMENT_TARGET=26.0` 的 build-for-testing 下才編進去；平常的測試 build 驗過不受影響；`WidgetStyle` 多一個
+    `bundle` 欄位讓字串從 extension 的 bundle 解析）。結果：英文 header 的退路在 xxxLarge 時生效（`Tomorrow · Mon` → `Tomorrow`），
+    中文兩種字級都放得下；xxxLarge 時英文第三行與來源行會被截。給擁有者判斷的兩點：中型在沒有天氣資料時仍放  Weather
+    標記（小型不放）；小型停班停課三行字很小。渲染沒有套 WidgetKit 的 content margins，寬度比真機樂觀——真機上 41 的長方形
+    header 仍要擁有者看一次。
     **第 (6) 項 2026-10-03 23:38 已做：正式會員服務部署為 `rainyclock-membership-00007-k68`，100% 流量**（擁有者「好 部署吧」）。
     映像從 HEAD `b47edeb` 以 Cloud Build 建（標籤 `request-failure-log-20261003`、digest `94c6762c…`），和 00006 的程式差異只有
     `http.js` 的 log 行與其測試；`gcloud run deploy --image=<digest>` 只換映像，前後 `services describe` 全文比對除 nonce 與映像外
