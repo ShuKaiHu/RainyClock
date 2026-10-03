@@ -46,6 +46,11 @@ ASC 買斷中英說明已保存並讀回，未更新正式會員服務。確切�
   （缺或錯的 `X-RC-Apple-Environment` → `invalid_apple_environment`）不經過 handler，沒有這行。
   回退：`gcloud run services update-traffic rainyclock-membership --region=asia-east1 --to-revisions=rainyclock-membership-00006-hnb=100`。
   Sandbox 服務（`rainyclock-membership-sandbox-00004-kkd`）**未**重新部署，沒有這行。
+- 目前正式 revision：`rainyclock-membership-00008-6v5`（2026-10-04，映像 `002ead3f…`，標籤 `grpc-js-1-14-5-20261004`，
+  來源 `1333b59`）。程式碼和 00007 完全相同，只有 `package-lock.json` 的 `@grpc/grpc-js` 1.14.4 → 1.14.5（`npm audit` 標的
+  GHSA-m9gg-hp2v-232j／GHSA-f596-whhp-79r4 都是 gRPC **伺服器**端問題，本服務只當 gRPC client，屬清潔性升級）。部署前後
+  設定比對只有映像與 revision 不同，`/health` 200，`membership_server_listening` 已讀回。
+  回退：`gcloud run services update-traffic rainyclock-membership --region=asia-east1 --to-revisions=rainyclock-membership-00007-k68=100`。
 - 生成結果可靠保存到後端後才扣次數；失敗退回原本的每日、免費或廣告額度。
   播放手機已保存的音檔不扣次數。同一請求重新下載不扣次數。
 - 到期時不清除手機設定或既有排程；沒有有效買斷等日曆權益時，App 下次安全重排才
@@ -330,7 +335,9 @@ production service was redeployed with it on 2026-09-30 as rainyclock-membership
 redeployed again as rainyclock-membership-00007-k68, whose only code change is the secret-free
 `membership_request_failed` stdout line for every `/v1/membership/*` error response — env, secrets, mounts and the
 service account were compared before and after, `/health` is 200 and the first line was read back; the sandbox
-service was not redeployed). Sandbox revision 00004-kkd includes the minimal calendar entitlement change,
+service was not redeployed; on 2026-10-04 it was redeployed as rainyclock-membership-00008-6v5 with no code change,
+only the lockfile's `@grpc/grpc-js` 1.14.4 → 1.14.5 from `npm audit fix`, since both advisories are gRPC server-side and
+this service is only a gRPC client). Sandbox revision 00004-kkd includes the minimal calendar entitlement change,
 and ASC lifetime English/Traditional Chinese copy is saved and read back; see staging for evidence.
 The latest September 21 catalog offers monthly and non-consumable lifetime only: US$1/month and
 US$10 once in the US, NT$10/month and NT$100 once in Taiwan. Annual is no longer offered; existing

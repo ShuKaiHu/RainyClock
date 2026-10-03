@@ -293,3 +293,12 @@ session（這支手機正是拿不到 session），而且它刪的是會員與�
   弱點：`@grpc/grpc-js` 1.14.0–1.14.4（Firestore client 拉進來的；GHSA-m9gg-hp2v-232j、GHSA-f596-whhp-79r4，兩個都是
   gRPC **伺服器**端的問題，這個服務只當 gRPC client）。`package-lock.json` 自 2026-09-22 的 `71c8533` 起沒變，所以
   00001–00006 都帶著它，不是這次引入的；下次改 weather-proxy 相依時一併 `npm audit fix` 再部署。
+- 2026-10-03 後續：`npm audit fix`（未用 `--force`）只把 `package-lock.json` 的 `@grpc/grpc-js` 從 1.14.4 升到 1.14.5
+  （`package.json` 與其他相依都沒動），`npm audit --omit=dev` 回 0 個弱點、`npm test` 188 pass／3 skipped；commit `1333b59`。
+  **2026-10-04 00:02 已部署 `rainyclock-membership-00008-6v5`**（擁有者 10/04 授權「部署，從這個 worktree 建映像」）：
+  Cloud Build `9018712d`（38 秒）從 `1333b59` 建映像、標籤 `grpc-js-1-14-5-20261004`、digest `002ead3f…`；建置 log 內的
+  `npm ci` 回報 **0 個弱點**（00007 那次同一步驟是 1 個 high）。`gcloud run deploy --image=<digest>` 只換映像，部署前後
+  `services describe` 全文比對除 operation-id、generation、nonce、映像、revision 名稱與時間戳外沒有任何差異
+  （環境變數、secret、掛載、SA 都一樣）；`/health` 200（`{"ok":true,"membershipEnabled":true}`）；
+  `membership_server_listening` 16:02:33Z 讀回，沒有 ERROR。程式碼和 00007 完全相同，只有相依套件版本不同。
+  回退：`update-traffic --to-revisions=rainyclock-membership-00007-k68=100`。Sandbox 服務沒動。
