@@ -323,6 +323,12 @@ Last updated: 2026-10-03.
     `NOTICE … 405 method_not_allowed` 讀回。回退 `update-traffic --to-revisions=rainyclock-membership-00006-hnb=100`。Sandbox 服務
     沒動（1.8.1 的換鑰是 App 端行為，TestFlight 41 不需要新伺服器）。`npm install` 報的 1 個 high（`@grpc/grpc-js`，gRPC 伺服器端
     弱點、此服務只當 client）從 9/22 的 lockfile 就在，下次改相依時 `npm audit fix`。細節在 `weather-proxy/membership/MAINTENANCE.md`。
+    **2026-10-04 00:02 已部署 `rainyclock-membership-00008-6v5`，100% 流量**（擁有者「部署，從這個 worktree 建映像」）：只升
+    `package-lock.json` 的 `@grpc/grpc-js` 1.14.4 → 1.14.5（`npm audit fix`，無 `--force`；`npm test` 188 通過、3 略過），程式碼
+    與 00007 完全相同；Cloud Build `9018712d` 從 `1333b59` 建、標籤 `grpc-js-1-14-5-20261004`、digest `002ead3f…`，映像內
+    `npm ci` 回報 0 個弱點；前後 `services describe` 除映像、revision、nonce、時間戳外無差異，`/health` 200，
+    `membership_server_listening` 讀回。回退 `update-traffic --to-revisions=rainyclock-membership-00007-k68=100`。這次的 commit
+    在 session 分支 `claude/compassionate-swirles-8796c8`（已含 ios/main 合併），用 `--ff-only` 併回 `ios/main` 即可。
     **送審 1.8.1 前的擋板：App Store Connect 買斷美國 base 讀回 US$15.00**（2026-10-03 23:2x 已讀回 $15.00，擋板解除），否則 `MembershipListedPrice` 的 $15.00 在幣別
     不一致的備援路徑上會顯示 Apple 不會收的價格。另外，10/3 那支手機第一次開 1.8.1 時，換鑰後的第二次 bootstrap 可能還是回
     `app_transaction_refresh_required`（快取的 AppTransaction 超過 5 分鐘），按一次「同步會員狀態」即可完成。

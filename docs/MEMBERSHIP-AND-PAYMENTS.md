@@ -27,6 +27,11 @@ AI 完整生成／下載、S2S 廣告與其他驗收請依最新
 > 可以直接從 log 看到錯誤碼（之前只能靠延遲與回應大小旁證）。部署前後環境變數、secret 參照、掛載、服務帳號都沒變，
 > `/health` 200，第一筆 log 已讀回；回退指到 `rainyclock-membership-00006-hnb`。細節見
 > [操作說明](../weather-proxy/membership/README.md) 與 `weather-proxy/membership/MAINTENANCE.md`。
+>
+> **2026-10-04：正式會員服務再部署為 `rainyclock-membership-00008-6v5`**（100% 流量；擁有者同日授權）。程式碼和 00007
+> 完全相同，只有 `package-lock.json` 的 `@grpc/grpc-js` 1.14.4 → 1.14.5（`npm audit` 標的 GHSA-m9gg-hp2v-232j、
+> GHSA-f596-whhp-79r4 都是 gRPC 伺服器端問題，本服務只當 gRPC client，屬清潔性升級）。部署前後設定比對只有映像與
+> revision 不同，`/health` 200，`membership_server_listening` 已讀回；回退指到 `rainyclock-membership-00007-k68`。
 
 ## 最新方案目錄 — 2026-09-21
 
@@ -422,7 +427,9 @@ and temporary disaster closures are not public in 1.7.0. From 1.8.0 the closure 
 with both monthly and lifetime and not with free (owner decision 2026-09-28); the production
 membership service was redeployed with this rule on 2026-09-30 (rainyclock-membership-00006-hnb), and again on
 2026-10-03 as rainyclock-membership-00007-k68, which only adds a secret-free `membership_request_failed` log line
-for every error response. Lifetime outranks monthly in the displayed
+for every error response, and on 2026-10-04 as rainyclock-membership-00008-6v5, which changes no code and only
+bumps the lockfile's `@grpc/grpc-js` from 1.14.4 to 1.14.5 (npm audit hygiene; both advisories are gRPC server-side and
+this service is only a gRPC client). Lifetime outranks monthly in the displayed
 plan without silently cancelling an Apple subscription. Free membership receives one initial
 allowance, and each eligible legacy identity receives a fixed migration allowance of one only once;
 unverified client ad-balance claims stay quarantined rather than increasing server credit.
