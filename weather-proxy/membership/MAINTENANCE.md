@@ -127,11 +127,13 @@ store=TWN · currency=TWD`），同步失敗；若 keychain 快照太舊，設�
 
 確認：
 
-0. 從帶有 `membership_request_failed` 的 revision（00007 以後）起，先查 log 就有錯誤碼：
+0. 從帶有 `membership_request_failed` 的 revision（`rainyclock-membership-00007-k68`，2026-10-03 起）先查 log 就有錯誤碼：
    `gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="rainyclock-membership" AND jsonPayload.event="membership_request_failed" AND jsonPayload.code!="app_transaction_refresh_required"' --limit 50`，
    看 `jsonPayload.code`（`invalid_assertion`／`assertion_replayed`／`key_not_registered` 是裝置金鑰那一類；
    `app_transaction_refresh_required` 是每天都會有的正常過期）。這個事件的 severity 是 NOTICE（5xx 才是 ERROR），
    用 `jsonPayload.event` 查，不要用 severity 篩。00006 以前的 revision 沒有這行，只能靠下面兩項旁證。
+   被 `router.js` 先擋掉的請求（缺或錯的 `X-RC-Apple-Environment` → 400 `invalid_apple_environment`）不經過
+   handler，也沒有這行——App 一定帶這個 header，所以缺它的請求不是 App 發的。Sandbox 服務沒有重新部署，仍沒有這行。
 
 1. 延遲。`/session` 在 App Attest 斷言檢查就失敗（`auth.js` `bootstrapIdentityAndDevice` →
    `attestation.js` `verifyAssertion`，推斷為 `invalid_assertion`）只有兩次 Firestore 讀取加本機
@@ -281,5 +283,13 @@ session（這支手機正是拿不到 session），而且它刪的是會員與�
   形狀。(3) client：`MembershipDiagnostic` 帶上 server 錯誤碼（固定字彙，不是使用者資料；要求含 g–z 的字母，所以雜湊與純數字的
   識別碼不會被顯示），會員畫面改讀如 `session · MembershipHTTP/401 · invalid_assertion · store=TWN · currency=TWD`。
   (4) `MembershipListedPrice` 的終身價改為 NT$150／$15.00（App Store Connect 當天只改了台灣，美國基準價仍 US$10，是擁有者的
-  待辦，也是 1.8.1 送審前的擋板）。(5) 以上各有測試。(6) 待做：部署 weather-proxy 成 `rainyclock-membership` 00007+，讀回
-  `membership_server_listening` 與第一筆 `membership_request_failed`，更新 README.md 與 `MEMBERSHIP-AND-PAYMENTS.md` 的 revision 紀錄。
+  待辦，也是 1.8.1 送審前的擋板）。(5) 以上各有測試。(6) **2026-10-03 23:38 已部署 `rainyclock-membership-00007-k68`**
+  （擁有者同日授權）：Cloud Build 從 `dd65a13` 之後的 HEAD（`b47edeb`）建映像、標籤 `request-failure-log-20261003`、
+  digest `94c6762c…`，`gcloud run deploy --image=<digest>` 只換映像；部署前後 `services describe` 全文比對，除了
+  nonce 與映像沒有任何差異（環境變數、secret、掛載、SA、maxScale 20 都一樣）；`/health` 200；
+  `membership_server_listening` 23:38:26 讀回；第一筆 `membership_request_failed` 是故意用 GET 打 `/status` 得到的
+  `NOTICE … 405 method_not_allowed`，23:39:43 讀回。回退：`update-traffic --to-revisions=rainyclock-membership-00006-hnb=100`。
+  README.md 與 `MEMBERSHIP-AND-PAYMENTS.md` 的 revision 紀錄已更新。Cloud Build 的 `npm install` 報 1 個 high 的相依性
+  弱點：`@grpc/grpc-js` 1.14.0–1.14.4（Firestore client 拉進來的；GHSA-m9gg-hp2v-232j、GHSA-f596-whhp-79r4，兩個都是
+  gRPC **伺服器**端的問題，這個服務只當 gRPC client）。`package-lock.json` 自 2026-09-22 的 `71c8533` 起沒變，所以
+  00001–00006 都帶著它，不是這次引入的；下次改 weather-proxy 相依時一併 `npm audit fix` 再部署。

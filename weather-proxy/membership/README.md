@@ -37,6 +37,15 @@ ASC 買斷中英說明已保存並讀回，未更新正式會員服務。確切�
 - 臨時放假（`temporaryClosures`，iOS 1.8.0）：2026-09-28 擁有者決定有效買斷或有效月訂閱都包含，
   免費不含；`deriveEntitlements` 為 `lifetimeActive || subscriptionActive`，訂閱到期而買斷有效時保留。
   正式服務 `rainyclock-membership` 已於 2026-09-30 重新部署（`rainyclock-membership-00006-hnb`），回傳新值。
+- 錯誤回應的 log：正式服務自 2026-10-03 的 `rainyclock-membership-00007-k68` 起（映像
+  `rainyclock-membership@sha256:94c6762c…`，標籤 `request-failure-log-20261003`，來源 `dd65a13`；與 00006 的唯一程式差異是
+  `http.js` 這一行），每個 `/v1/membership/*` 的錯誤回應在 stdout 記一行
+  `{event:"membership_request_failed", severity, path, status, code}`（5xx 為 ERROR、其餘 NOTICE；沒有 JWS、token 或 body）。
+  部署前後環境變數、secret 參照、掛載、服務帳號都沒變，`/health` 200，第一筆已讀回
+  （`NOTICE /v1/membership/status 405 method_not_allowed`，用 GET 故意打的）。注意 `router.js` 先擋的請求
+  （缺或錯的 `X-RC-Apple-Environment` → `invalid_apple_environment`）不經過 handler，沒有這行。
+  回退：`gcloud run services update-traffic rainyclock-membership --region=asia-east1 --to-revisions=rainyclock-membership-00006-hnb=100`。
+  Sandbox 服務（`rainyclock-membership-sandbox-00004-kkd`）**未**重新部署，沒有這行。
 - 生成結果可靠保存到後端後才扣次數；失敗退回原本的每日、免費或廣告額度。
   播放手機已保存的音檔不扣次數。同一請求重新下載不扣次數。
 - 到期時不清除手機設定或既有排程；沒有有效買斷等日曆權益時，App 下次安全重排才
@@ -317,7 +326,11 @@ calendar if lifetime is still valid. Free initial one and extra-generation rewar
 Future disaster-closure lifetime eligibility is not decided (superseded 2026-09-28: the owner
 decided the iOS 1.8.0 closure rule is included with both lifetime and monthly, not free;
 `deriveEntitlements` returns `temporaryClosures: lifetimeActive || subscriptionActive`, and the
-production service was redeployed with it on 2026-09-30 as rainyclock-membership-00006-hnb). Sandbox revision 00004-kkd includes the minimal calendar entitlement change,
+production service was redeployed with it on 2026-09-30 as rainyclock-membership-00006-hnb; on 2026-10-03 it was
+redeployed again as rainyclock-membership-00007-k68, whose only code change is the secret-free
+`membership_request_failed` stdout line for every `/v1/membership/*` error response — env, secrets, mounts and the
+service account were compared before and after, `/health` is 200 and the first line was read back; the sandbox
+service was not redeployed). Sandbox revision 00004-kkd includes the minimal calendar entitlement change,
 and ASC lifetime English/Traditional Chinese copy is saved and read back; see staging for evidence.
 The latest September 21 catalog offers monthly and non-consumable lifetime only: US$1/month and
 US$10 once in the US, NT$10/month and NT$100 once in Taiwan. Annual is no longer offered; existing

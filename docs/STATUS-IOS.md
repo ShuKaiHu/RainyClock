@@ -315,7 +315,14 @@ Last updated: 2026-10-03.
     session 24 小時內會一直卡住）；清單另加伺服器自己的 `attestation_key_rotation_required`。(2) 錯誤碼過濾要求至少一個 g–z 的字母，
     所以雜湊、Apple 交易號等純十六進位／純數字的識別碼不會被當成錯誤碼顯示。(3) 伺服器 log 行加 `severity`（5xx ERROR、其餘
     NOTICE），`code` 與 `path` 只接受字串；gRPC 的數字 code 記成 `unrecognized_code`。完整測試 iOS 26.5 與 27.0 各 632 通過、
-    0 失敗、4 略過；`weather-proxy` 188 通過、3 略過。**尚未**：archive／上傳 41、部署伺服器（第 (6) 項）。
+    0 失敗、4 略過；`weather-proxy` 188 通過、3 略過。**尚未**：archive／上傳 41。
+    **第 (6) 項 2026-10-03 23:38 已做：正式會員服務部署為 `rainyclock-membership-00007-k68`，100% 流量**（擁有者「好 部署吧」）。
+    映像從 HEAD `b47edeb` 以 Cloud Build 建（標籤 `request-failure-log-20261003`、digest `94c6762c…`），和 00006 的程式差異只有
+    `http.js` 的 log 行與其測試；`gcloud run deploy --image=<digest>` 只換映像，前後 `services describe` 全文比對除 nonce 與映像外
+    無差異；`/health` 200；`membership_server_listening` 讀回；第一筆 `membership_request_failed` 用 GET `/status` 故意打出
+    `NOTICE … 405 method_not_allowed` 讀回。回退 `update-traffic --to-revisions=rainyclock-membership-00006-hnb=100`。Sandbox 服務
+    沒動（1.8.1 的換鑰是 App 端行為，TestFlight 41 不需要新伺服器）。`npm install` 報的 1 個 high（`@grpc/grpc-js`，gRPC 伺服器端
+    弱點、此服務只當 client）從 9/22 的 lockfile 就在，下次改相依時 `npm audit fix`。細節在 `weather-proxy/membership/MAINTENANCE.md`。
     **送審 1.8.1 前的擋板：App Store Connect 買斷美國 base 讀回 US$15.00**（2026-10-03 23:2x 已讀回 $15.00，擋板解除），否則 `MembershipListedPrice` 的 $15.00 在幣別
     不一致的備援路徑上會顯示 Apple 不會收的價格。另外，10/3 那支手機第一次開 1.8.1 時，換鑰後的第二次 bootstrap 可能還是回
     `app_transaction_refresh_required`（快取的 AppTransaction 超過 5 分鐘），按一次「同步會員狀態」即可完成。

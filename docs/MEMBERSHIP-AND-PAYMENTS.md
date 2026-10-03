@@ -20,6 +20,13 @@ AI 完整生成／下載、S2S 廣告與其他驗收請依最新
 > （[產品決策](PRODUCT_DECISIONS.md)）。伺服器 `deriveEntitlements` 的 `temporaryClosures` 改為
 > 買斷或訂閱任一有效，買斷在訂閱到期後仍保有此規則，與日曆相同。正式會員服務
 > `rainyclock-membership` 已於 2026-09-30 重新部署（`rainyclock-membership-00006-hnb`），買斷現在也回 `true`。
+>
+> **2026-10-03：正式會員服務再部署為 `rainyclock-membership-00007-k68`**（100% 流量；擁有者同日授權）。和 00006 的唯一
+> 程式差異是 1.8.1 的伺服器部分：每個 `/v1/membership/*` 錯誤回應記一行不含秘密的
+> `{event:"membership_request_failed", severity, path, status, code}`，讓 1.8.0 發布日那種「單一裝置每次啟動都 401」
+> 可以直接從 log 看到錯誤碼（之前只能靠延遲與回應大小旁證）。部署前後環境變數、secret 參照、掛載、服務帳號都沒變，
+> `/health` 200，第一筆 log 已讀回；回退指到 `rainyclock-membership-00006-hnb`。細節見
+> [操作說明](../weather-proxy/membership/README.md) 與 `weather-proxy/membership/MAINTENANCE.md`。
 
 ## 最新方案目錄 — 2026-09-21
 
@@ -413,7 +420,9 @@ Both include banner removal, calendar and one shared daily AI generation. Additi
 require a verified rewarded ad. Annual is off sale, historical valid transactions remain supported,
 and temporary disaster closures are not public in 1.7.0. From 1.8.0 the closure rule is included
 with both monthly and lifetime and not with free (owner decision 2026-09-28); the production
-membership service was redeployed with this rule on 2026-09-30 (rainyclock-membership-00006-hnb). Lifetime outranks monthly in the displayed
+membership service was redeployed with this rule on 2026-09-30 (rainyclock-membership-00006-hnb), and again on
+2026-10-03 as rainyclock-membership-00007-k68, which only adds a secret-free `membership_request_failed` log line
+for every error response. Lifetime outranks monthly in the displayed
 plan without silently cancelling an Apple subscription. Free membership receives one initial
 allowance, and each eligible legacy identity receives a fixed migration allowance of one only once;
 unverified client ad-balance claims stay quarantined rather than increasing server credit.
