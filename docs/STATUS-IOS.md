@@ -299,8 +299,8 @@ Last updated: 2026-10-03.
     自訂的價格調整 → 立即進行價格調整 → 手動管理所有國家或地區的價格 → 美國（USD）價格輸入 15.00，按「查看其餘價格」讓
     $15.00 出現 → 下一步 → 在 175 國表格把台灣（TWD）改回 $150.00（Apple 的等值價會是 $490.00）→ 確認。**不要用「全球的價格
     調整」**（會把台灣重新等值成 NT$490）。手機上會員與方案 14:47 仍顯示 NT$100.00（StoreKit 的即時價格，帶 ".00"；App 寫死的
-    備用價會是沒有小數的 "NT$100"，而且只在幣別不一致時出現）。備用價表 `MembershipListedPrice`（`MembershipModels.swift`
-    約 63–72 行：TWN 月訂閱 NT$10、買斷 NT$100；USA 月訂閱 $1.00、買斷 $10.00）在 `70f0eda` 仍是舊的買斷價，1.8.1 要改。
+    備用價會是沒有小數的 "NT$100"，而且只在幣別不一致時出現）。（`MembershipModels.swift`
+    約 63–72 行：TWN 月訂閱 NT$10、買斷 NT$100；USA 月訂閱 $1.00、買斷 $10.00）在 `70f0eda` 仍是舊的買斷價，1.8.1 要改。（23:2x 讀回：擁有者先用「全球的價格調整」把基準改成 US$15.00、其餘 174 個自動地區等值化，再以「特定國家」把台灣改回 $150.00；美國 $15.00、台灣 $150.00，沒有排程中的調整。「不要用全球的價格調整」那句是對「只想改台灣」的情況說的；要改基準價時，全球調整加一次台灣特定調整就是正確做法。）
   - **1.8.1 計畫（擁有者：「寫進文件後開始改 1.8.1」）：** (1) App：`MembershipDeviceProof.requiresKeyRotation` 遇到伺服器碼
     `invalid_assertion` 也換 key（只在 bootstrap；伺服器仍檢查 attestation、`device_key_already_registered` 與
     `apple_proof_replayed_on_other_device`，所以不會多給任何權利）；(2) 伺服器：`weather-proxy/membership/http.js` 在錯誤回應時
@@ -316,7 +316,7 @@ Last updated: 2026-10-03.
     所以雜湊、Apple 交易號等純十六進位／純數字的識別碼不會被當成錯誤碼顯示。(3) 伺服器 log 行加 `severity`（5xx ERROR、其餘
     NOTICE），`code` 與 `path` 只接受字串；gRPC 的數字 code 記成 `unrecognized_code`。完整測試 iOS 26.5 與 27.0 各 632 通過、
     0 失敗、4 略過；`weather-proxy` 188 通過、3 略過。**尚未**：archive／上傳 41、部署伺服器（第 (6) 項）。
-    **送審 1.8.1 前的擋板：App Store Connect 買斷美國 base 讀回 US$15.00**，否則 `MembershipListedPrice` 的 $15.00 在幣別
+    **送審 1.8.1 前的擋板：App Store Connect 買斷美國 base 讀回 US$15.00**（2026-10-03 23:2x 已讀回 $15.00，擋板解除），否則 `MembershipListedPrice` 的 $15.00 在幣別
     不一致的備援路徑上會顯示 Apple 不會收的價格。另外，10/3 那支手機第一次開 1.8.1 時，換鑰後的第二次 bootstrap 可能還是回
     `app_transaction_refresh_required`（快取的 AppTransaction 超過 5 分鐘），按一次「同步會員狀態」即可完成。
 - **2026-10-03 00:14：1.8.0（40）已送審，App Store Connect 顯示「等待審查」。**（2026-10-03 14:36 起：審查已通過並上架，見上一點。）
@@ -879,7 +879,7 @@ Last updated: 2026-10-03.
   **擁有者待辦（ASC → 買斷 `6812814810` → 價格）**：美國基準價改 US$15（Apple 重算其他自動地區）→ 台灣手動設 NT$150 →
   讀回「目前定價」；供應維持美國＋台灣。**生效日：1.8.0 上架當天**（擁有者 9/29 決定）。改好後更新
   `MEMBERSHIP-AND-PAYMENTS.md`、`appstore-metadata.md` 兩張價格表。（2026-10-03 上架當天只做了一半：台灣讀回 NT$150；美國基準與
-  自動國家仍是 US$10，流程只改了選到的國家，剩下的步驟與「不要用全球的價格調整」的提醒見本節最上方一點。）
+  自動國家仍是 US$10，流程只改了選到的國家，剩下的步驟與「不要用全球的價格調整」的提醒見本節最上方一點。23:2x 全部完成，見同一點。）
 
 - **2026-09-28／29：真機驗證（iPhone 16 Pro，Debug Sandbox build，sandbox 堆疊＋`fixture.sh`）。**
   - 通過：臺南市「明天」公告推播到手機，擴充功能在 App 關閉時改寫成時效性、有聲的通知（睡眠專注模式下仍送達）；

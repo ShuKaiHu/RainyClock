@@ -115,7 +115,7 @@ TestFlight 群組；不代表已提交 App Review、公開發布或完成所有�
 | Product | Type / duration | United States | Taiwan |
 | --- | --- | --- | --- |
 | Monthly subscription / 月訂閱 | Auto-renewable, one month | US$1 per month | NT$10 per month |
-| One-time purchase / 買斷 | Non-consumable, one payment | US$10 once（base price，尚未調整；擁有者待辦） | NT$150 once（2026-10-03 改價，立即生效） |
+| One-time purchase / 買斷 | Non-consumable, one payment | US$15 once（2026-10-03 23:2x 改價，base price，立即生效） | NT$150 once（2026-10-03 改價，立即生效） |
 
 2026-10-03 讀回 ASC：買斷（Apple ID 6812814810，`com.shukaihu.RainyClock.banner.lifetime`）台灣 (TWD) 目前定價
 **$150.00（手動調整）**，於 2026-10-03 約 15:05 讀回；這次自訂價格調整只勾選台灣，所以美國 base price 與其餘 174 個
@@ -125,7 +125,7 @@ TestFlight 群組；不代表已提交 App Review、公開發布或完成所有�
 **不要用「全球的價格調整」**，它會把台灣重新等價化成 NT$490。月訂閱不變。手機上 14:47 的「會員與方案」仍顯示 NT$100.00
 （StoreKit 即時價格；改價生效後由 StoreKit 自行更新）。App 的備援價目表 `MembershipListedPrice`
 （`RainyClock/Services/MembershipModels.swift` 63-72 行：TWN 買斷 `NT$100`、USA 買斷 `$10.00`，只在幣別不符時顯示）在已上架的
-build 40 仍是舊值；1.8.1（`dd65a13`，同日下午）改為 NT$150／$15.00 並有測試，尚未上傳，美國 base 改好前不送審。
+build 40 仍是舊值；1.8.1（`dd65a13`，同日下午）改為 NT$150／$15.00 並有測試，尚未上傳。（2026-10-03 23:2x 讀回：擁有者先用「全球的價格調整」把基準改成 US$15.00，其餘 174 個自動定價地區跟著等值化（如 TRY ₺799.99、CNY ¥98.00、DKK kr 129.00），再以「特定國家」把台灣改回 $150.00；讀回美國 $15.00、台灣 $150.00（手動），沒有排程中的調整。美國改價完成，1.8.1 送審的擋板解除。）
 
 兩方案均移除 banner、解鎖日曆，並共用每日一次免看廣告的 AI 生成；買斷優先顯示，不
 自動取消既有 Apple 訂閱。新購不提供年方案。商品供應目前僅美國與台灣，未來地區自動
