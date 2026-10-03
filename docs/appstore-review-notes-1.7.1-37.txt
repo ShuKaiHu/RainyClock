@@ -1,0 +1,35 @@
+RAINY CLOCK 1.7.1 (37)
+
+iPhone app. On iOS 26+, AlarmKit provides system alarms and snooze; a widget extension supplies alarm Live Activities. On iOS 17-25, alarms use local notifications and follow notification permissions and Silent mode.
+
+No Rainy Clock login or Sign in with Apple is needed. Apple-verified app and purchase data recognize membership; Apple may show its own authentication sheet. No demo credentials are required.
+
+TRACKING PERMISSION (2.1)
+On first launch after install, Apple's App Tracking Transparency request appears before the ad SDK starts; the SDK stays uninitialized until the tracking choice is known. iOS shows it only if Settings > Privacy & Security > Tracking > Allow Apps to Request to Track is on. In the EEA/UK the app's own ad-privacy choice appears first and the request follows once it is closed. Declining does not limit any feature. A screen recording (physical iPhone, iOS 27.0, fresh TestFlight install of 1.7.1 (37)) is attached here and to our reply in App Review.
+
+LOCATION TEST (2.1(a))
+Settings > Route > Home: type "Taipei Main Station" and pick it from the suggestions that appear while typing. Work: type "Taipei 101" and pick the Xinyi Rd. Sec. 5 result. The route preview (map, travel time, distance) appears and the Alarm tab shows tomorrow's alarm. A typed name can also be used without picking a suggestion.
+
+PURCHASES
+Settings > Other > Membership:
+- Monthly, auto-renewable: com.shukaihu.RainyClock.plus.monthly
+- One-time, non-consumable: com.shukaihu.RainyClock.banner.lifetime
+Both remove banner ads, unlock calendar features and include one daily AI generation without an ad. Monthly benefits require an active subscription; the one-time plan provides these benefits permanently. Owning both shares one daily generation. No annual plan is offered. Buying the one-time plan does not cancel an existing subscription.
+
+The top-right menu provides Restore purchases, Manage subscriptions and Delete membership data. Subscription status shows its validity date and auto-renewal status. Deleting membership does not cancel Apple subscriptions. Restore purchases restores benefits, not local alarm settings or audio.
+
+CALENDAR AND ALARM TEST
+With a paid plan, open Settings > Calendar, enable holiday rules and choose Taiwan office holidays or United States federal holidays with standard observed dates. In the alarm calendar, swipe months, tap a date to change ring/silent, then confirm at top right. Manual overrides take priority; orange dots mark differences from the selected calendar.
+
+In Settings > Time, choose the wake-up time, rain threshold, early lead time and separate early/regular sounds. Enable the test weekday in Calendar. Grant alarm permission, set a near-future alarm and lock the iPhone. Forecast updates depend on network access and iOS background execution. A failed membership/weather update does not clear scheduled alarms.
+
+AI VOICE
+Under Settings > Time, open a sound setting, choose AI Voice, enter a short line and select a voice. Free members receive one initial generation; paid plans receive one shared daily generation. Extras require a completed rewarded ad, or paid members can wait for the next daily allowance. Saved audio playback uses no quota. Our backend and Google speech services process generation content as disclosed in the privacy policy.
+
+SANDBOX
+Sandbox/TestFlight membership data are isolated from production. Production ad traffic is disabled there, so banner and rewarded ads may not load; simulated ad completion does not grant credits. Built-in sounds, saved audio and scheduled alarms remain usable. Plan cards show the App Store price for the account's storefront.
+
+IAP review screenshots show the actual purchase UI from a local StoreKit test with its test notice. The uploaded build contains no local StoreKit configuration.
+
+Privacy: https://shukaihu.github.io/RainyClock/privacy-policy.html
+Terms: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/

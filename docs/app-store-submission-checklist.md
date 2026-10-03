@@ -11,17 +11,25 @@ Ongoing state and the backlog live in `docs/STATUS-IOS.md`; this file is the sub
 
 | Item | Status |
 | --- | --- |
-| App version | `1.6.7` — the Google-to-Unity-LevelPlay ad migration |
-| Build number | `26` (`25` shipped as 1.6.6; `24` was superseded before submission) |
-| Review status | `1.6.7 (26)` submitted 2026-08-30, awaiting review |
-| Last released | `1.6.6` — released to the App Store 2026-08-18 |
+| App version | `1.8.0` — typhoon closures, alarm master switch, Next Alarm widget (live since 2026-10-03; 1.7.1 was live before it) |
+| Build number | `1.8.0 (40)` — uploaded 2026-10-02 21:44 (Asia/Taipei) from `8e6228a` (Xcode 27.0): closure-feed freshness limit one hour (the day-off service polls every 30 minutes) and the small widget draws the forecast sky under the Apple Weather mark. **Submitted for review 2026-10-03 00:14; approved and released manually by the owner 2026-10-03 (public about 14:36 Asia/Taipei; exact approval time not read back).** Previously `1.8.0 (39)` — uploaded 2026-10-02 08:27:46 (Asia/Taipei) from `4e218c2` (Xcode 27.0): the medium widget also shows weather on today's entry. Previously `1.8.0 (38)` — uploaded 2026-10-02 03:43:06 (Asia/Taipei), built with Xcode 27.0 / iOS 27 SDK from `3cf0fab`; TestFlight only, not submitted. Previously `1.7.1 (37)` — address suggestions restored and typed-address confirmation surfaced, on top of 36; uploaded 2026-09-24 15:00:13. Previously `36` — App Attest recovery after a reinstall and iOS 27 TestFlight price fallback, on top of 35's location, ATT timing and notification crash fixes; 387 tests passed; uploaded 2026-09-24 12:49:53, Apple processing. |
+| Review status | **1.8.0 (40): approved and released 2026-10-03 (manual release by the owner; the App Store listing showed 1.8.0 "4m ago" at 14:40 Asia/Taipei, so public about 14:36; the exact approval time was not read back). Previously Waiting for Review since 2026-10-03 00:14 (Asia/Taipei).** 1.7.1 (37) approved and live on the App Store 2026-09-26 05:33 UTC (TW and US). Before that: Waiting for Review since 2026-09-25 00:10 (resubmission of the 1.7.0 (34) rejection). Earlier: 1.7.0 (34) rejected 2026-09-23: 6.5-inch screenshots, location lookup, and missing ATT prompt/recording. Build 35 uploaded to TestFlight, not resubmitted. zh-Hant 6.5-inch media verified inheriting the new 6.9-inch screenshots; en-US cleanup still unverified. iOS 27 physical-device validation and recording remain pending. |
+| Last released | `1.8.0 (40)` — released 2026-10-03 (manual release; public about 14:36 Asia/Taipei). Previously `1.7.1 (37)` — live 2026-09-26 05:33 UTC. Before that: `1.6.9` — public listing confirmed 2026-09-10 |
 | Bundle identifier | `com.shukaihu.RainyClock` |
-| Extension bundle identifier | `com.shukaihu.RainyClock.AlarmWidget` (added in `1.6.3`) |
+| Extension bundle identifiers | `com.shukaihu.RainyClock.AlarmWidget`; `com.shukaihu.RainyClock.DayOffNotification` (temporary-closure rollout stayed disabled in 1.7.0; enabled in 1.8.0, and the extension's production push path was verified on the App Store build 2026-10-03) |
 | Device family | iPhone only |
 | Primary language | Traditional Chinese |
 
+Latest investigation handoff: [2026-09-23 — TestFlight USD cards / native TWD payment sheet](HANDOFF-IOS-2026-09-23.md). Build 35 does not change product pricing logic; no new physical-device price result has been received.
+
 ## Submission History
 
+- `1.8.0 (40)` — Uploaded 2026-10-02 21:44; 631 tests passed, 0 failed, 4 skipped on iOS 26.5 and 27.0 (MembershipStoreKitTests excluded). **Submitted 2026-10-03 00:14; Approved; released manually by the owner 2026-10-03, public about 14:36 Asia/Taipei (exact approval time not read back)**: one item, review note `appstore-review-notes-1.8.0-40.txt` (3,996 characters as pasted), no attachment, manual release, no export-compliance prompt. First submission of the 1.8.0 version (typhoon closures, alarm switch, Next Alarm widget), approved on the first attempt. Builds 38 and 39 of 1.8.0 went to TestFlight only. Release day on this build: the owner's own phone could not sync membership (a fast 401 on `/session`, diagnosed as an App Attest assertion failure — the error code is inferred, the server did not log it; recovered by deleting its device record server-side), the typhoon-closure path ran end to end on production for the first time including a push, and the lifetime price was raised to NT$150 in Taiwan (US base still US$10, owner to-do) — details under 2026-10-03 14:36 in `docs/STATUS-IOS.md`.
+- `1.7.1 (37)` — Uploaded to TestFlight 2026-09-24 15:00:13; 395 tests passed, 0 failed/skipped. Restores the Home/Work suggestion list (the 1.7.0 sheet left its FocusState in the presenting view), confirms exact same-name typed addresses silently, and shows pending/not-found state on the Route rows. The App Store version record is still 1.7.0 and must become 1.7.1 before submission. Resubmitted to App Review 2026-09-25 00:10 with the reply to the 1.7.0 (34) rejection, the ATT recording (reply + App Review Information attachment) and new notes (`docs/appstore-review-notes-1.7.1-37.txt`); Approved; live on the App Store 2026-09-26 05:33 UTC.
+- `1.7.0 (36)` — Uploaded to TestFlight 2026-09-24 12:49:53; 387 tests passed, 0 failed/skipped. Fixes membership stuck forever after a delete and reinstall (App Attest `invalidInput` never rotated the key), and iOS 27 TestFlight plans hidden because the storefront reports TWN while products still come back in USD. Not submitted to App Review.
+- `1.7.0 (35)` — Uploaded to TestFlight 2026-09-23 22:31:20; 377 tests passed, 0 failed/skipped. Includes location, ATT and notification-response crash fixes. Apple processing complete; internal `SKHU tester` (1 tester) has access; bilingual test notes saved and verified. Not submitted to App Review.
+
+- `1.7.0 (34)` — **Rejected** 2026-09-23, submission `5a8a1d24-97da-4eb9-89a7-350274dccc85`: 2.3.3 (6.5-inch screenshots do not sufficiently show the app in use), 2.1(a) (location could not be found), and 2.1 Information Needed (ATT prompt not found; physical-device recording requested). Reviewed on iPad Air 11-inch M3 and iPhone 17 Pro Max running iPadOS/iOS 27.0. Source is the user's review message; no ASC changes or new build in this diagnostic pass. See [findings and resubmission requirements](APP-REVIEW-2026-09-23.md).
 - `1.5 (7)` — **Rejected** 2026-07-22, Guideline 5.1.2(i) (Privacy – Data Use and Sharing): the App Privacy label declared data used to track the user, but the app has no App Tracking Transparency prompt.
 - `1.6 (10)` — Resubmitted 2026-07-23 with the 5.1.2(i) fix below. **Rejected** 2026-07-24, Guideline 5.2.5 (Legal – Apple Sites and Services): WeatherKit data shown without the required Apple Weather attribution mark and legal link.
 - `1.6.1 (16)` — Submitted 2026-07-25 with the 5.2.5 fix (official Apple Weather mark + legal link in the Route tab weather section), a review note explaining WeatherKit usage, and a screen recording captured on a physical iPhone. **Approved 2026-07-26 and released to the App Store the same day.**
@@ -248,6 +256,72 @@ The 使用者指標 / user metrics panel in AdMob shows zeros because the app in
 or Google Analytics SDK. It is not a signal about real usage; App Store Connect's 分析 tab is.
 
 ## Archiving and Uploading
+
+**`1.8.0 (39)` uploaded 2026-10-02 08:27:46 (Asia/Taipei)** from `4e218c2`, same checks as 38 below.
+`xcode-select` had been switched to the Command Line Tools around 08:22 by something outside this
+session, so `xcodebuild` failed with "requires Xcode, but active developer directory … is a command
+line tools instance"; the archive, export and upload ran with
+`DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` instead of changing the system setting.
+
+**`1.8.0 (38)` uploaded 2026-10-02 03:43:06 (Asia/Taipei).** First build made with **Xcode 27.0
+(27A266a, iOS 27 SDK)**, which the Mac App Store installed over Xcode 26 on 2026-10-01 04:15; its
+licence had to be accepted with `sudo xcodebuild -license accept` before any `xcodebuild` (and the
+`/usr/bin/git` shim) worked again. Archived from `3cf0fab` (archive `CreationDate` 03:39:44, after
+the last commit). Local App Store export checked before upload: app, `RainyClockAlarmWidget.appex`
+and `RainyClockDayOffNotification.appex` all `1.8.0 (38)`, `DTSDKName iphoneos27.0`; app
+`aps-environment production`, App Attest production, App Group; **the widget appex now carries the
+App Group too** (automatic signing with `-allowProvisioningUpdates` enabled it on the
+`com.shukaihu.RainyClock.AlarmWidget` App ID, so no manual portal step was needed); privacy
+manifests in all three bundles (app `UserDefaults` CA92.1 + 1C8F.1, both extensions 1C8F.1),
+`NSPrivacyTracking` false, production service URLs, `GooglePlacesAPIKey` empty, the `rainyclock`
+URL scheme, three BG task identifiers, `IronSource.framework` the only framework, no `.storekit`,
+no DEBUG widget demo, the `-ObjC` selector present. Upload by the usual CLI path; the IronSource
+dSYM warning again, non-blocking. Logs: session scratchpad `archive-180-38-x27.log`,
+`upload-180-38.log`.
+
+**`1.7.0 (31)` uploaded 2026-09-21 20:57:26 (Asia/Taipei).** Membership startup failures
+are now visible, unknown membership is not labeled Free plan, and manual actions show
+privacy-safe failure diagnostics separately from background refreshes. All 50 focused iOS
+tests and Release archive passed; app/widget match, App Attest is production, and no local
+StoreKit configuration is bundled. Apple processing is complete and internal group `SKHU tester`
+has access; testing instructions were saved. This is a diagnostic build,
+not proof that the TestFlight purchase/currency issue is fixed. No review submission or
+public release. Logs: `/tmp/rainyclock-170-31-archive.log`, `/tmp/rainyclock-170-31-upload.log`.
+The existing IronSource dSYM warning remains non-blocking.
+
+
+**`1.7.0 (30)` uploaded 2026-09-21 19:43:35 (Asia/Taipei).** Archive/export succeeded,
+and ASC processing is complete. Internal TestFlight group `SKHU tester` includes build 30.
+App/widget versions match and App Attest is production; membership URL now points to the
+isolated Production/TestFlight service. The known IronSource dSYM warning remains non-blocking.
+The 1.7.0 version draft has build 30 attached and manual release selected. No review submission
+or public release has occurred. Current service validation and blockers are recorded in
+[1.7.0 release readiness](1.7.0-RELEASE-READINESS.md). Logs:
+`/tmp/rainyclock-170-30-archive.log`, `/tmp/rainyclock-170-30-upload.log`.
+
+**`1.7.0 (29)` uploaded 2026-09-16 22:19:55 (Asia/Taipei).** Release archive and CLI
+export succeeded with automatic signing and `manageAppVersionAndBuildNumber=false`.
+Apple reported `Upload succeeded` and `Uploaded package is processing`; subsequent ASC
+processing completion is not yet confirmed, and this build has not been submitted for review.
+App and widget versions match. The membership backend URL remains empty, and disaster
+closures remain disabled until 1.7.1. The known IronSource dSYM warning was non-blocking.
+Logs: `/tmp/rainyclock-170-29-archive.log`, `/tmp/rainyclock-170-29-upload.log`.
+
+**`1.6.9 (28)` uploaded 2026-09-07.** Fourth release through the CLI path, same command,
+same dSYM warning. The archive check gained the three `BGTaskSchedulerPermittedIdentifiers`
+(a new one, `previewRefresh`, ships in this build) and a grep for the new code in the binary.
+
+**`1.6.8 (27)` uploaded 2026-09-01.** The CLI path worked for the third release running —
+plain `xcodebuild -exportArchive` with `ExportOptions-AppStoreUpload.plist`, no Organizer and
+no credentials entered by hand. Archive verified before upload: app and appex both at
+`1.6.8 (27)`, the production `VoiceProxyURL`, all twelve preview clips, `NSPrivacyTracking`
+still `false`, no `GAD*` keys, `IronSource.framework` the only embedded framework, and the
+Gemini key absent from the whole bundle — which it should be, since nothing in the app has
+one any more.
+
+The `Upload Symbols Failed … dSYM for the IronSource.framework` warning appeared again. It
+does not block anything; the vendor ships no dSYM with its static framework, so crash frames
+inside ironSource's own code arrive unsymbolicated.
 
 ```bash
 xcodebuild -project RainyClock.xcodeproj -scheme RainyClock -configuration Release \

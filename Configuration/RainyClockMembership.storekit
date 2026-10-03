@@ -1,0 +1,76 @@
+{
+  "identifier": "F2B8F81D",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "15.00",
+      "familyShareable": false,
+      "internalID": "9D7AA11F",
+      "localizations": [
+        {
+          "description": "Remove banner ads, use calendar features, and get one daily AI ringtone generation without an ad.",
+          "displayName": "One-time purchase",
+          "locale": "en_US"
+        },
+        {
+          "description": "移除 banner、使用日曆功能，每天一次免看廣告的 AI 鈴聲生成。",
+          "displayName": "買斷",
+          "locale": "zh_TW"
+        }
+      ],
+      "productID": "com.shukaihu.RainyClock.banner.lifetime",
+      "referenceName": "RainyClock One-time",
+      "type": "NonConsumable"
+    }
+  ],
+  "settings": {
+    "_askToBuyEnabled": false,
+    "_billingGracePeriodEnabled": false,
+    "_billingIssuesEnabled": false,
+    "_disableDialogs": false,
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_renewalBillingIssuesEnabled": false,
+    "_storefront": "USA",
+    "_timeRate": 0
+  },
+  "subscriptionGroups": [
+    {
+      "id": "F13BF51E",
+      "localizations": [],
+      "name": "RainyClock Plus",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "1.00",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "E9E5E015",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "Remove banner ads, use calendar features, and get one daily AI ringtone generation without an ad.",
+              "displayName": "Monthly subscription",
+              "locale": "en_US"
+            },
+            {
+              "description": "移除 banner、使用日曆功能，每天一次免看廣告的 AI 鈴聲生成。",
+              "displayName": "月訂閱",
+              "locale": "zh_TW"
+            }
+          ],
+          "productID": "com.shukaihu.RainyClock.plus.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "RainyClock Monthly",
+          "subscriptionGroupID": "F13BF51E",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

@@ -12,6 +12,9 @@ const {
 const { PERSONA_IDS, EMOTION_IDS, styleLanguage } = require('./personas')
 const { synthesize, SAMPLE_RATE } = require('./tts')
 const { annotate, splitSentences } = require('./annotate')
+const { createMembershipRuntime } = require('./membership/runtime')
+// Opt-in only. Missing production verification configuration fails startup.
+const membershipHandler = createMembershipRuntime()
 
 /**
  * How much speech a clip may contain. The app pads the rest of its 28-second
@@ -298,7 +301,15 @@ const server = http.createServer(async (request, response) => {
   }
 
   if (url.pathname === '/v1/tts') {
+    if (process.env.LEGACY_TTS_DISABLED === '1') {
+      return sendJson(response, 410, { error: 'membership_generation_required' })
+    }
     return handleTTS(request, response)
+  }
+
+  if (url.pathname.startsWith('/v1/membership/')) {
+    if (!membershipHandler) return sendJson(response, 503, { error: 'membership_not_configured' })
+    return membershipHandler(request, response)
   }
 
   if (request.method !== 'GET' || url.pathname !== '/v1/weather') {

@@ -26,6 +26,14 @@ enum BackgroundWeatherRefresh {
     /// Must match `BGTaskSchedulerPermittedIdentifiers` in `Info.plist`.
     static let refreshTaskIdentifier = "com.shukaihu.RainyClock.weatherRefresh"
     static let processingTaskIdentifier = "com.shukaihu.RainyClock.alarmMaintenance"
+    /// A third window, opened shortly before the evening preview fires, so the
+    /// text it carries can be re-decided on a forecast from that evening rather
+    /// than from whenever the app was last opened.
+    static let previewRefreshTaskIdentifier = "com.shukaihu.RainyClock.previewRefresh"
+    /// An hour rather than thirty minutes: the window only opens here, and a wider
+    /// one is granted more often. The text is then at most an hour older than the
+    /// preview time, and the stamp says exactly how much.
+    static let previewRefreshLeadTime: TimeInterval = 60 * 60
 
     /// How far ahead of the lead-time point to start asking for the refresh task.
     /// The system treats `earliestBeginDate` as "not before", never "at", so this is
@@ -46,7 +54,7 @@ enum BackgroundWeatherRefresh {
             return
         }
 
-        for identifier in [refreshTaskIdentifier, processingTaskIdentifier] {
+        for identifier in [refreshTaskIdentifier, processingTaskIdentifier, previewRefreshTaskIdentifier] {
             // `using: .main` pins the launch handler to the main queue; the box is
             // what carries the non-Sendable `BGTask` from there to the main actor.
             let registered = BGTaskScheduler.shared.register(
@@ -93,9 +101,32 @@ enum BackgroundWeatherRefresh {
         )
     }
 
+    /// Asks for a refresh window opening `previewRefreshLeadTime` before the first
+    /// evening preview. Nothing to preview, or a window that has already opened
+    /// (this run *is* that refresh), drops the request instead of resubmitting it
+    /// for a moment that has passed — which would run again at once, re-plan,
+    /// resubmit, and spin until the preview time went by.
+    static func schedulePreviewRefresh(before fireDate: Date?, now: Date = Date()) {
+        guard !AppEnvironment.isRunningTests else {
+            return
+        }
+
+        guard let fireDate, fireDate.addingTimeInterval(-previewRefreshLeadTime) > now else {
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: previewRefreshTaskIdentifier)
+            return
+        }
+
+        submit(
+            BGAppRefreshTaskRequest(identifier: previewRefreshTaskIdentifier),
+            beginningAt: fireDate.addingTimeInterval(-previewRefreshLeadTime),
+            now: now
+        )
+    }
+
     static func cancelScheduledRuns() {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: refreshTaskIdentifier)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: processingTaskIdentifier)
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: previewRefreshTaskIdentifier)
     }
 
     private static func submit(_ request: BGTaskRequest, beginningAt date: Date, now: Date) {
@@ -119,10 +150,27 @@ enum BackgroundWeatherRefresh {
         let task: BGTask
     }
 
+    /// Tomorrow's forecast (for the card and the widget) is fetched only if the alarm work
+    /// left at least this much of the ~30 s a refresh task is given; the alarm comes first.
+    static let tomorrowWeatherStartDeadline: TimeInterval = 15
+
     @MainActor
     private static func handle(task: BGTask) {
+        let startedAt = Date()
         let work = Task { @MainActor in
-            await CommuteAlarmRefresher.refreshArmedAlarm()
+            let outcome = await CommuteAlarmRefresher.refreshArmedAlarm()
+            // Then the "tomorrow" forecast the widget snapshot describes, so a phone that
+            // was not opened all evening still shows a current one. Never registers,
+            // cancels or reschedules anything (`refreshTomorrowWeatherIfNeeded`), and the
+            // expiration handler's cancellation ends it like the alarm work.
+            if !Task.isCancelled, Date().timeIntervalSince(startedAt) < tomorrowWeatherStartDeadline {
+                await CommuteAlarmRefresher.refreshTomorrowWeather()
+            }
+            // The widgets'  Weather mark, at most weekly, and only with time to spare.
+            if !Task.isCancelled, Date().timeIntervalSince(startedAt) < tomorrowWeatherStartDeadline {
+                await WeatherAttributionMarkCache.refreshIfNeeded()
+            }
+            return outcome
         }
 
         // The system reclaims the task if it runs long; cancelling here stops the
@@ -138,6 +186,8 @@ enum BackgroundWeatherRefresh {
                 scheduleNextRun(before: nextRefreshDate)
             }
             logger.info("Background refresh finished, rescheduled: \(outcome.didReschedule, privacy: .public)")
+            // Synchronously: the publisher's debounce would never fire before suspension.
+            TomorrowWidgetPublisher.shared.publish()
             task.setTaskCompleted(success: outcome.didReschedule)
         }
     }
@@ -150,16 +200,52 @@ enum BackgroundWeatherRefresh {
 /// stay identical whether they were produced in the foreground or at 5 a.m.
 @MainActor
 enum CommuteAlarmRefresher {
+    private static var processModel: AlarmViewModel?
+
+    /// Foreground, BGTask and APNs callbacks must share the same in-flight
+    /// fetch/scheduling guards. Separate models can otherwise commit an older
+    /// announcement after a newer withdrawal while the app launches.
+    static func currentModel() -> AlarmViewModel {
+        if let processModel { return processModel }
+        let model = AlarmViewModel(routeWeatherService: AppEnvironment.routeWeatherService,
+            notificationScheduler: SystemAlarmScheduler())
+        processModel = model
+        TomorrowWidgetPublisher.shared.start(observing: model)
+        return model
+    }
+
     struct Outcome {
         var didReschedule: Bool
         var nextWeatherRefreshDate: Date?
     }
 
+    /// The card's and the widget's forecast for tomorrow; see `AlarmViewModel.refreshTomorrowWeatherIfNeeded`.
+    static func refreshTomorrowWeather() async {
+        await currentModel().refreshTomorrowWeatherIfNeeded()
+    }
+
     static func refreshArmedAlarm() async -> Outcome {
-        let viewModel = AlarmViewModel(
-            routeWeatherService: AppEnvironment.routeWeatherService,
-            notificationScheduler: SystemAlarmScheduler()
-        )
+        await refreshArmedAlarm(model: currentModel(), retireSupersededAlarms: SystemAlarmScheduler.retireSupersededAlarms)
+    }
+
+    /// `refreshArmedAlarm()` on a given model, for tests.
+    static func refreshArmedAlarm(model viewModel: AlarmViewModel,
+                                  retireSupersededAlarms: () async -> Void) async -> Outcome {
+        // An alarm replaced while it rang or snoozed, finished since: cancel it before it
+        // rings again at its old time, whatever the rest of this run does.
+        await retireSupersededAlarms()
+
+        // Turned off, but a removal never finished (the app was suspended mid-cancel):
+        // finish it here rather than leave an alarm the user turned off. Before the plan
+        // restore: turning off depends on no plan, and must not wait on StoreKit.
+        if !viewModel.settings.isAlarmEnabled {
+            await viewModel.finishTurningOffIfNeeded()
+            return Outcome(didReschedule: false, nextWeatherRefreshDate: nil)
+        }
+
+        // A background launch never reaches `MembershipManager.start()`: without this the
+        // closure rule would be decided on no plan at all.
+        await viewModel.loadMembershipEntitlements()
 
         guard viewModel.hasScheduledAlarm else {
             // Nothing armed: stop the chain instead of waking up forever.
@@ -167,9 +253,11 @@ enum CommuteAlarmRefresher {
         }
 
         let didReschedule = await viewModel.refreshScheduledAlarmUnattended()
+        let next = viewModel.scheduledAlarmSummary?.weatherRefreshDate
         return Outcome(
             didReschedule: didReschedule,
-            nextWeatherRefreshDate: viewModel.scheduledAlarmSummary?.weatherRefreshDate
+            nextWeatherRefreshDate: viewModel.effectiveSchedulingSettings.isDisasterSuspensionEnabled
+                ? min(next ?? .distantFuture, Date().addingTimeInterval(6 * 3_600)) : next
         )
     }
 }

@@ -17,14 +17,28 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.6.8</string>
+	<string>1.8.1</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.shukaihu.RainyClock.weatherRefresh</string>
 		<string>com.shukaihu.RainyClock.alarmMaintenance</string>
+		<string>com.shukaihu.RainyClock.previewRefresh</string>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>27</string>
+	<string>41</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.shukaihu.RainyClock.widget</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>rainyclock</string>
+			</array>
+		</dict>
+	</array>
 	<key>LevelPlayAppKey</key>
 	<string>27d81ff8d</string>
 	<key>GooglePlacesAPIKey</key>
@@ -662,6 +676,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
+		<string>remote-notification</string>
 		<string>processing</string>
 	</array>
 	<key>UILaunchScreen</key>
@@ -672,6 +687,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>DayOffServiceURL</key>
+	<string>https://rainyclock-dayoff-510427696731.asia-east1.run.app</string>
+	<key>DayOffSandboxServiceURL</key>
+	<string>https://rainyclock-dayoff-sandbox-510427696731.asia-east1.run.app</string>
+	<key>MembershipServiceURL</key>
+	<string>https://rainyclock-membership-510427696731.asia-east1.run.app</string>
 	<key>VoiceProxyURL</key>
 	<string>https://rainyclock-weather-proxy-510427696731.asia-east1.run.app</string>
 </dict>

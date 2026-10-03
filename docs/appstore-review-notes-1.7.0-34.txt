@@ -1,0 +1,32 @@
+RAINY CLOCK 1.7.0 (34)
+
+iPhone app. On iOS 26+, AlarmKit provides system alarms and snooze. The extension supplies alarm Live Activities, not a Home Screen widget. On iOS 17-25, alarms use local notifications and follow notification permissions and Silent mode.
+
+No separate Rainy Clock login or Sign in with Apple button is needed. Apple-verified app and purchase data recognize membership; Apple may show its own authentication sheet. No demo credentials are required.
+
+PURCHASES
+Settings > Other > Membership & plans:
+- Monthly, auto-renewable: com.shukaihu.RainyClock.plus.monthly
+- One-time, non-consumable: com.shukaihu.RainyClock.banner.lifetime
+Both remove banner ads, unlock calendar features and include one daily AI generation without an ad. Monthly benefits require an active subscription; the one-time plan provides these benefits permanently. Owning both shares one daily generation. No annual plan is offered. Buying the one-time plan does not cancel an existing subscription.
+
+The top-right menu provides Restore purchases, Manage subscriptions and Delete membership data. Subscription status shows its validity date and auto-renewal status; Auto-renewal opens Apple's management UI, not a local renewal switch. Deleting membership does not cancel Apple subscriptions. Restore purchases restores benefits, not local alarm settings or audio.
+
+CALENDAR AND ALARM TEST
+With a paid plan, open Settings > Calendar, enable holiday rules and choose Taiwan office holidays or United States federal holidays with standard observed dates. US state, school and employer exceptions are not included. In the alarm calendar, swipe months, tap a date to change ring/silent, then confirm at top right. Manual overrides take priority; orange dots mark differences from the selected calendar.
+
+Set home/work and travel mode in Settings > Route. In Time, choose the wake-up time, rain threshold, early lead time and separate early/regular sounds. Enable the test weekday in Calendar. Grant alarm permission, set a near-future alarm and lock the iPhone. The Alarm page shows tomorrow; verify today's test by its scheduled time. Forecast updates depend on network access and iOS background execution. A failed membership/weather update does not clear scheduled alarms.
+
+AI AND SANDBOX
+Under Settings > Time, open a sound setting, choose AI Voice, enter a short line and select a voice. Built-in previews work offline. Free members receive one initial generation; paid plans receive one shared daily generation. Extras require a completed rewarded ad, or paid members can wait until the next daily allowance. Saved audio playback uses no quota. Successful audio is retained for reuse. Our backend and Google speech services process generation content as disclosed below.
+
+Sandbox/TestFlight membership data are isolated from production. Production ad traffic is disabled there, so rewarded ads may be unavailable; simulated ad completion does not grant credits. Built-in sounds, saved audio and scheduled alarms remain usable. TestFlight purchase/recovery, renewal/refund and AI/reward end-to-end validation remains in progress.
+
+KNOWN PRICE DISPLAY LIMITATION
+On build 34, iOS 26.6.2, StoreKit 2 and StoreKit 1 both returned USA/USD ($1 monthly, $10 one-time), while Apple's native monthly confirmation displayed NT$10. Cards use Product.displayPrice, not language/GPS-based conversion. Apple's iOS 27 release-note issue 181766819 is a related TestFlight metadata clue, not proof of the same cause or that production will be unaffected:
+https://developer.apple.com/documentation/ios-ipados-release-notes/ios-ipados-27-release-notes
+
+IAP review screenshots show actual Local StoreKit UI with its test notice. They are not Taiwan pricing verification or public store marketing screenshots. The uploaded build has no local StoreKit configuration.
+
+Privacy: https://shukaihu.github.io/RainyClock/privacy-policy.html
+Terms: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/

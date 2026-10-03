@@ -1,0 +1,179 @@
+{
+  "device": "iPhone 17 Pro",
+  "iOS": "26.5",
+  "date": "2026-09-16",
+  "sampleData": true,
+  "paletteVersion": "v3",
+  "paletteChange": "Rain only: indigo-purple sky, clouds and raindrops. Clear/cloudy unchanged from v2.",
+  "captureSummary": {
+    "newNativeSimulatorCaptures": 5,
+    "reusedUnchangedNativeSimulatorCaptures": 4
+  },
+  "sourcePaletteManifest": "../weather-variants-2026-09-16-palette-v2/manifest.json",
+  "originalPNGsEdited": false,
+  "contactSheet": {
+    "file": "weather-9-grid.png",
+    "sourceCrop": [
+      60,
+      529,
+      1146,
+      1490
+    ],
+    "operation": "crop and resize only; no screenshot recoloring or repainting"
+  },
+  "variants": [
+    {
+      "home": "clear",
+      "work": "clear",
+      "file": "clear-clear.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "046d550f8fc80b7b93a382b26537d46214b1262aaf35659cbc9caeb8b4ebe6ce",
+      "provenance": {
+        "method": "reused-unchanged-native-simulator-capture",
+        "paletteVersion": "v2",
+        "capture": "Simulator > File > Save Screen…",
+        "date": "2026-09-16",
+        "sourceFile": "../weather-variants-2026-09-16-palette-v2/clear-clear.png",
+        "sourceSHA256": "046d550f8fc80b7b93a382b26537d46214b1262aaf35659cbc9caeb8b4ebe6ce",
+        "reason": "Neither endpoint has rain; clear and cloudy rendering is unchanged in v3."
+      }
+    },
+    {
+      "home": "clear",
+      "work": "rain",
+      "file": "clear-rain.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "64d6bb71535388f36f7741347c280d3e9060f896cbaa5ff651da56557f80f9bd",
+      "provenance": {
+        "method": "new-native-simulator-capture",
+        "paletteVersion": "v3",
+        "capture": "Simulator > File > Save Screen…",
+        "date": "2026-09-16",
+        "sourceFile": "clear-rain.png",
+        "sourceSHA256": "64d6bb71535388f36f7741347c280d3e9060f896cbaa5ff651da56557f80f9bd",
+        "previousPaletteSHA256": "d4aa9c47620e62f7180540ff53782c9c4f3c237d5455274be38bc8929c11ad84"
+      }
+    },
+    {
+      "home": "clear",
+      "work": "cloudy",
+      "file": "clear-cloudy.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "379a74aa94f975eb2f09eb6006f773a439cd2434bb9ed61a3ee01cd1869d323e",
+      "provenance": {
+        "method": "reused-unchanged-native-simulator-capture",
+        "paletteVersion": "v2",
+        "capture": "Simulator > File > Save Screen…",
+        "date": "2026-09-16",
+        "sourceFile": "../weather-variants-2026-09-16-palette-v2/clear-cloudy.png",
+        "sourceSHA256": "379a74aa94f975eb2f09eb6006f773a439cd2434bb9ed61a3ee01cd1869d323e",
+        "reason": "Neither endpoint has rain; clear and cloudy rendering is unchanged in v3."
+      }
+    },
+    {
+      "home": "rain",
+      "work": "clear",
+      "file": "rain-clear.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "c1cbd908614a110feea507a9e30f0bae8aea30ee61639288f35f36980fc0527d",
+      "provenance": {
+        "method": "new-native-simulator-capture",
+        "paletteVersion": "v3",
+        "capture": "Simulator > File > Save Screen…",
+        "date": "2026-09-16",
+        "sourceFile": "rain-clear.png",
+        "sourceSHA256": "c1cbd908614a110feea507a9e30f0bae8aea30ee61639288f35f36980fc0527d",
+        "previousPaletteSHA256": "296d8d1de84aed2c8bf493169c37c9ef24905f113955420d71c42c606199c05b"
+      }
+    },
+    {
+      "home": "rain",
+      "work": "rain",
+      "file": "rain-rain.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "f46a31d59c54c6ccfedfefcbb0d2094daae615e0c90be128311e75855c6f0487",
+      "provenance": {
+        "method": "new-native-simulator-capture",
+        "paletteVersion": "v3",
+        "capture": "Simulator > File > Save Screen…",
+        "date": "2026-09-16",
+        "sourceFile": "rain-rain.png",
+        "sourceSHA256": "f46a31d59c54c6ccfedfefcbb0d2094daae615e0c90be128311e75855c6f0487",
+        "previousPaletteSHA256": "1a1b70fcdce98825c4764c130fa477c9cd0726c1119cc48247351bdd667ded46"
+      }
+    },
+    {
+      "home": "rain",
+      "work": "cloudy",
+      "file": "rain-cloudy.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "f69bdac07318e1751b3aefb60260f846aa42ac8b57d9a22c5e8a93c5611d54bf",
+      "provenance": {
+        "method": "new-native-simulator-capture",
+        "paletteVersion": "v3",
+        "capture": "Simulator > File > Save Screen…",
+        "date": "2026-09-16",
+        "sourceFile": "rain-cloudy.png",
+        "sourceSHA256": "f69bdac07318e1751b3aefb60260f846aa42ac8b57d9a22c5e8a93c5611d54bf",
+        "previousPaletteSHA256": "57f1d48784e332fa060c35a7f03994e3ef525ab03f0e30cb7f73693a458ffbc2"
+      }
+    },
+    {
+      "home": "cloudy",
+      "work": "clear",
+      "file": "cloudy-clear.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "b21f77a46a0d00d5b8cebaab6c0d9c2f94663b365f0a4044eae0ffd6bdd689fa",
+      "provenance": {
+        "method": "reused-unchanged-native-simulator-capture",
+        "paletteVersion": "v2",
+        "capture": "Simulator > File > Save Screen…",
+        "date": "2026-09-16",
+        "sourceFile": "../weather-variants-2026-09-16-palette-v2/cloudy-clear.png",
+        "sourceSHA256": "b21f77a46a0d00d5b8cebaab6c0d9c2f94663b365f0a4044eae0ffd6bdd689fa",
+        "reason": "Neither endpoint has rain; clear and cloudy rendering is unchanged in v3."
+      }
+    },
+    {
+      "home": "cloudy",
+      "work": "rain",
+      "file": "cloudy-rain.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "13980a0b95d72d3cab559e9dd99650f9afd2eb91040ab39fd984bb0d73e9a490",
+      "provenance": {
+        "method": "new-native-simulator-capture",
+        "paletteVersion": "v3",
+        "capture": "Simulator > File > Save Screen…",
+        "date": "2026-09-16",
+        "sourceFile": "cloudy-rain.png",
+        "sourceSHA256": "13980a0b95d72d3cab559e9dd99650f9afd2eb91040ab39fd984bb0d73e9a490",
+        "previousPaletteSHA256": "226c05ddfeac514a3f79d56bd0c5572887eabf2cdfa6bf4f340e5fd209f86c45"
+      }
+    },
+    {
+      "home": "cloudy",
+      "work": "cloudy",
+      "file": "cloudy-cloudy.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "8361e00ed9160126cf73e3683f94cef466b74d32ddc6573f90a7226d3b8a6f04",
+      "provenance": {
+        "method": "reused-unchanged-native-simulator-capture",
+        "paletteVersion": "v2",
+        "capture": "Simulator > File > Save Screen…",
+        "date": "2026-09-16",
+        "sourceFile": "../weather-variants-2026-09-16-palette-v2/cloudy-cloudy.png",
+        "sourceSHA256": "8361e00ed9160126cf73e3683f94cef466b74d32ddc6573f90a7226d3b8a6f04",
+        "reason": "Neither endpoint has rain; clear and cloudy rendering is unchanged in v3."
+      }
+    }
+  ]
+}

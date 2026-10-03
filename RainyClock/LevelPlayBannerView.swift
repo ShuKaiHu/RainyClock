@@ -104,6 +104,10 @@ private struct LevelPlayBannerContainer: UIViewRepresentable {
                 loadedHeight = CGFloat(height)
             }
             isLoaded = true
+            // A loaded banner is on screen at once (the opacity flips with
+            // `isLoaded`), so this is the moment a report could be about. Every
+            // auto-refresh lands here too, which keeps the record current.
+            RecentAds.shared.recordBanner(AdSighting(adInfo))
             // The counterpart of the failure log below. Without it a silent
             // console means either "filled" or "never asked", which is the
             // same blind spot the failure log exists to close.
@@ -111,6 +115,12 @@ private struct LevelPlayBannerContainer: UIViewRepresentable {
             let size = adInfo.adSize.map { "\($0.width)x\($0.height)" } ?? "unknown size"
             print("[LevelPlay] banner loaded from \(adInfo.adNetwork), \(size)")
             #endif
+        }
+
+        func didDisplayAd(with adInfo: LPMAdInfo) {
+            // Same record as the load, refreshed from the impression callback,
+            // which is the one the dashboard's own numbers are built on.
+            RecentAds.shared.recordBanner(AdSighting(adInfo))
         }
 
         func didFailToLoadAd(withAdUnitId adUnitId: String, error: Error) {

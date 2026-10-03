@@ -1,5 +1,320 @@
 # Rainy Clock App Store Metadata
 
+## 1.8.0 (38) — What's New — typhoon closures, alarm switch, Next Alarm widget
+
+> **Pasted into App Store Connect on 2026-10-02** (version 1.8.0, both localizations, saved and read
+> back; not submitted), after the owner approved the text. One change from the drafts below, made
+> before pasting: "nothing about where you live is uploaded" → "nothing about where you live is sent
+> to Rainy Clock", and 「不會上傳你的所在地」→「不會把你的所在地傳給雨天鬧鐘」 — the addresses do go to
+> Apple Maps for geocoding, just never to Rainy Clock's own service. The drafts below now carry it.
+>
+> Still accurate for 1.8.0 (39), whose medium widget also shows weather on today's entry (2026-10-02):
+> neither language ever limited the weather to tomorrow. Not re-pasted.
+>
+> Still accurate for 1.8.0 (40) too — the build submitted for review on 2026-10-03 00:14 (uploaded
+> 2026-10-02 21:44; App Store Connect has build 40 and the (40) note). Its small widget's background follows the forecast and carries the  Weather
+> mark (owner's decision, 2026-10-02 evening), but the small's text is still the decision only, with no
+> condition name or rain chance, so "The medium widget also shows home and work weather" /
+> 「中型另外顯示住家與公司天氣」 holds as written. No store-facing text is re-pasted; only the App Review
+> note changes ([`appstore-review-notes-1.8.0-40.txt`](appstore-review-notes-1.8.0-40.txt)).
+
+> **DRAFT.** Nothing in this section has been approved, pasted into App Store Connect or
+> submitted; the owner approves the final text. One draft since 2026-10-01, when `ios/widget`
+> (the widget's 2026-09-24 draft, written in worktree `RainyClock-widget`) was merged into the 1.8.0
+> line with `ios/main` (the closure and alarm-switch draft of 2026-09-28 / 09-30, formerly the
+> "Version 1.8.0 (38) “What’s New” — LOCAL DRAFT" section below). The App Review note is one draft
+> too: "Version-specific note for 1.8.0 (38)" under App Review Notes.
+
+Where the draft stands:
+
+- **1.7.1 (37) is live** (2026-09-26), so nothing from 1.7.0 / 1.7.1 is carried into this What's New; the
+  widget draft's "only if 1.7.1 is not released on its own" line is dropped.
+- **The typhoon / disaster closure rule is on in this build** (`supportsTemporaryClosures = true`,
+  `8031f51`) and its plans are decided (2026-09-28: monthly subscription and one-time purchase, not
+  free; [PRODUCT_DECISIONS](PRODUCT_DECISIONS.md)). The copy states that and names no price. Nothing
+  here claims background delivery is guaranteed. The public description's OPTIONAL MEMBERSHIP list and
+  the ASC product descriptions still list only banner removal, calendar and the daily AI generation;
+  adding the closure rule there is an owner edit (see the StoreKit products section below).
+- **The alarm switch** (2026-09-30, owner request) is free on every plan.
+- **The widget is iOS 26+ only** (it lives in the AlarmKit Live Activity extension); the app stays
+  iOS 17+, iPhone only. The medium widget shows the weather details (today's entry too, from
+  1.8.0 (39), 2026-10-02), with Apple's  Weather mark under its weather column and a link (through
+  the app) to Apple's legal page (decision D-A). **Changed 2026-10-02 evening (owner's decision,
+  build 40): no longer only the medium.** The small widget's background follows the same forecast
+  and its last row is the  Weather mark; its text stays the decision only. A tap on the small opens
+  the app on its Alarm tab, whose weather card carries the mark and the legal link (the mark is a `Link` like the
+  medium's, for wherever iOS honours one on the small size). With no forecast, or where iOS removes
+  the widget background (StandBy; expected on a tinted or clear Home Screen too, unverified), the
+  small shows neither sky nor mark. Lock Screen sizes show no weather. Confirm on the submitted build, on a device: so far the
+  small is checked on simulators with the text mark only.
+- The 1.7.0 (30) review note's "not a Home Screen widget", line 3 of
+  `appstore-review-notes-1.7.0-34.txt` and the 1.6.x 2.1(a) replies below all say the app has no Home
+  Screen widget; **from 1.8.0 that is false and must not be reused.**
+
+### What's New — English (DRAFT)
+
+```
+Sleep in when the government calls a day off, and see your next alarm on your Home Screen and Lock Screen.
+
+• Typhoon and disaster closures: when a city or county government suspends work or school for the district of your home or workplace, Rainy Clock skips that day's alarm. Announcements come from the Directorate-General of Personnel Administration's open data, and the app shows the source and its update time next to any closure it reports.
+• Choose whether work closures, school closures, or both count, and confirm your home and workplace districts in Settings → Calendar. Closure rules are included with a monthly subscription or a one-time purchase.
+• An optional notification can tell you when an announcement changes. It is checked against your districts on your phone — nothing about where you live is sent to Rainy Clock — and the alarm is only ever silenced after the app has verified the announcement.
+• A township map shows today's and tomorrow's announcements for all 22 cities and counties and 368 townships and districts.
+• If no announcement can be confirmed, or the network is down, the alarm rings as usual.
+• New switch next to the Alarm title: turn off only the next alarm (it comes back on by itself after that morning), or turn the alarm off until you turn it back on. Free on every plan.
+• New widget: see when your alarm will ring and why — moved earlier for rain on your route, or skipped for a holiday, a weekend, a closure or a day you set to stay silent. After midnight it shows today's alarm until it rings, then tomorrow's.
+• After an early ring for rain, the next morning's alarm keeps that time until its own forecast arrives; the widget then says "Waiting for tomorrow's forecast".
+• Choose a small or medium widget for the Home Screen, or add one to the Lock Screen. The medium widget also shows home and work weather from Apple Weather.
+• The widget updates whenever Rainy Clock checks the forecast. Open the app once after updating to set it up. Widgets require iOS 26 or later.
+```
+
+### What's New — 繁體中文（草稿）
+
+```
+政府宣布放假，就讓你多睡一會；下次鬧鐘，主畫面和鎖定畫面就看得到。
+
+・颱風與天災停班停課：當縣市政府宣布你住家或公司所在行政區停止上班或上課，雨天鬧鐘會略過當天的鬧鐘。公告來自行政院人事行政總處的開放資料，App 顯示任何停班停課結果時都會標示資料來源與更新時間。
+・可選擇只看停班、只看停課或兩者皆算，並在「設定 → 日曆」確認住家與公司所在行政區。月訂閱或買斷可使用臨時放假規則。
+・選用的通知可以在公告更新時提醒你。比對行政區在你的手機上完成，不會把你的所在地傳給雨天鬧鐘；鬧鐘只會在 App 確認公告後才靜音。
+・鄉鎮市區地圖可查看今天與明天的公告，涵蓋 22 縣市、368 鄉鎮市區。
+・無法確認公告或網路異常時，鬧鐘照常響鈴。
+・鬧鐘頁標題旁新增開關：可以只關閉下一次鬧鐘（那次過後自動恢復），或關閉到你重新開啟為止。所有方案都能使用。
+・新增小工具：顯示鬧鐘幾點響與原因——路線可能下雨而提早，或因假日、週末、停班停課、手動設為安靜而略過。午夜後到今天的鬧鐘響之前顯示「今天」，響過之後改顯示明天。
+・因雨提早響過之後，隔天的鬧鐘在自己的預報出來前仍會在同一時間響，小工具這時顯示「等待明天預報」。
+・主畫面可選小型或中型，也能加到鎖定畫面；中型另外顯示住家與公司天氣（Apple 天氣）。
+・雨天鬧鐘每次檢查預報都會更新小工具。更新後請先開啟 App 一次，小工具才會顯示內容。小工具需要 iOS 26 以上。
+```
+
+### Before pasting — internal, not App Store copy
+
+- [ ] The Apple Weather treatment in the build matches the widget lines above (medium widget), or the
+      lines are rewritten. From build 40 the small widget carries the  Weather mark too, under a
+      background that follows the forecast (2026-10-02 evening); the lines above do not mention it and
+      stay true, so check the mark on both sizes and that the review note describes both.
+- [ ] The widget App ID has the App Group enabled and the archived `.appex` carries it; otherwise the
+      widget never leaves "Open the app…" and the reviewer's widget steps fail.
+- [ ] The review note (below, under App Review Notes) is rewritten to fit 4,000 characters.
+- [ ] "Shows the source and its update time next to any closure it reports" (What's New, both languages, and the
+      review note) covers the widget too: on a device, the small, medium and rectangular widgets show the
+      source and its time under a closure, and the circular and inline widgets show a plain skipped day
+      (DAYOFF-SPEC §7, 2026-10-01). If the owner instead records a §7 exception that restores 停班 on the
+      circular face, scope that sentence to the app.
+- [ ] The 2.1(a) section of `app-store-submission-checklist.md` is marked historical for 1.8.0+.
+
+---
+
+## 1.7.0 (30) — current submission copy, 2026-09-21
+
+本節為目前版本優先使用的完整文案。1.7.0（30）已完成封存及 ASC 上傳，並加入內部
+TestFlight 群組；不代表已提交 App Review、公開發布或完成所有端到端驗收。下方原有
+1.7.0（29）及更早文案完整保留作為歷史，不能再直接貼到新版本。特別是「前三次免費」、
+「不需要內購」、「沒有後端」、「AI 內容不連結身分」及路線頁顯示天氣等舊敘述已不適用。
+
+### Internal catalog reference — do not paste into the public description
+
+| Product | Type / duration | United States | Taiwan |
+| --- | --- | --- | --- |
+| Monthly subscription / 月訂閱 | Auto-renewable, one month | US$1 per month | NT$10 per month |
+| One-time purchase / 買斷 | Non-consumable, one payment | US$15 once（2026-10-03 23:2x 改價，base price，立即生效） | NT$150 once（2026-10-03 改價，立即生效） |
+
+2026-10-03 讀回 ASC：買斷（Apple ID 6812814810，`com.shukaihu.RainyClock.banner.lifetime`）台灣 (TWD) 目前定價
+**$150.00（手動調整）**，於 2026-10-03 約 15:05 讀回；這次自訂價格調整只勾選台灣，所以美國 base price 與其餘 174 個
+自動定價國家仍是 **US$10.00**。2026-09-29 的 US$15 決定在美國尚未執行，是擁有者待辦（分類器擋下第二次開啟價格調整對話框），
+步驟如下：價格排程 ＋ → 自訂的價格調整 → 立即進行價格調整 → 手動管理所有國家或地區的價格 → 美國 (USD) 輸入 15.00，
+點「查看其餘價格」確認顯示 $15.00 → 下一步 → 在 175 國的表格中把台灣 (TWD) 改回 $150.00（Apple 的對應價會是 $490.00）→ 確認。
+**不要用「全球的價格調整」**，它會把台灣重新等價化成 NT$490。月訂閱不變。手機上 14:47 的「會員與方案」仍顯示 NT$100.00
+（StoreKit 即時價格；改價生效後由 StoreKit 自行更新）。App 的備援價目表 `MembershipListedPrice`
+（`RainyClock/Services/MembershipModels.swift` 63-72 行：TWN 買斷 `NT$100`、USA 買斷 `$10.00`，只在幣別不符時顯示）在已上架的
+build 40 仍是舊值；1.8.1（`dd65a13`，同日下午）改為 NT$150／$15.00 並有測試，尚未上傳。（2026-10-03 23:2x 讀回：擁有者先用「全球的價格調整」把基準改成 US$15.00，其餘 174 個自動定價地區跟著等值化（如 TRY ₺799.99、CNY ¥98.00、DKK kr 129.00），再以「特定國家」把台灣改回 $150.00；讀回美國 $15.00、台灣 $150.00（手動），沒有排程中的調整。美國改價完成，1.8.1 送審的擋板解除。）
+
+兩方案均移除 banner、解鎖日曆，並共用每日一次免看廣告的 AI 生成；買斷優先顯示，不
+自動取消既有 Apple 訂閱。新購不提供年方案。商品供應目前僅美國與台灣，未來地區自動
+供應關閉。以下公開描述不硬寫售價，付款畫面以 StoreKit 當地價格為準。1.7.0 不公開
+臨時放假功能，也不承諾買斷包含尚未發表的未來功能。
+
+### Description — English
+
+Rainy Clock helps you plan an earlier start when rain may slow your commute.
+
+Set your home and work addresses, choose how you travel, and pick your usual wake-up time. Choose a rain probability threshold and how much earlier you want to wake up. Rainy Clock uses the available Apple Weather forecast to adjust your alarm when rain is expected along your commute.
+
+TOMORROW AT A GLANCE
+See tomorrow's expected alarm time and the reason for an earlier or skipped alarm. The weather card brings home and work forecasts together with animated sunshine, clouds and rain.
+
+SETTINGS THAT STAY ORGANIZED
+• Time, Route, Calendar and Other keep each setting in one place.
+• Changes save automatically.
+• Preview your route with Apple Maps, or collapse the map when you do not need it.
+• Choose separate sounds for an early alarm and an alarm at your usual time.
+• Choose your repeat weekdays, snooze preferences and 12-hour or 24-hour display.
+
+CALENDAR FEATURES WITH A PAID PLAN
+Choose Taiwan office holidays or United States federal holidays with standard observed dates. Browse the alarm calendar and change individual dates to ring or stay silent. Manual date choices take priority over the selected holiday rules. US state, school and employer calendars may differ; use date overrides for your own schedule.
+
+MAKE YOUR OWN AI ALARM VOICE
+Write what you want to hear and choose a voice. Voice previews are built in and work offline. Generated sounds are saved on your phone; playing or reusing a saved sound does not use a generation.
+
+The free plan includes one initial AI generation. After that, each additional generation requires a completed rewarded ad.
+
+OPTIONAL MEMBERSHIP
+Monthly subscription and One-time purchase both include:
+• Remove banner ads.
+• Calendar features.
+• One AI generation each day without watching an ad.
+
+The monthly plan provides these benefits while the subscription is active. The one-time purchase provides ongoing access to these benefits without a recurring payment. If you own both, your daily allowance is shared, not doubled. Each additional AI generation requires a completed rewarded ad, or paid members can wait for the next daily allowance. Unused daily generations do not carry over.
+
+Purchases use Apple's in-app purchase flow. Prices and availability come from your App Store. Monthly subscriptions renew automatically unless cancelled; manage renewal in Apple's subscription settings. A one-time purchase does not automatically cancel an existing subscription.
+
+No Rainy Clock email address or password is required. Apple-verified app and purchase information recognizes your membership. Restore purchases and Manage subscriptions are available in Settings → Other → Membership & plans → the top-right menu. Restoring purchases restores benefits, not alarm settings or saved audio. Deleting membership data does not cancel an Apple subscription.
+
+ALARMS AND CONNECTIONS
+On iOS 26 and later, AlarmKit alarms can sound through Silent mode and Focus, with optional snooze. On iOS 17–25, alarms use local notifications and are affected by notification settings and the silent switch. Fresh forecasts, purchases and AI generation require an internet connection. Background forecast updates depend on iOS availability; already scheduled alarms and saved audio remain on your phone.
+
+Privacy policy: https://shukaihu.github.io/RainyClock/privacy-policy.html
+Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+
+### Description — 繁體中文
+
+雨天可能讓通勤花更多時間，Rainy Clock 幫你提早安排起床。
+
+設定住家與工作地址、交通方式和平常的起床時間，再選擇降雨機率門檻與提早幾分鐘。Rainy Clock 依取得的 Apple Weather 預報判斷通勤途中是否可能下雨，調整預計響鈴時間。
+
+明天的安排，一眼看懂
+查看明天預計幾點響鈴，以及提早或略過鬧鐘的原因。天氣卡將住家與公司的預報放在一起，以晴天、雲層與雨滴動畫呈現。
+
+設定分區，調整更直覺
+・時間、路線、日曆與其他，各項設定清楚分類。
+・選項變更自動儲存。
+・使用 Apple Maps 預覽路線，不需要時可收合地圖。
+・提早響鈴與原定時間響鈴，可分別選擇鈴聲。
+・設定每週重複日期、稍後提醒與 12／24 小時制。
+
+付費方案的日曆功能
+可選台灣辦公日曆或美國聯邦假日及標準補假日。在鬧鐘月曆中查看安排，也能指定某一天響鈴或保持安靜；手動日期設定優先於所選假日規則。美國各州、學校與公司的行事曆可能不同，可自行修改日期以符合你的作息。
+
+製作自己的 AI 人聲鬧鈴
+寫下想聽的話，再選擇聲音。內建聲音試聽可離線播放。生成完成的鈴聲存在手機上，播放或重用已存鈴聲不扣生成次數。
+
+免費方案初始提供一次 AI 生成；用完後，每完成一次獎勵廣告可再生成一次。
+
+自由選擇會員方案
+月訂閱與買斷都包含：
+・移除 banner 廣告。
+・日曆功能。
+・每天一次免看廣告的 AI 鈴聲生成。
+
+月訂閱在訂閱有效期間提供上述權益；買斷一次付款即可持續使用上述權益，沒有定期扣款。同時持有兩方案時，每日額度共用、不重複增加。額外每次生成須完成一次獎勵廣告，付費會員也可等下次每日額度更新；未用的每日次數不累積。
+
+付款使用 Apple App 內購買，價格與供應依你的 App Store 顯示為準。月訂閱會自動續訂，除非你在 Apple 訂閱設定取消；購買買斷不會自動取消已有的訂閱。
+
+不需另設 Rainy Clock Email 或密碼，透過 Apple 可驗證的 App 與購買資料認回會員。「設定 → 其他 → 會員與方案」右上角選單提供恢復購買與管理訂閱。恢復購買只恢復權益，不會同步鬧鐘設定或已存音檔。刪除會員資料與取消 Apple 訂閱是不同操作。
+
+響鈴與連線方式
+iOS 26 以上使用 AlarmKit，鬧鐘可穿透靜音與專注模式，並支援稍後提醒。iOS 17–25 使用本機通知，響鈴受通知設定與靜音開關影響。取得新預報、付款及 AI 生成需要網路；背景天氣更新依 iOS 執行機會而定，已排程鬧鐘與已存音檔仍保留在手機上。
+
+隱私政策：https://shukaihu.github.io/RainyClock/privacy-policy.html
+使用條款：https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+
+### What's New — English
+
+A clearer view of tomorrow, with settings organized around your routine.
+
+• See tomorrow's expected alarm time, with the reason for an early or skipped alarm.
+• View home and work weather together, with animated sun, clouds and rain.
+• Adjust Time, Route, Calendar and Other settings; collapse the route preview when you do not need it.
+• Choose separate sounds for early and regular alarms.
+• Use Taiwan or US holiday calendars and individual date overrides with a monthly subscription or one-time purchase.
+• Both paid plans remove banner ads and include one daily AI generation without an ad. Extra generations require a rewarded ad.
+• Manage purchases and subscription renewal from the membership page's top-right menu.
+
+### What's New — 繁體中文
+
+更清楚地掌握明天，依照自己的作息調整設定。
+
+・查看明天預計響鈴時間，以及提早或略過的原因。
+・住家與公司天氣整合在同一張卡片，搭配晴天、雲層與雨滴動畫。
+・設定分為時間、路線、日曆與其他，路線預覽可隨時展開或收合。
+・提早響鈴與原定時間響鈴，可分別選擇鈴聲。
+・月訂閱或買斷可使用台灣／美國假日日曆，並自行指定個別日期響或不響。
+・兩種付費方案都移除 banner，並提供每日一次免看廣告的 AI 生成；額外生成須完成獎勵廣告。
+・在會員頁右上角選單恢復購買或管理訂閱與續訂。
+
+### App Review Notes — English, prepared for submission
+
+The following note is prepared copy, not a statement that release validation has finished.
+Paste it only after completing the checks below. No Rainy Clock demo login is required;
+do not paste developer credentials or Sandbox tester passwords into App Review Information.
+
+RAINY CLOCK 1.7.0 (30)
+
+This is an iPhone app. Please test alarms on an iPhone running iOS 26 or later. It uses AlarmKit for system alarms and snooze; the bundled widget extension provides the alarm Live Activity, not a Home Screen widget. On iOS 17–25 it uses local notifications instead.
+
+No separate Rainy Clock email/password account or Sign in with Apple button is required. The app recognizes membership using Apple-verified app and purchase information. Apple may present its own authentication or purchase sheet. App Review Information does not require a Rainy Clock demo account.
+
+PURCHASES AND CALENDAR
+Go to Settings → Other → Membership & plans. The monthly auto-renewable subscription is com.shukaihu.RainyClock.plus.monthly; the non-consumable one-time purchase is com.shukaihu.RainyClock.banner.lifetime. The plans both remove banner ads, enable calendar features and include one daily AI generation. Buying the one-time plan does not cancel an existing Apple subscription. There is no annual plan offered for new purchase.
+
+The top-right menu contains Restore purchases, Manage subscriptions and Delete membership data. Active subscriptions show their validity date and renewal status. Selecting Auto-renewal opens Apple's subscription management; the app does not change renewal with a local switch. Deleting membership data does not cancel an Apple subscription. Restore purchases restores benefits only, not local alarm settings or audio.
+
+After purchase, open Settings → Calendar and enable calendar rules. Select Taiwan or United States, then open the alarm calendar. Swipe horizontally to change months. Tap a date to change ring/silent, then confirm at the top right. Only today is outlined; an orange dot marks a date that differs from the chosen calendar. US dates follow standard federal holidays and observed dates, not every state's, school's or employer's calendar.
+
+AI VOICE
+Settings → Time has separate sound settings for early and regular alarms. Choose AI Voice, enter a short line and select a voice. Built-in voice previews work offline without spending a generation. Successful audio is saved on the phone for later alarms. The free plan starts with one generation; paid plans have one shared daily generation. Extra generations require a completed rewarded ad, or a paid member can wait for the daily allowance to reset. Playing saved audio does not consume quota. AI generation uses our backend and Google speech services; content and usage are associated with the internal membership as disclosed in the privacy policy.
+
+Apple Sandbox purchases and TestFlight membership data are isolated from production. Production ad traffic is intentionally disabled in Sandbox/TestFlight, so rewarded ads may not be offered there. No simulated ad completion grants credits. An unavailable ad does not affect built-in sounds, saved audio or already scheduled alarms.
+
+ALARM AND WEATHER
+Settings → Route sets home, work and travel mode; the preview map is collapsible. Settings → Time sets the normal time, rain threshold and early-alarm lead time. Allow alarm permission, set a near-future time on an enabled repeat day and lock the phone to test. The Alarm page displays tomorrow, so use the actual scheduled test time to verify today's alarm. Background work refreshes forecasts when iOS permits; a failed update does not delete an existing alarm.
+
+Privacy policy: https://shukaihu.github.io/RainyClock/privacy-policy.html
+Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+
+### App Review Notes — 繁體中文，送審用草稿
+
+以下為英文審查說明的繁中版本；同樣須先完成下方驗收，不代表已送出或全面驗收成功。
+
+RAINY CLOCK 1.7.0（30）
+
+這是 iPhone App，請使用 iOS 26 以上的 iPhone 測試鬧鐘。App 使用 AlarmKit 響鈴與稍後提醒；附帶的 widget extension 僅提供鬧鐘 Live Activity，不提供主畫面小工具。iOS 17–25 則使用本機通知。
+
+不需要另外建立 Rainy Clock Email／密碼，沒有「使用 Apple 登入」按鈕。會員透過 Apple 可驗證的 App 與購買資料認回；系統可能出現 Apple 自己的認證或購買畫面。App Review Information 不需要 Rainy Clock 示範帳號。
+
+購買與日曆
+「設定 → 其他 → 會員與方案」提供月訂閱 com.shukaihu.RainyClock.plus.monthly，以及非消耗型買斷 com.shukaihu.RainyClock.banner.lifetime。兩者均移除 banner、解鎖日曆並提供每日一次 AI 生成。購買買斷不會自動取消現有 Apple 訂閱，沒有提供新購年方案。
+
+右上角選單可恢復購買、管理訂閱與刪除會員資料。有效訂閱會顯示效期及續訂狀態；點「自動續訂」會開啟 Apple 訂閱管理，App 不以本機開關自行改變續訂。刪除會員資料不會取消 Apple 訂閱；恢復購買只恢復權益，不同步手機的鬧鐘設定或音檔。
+
+購買後到「設定 → 日曆」啟用日曆規則，選擇台灣或美國，再進入鬧鐘月曆。左右滑動換月，點日期切換響鈴／安靜，再於右上角確認。只有今天有外框，橘點表示與目前日曆規則不同。美國採常態聯邦假日與標準補假，不涵蓋各州、學校或公司的所有休假安排。
+
+AI 人聲
+「設定 → 時間」可分別設定提早與原定時間的聲音。選 AI 人聲、輸入短句，再選擇聲音。內建聲音試聽可離線使用，不消耗生成次數。成功生成的音檔存在手機供鬧鐘播放。免費會員初始一次，付費方案共用每日一次；額外生成需完成一次獎勵廣告，付費會員也可等待每日額度重設。播放已存音檔不扣額度。台詞會經後端送到 Google 語音服務，內容與用量連結內部會員，已在隱私政策揭露。
+
+Apple Sandbox／TestFlight 的會員與購買資料和正式資料隔離。Sandbox／TestFlight 刻意停用正式廣告流量，因此可能沒有獎勵廣告可用；不以模擬看完廣告增加次數。廣告暫不可用不影響內建鈴聲、已存音檔或已排程鬧鐘。
+
+鬧鐘與天氣
+在「設定 → 路線」設定住家、公司與交通方式，地圖預覽可以收合。在「設定 → 時間」設定正常起床時間、降雨門檻與提早時間。允許鬧鐘權限後，在啟用的重複日設定稍後幾分鐘響鈴，再鎖定手機測試。「鬧鐘」首頁顯示的是明天，請以實際排程時間驗證今天的測試鬧鐘。背景工作依 iOS 允許的機會更新預報，更新失敗不會直接刪除原鬧鐘。
+
+隱私政策：https://shukaihu.github.io/RainyClock/privacy-policy.html
+使用條款：https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+
+### Before public submission — internal checklist, not App Store copy
+
+- [ ] 在 TestFlight 1.7.0（30）實機確認新會員認回、台灣／美國 StoreKit 價格、月訂閱／買斷權益、重開 App、恢復購買及帳號切換。既有 Debug Sandbox 購買通過不等於這個發行檔已通過。
+- [ ] 驗證真實 AI 生成、後端可靠保存、手機音檔可用、成功扣次、失敗／重試不重扣，以及每日重設。不得把建置、mock 或單元測試通過寫成這些項目已驗收。
+- [ ] 用 LevelPlay 官方測試裝置／測試方式完成真實 S2S 獎勵回呼、重放與扣次驗證；無測試廣告時不要求反覆看正式廣告，也不假造次數。
+- [ ] 驗證取消續訂後仍保留當期權益、實際到期、Apple 已驗證退款／撤權及刪除會員流程。退款表單送出或單次 HTTP 200 不是退款完成證據。
+- [ ] 核對升級會員固定補發一次只發一次；舊廣告餘額仍保留待核對，不宣稱已完成無損雲端移轉。
+- [ ] 核對首次月訂閱、訂閱群組及買斷送審資料／審查截圖，僅美國＋台灣供應，年方案停售；重讀 Paid Apps 協議、銀行及稅務狀態。
+- [ ] 公開隱私政策、App Privacy 表單及 archive Privacy Report 均須與會員、購買、AI 內容／音訊、用量及廣告實際行為一致；驗證政策與 EULA 連結。參考 [Apple 訂閱說明](https://developer.apple.com/app-store/subscriptions/) 與 [恢復購買要求](https://developer.apple.com/in-app-purchase/)。
+- [ ] 用 build 30 製作新版截圖：明天鬧鐘／天氣、統一設定卡片、可收合路線、付費日曆及月訂閱／買斷；路線設定不再顯示天氣。截圖與對外描述均不出現臨時放假功能。
+- [ ] 驗證 iPhone 實際響鈴、兩種聲音、離線保留排程及日曆到期銜接；確認要送審的 build 與以上文案一致後，才貼入 ASC 並提交。
+
+---
+
+以下為較早版本與工作階段的文案及設定紀錄，保留歷史，不作為 1.7.0（30）的最新描述。
+
+
 > **English (U.S.) was added with the `1.6.4 (19)` submission** and goes live when that version is released. Two gotchas discovered while adding it on 2026-07-29: (1) the English app names "Rainy Clock" and "RainyClock" are **taken by other accounts**, so the English listing name is `Rainy Clock: Rain Alarm`; (2) App Store Connect's version page has a UI bug — when adding a localization fails (e.g. because of the name conflict), the 儲存 button just shows a red error icon with no message and retries a doomed create forever. The real error is only visible on the `POST /iris/v1/appStoreVersionLocalizations` response (409). The workaround that worked: create the `appInfoLocalizations` record (name + subtitle) via the iris API from the logged-in browser session, then PATCH the auto-created `appStoreVersionLocalizations` with the copy below.
 >
 > **Re-checked 2026-08-13:** English "Rainy Clock" is still taken — `PATCH /iris/v1/appInfoLocalizations` returns 409. The App 資訊 page now shows a proper inline error for this (the silent-red-icon bug seems specific to the version page), including a name-release request link (`apple.com/legal/internet-services/itunes/appnamenotices/`) — trademark holders only, so not an option for us. No live app anywhere uses the name; it is squatted by an unreleased app. The **繁體中文 name had actually been live as `RainyClock` (no space)**, not `Rainy Clock` as this table used to claim; renamed to `Rainy Clock` in ASC on 2026-08-13, publishing with the next release. Same day, the English name was changed to **`Rainy-Clock`** (hyphen) — that variant was accepted, so the squat covers only the exact strings "Rainy Clock"/"RainyClock". The `: Rain Alarm` suffix is gone; "rain alarm" stays in the keyword field either way.
@@ -50,7 +365,7 @@ Key features:
 
 On iOS 17–25, alarms are scheduled as local notifications and still follow the silent switch.
 
-Rainy Clock does not require an account and does not run its own backend server.
+Rainy Clock does not require an email address or password. AI voice generation uses our backend and Google speech services. When membership is enabled, Apple-verified app and purchase data recognize your membership and restore purchases; membership, purchase status, AI usage and verified ad rewards are stored on our backend. Alarm settings and saved audio remain on your device. Restoring purchases does not sync those files.
 
 ### 繁體中文
 
@@ -70,7 +385,7 @@ Rainy Clock does not require an account and does not run its own backend server.
 
 iOS 17–25 以本機通知排程鬧鐘，響鈴仍會受靜音開關影響。
 
-雨天鬧鐘不需要註冊帳號。你輸入的 AI 語音台詞會送到我們的轉發服務並交給 Google 合成，其餘資料都留在裝置上。
+雨天鬧鐘不要求 Email 或密碼。AI 語音台詞會送到我們的後端並交給 Google 合成。啟用會員服務後，透過 Apple 可驗證的 App 與購買資料認回會員及購買權益，會員、購買狀態、AI 用量與已驗證廣告獎勵會儲存在後端。鬧鐘設定與手機已存音檔仍保留在裝置上，恢復購買不會同步這些資料。
 
 ## Keywords
 
@@ -81,6 +396,65 @@ rain alarm,weather alarm,commute alarm,smart alarm,rain,weather,alarm clock,comm
 ### 繁體中文
 
 雨天鬧鐘,天氣鬧鐘,通勤鬧鐘,智慧鬧鐘,降雨,天氣,鬧鐘,通勤
+
+## Version 1.8.0 (38) “What’s New”
+
+Merged on 2026-10-01 into the single 1.8.0 draft at the top of this file (closures, alarm switch,
+Next Alarm widget). The 2026-09-28 / 09-30 notes that stood here — closure rule first, the switch as its
+own bullet, the plan wording decided on 2026-09-28 — moved there with it.
+
+## Version 1.7.0 (29) “What’s New” — LOCAL DRAFT
+
+Build 1.7.0 (29) uploaded to App Store Connect on 2026-09-16 at 22:19:55 Asia/Taipei; Apple acknowledged the upload and began processing. Not submitted for review; the copy below remains a local draft. Version 1.7.0 includes the native UI and Taiwan / United States holiday calendars. Temporary disaster closures are deferred to 1.7.1, hidden and disabled in this build; implementation is retained in the development archive. Membership is implemented locally but its backend and paid products are not yet enabled.
+
+### English
+
+• Open straight to your alarm overview. Tap an item to jump to its settings.
+• Settings are organized into Time, Route, Calendar and Other, with changes saved automatically.
+• Choose Taiwan office holidays or United States federal holidays, including standard observed dates.
+• Browse the year one month at a time. Tap a date to make it ring or stay silent; your manual changes always come first.
+• See how far ahead your calendar alarms are scheduled, with a reminder before they need renewing.
+• Switch calendar rules on or off, and choose 12-hour or 24-hour times for alarms and evening previews.
+• Choose separate sounds for early and regular alarms, including saved AI voices.
+• The free plan includes one initial AI voice generation; each additional generation requires a rewarded ad.
+
+### 繁體中文
+
+・開啟 App 即可查看鬧鐘狀態，點選資訊直接前往對應設定。
+・設定分為時間、路線、日曆與其他，選項變更自動儲存。
+・可選台灣辦公日曆或美國聯邦假日，支援美國假日的標準補假日。
+・用月曆查看整年的響鈴安排，點一下即可修改某天響或不響，手動設定優先。
+・清楚顯示日曆鬧鐘已排程到哪一天，並在需要續排前提醒。
+・可開關行事曆規則，並選用 12 小時制或 24 小時制顯示鬧鐘與前晚預告時間。
+・提早響鈴與原定時間響鈴可分別選擇音色或已儲存的 AI 人聲。
+・免費方案初始提供一次 AI 人聲生成，用完後每完成一次獎勵廣告可再生成一次。
+
+## Version 1.6.9 (28) “What’s New”
+
+One new feature — the evening-before preview — leads; the ad-control move and the quota
+change follow because they are true and small. Nothing invented.
+
+### English
+
+```
+Know tonight what tomorrow's alarm will do.
+
+• Evening preview: the night before an alarm, at a time you choose, Rainy Clock tells you where on your route rain is likely, how likely, whether that moves the alarm earlier, and when the forecast was checked. If your phone cannot update forecasts in the background, it says so, so you can open the app. If the morning's forecast then moves the alarm, a silent notice says why. Tap "Send a preview" to see one right away, or switch it off under Snooze in the Alarm tab.
+• "Report an ad" and the ad privacy options now sit together at the bottom of the Alarm tab, out of the alarm settings.
+• A report link also appears right under the banner, and the report now says which ad it is about so it can actually be traced and blocked.
+• Your voice-alarm generations, including ones earned by watching a video, now stay with your phone through a reinstall.
+```
+
+### 繁體中文
+
+```
+前一晚就知道明早鬧鐘會不會提前。
+
+• 前一晚預告：有鬧鐘的前一晚，在你選的時間，雨天鬧鐘會通知你路上哪一段降雨機率多高、有沒有超過你設的門檻、鬧鐘會不會提前，以及預報是什麼時候查的。如果手機目前無法在背景更新預報，也會直接告訴你，讓你開一下 App。早上的預報如果又改變了鬧鐘時間，也會有一則不出聲的通知說明原因。按「先看一則」可以馬上看到長什麼樣子；不想收到的話，鬧鐘分頁的賴床設定下方可以關掉。
+• 「檢舉廣告」和廣告隱私設定現在一起放在鬧鐘分頁的最下方，不再混在鬧鐘設定裡。
+• 橫幅廣告下方也多了檢舉入口，而且檢舉內容現在會註明是哪一則廣告，方便追查與封鎖。
+• 語音鬧鐘的生成次數（包括看影片換到的）現在會跟著手機保留，重新安裝也不會遺失。
+```
 
 ## Version 1.6.8 (27) “What’s New”
 
@@ -289,9 +663,162 @@ uses local notifications only (untrue since `1.6.3` adopted AlarmKit — and it 
 not track (untrue since `1.6.5` added ATT), while everything up to `1.6.6` describes Google
 AdMob and `npa=1`, which `1.6.7` replaced with Unity LevelPlay.
 
-### Version-specific note prepared for 1.6.8 (27) — CURRENT
+### Version-specific note for 1.8.0 (38) — LOCAL DRAFT
 
-The only note to paste. Update the build number if it moves.
+**Paste this, not the facts below: [`appstore-review-notes-1.8.0-40.txt`](appstore-review-notes-1.8.0-40.txt)**
+(3,997 characters, under the 4,000 limit) — pasted into App Store Connect on 2026-10-03 and submitted
+with build 40 (read back: 3,996 characters, the file without its final newline). It is the 2026-10-01 note
+with line 1 changed and one sentence rewritten on 2026-10-02 evening: "Only medium shows weather, with
+the Apple Weather mark; …" became "Small (forecast background) and medium (weather column) show the
+Apple Weather mark. Tapping that column opens Apple's legal page via the app; small opens the app's
+Alarm tab, whose weather card links to it." (To make room, the sentence before it lost "It" and
+"e.g. … or".) Kept as pasted at the time, not for reuse:
+[`-38`](appstore-review-notes-1.8.0-38.txt) (3,916 characters, written 2026-10-01) and
+[`-39`](appstore-review-notes-1.8.0-39.txt) (the same text with line 1 changed). One note for the whole version: the
+widget, typhoon closures with the no-purchase "View map demo" path, the alarm switch, then the 1.7.1
+essentials (tracking 2.1, location 2.1(a), purchases, calendar, AI voice, sandbox) compressed. Three
+drafts from different priorities were scored by two judges, the winner was merged with the others'
+best parts, and every claim (27) was checked against the code; afterwards the consent regions were
+widened to Switzerland and the closure switch's notification prompt was added, to match the 1.8.0
+fixes. The facts-only material below stays as the record it was condensed from.
+
+**The one 1.8.0 review-note draft** (2026-10-01, `ios/widget` merged into the 1.8.0 line): the
+closure and alarm-switch sections below (`ios/main`, 2026-09-28 / 09-30) plus the widget section
+from `ios/widget` (2026-09-24), which follows them. It keeps the facts only: pasted on top of the
+1.7.1 (37) note it runs well past App Review Information → Notes' 4,000 characters, so the final
+text is rewritten separately and approved by the owner. `appstore-review-notes-1.8.0-DRAFT.txt`
+(the widget branch's full paste-ready note, built on the 1.7.0 (34) note with the closure rule still
+gated off) is superseded by this draft and kept only as a record of that wording.
+
+Drafted 2026-09-28. Paste it on top of the 1.7.1 (37) note that was actually sent
+(`docs/appstore-review-notes-1.7.1-37.txt`), with the build number changed. **When pasting, change
+that note's "the Alarm tab shows tomorrow's alarm" to "the Alarm tab shows the next alarm: today's
+until its time has passed, then tomorrow's"** (2026-09-29 change; a reviewer's near-future test
+alarm now appears under "Next alarm"). **Also change that note's "In the EEA/UK the app's own ad-privacy
+choice appears first" to "In the EEA, the UK and Switzerland the app's own ad-privacy choice appears
+first"**: build 38 shows the consent sheet in Switzerland too (and in EU territories with their own
+region codes, such as Réunion or the Canary Islands), before the tracking request, as the privacy
+policy already says. The plan sentence
+is final: on 2026-09-28 the owner decided the rule comes with both the monthly subscription and
+the one-time purchase, not the free plan ([PRODUCT_DECISIONS](PRODUCT_DECISIONS.md)), and the
+bracketed internal notes that stood in for that decision have been removed. The PURCHASES
+section of the 1.7.1 note ("Both remove banner ads, unlock calendar features … the one-time plan
+provides these benefits permanently") is now consistent with this build; it may be left as is,
+or its benefit list may add temporary disaster closures when the note is pasted. The production
+membership service was redeployed on 2026-09-30, so a reviewer testing with the one-time purchase
+gets the closure rule. Paste the ALARM SWITCH paragraph below as well, and the NEW: HOME SCREEN AND LOCK SCREEN WIDGET
+section after it (English, then its Chinese version). The widget section supersedes every earlier
+"no Home Screen widget" / 2.1(a) statement; with the widget, "the Alarm tab shows tomorrow's alarm"
+in the 1.7.1 note becomes "the Alarm tab shows the next alarm" as noted above.
+
+```
+TEMPORARY DISASTER CLOSURES (new in 1.8.0)
+Settings → Calendar has a new "Use temporary closure rules" switch, off by default. The rule is included with both paid plans: an active Rainy Clock Plus monthly subscription or the one-time purchase. On the free plan the switch cannot be turned on, and a lock line under it reads "Temporary closure rules are included with a subscription or one-time purchase" (tapping it opens the membership screen); "View map demo", described below, works on every plan. When it is on, two rows appear below it: "Closure preferences" and "Closure map". "Closure preferences" lets the user choose work closures, school closures or both, and shows the township/district the app derived from the home and workplace addresses entered in the Route settings; to change a district, the user changes the address there. Location is not used.
+
+The rule depends on live government announcements. Taiwan's Directorate-General of Personnel Administration (DGPA) publishes work and school closures through the National Science and Technology Center for Disaster Reduction (NCDR); the app reads the data.gov.tw open-data copy of that feed (dataset 20457, Open Government Data License v1.0) through our own Cloud Run service, which holds one verified cache so phones do not scrape the government site. Outside a typhoon or other disaster there is normally no active closure, so during review you will most likely see "no announcement" states and an alarm that behaves exactly as before. The app shows the source and the source's own update time next to any closure it reports. A "fetch failed" state is visibly different from "no closure announced"; neither changes the alarm, only a verified announcement that matches the home or workplace district does.
+
+To see what a closure looks like without waiting for a typhoon, open the Settings tab, choose "Calendar" at the top, and tap "View map demo" in the card below the "Use temporary closure rules" switch. The row is there whether or not the switch is on, and it needs no subscription or purchase. The demo is labelled "Demo data · Not live" at the top and shows fictional sample announcements (for example Taipei City closed city-wide, and Xindian District of New Taipei City closed at district level); it carries no government source credit or source update time, since the announcements are made up. It does not fetch or store announcements and never changes the alarm or push registration.
+
+Notifications: when the feature is on, the app registers for push. On iOS 26 and later the alarm itself uses AlarmKit, whose permission is not notification permission, so turning the switch on asks once for notification permission if the app has not asked before; declining keeps the rule on (the alarm still follows the announcements the app fetches), and the switch then says announcements cannot appear, with a button to the notification settings. Our service sends the same short, location-free notification to every registered device when the announcements change; the bundled Notification Service Extension (com.shukaihu.RainyClock.DayOffNotification) then reads the home and workplace districts, which are stored only in the app's App Group on the device, fetches the announcements and rewrites the notification locally: with sound when the user's district has a new announcement, silently when the announcements do not concern them or the user has turned the alarm off. If the extension cannot decide (for example no upcoming alarm, no district for the addresses, or its own fetch fails), the generic notification is shown as sent, with sound. The push is informational. The alarm is silenced only by the app itself, after it has fetched and verified a matching announcement and successfully rescheduled; a notification alone never cancels anything. If the announcement cannot be verified or the network is unavailable, the alarm rings as usual.
+
+ALARM SWITCH (new in 1.8.0, free on every plan)
+The Alarm tab has a switch next to its title. Turning it off asks for one of two choices: "Turn Off Next Alarm Only" — only the next scheduled alarm is removed and every later one stays registered, so the switch turns back on by itself after that morning — or "Turn Off Until I Turn It Back On", which removes all alarms until the switch is turned on again. Turning it on re-arms immediately. To test: with a route set and an alarm scheduled, turn the switch off and choose either option; the card below shows "Skipped" (only the next alarm) or "Alarm Off".
+
+Data: the phone sends our service a random installation identifier, the APNs token and a device-held credential (the service stores only its SHA-256 hash), and after processing an announcement it reports the announcement revision, timestamps and an applied / no-alarm result. Home and workplace addresses, districts, routes, alarm times and skipped dates are never uploaded. There is no location permission request for this feature. Details are in the "Temporary disaster closures" section of the privacy policy.
+```
+
+繁體中文（同一段的中文版，供繁中審查說明使用）：
+
+```
+天災臨時放假（1.8.0 新增）
+「設定 → 日曆」新增「使用臨時放假規則」開關，預設關閉。此規則包含在兩種付費方案中：有效的 Rainy Clock Plus 月訂閱或買斷。免費方案無法打開開關，下方有鎖頭一行「訂閱或買斷可使用臨時放假規則」（點了進入會員畫面）；下方說明的「查看地圖示範」在任何方案都可使用。開啟後下方出現兩列：「停班停課偏好」與「停班停課地圖」。「停班停課偏好」可選擇看停班、停課或兩者，並顯示 App 依「路線」設定中住家與公司地址判斷出的鄉鎮市區；要更改行政區，請到該處修改地址。此功能不使用定位。
+
+此規則依賴政府即時公告。行政院人事行政總處經國家災害防救科技中心（NCDR）發布停班停課公告；App 透過我們自己的 Cloud Run 服務讀取 data.gov.tw 的開放資料版本（資料集 20457，政府資料開放授權條款第 1 版），服務只保存一份已驗證快取，手機不會抓取政府網站。非颱風或災害期間通常沒有生效中的公告，因此審查時多半只會看到「沒有公告」的狀態，鬧鐘行為與先前相同。App 顯示任何停班停課結果時都會標示資料來源與來源本身的更新時間；「取得失敗」與「沒有公告」是不同的顯示狀態，兩者都不會改變鬧鐘；只有經確認、且符合住家或公司行政區的公告才會。
+
+不必等颱風也能看到停班停課的樣子：打開「設定」分頁，上方選「日曆」，點「使用臨時放假規則」開關下方卡片裡的「查看地圖示範」。不論開關是否打開都有這一列，也不需要訂閱或購買。示範畫面頂端標示「示範資料・非即時公告」，顯示虛構的範例公告（例如臺北市全市停班停課、新北市新店區停班停課），因為是虛構內容，不標示政府資料來源或來源更新時間；不會抓取或儲存公告，也不會改變鬧鐘或推播註冊。
+
+通知：功能開啟時 App 會註冊推播。iOS 26 以上鬧鐘本身使用 AlarmKit，其權限不是通知權限，因此打開開關時，若 App 尚未詢問過，會詢問一次通知權限；拒絕後規則仍保持開啟（鬧鐘仍依 App 取得的公告處理），開關下方會說明公告無法顯示，並附前往通知設定的按鈕。公告變更時，我們的服務對所有已註冊裝置送出同一則簡短、不含位置的通知；隨附的通知擴充功能（com.shukaihu.RainyClock.DayOffNotification）讀取只存在手機 App Group 的住家與公司行政區，自行取得公告後在本機改寫通知：使用者的行政區有新公告時有聲，公告與其無關或使用者已關閉鬧鐘時靜音；擴充功能無法判斷時（例如沒有即將響的鬧鐘、地址沒有對應的行政區或自己的抓取失敗），會照原樣顯示有聲的通用通知。推播只是資訊。鬧鐘只會由 App 本身在取得並確認相符公告、成功重新排程後才靜音；通知本身不會取消任何鬧鐘。無法確認公告或網路異常時，鬧鐘照常響鈴。
+
+鬧鐘開關（1.8.0 新增，所有方案皆可使用）
+「鬧鐘」分頁標題旁有一個開關。關閉時會請使用者二選一：「僅關閉下一次鬧鐘」——只移除下一次排定的鬧鐘，之後的鬧鐘都保留，那天早上過後開關自動恢復——或「關閉，直到我重新開啟」，移除所有鬧鐘直到再次打開開關。打開開關會立刻重新排定。測試方式：設定好路線並排定鬧鐘後，關閉開關並選任一選項，下方卡片會顯示「略過鬧鐘」（僅下一次）或「鬧鐘已關閉」。
+
+資料：手機傳給服務的是隨機安裝識別碼、APNs token 與裝置持有的 credential（服務只保存它的 SHA-256 雜湊）；處理完公告後回報公告版本、時間戳與「已處理／未設鬧鐘」結果。住家與公司地址、行政區、路線、鬧鐘時間與略過日期都不會上傳。此功能不要求定位權限。詳見隱私政策「天災臨時放假」一節。
+```
+
+The widget section (from `ios/widget`'s draft, with the closure and the alarm switch's faces added on 2026-10-01; its weather paragraph, in both languages, rewritten on 2026-10-02 evening for build 40 — it used to read "Only the medium size shows weather … Other sizes: no weather."):
+
+```
+NEW: HOME SCREEN AND LOCK SCREEN WIDGET
+Earlier notes said there was no Home Screen widget; there now is one, "Next Alarm" (iOS 26+; test on an iPhone: iPad compatibility mode has no widgets).
+
+Sizes: small, medium; Lock Screen rectangular, circular, inline. Each shows the next alarm and why (earlier for rain on the route; skipped for a holiday, non-repeat day, closure or silent date): today's from midnight until it rings, then tomorrow's. A repeated early ring awaiting its own morning's forecast reads "Waiting for tomorrow's forecast". With the alarm switch off it reads "Alarm Off" ("Off" on the circular Lock Screen widget); with only the next alarm off, "Off just this once; later alarms ring as usual" (shorter on the Lock Screen). A closure is shown on the small, medium and rectangular widgets with its source and the source's own update time; the circular and inline widgets have no room for the source, so they show that day only as skipped.
+
+The medium size shows weather details (conditions, rain chance), with the Apple Weather mark under them; tapping that column opens Apple's legal attribution page via the app. The small size has no weather text, but its background follows the same forecast and it carries the Apple Weather mark; tapping the small widget opens the app, whose weather card shows the mark linked to the same page. Lock Screen sizes: no weather.
+
+No network, no ads: it reads a snapshot (no addresses) the app writes to its App Group, also from background refresh.
+
+To test:
+1. Open the app; set Home and Work (Settings > Route) and the time (Settings > Time); allow alarms. Before that the widget reads "Open the app to show your next alarm".
+2. Home Screen: long-press > Edit > Add Widget > search "Rainy Clock" (雨天鬧鐘) > small or medium.
+3. Lock Screen: long-press > Customize > Lock Screen > tap the widget area > Rainy Clock.
+4. Change the time in Settings > Time; the widget follows.
+```
+
+小工具段落的中文版（供繁中審查說明使用）：
+
+```
+新增：主畫面與鎖定畫面小工具
+先前的說明寫過本 App 沒有主畫面小工具；現在有一個「下次鬧鐘」（iOS 26 以上；請用 iPhone 測試，iPad 相容模式沒有小工具）。
+
+尺寸：主畫面小型、中型；鎖定畫面長方形、圓形、inline。每個尺寸都顯示下一次鬧鐘與原因（路線可能下雨而提早；因假日、非重複日、停班停課或手動靜音而略過）：午夜到今天的鬧鐘響之前是今天的，響過之後是明天的。因雨提早響過後、隔天自己的預報還沒決定的重複提早，顯示「等待明天預報」。鬧鐘總開關關閉時顯示「鬧鐘已關閉」（鎖定畫面圓形顯示「關閉」），只關閉下一次時顯示「只關閉這一次，之後的鬧鐘照常響」（鎖定畫面為較短的版本）。停班停課在小型、中型與長方形小工具上會同時標示資料來源與來源本身的更新時間；圓形與 inline 放不下資料來源，那天只顯示為略過。
+
+中型顯示天氣（天氣狀況、降雨機率），下方有 Apple 天氣標記；點天氣欄會經由 App 開啟 Apple 的法律聲明頁。小型不寫天氣文字，但背景跟著同一份預報變化，並有 Apple 天氣標記；點小型會開啟 App，App 的天氣卡有同一個標記，連到同一頁。鎖定畫面的尺寸不顯示天氣。
+
+不連網、無廣告：小工具只讀 App 寫進 App Group 的資料（不含地址），背景更新時也會寫入。
+
+測試方式：
+1. 開啟 App，設定住家與公司（設定 > 路線）與時間（設定 > 時間），允許鬧鐘。在此之前小工具顯示「開啟 App 以顯示下次鬧鐘」。
+2. 主畫面：長按 > 編輯 > 加入小工具 > 搜尋「雨天鬧鐘」> 小型或中型。
+3. 鎖定畫面：長按 > 自訂 > 鎖定畫面 > 點小工具區 > 雨天鬧鐘。
+4. 在「設定 > 時間」改時間，小工具會跟著變。
+```
+
+### Version-specific note for 1.7.0 (29) — LOCAL DRAFT
+
+The app adds a Settings tab. The general ad-report route and GDPR privacy options are now
+under Settings → Other → Privacy & ads; the per-banner report remains below the ad. Settings also holds the
+normal evening-preview toggle/time. The engineering sample-send button was removed.
+
+Settings → Alarm calendar has an enable switch, off by default. Off uses weekly rules and hides
+the calendar controls without deleting manual dates. On shows the source selector and month
+editor, where tapping a future date toggles ring/silent; manual edits override the calendar and
+weekday defaults. No access to the user's system calendars is requested. Settings also offers
+AM/PM or 24-hour time display for alarms and evening previews. Both time pickers use that choice.
+The source selector supports Taiwan and the United States. U.S. federal holiday rules work offline,
+including standard observed dates; state, school and employer exceptions can be edited manually.
+The deferred 1.7.1 disaster feature has no entry point and does not affect scheduling in this build.
+
+Date exceptions use fixed alarms. The displayed coverage is 366 days on iOS 26+ and 27 days
+on iOS 17–25; opening the app extends it, with an expiry reminder seven days beforehand.
+Normal weekly-only schedules continue to repeat. No login is needed. Retain the AI voice,
+weather, alarm and advertising details in the 1.6.8 note below, updating version and the
+ad-report location to Settings. Complete the physical-device release checklist before upload.
+
+### Version-specific note prepared for 1.6.9 (28) — HISTORICAL
+
+Paste the 1.6.8 note below with the build number changed to `1.6.9 (28)`, and add this
+paragraph at the end, because 2.5.18 is the guideline this release touches and a reviewer
+should not have to hunt for the control:
+
+```
+Per guideline 2.5.18, users can report an inappropriate ad in two places: a "Report this ad" link directly under the banner, and a "Report an ad" row in the "Ads" card at the bottom of the Alarm tab (the same card holds the ad privacy options in GDPR regions). Both open a prefilled email to the developer that identifies the specific ad shown.
+
+New in this version: an optional "Evening preview" local notification the night before a scheduled alarm (21:00 by default, adjustable), stating what the alarm will do. A "Send a preview" button under the toggle delivers a sample a few seconds later. On iOS 26 this is the first feature that requests notification permission (the alarm itself uses AlarmKit, which has its own permission), so after scheduling an alarm you will see a notification permission prompt as well. Declining it disables only the preview; the alarm still rings.
+```
+
+### Version-specific note prepared for 1.6.8 (27) — carried into 1.6.9
+
+Update the build number if it moves.
 
 Written around the one thing most likely to go wrong in review: a reviewer spends the three
 free generations, then taps the exchange in a datacentre with tracking denied, where no
@@ -366,7 +893,9 @@ The app has no server and sends nothing anywhere; the background task calls Appl
 WeatherKit and re-registers the local alarm.
 ```
 
-If 2.1(a) (Home Screen widgets) is raised again, append the iPhone-only/AlarmKit paragraph
+**Not for 1.8.0 or later:** from 1.8.0 the app has a Home Screen widget, so the "no Home Screen
+widget" argument is false; use the widget section of the 1.8.0 DRAFT note at the top instead.
+Up to 1.7.x: if 2.1(a) (Home Screen widgets) is raised again, append the iPhone-only/AlarmKit paragraph
 from the `1.6.5` block below verbatim; it is left out here because that rejection was
 answered and cleared, and re-arguing a settled point invites a fresh look at it.
 
@@ -479,28 +1008,105 @@ compatibility mode; iPadOS does not offer third-party Home Screen widgets for ap
 that mode. We kindly ask that this functionality be reviewed on an iPhone running iOS 26.
 ```
 
-## Privacy Nutrition Label Draft
+## Privacy Nutrition Label Draft — membership rollout (not published)
 
-Final answers should be verified in App Store Connect before submission.
+本節是會員啟用前要送到 App Store Connect 的草稿，並非目前商店已更新。
+第一方會員處理已同步寫入 `RainyClock/PrivacyInfo.xcprivacy`；仍須合併 LevelPlay SDK 的
+實際行為／privacy manifest 及 ATT 選擇，核對最後封存的 Privacy Report。
+「免註冊」不等於不收集持續識別碼，也不等於沒有會員。
 
-| Area | Draft Answer |
+| Area / data type | Draft disclosure when membership is enabled |
 | --- | --- |
-| Account creation | No |
-| User-generated content | **Yes, once the AI voice alarm ships.** The user types the line their alarm speaks, and it is sent to a relay and on to Google to be synthesized. In the App Privacy questionnaire this is *Other User Content*, collected for App Functionality, **not** linked to identity and **not** used for tracking |
-| Location data | Used for app functionality when resolving route/weather locations |
-| Contact info | Not collected by the app |
-| Backend server | One, `weather-proxy` on Cloud Run — signs WeatherKit requests for Android, and synthesizes AI voice for both. App Store Connect never asks this; the row is here because the store description and the privacy policy both used to claim there was none |
-| Third-party SDKs | Unity LevelPlay (ironSource) SDK. **Changed in `1.6.7`** — the Google Mobile Ads SDK and Google User Messaging Platform were removed |
-| Advertising | Unity LevelPlay banner ads (one banner, no Google demand behind it — the AdMob account is terminated) |
-| Tracking | Yes, from `1.6.5 (20)`: ATT is implemented, so Device ID and advertising/usage data must be checked as "Used to Track You" |
+| Membership | Automatically recognized with verified Apple app/purchase data; no RainyClock email/password. In-app deletion, separate from Apple subscription cancellation |
+| User ID | Internal member, Apple app/purchase identity mapping and reward identity; App Functionality; linked to identity; first-party use is not tracking |
+| Device ID | App Attest key/device-verification binding and session security; **plus (1.8.0) closure updates:** a random installation identifier generated on the device, the APNs push token and a device-held credential (the service stores only its SHA-256 hash), registered only while temporary closure rules are on (expires after 90 days without renewal; turning the rule off deletes it). App Functionality; **linked** (one answer per data type, and the membership use is linked, so the stricter answer covers both); first-party use is not tracking |
+| Purchase History | Verified transactions, subscription state and refunds; App Functionality; linked; not used for first-party tracking |
+| Other User Content / Audio Data | AI script sent to Google and generated audio temporarily saved for retry; App Functionality; linked to member; not used for first-party tracking |
+| Product Interaction | Daily usage, reservations and generation outcomes; App Functionality; linked; not used for first-party tracking |
+| Advertising Data | Verified reward events and credits; App Functionality; linked; first-party reward accounting is not tracking |
+| Location | Route/weather location use remains unchanged. Membership uses IANA time zone, not home/work addresses; assess Apple service and SDK collection separately. Closure districts (1.8.0) stay on the device and in the App Group; nothing about them is uploaded |
+| Diagnostics (Other Diagnostic Data) | Existing declaration stays as it is in `PrivacyInfo.xcprivacy` (linked); **plus (1.8.0) closure receipts:** per-device latest processing report (announcement revision, check/processing timestamps and an applied / no-alarm result). App Functionality; **linked** (same one-answer-per-type rule); not used for tracking. No districts, addresses, alarm times or skipped dates |
+| Contact info | No email, name, password or payment-card form required for membership |
+| Advertising partner | Unity LevelPlay banner + optional rewarded ads; no AdMob. Keep partner Device ID / advertising / usage data tracking declarations according to actual SDK behavior and ATT |
+| Backend | Existing Cloud Run with Google speech services; new Firestore membership storage, backend-only access |
 
-**This table is a planning aid, not a mirror of the App Store Connect form.** The rows above
-name SDKs and vendors because that is useful to us; App Store Connect never asks for them. Its
-App Privacy questionnaire asks only which data types are collected, for what purpose, and
-whether each is used for tracking — the question reads "you or your third-party partners", so
-partners are in scope but are never named. Swapping Google for Unity therefore changes nothing
-in that form. Where the vendor's name does have to be right is the privacy policy page and the
-App Review note.
+會員音訊可重下載 24 小時，之後拒絕取回，實體清理由 Firestore TTL 完成（非即時刪除保證）。
+刪除入口撤銷會員存取、清除會員資料及暫存音訊；Apple 訂閱另外取消。
+最少防重／稽核摘要的保留政策需在正式開放前審定與揭露。
+
+以上表格包含內部規劃欄位，App Store Connect 實際表單只填資料類型、目的、是否與身分
+連結、是否追蹤。歷史 Review Notes 的「not linked」敘述不適用新會員生成流程。
+
+1.8.0 的停班停課用途併入既有的 Device ID 與 Diagnostics 兩列，維持「linked」：App Store
+Connect 每種資料類型只能填一個「是否與身分連結」答案，而 `PrivacyInfo.xcprivacy` 已為會員／
+App Attest 宣告 `NSPrivacyCollectedDataTypeDeviceID` 與 `OtherDiagnosticData` 為 Linked = true，
+不要為停班停課另填「not linked」或改動 manifest。停班停課紀錄本身仍與會員資料分開：dayoff-service
+用獨立的 Firestore 命名空間，`devices/<installationId>` 只有隨機安裝識別碼、token、credential
+雜湊與最新回報，沒有任何會員或 Apple 識別碼；投遞失敗的 token 另在
+`broadcasts/<revision>/retries/<token>` 保留最多 7 天。送表單前對照封存的 Privacy Report，並確認
+`RainyClock/PrivacyInfo.xcprivacy` 有為 App Group `UserDefaults` 加上 1C8F.1 理由（目前只有
+CA92.1），通知擴充功能目標尚無自己的 PrivacyInfo.xcprivacy。
+
+### StoreKit products — approved catalog, 2026-09-21
+
+| Product ID | Type | US price | Taiwan price |
+| --- | --- | --- | --- |
+| `com.shukaihu.RainyClock.banner.lifetime` | Non-consumable | US$10 once | NT$100 once |
+| `com.shukaihu.RainyClock.plus.monthly` | Auto-renewable, RainyClock Plus group | US$1/month | NT$10/month |
+
+Annual subscriptions are no longer offered. The historical `com.shukaihu.RainyClock.plus.yearly`
+identifier remains recognized for verified transactions and restoration; do not display it as a new
+purchase option. Taiwan prices are independently specified. Other storefront prices remain undecided.
+These prices were saved and read back in ASC on September 21. Monthly and lifetime are available
+in the US and Taiwan only (2 territories); annual is off sale (0 territories). Future-territory
+auto-expansion is off. The lifetime US base was changed to US$10, then Taiwan was fixed manually
+at NT$100. Apple-generated prices for other unavailable territories are not approved product prices.
+On 2026-09-29 the owner decided to raise lifetime to US$15 / NT$150 (monthly unchanged); the table
+above stays the ASC price until the owner changes and reads it back there.
+(2026-10-03: no longer the whole truth — Taiwan lifetime was changed to NT$150 that day and read back
+as $150.00; the US base is still US$10.00 pending the owner's custom price change. The current state and
+the exact owner steps are under "Internal catalog reference" near the top of this file; this table is
+kept as the 2026-09-21 record.)
+No review submission or release has occurred. Evidence is in [MEMBERSHIP-STAGING.md](MEMBERSHIP-STAGING.md).
+Sandbox readiness: the user's September 21 confirmation and screenshot establish both Taiwan and
+US testers are created. Device sign-in and purchase end-to-end verification remain pending.
+Display `Product.displayPrice`, never a manually converted currency. Paid copy must say **remove banner**, not ad-free: extra AI generations
+still require one rewarded ad each. The latest September 21 decision gives both monthly and
+lifetime banner removal, calendar and one shared daily AI generation. Lifetime permanently grants
+these current benefits and is the displayed plan when both are owned; it prevents redundant monthly
+purchase. Existing Apple subscriptions remain visible and manageable, never silently cancelled.
+Free users still have one initial generation. Temporary closures are deferred to 1.8.0 and must not
+appear in 1.7.0 paid copy; future lifetime eligibility for them is not decided. (2026-09-28: 1.8.0
+ships the feature, but the plan decision is still open, so the 1.8.0 What's New draft says only
+that it follows the plan settings, the review-note draft states what the current build does and
+is flagged to be rewritten once the owner decides, and neither adds a line to the paid copy or
+the product descriptions.)
+
+**Superseded 2026-09-28 — owner decision:** from 1.8.0 the temporary disaster closure rule is
+included with **both** plans. Lifetime (`com.shukaihu.RainyClock.banner.lifetime`) now grants
+banner removal, calendar, one shared daily AI generation **and the temporary closure rule**,
+permanently, like the calendar; monthly grants the same while active; free does not include it.
+The 1.8.0 What's New and review-note drafts above state this. The production membership service
+(`rainyclock-membership`) was redeployed with this rule on 2026-09-30 (rainyclock-membership-00006-hnb), so lifetime
+owners now receive `temporaryClosures=true`.
+
+Current lifetime descriptions — saved and read back in ASC on 2026-09-21 (not submitted):
+
+| Locale | Display name | Description |
+| --- | --- | --- |
+| English | One-Time Purchase | Remove banners. Calendar + 1 ad-free AI creation/day. |
+| 繁體中文 | 買斷 | 移除 banner，含日曆功能與每天 1 次免看廣告的 AI 鈴聲生成。 |
+
+These saved descriptions replace the historical wording that excluded calendar. The matching
+calendar entitlement change is deployed only to the isolated Sandbox revision 00004-kkd; no
+production rollout or review submission occurred. Full verification details are in staging.
+
+**2026-09-28 — owner action:** these descriptions enumerate the benefits and do not mention the
+temporary closure rule that lifetime includes from 1.8.0 (the monthly product's description, if
+it enumerates benefits too, has the same gap). They are not wrong about what they list, but if
+they should name the closure rule, the owner edits them in App Store Connect; this repo cannot.
+The ASC description field is short and the current English text already uses most of it, so
+adding the rule likely means rewording, not appending. Nothing in ASC has been changed for this decision.
 
 ## Screenshots Still Needed
 

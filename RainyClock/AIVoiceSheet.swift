@@ -16,6 +16,9 @@ struct AIVoiceSheet: View {
     static let latinBudget = 150.0
 
     @ObservedObject var viewModel: AlarmViewModel
+    let slot: CommuteAlarmSettings.SoundSlot
+    @ObservedObject private var membership = MembershipManager.shared
+    @ObservedObject private var consent = ConsentManager.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var text = ""
@@ -26,6 +29,9 @@ struct AIVoiceSheet: View {
     @State private var playingPersona: VoicePersona?
     @State private var previewTask: Task<Void, Never>?
     @State private var remaining = AIVoiceQuota.remaining
+    @State private var isPreparingReward = false
+    @State private var expiredGeneration: MembershipPendingGeneration?
+    @State private var confirmsNewGeneration = false
     @StateObject private var rewardedAd = RewardedAdController()
 
     private let client: AIVoiceGenerating = AIVoiceClient()
@@ -44,9 +50,26 @@ struct AIVoiceSheet: View {
     /// a video, because by then it is not free and saying so would be a small lie
     /// told every time the sheet opens.
     private var quotaSentence: String {
-        let format = remaining == AIVoiceQuota.freeRemaining
-            ? String(localized: "ai_voice_quota_free_remaining")
-            : String(localized: "ai_voice_quota_remaining")
+        if membership.isConfigured {
+            guard let snapshot = membership.snapshot else {
+                return MembershipText.value("生成時會安全同步會員與可用次數。", "Membership and available generations will be verified when you generate.")
+            }
+            if snapshot.quota.migrationPending && !snapshot.entitlements.dailyAI {
+                return MembershipText.value("目前可用生成次數：", "Available generations: ") + String(membership.remaining)
+                    + MembershipText.value("。原有廣告餘額仍保留於手機，待核對。", ". Your previous ad credits remain on this phone pending verification.")
+            }
+            return MembershipText.value("目前可用生成次數：", "Available generations: ") + String(membership.remaining)
+        }
+        let format: String
+        if remaining == 1 {
+            format = remaining == AIVoiceQuota.freeRemaining
+                ? String(localized: "ai_voice_quota_free_one_remaining")
+                : String(localized: "ai_voice_quota_one_remaining")
+        } else {
+            format = remaining == AIVoiceQuota.freeRemaining
+                ? String(localized: "ai_voice_quota_free_remaining")
+                : String(localized: "ai_voice_quota_remaining")
+        }
         return String.localizedStringWithFormat(format, remaining)
     }
 
@@ -62,17 +85,42 @@ struct AIVoiceSheet: View {
     private var isOverBudget: Bool { used > Self.chineseBudget }
     private var canGenerate: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !isOverBudget && !isGenerating && remaining > 0
+            && !isOverBudget && !isGenerating && (membership.isConfigured || remaining > 0)
     }
 
     private func watchAdForCredit() {
-        rewardedAd.show {
-            // The credit is written the instant the network says the reward was
-            // earned, before any attempt to generate. If synthesis then fails —
-            // a 500, a content block, no network — the retry is free and the
-            // promise made in exchange for the video is still kept.
-            AIVoiceQuota.grantCredit()
-            remaining = AIVoiceQuota.remaining
+        if membership.isConfigured {
+            isPreparingReward = true
+            Task {
+                defer { isPreparingReward = false }
+                do {
+                    // Revalidate Media & Purchases before every explicit ad view,
+                    // even if an ad loaded under the previous member is still ready.
+                    let attempt = try await MembershipRewardFlow.shared.prepare()
+                    guard rewardedAd.isReady else {
+                        rewardedAd.load()
+                        message = MembershipText.value("正在準備獎勵廣告。", "Preparing a rewarded ad.")
+                        return
+                    }
+                    rewardedAd.show {
+                        Task {
+                            message = MembershipText.value("正在確認廣告獎勵…", "Verifying your ad reward…")
+                            do {
+                                try await MembershipRewardFlow.shared.waitForCredit(attempt: attempt)
+                                remaining = membership.remaining
+                                message = MembershipText.value("已收到一次生成額度。", "One generation credit received.")
+                            } catch { message = error.localizedDescription }
+                        }
+                    }
+                } catch { message = error.localizedDescription }
+            }
+        } else {
+            // The local initial allowance and earned credits remain in use until
+            // membership rollout; changing sound slots never replenishes either.
+            rewardedAd.show {
+                AIVoiceQuota.grantCredit()
+                remaining = AIVoiceQuota.remaining
+            }
         }
     }
 
@@ -84,7 +132,7 @@ struct AIVoiceSheet: View {
                         .frame(minHeight: 90)
                         .overlay(alignment: .topLeading) {
                             if text.isEmpty {
-                                Text("ai_voice_placeholder")
+                                Text(slot == .early ? LocalizedStringKey("ai_voice_placeholder") : "ai_voice_placeholder_normal")
                                     .foregroundStyle(.tertiary)
                                     .padding(.top, 8)
                                     .allowsHitTesting(false)
@@ -148,7 +196,7 @@ struct AIVoiceSheet: View {
 
                 // Only the way *back* from empty lives down here. The count itself
                 // sits beside the button that spends it, where it is read.
-                if remaining == 0 {
+                if remaining == 0 || (membership.isConfigured && membership.snapshot == nil) {
                     Section {
                         // Offered only when an ad is really there: a button that
                         // trades a video for a generation has to be able to honour
@@ -157,14 +205,20 @@ struct AIVoiceSheet: View {
                             Button {
                                 watchAdForCredit()
                             } label: {
-                                Label("ai_voice_watch_ad", systemImage: "play.rectangle")
+                                if membership.isConfigured && !rewardedAd.isReady {
+                                    Label(MembershipText.value("準備獎勵廣告", "Prepare rewarded ad"), systemImage: "play.rectangle")
+                                } else {
+                                    Label("ai_voice_watch_ad", systemImage: "play.rectangle")
+                                }
                             }
-                            .disabled(!rewardedAd.isReady || rewardedAd.isPresenting)
+                            .disabled(isPreparingReward || rewardedAd.isPresenting || (!membership.isConfigured && !rewardedAd.isReady))
                         }
                     } header: {
                         Text("ai_voice_quota")
                     } footer: {
-                        Text(quotaExhaustedHint)
+                        if membership.isConfigured {
+                            Text(MembershipText.value("每次額外生成需完成一次獎勵廣告，獎勵由伺服器確認。付費方案也可等隔天。", "Each extra generation requires a rewarded ad verified by the server. Paid members can also wait until tomorrow."))
+                        } else { Text(quotaExhaustedHint) }
                     }
                 }
 
@@ -174,11 +228,11 @@ struct AIVoiceSheet: View {
                     }
                 }
             }
-            .navigationTitle("alarm_sound_ai_voice")
+            .navigationTitle(slot == .early ? String(localized: "ai_voice_title_early") : String(localized: "ai_voice_title_normal"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("cancel") { dismiss() }
+                    Button("cancel") { dismiss() }.disabled(isGenerating)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if isGenerating {
@@ -193,17 +247,34 @@ struct AIVoiceSheet: View {
                 // Reopen on what was last chosen rather than a blank page: the clip
                 // is audio and cannot be read back into a text field, so the words
                 // have to come from settings or they are gone.
-                text = viewModel.settings.aiVoiceText
-                persona = viewModel.settings.aiVoicePersona
-                remaining = AIVoiceQuota.remaining
+                text = viewModel.settings.voiceText(for: slot)
+                persona = viewModel.settings.voicePersona(for: slot)
+                remaining = membership.isConfigured ? membership.remaining : AIVoiceQuota.remaining
                 // Loaded ahead of being needed, so the exchange button can say
                 // whether it will work rather than finding out on the tap.
-                if remaining == 0 {
+                if remaining == 0 && !membership.isConfigured {
                     rewardedAd.load()
                 }
             }
             .onDisappear { stopPreview() }
+            .task { await membership.start() }
+            .onChange(of: membership.snapshot) { _, _ in
+                if membership.isConfigured { remaining = membership.remaining }
+            }
+            .onChange(of: consent.canRequestAds) { _, allowed in
+                if allowed && remaining == 0 && consent.canRequestMembershipRewards { rewardedAd.load() }
+            }
+            .confirmationDialog(MembershipText.value("先前音檔已超過下載期限", "The previous audio download has expired"),
+                                isPresented: $confirmsNewGeneration, titleVisibility: .visible) {
+                Button(MembershipText.value("重新生成（使用一次額度）", "Generate again (uses one credit)")) {
+                    if let expiredGeneration { generate(replacing: expiredGeneration) }
+                }
+                Button(MembershipText.value("取消", "Cancel"), role: .cancel) { }
+            } message: {
+                Text(MembershipText.value("伺服器無法再提供先前結果。重新生成是新的請求，成功後會使用一次額度。", "The server can no longer return the previous result. Generating again creates a new request and uses one credit on success."))
+            }
         }
+        .interactiveDismissDisabled(isGenerating)
     }
 
     private func playPreview(of candidate: VoicePersona) {
@@ -255,50 +326,68 @@ struct AIVoiceSheet: View {
     /// scheduling: that path also runs from a debounced settings change and from
     /// the background refresh task, and neither should be able to spend money or
     /// wait on a network call.
-    private func generate() {
+    private func generate(replacing expired: MembershipPendingGeneration? = nil) {
         stopPreview()
         isGenerating = true
         message = nil
+        let requestedText = text
+        let requestedPersona = persona
 
         Task {
-            let outcome = await client.speak(text, as: persona)
-            isGenerating = false
+            defer { isGenerating = false }
+            if membership.isConfigured {
+                do {
+                    switch try await MembershipVoiceGeneration.shared.generate(requestedText,
+                        persona: requestedPersona, replaceExpired: expired) {
+                    case .speech(let pcm, let pending):
+                        if saveVoice(pcm, text: requestedText, persona: requestedPersona) {
+                            // Local file failure never discards recovery of the durable
+                            // server result, which is already the same charged job.
+                            try MembershipVoiceGeneration.shared.complete(pending)
+                            remaining = membership.remaining
+                            dismiss()
+                        }
+                    case .pending:
+                        message = MembershipText.value("仍在生成，稍後再按生成會接續同一次，不會重複扣次數。", "Still generating. Tap Generate later to resume the same request without a second charge.")
+                    case .expired(let pending):
+                        expiredGeneration = pending
+                        confirmsNewGeneration = true
+                    }
+                } catch MembershipError.server(let code, let status) {
+                    if status == 422 { message = String(localized: "ai_voice_error_rejected") }
+                    else if code == "legacy_migration_pending" {
+                        message = MembershipText.value("目前可用次數已用完。原有廣告餘額仍保留於手機，待核對。", "Your available generations are used. Previous ad credits remain on this phone pending verification.")
+                    } else { message = MembershipError.server(code, status).localizedDescription }
+                } catch { message = (error as? MembershipError ?? .unavailable).localizedDescription }
+                return
+            }
 
-            switch outcome {
+            // Membership builds never fall back here after an authentication error.
+            switch await client.speak(requestedText, as: requestedPersona) {
             case .speech(let pcm):
-                // Spent only on a clip that actually arrived. A failed request
-                // costs the user nothing, which is also what makes the retry
-                // after a random content block harmless.
-                AIVoiceQuota.consume()
-                remaining = AIVoiceQuota.remaining
-                guard let assembled = try? GeneratedVoiceAssembler.assemble(speech: pcm),
-                      let fileName = GeneratedVoiceStore.write(
-                        assembled,
-                        fileName: "ai-\(UUID().uuidString.prefix(8)).wav"
-                      ) else {
-                    message = String(localized: "ai_voice_error_unavailable")
-                    return
+                if saveVoice(pcm, text: requestedText, persona: requestedPersona) {
+                    AIVoiceQuota.consume()
+                    remaining = AIVoiceQuota.remaining
+                    dismiss()
                 }
-
-                let previous = viewModel.settings.aiVoiceFileName
-                viewModel.settings.aiVoiceFileName = fileName
-                viewModel.settings.aiVoicePersona = persona
-                viewModel.settings.aiVoiceText = text
-                viewModel.settings.alarmSound = .aiVoice
-                // Keep the clip the alarm is about to use; drop whatever it
-                // replaced. Superseded generations would otherwise accumulate for
-                // the life of the install.
-                GeneratedVoiceStore.removeAll(except: [fileName])
-                _ = previous
-                dismiss()
-
-            case .rejected:
-                message = String(localized: "ai_voice_error_rejected")
-            case .busy:
-                message = String(localized: "ai_voice_error_busy")
-            case .unavailable:
-                message = String(localized: "ai_voice_error_unavailable")
+            case .rejected: message = String(localized: "ai_voice_error_rejected")
+            case .busy: message = String(localized: "ai_voice_error_busy")
+            case .unavailable: message = String(localized: "ai_voice_error_unavailable")
             }
         }
+    }
+
+    private func saveVoice(_ pcm: Data, text: String, persona: VoicePersona) -> Bool {
+        guard let assembled = try? GeneratedVoiceAssembler.assemble(speech: pcm),
+              let fileName = GeneratedVoiceStore.write(assembled, fileName: "ai-\(UUID().uuidString.prefix(8)).wav") else {
+            message = String(localized: "ai_voice_error_unavailable")
+            return false
+        }
+        var settings = viewModel.settings
+        settings.setVoice(fileName: fileName, persona: persona, text: text, for: slot)
+        viewModel.settings = settings
+        // An existing scheduled or snoozed alarm can still reference the old clip.
+        // Retain it until a future cleanup can prove no registered alarm uses it.
+        return true
     }
 }

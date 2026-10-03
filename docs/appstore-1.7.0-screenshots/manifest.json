@@ -1,0 +1,150 @@
+{
+  "appVersion": "1.7.0",
+  "build": "30",
+  "capturedOn": "2026-09-21",
+  "simulator": "iPhone 17 Pro Max / iOS 26.2",
+  "appStoreSizeGroup": "iPhone 6.9 inch",
+  "encoding": "RGB JPEG quality 100, no chroma subsampling, no scaling",
+  "images": [
+    {
+      "purpose": "app-store-display",
+      "path": "upload/en-US/01-alarm.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "9092d5134b23da253799fabbfe9366f9ce67be4579bc9f213626e8d3401a9a62",
+      "source": "en-US/01-alarm.png",
+      "maximumChannelMeanAbsoluteError": 0.16771
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/en-US/02-time.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "68fe7d7610631d14622a6572cfaaec007462984421dceacfa04f97d296fb72a6",
+      "source": "en-US/02-time.png",
+      "maximumChannelMeanAbsoluteError": 0.0625
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/en-US/03-route.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "503ab8bcadf03c1bf873ae1c1a5ca6c3be74e6de5af877c2de46b50ed27eb20b",
+      "source": "en-US/03-route.png",
+      "maximumChannelMeanAbsoluteError": 0.22183
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/en-US/03b-route-collapsed.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "d52e4e15b81b3f9111f48deed4b9ab4a534e7ef1ab2b8b31a3ffa05cc460f3a9",
+      "source": "en-US/03b-route-collapsed.png",
+      "maximumChannelMeanAbsoluteError": 0.05666
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/en-US/04-calendar-settings.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "b4e2e900f9e2ddb7faa11c1283cdcbde4f06c5a6ebf6f160676bab480807a532",
+      "source": "en-US/04-calendar-settings.png",
+      "maximumChannelMeanAbsoluteError": 0.06166
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/en-US/05-alarm-calendar.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "c10b00b3744daff8de1b4058be824b3fb4aca2adfdb74174d06f8abccda8eff7",
+      "source": "en-US/05-alarm-calendar.png",
+      "maximumChannelMeanAbsoluteError": 0.04933
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/zh-Hant/01-alarm.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "491c5412117a84fc52cda7c6db37cebc77dbb6703097e97925ce27d2dc5cfe42",
+      "source": "zh-Hant/01-alarm.png",
+      "maximumChannelMeanAbsoluteError": 0.16724
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/zh-Hant/02-time.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "40dcfb62f7e9fc803daf97a87c34b3469b20b5b61e7d3ac305fd809bd14486f3",
+      "source": "zh-Hant/02-time.png",
+      "maximumChannelMeanAbsoluteError": 0.06343
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/zh-Hant/03-route.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "28e0132abee67ce268ba63fd1b5a27a7c9ab7837debbfce443394d95294d70ca",
+      "source": "zh-Hant/03-route.png",
+      "maximumChannelMeanAbsoluteError": 0.21557
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/zh-Hant/03b-route-collapsed.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "513bc5be5a958789e168f48bafad8493c0e19ff37fcc8e815a1a49605535ac11",
+      "source": "zh-Hant/03b-route-collapsed.png",
+      "maximumChannelMeanAbsoluteError": 0.05687
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/zh-Hant/04-calendar-settings.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "33cd03fe13bdb15cf40377fd23f847caa19aeb34659ec6dc97327ca13749a9d1",
+      "source": "zh-Hant/04-calendar-settings.png",
+      "maximumChannelMeanAbsoluteError": 0.05907
+    },
+    {
+      "purpose": "app-store-display",
+      "path": "upload/zh-Hant/05-alarm-calendar.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "07bd09b80ca4fa0c4938e817b52b25b2b9e6baaf5be44294d114816bbbbb6108",
+      "source": "zh-Hant/05-alarm-calendar.png",
+      "maximumChannelMeanAbsoluteError": 0.04982
+    },
+    {
+      "purpose": "iap-review-local-storekit-only",
+      "path": "review/en-US/06-membership-plans-local-storekit.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "e6d31c5cee732cb1eb95733f22e7a901b7528dfc9e5cf61cda401d2a497431cc",
+      "source": "review/en-US/06-membership-plans-local-storekit.png",
+      "maximumChannelMeanAbsoluteError": 0.11492
+    },
+    {
+      "purpose": "iap-review-local-storekit-only",
+      "path": "review/zh-Hant/06-membership-plans-local-storekit.jpg",
+      "width": 1320,
+      "height": 2868,
+      "hasAlpha": false,
+      "sha256": "5f181b92aa7987cd3dcc9f162e9e414388aeab48535fd4eb99c5e92f28d2d870",
+      "source": "review/zh-Hant/06-membership-plans-local-storekit.png",
+      "maximumChannelMeanAbsoluteError": 0.11263
+    }
+  ]
+}

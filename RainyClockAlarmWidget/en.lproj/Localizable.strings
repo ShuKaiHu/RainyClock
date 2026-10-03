@@ -1,0 +1,127 @@
+/* Rainy Clock widget extension. Keys under "Shared with the app" are copied
+   byte-for-byte from RainyClock/en.lproj/Localizable.strings; a unit test
+   (TomorrowWidgetStringsTests) keeps them identical. */
+
+/* Shared with the app */
+"app_title" = "Rainy Clock";
+"ux_tomorrow" = "Tomorrow";
+"ux_expected_ring" = "Expected alarm";
+"ux_tomorrow_skipped" = "Skipped";
+"ux_not_set" = "No alarm set";
+"ux_rain_applied_forecast" = "Route rain %d%%, %d\U00A0min earlier";
+"ux_rain_applied" = "%d minutes earlier for rain";
+"ux_tomorrow_awaiting_forecast" = "Waiting for tomorrow's forecast";
+"ux_tomorrow_holiday_named" = "Tomorrow is a holiday: %@";
+"ux_tomorrow_holiday" = "Tomorrow is a public holiday";
+"ux_tomorrow_manual_skip" = "Tomorrow was manually set to silent";
+"ux_tomorrow_manual_ring" = "Tomorrow was manually set to ring";
+"ux_tomorrow_weekend" = "Tomorrow is a weekend day";
+"ux_tomorrow_unselected" = "Tomorrow is not a selected repeat day";
+"ux_tomorrow_closure" = "Work or school is closed tomorrow";
+"ux_route_needed" = "Complete your route";
+"ux_tomorrow_weather_failed" = "Tomorrow's weather could not be updated";
+"ux_tomorrow_weather_stale" = "Weather needs an update";
+"ux_tomorrow_weather_unavailable" = "Tomorrow's forecast is not available yet";
+"ux_schedule_update_needed" = "The alarm schedule has not finished updating";
+"ux_closure_update_failed" = "Temporary closure information could not be updated";
+"ux_rain_chance" = "Rain %d%%";
+"ux_weather_home" = "Home";
+"ux_weather_work" = "Work";
+"ux_weather_clear" = "Sunny";
+"ux_weather_cloudy" = "Cloudy";
+"ux_weather_rain" = "Rainy";
+"ux_weather_updated" = "Weather checked %@";
+"calendar_silent" = "Silent";
+"commute_mode_car" = "Car";
+"commute_mode_scooter" = "Scooter";
+"commute_mode_walking" = "Walking";
+"commute_mode_public_transit" = "Transit";
+"ux_alarm_off" = "Alarm Off";
+"ux_alarm_off_message_only" = "The alarm stays off until you turn it back on.";
+"ux_skip_once_reason" = "Off just this once; later alarms ring as usual";
+/* The medium's weather column on a today entry (2026-10-02), as the card says it after midnight. */
+"ux_today_weather_failed" = "Today's weather could not be updated";
+
+/* Widget only */
+/* The gallery name. Not "Tomorrow": between midnight and the ring the widget shows today's alarm. */
+"widget_display_name" = "Next Alarm";
+"widget_description" = "Your expected alarm, and whether rain moves it earlier.";
+"widget_open_to_refresh" = "Open the app to refresh";
+"widget_open_to_start" = "Open the app to show your next alarm";
+/* A normal ringing day, on every family but the medium: the decision, not the weather. */
+"widget_rings_as_usual" = "Rings as usual";
+"widget_rain_short" = "Earlier for rain";
+/* A carried-over early ring: no forecast for its own morning yet. */
+"widget_awaiting_forecast_short" = "Awaiting forecast";
+"widget_manual_skip_short" = "Set to silent";
+"widget_manual_ring_short" = "Set to ring";
+"widget_holiday_named_short" = "Holiday: %@";
+"widget_unselected_short" = "Not a repeat day";
+"widget_closure_short" = "Work or school closed";
+"widget_issue_schedule_failed" = "Open the app to check your alarm";
+"widget_issue_alarmkit" = "Your alarm needs to be rescheduled";
+"widget_issue_closure_uncertain" = "Closure schedule not confirmed";
+"widget_issue_short" = "Check your alarm";
+"widget_weather_failed_short" = "Weather update failed";
+"widget_weather_stale_short" = "Weather out of date";
+"widget_forecast_pending" = "No forecast yet";
+"widget_inline_ring" = "Tomorrow %@";
+"widget_inline_rain" = "Tomorrow %1$@ · %2$d min earlier";
+"widget_inline_skipped" = "Tomorrow: skipped";
+"widget_inline_refresh" = "Open Rainy Clock to refresh";
+"widget_inline_refresh_short" = "Open to refresh";
+/* Before the app has published anything: nothing is on the widget to refresh yet. */
+"widget_inline_start" = "Open Rainy Clock to start";
+"widget_inline_start_short" = "Open Rainy Clock";
+/* Rain moved the ring across midnight: %1$@ is the ring's weekday, %2$@ its time. */
+"widget_inline_ring_on" = "%1$@ %2$@";
+"widget_inline_rain_on" = "%1$@ %2$@ · %3$d min earlier";
+
+/* Circular Lock Screen face: one word under a skipped day's glyph. */
+"widget_skip_holiday" = "Holiday";
+/* Unused since 2026-10-01: the circular face cannot show the source a closure must name
+   (DAYOFF-SPEC §7), so it shows widget_skip_other; kept for an owner-recorded exception. */
+"widget_skip_closure" = "Closed";
+/* Any other skipped day: a weekend, an unselected weekday or a manual skip. */
+"widget_skip_other" = "Skipped";
+
+/* Today, between midnight and today's ring (D-C). The card describes the same morning then,
+   under the header "Next alarm", until its normal time. Since 2026-10-02 the medium's weather column
+   shows today's forecast too; widget_today_weather_unavailable is its footer without one (not the
+   card's "Loading today's forecast…": the widget cannot fetch anything). */
+"widget_today" = "Today";
+"widget_today_awaiting_forecast" = "Waiting for today's forecast";
+"widget_today_holiday_named" = "Today is a holiday: %@";
+"widget_today_holiday" = "Today is a public holiday";
+"widget_today_manual_skip" = "Today was manually set to silent";
+"widget_today_manual_ring" = "Today was manually set to ring";
+"widget_today_weekend" = "Today is a weekend day";
+"widget_today_unselected" = "Today is not a selected repeat day";
+"widget_today_closure" = "Work or school is closed today";
+"widget_inline_today_ring" = "Today %@";
+"widget_inline_today_rain" = "Today %1$@ · %2$d min earlier";
+"widget_inline_today_skipped" = "Today: skipped";
+"widget_today_weather_unavailable" = "Today's forecast is not available yet";
+/* The medium's weather column on a today entry whose forecast is past the widget's 3 hours: the
+   forecast's time, neutral, not "Weather needs an update" (owner, 2026-10-02). It is normally last
+   evening's, which decided this morning. %@ is a time in the app's 12/24-hour format. */
+"widget_forecast_as_of" = "Forecast as of %@";
+
+/* VoiceOver hint on the medium widget's weather column, which links to Apple's legal attribution page. */
+"widget_weather_legal_hint" = "Opens Apple Weather's data sources and legal attribution";
+
+/* The master switch (1.8.0): the circular face's word under the bell, and the rectangular
+   family's short lines. The hero and the full lines are the app's own (shared above). */
+"widget_skip_off" = "Off";
+"widget_alarm_off_short" = "Off until turned back on";
+"widget_skip_once_short" = "Off just this once";
+/* The inline face's one-time skip names its morning, as every other inline skip does. */
+"widget_inline_skip_once" = "Tomorrow: off just this once";
+"widget_inline_today_skip_once" = "Today: off just this once";
+
+/* Under a closure on the small, medium and rectangular faces (DAYOFF-SPEC §7): the source,
+   which the open-data licence requires, and the source's own update time (%@ = date and
+   time). Short forms of the card's disaster_source / disaster_source_updated. The circular
+   and inline faces cannot fit them, so they do not name the closure (merge review, 2026-10-01). */
+"widget_closure_source" = "Source: DGPA / NCDR";
+"widget_closure_source_updated" = "Source updated %@";

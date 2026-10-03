@@ -1,0 +1,81 @@
+{
+  "device": "iPhone 17 Pro",
+  "iOS": "26.5",
+  "capture": "Simulator > File > Save Screen…",
+  "date": "2026-09-16",
+  "sampleData": true,
+  "variants": [
+    {
+      "home": "clear",
+      "work": "clear",
+      "file": "clear-clear.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "805ddfb7c6200a0dcebdce8efbf248b46262891e67605ac5a62601cebef10bbe"
+    },
+    {
+      "home": "clear",
+      "work": "rain",
+      "file": "clear-rain.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "5db17db1a78f60733cee0b230614a06f075a88f0ad83410ea92db051aff59c99"
+    },
+    {
+      "home": "clear",
+      "work": "cloudy",
+      "file": "clear-cloudy.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "dbd20fb1caf6da37cc4daf8fd06d25d738939ca9299a973afb1c9362368ae79b"
+    },
+    {
+      "home": "rain",
+      "work": "clear",
+      "file": "rain-clear.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "cc5e539440ccdae10acd9ec64b26096b0a4976964ae281a32e051f547a63d310"
+    },
+    {
+      "home": "rain",
+      "work": "rain",
+      "file": "rain-rain.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "bfc9d388278ca65a38ceaf681bf8b8e68a450a453be35c18ad25569b7f599a88"
+    },
+    {
+      "home": "rain",
+      "work": "cloudy",
+      "file": "rain-cloudy.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "216aef5a02ea328673205afba0256f853776cc6bea98f1b0a28eb195d06db6e5"
+    },
+    {
+      "home": "cloudy",
+      "work": "clear",
+      "file": "cloudy-clear.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "ab252dadab5f7153368e70242e94611eb199962f4325a43201221baec0873a3d"
+    },
+    {
+      "home": "cloudy",
+      "work": "rain",
+      "file": "cloudy-rain.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "5990376ef9bc8078e91b26d01907d50c9bd921521db2e083513164b6171316b1"
+    },
+    {
+      "home": "cloudy",
+      "work": "cloudy",
+      "file": "cloudy-cloudy.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "b3bd2557bef605e377245aa8842586fbcebd4b295a6eef3f6284548ca64a801b"
+    }
+  ]
+}

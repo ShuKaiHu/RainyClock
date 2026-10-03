@@ -1,0 +1,18 @@
+{
+  "service": "rainyclock-weather-proxy",
+  "region": "asia-east1",
+  "revision": "rainyclock-weather-proxy-00012-win",
+  "traffic": [
+    {
+      "percent": 100,
+      "revisionName": "rainyclock-weather-proxy-00012-win"
+    }
+  ],
+  "url": "https://rainyclock-weather-proxy-hclsjropwq-de.a.run.app",
+  "annotationModel": "gemini-3.1-flash-lite",
+  "annotationLocation": "us",
+  "originalEnvironmentPreserved": true,
+  "resourcesPreserved": true,
+  "serviceAccountPreserved": true,
+  "previousRevision": "rainyclock-weather-proxy-00011-vj2"
+}

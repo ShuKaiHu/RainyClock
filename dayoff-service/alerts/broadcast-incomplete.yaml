@@ -1,0 +1,36 @@
+# Runs that ended with ok=false (a source failure that keeps recurring, or
+# exhausted broadcast attempts) and broadcasts that did not reach "done".
+# One bad tick is normal during an NCDR outage; three in two hours is three
+# of four consecutive ticks of the 30-minute schedule, which is when someone
+# should look. The API only
+# accepts GT/LT, so "at least 3" is written as "more than 2".
+displayName: rainyclock-dayoff poll degraded
+combiner: OR
+conditions:
+  - displayName: 3 or more broadcasts not done in 2 hours
+    conditionThreshold:
+      filter: resource.type = "cloud_run_job" AND metric.type = "logging.googleapis.com/user/dayoff_broadcast_incomplete"
+      comparison: COMPARISON_GT
+      thresholdValue: 2
+      duration: 0s
+      aggregations:
+        - alignmentPeriod: 7200s
+          perSeriesAligner: ALIGN_DELTA
+          crossSeriesReducer: REDUCE_SUM
+  - displayName: 3 or more runs with ok=false in 2 hours
+    conditionThreshold:
+      filter: resource.type = "cloud_run_job" AND metric.type = "logging.googleapis.com/user/dayoff_job_failures"
+      comparison: COMPARISON_GT
+      thresholdValue: 2
+      duration: 0s
+      aggregations:
+        - alignmentPeriod: 7200s
+          perSeriesAligner: ALIGN_DELTA
+          crossSeriesReducer: REDUCE_SUM
+notificationChannels:
+  - projects/rainyclock/notificationChannels/10219649454523194367
+alertStrategy:
+  autoClose: 3600s
+documentation:
+  mimeType: text/markdown
+  content: The poll Job keeps reporting ok=false or an unfinished broadcast. Runbook in dayoff-service/DEPLOYMENT.md (運行手冊).

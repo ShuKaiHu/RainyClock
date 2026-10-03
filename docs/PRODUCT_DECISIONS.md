@@ -1,5 +1,641 @@
 # Product Decisions / 產品決策
 
+## 小型與中型 widget 都跟著預報畫天空，小型也帶  Weather 標記 — 2026-10-02 晚（擁有者決定，1.8.0（40））
+
+- **起因：** 擁有者把小型與中型的「下次鬧鐘」widget 並排放在主畫面（TestFlight 1.8.0（39），週末、預報晴天）：小型是品牌深藍，
+  中型是晴天的亮藍，問「不是應該一樣嗎？」。這是 D-A（2026-09-24）的結果：為了 Apple 的標示規定，天氣只留在中型，小型的
+  天空只跟鬧鐘決定（因雨提早才畫雨，其他時候深藍）。
+- **決定（擁有者，四個選項裡選 ②）：** 主畫面的兩個尺寸都跟著預報畫天空；小型空間很小、整面只有一個點按目標，仍然帶 Apple 的
+   Weather 標記。併入 1.8.0（40），build 號不變。
+- **規則：**
+  - **天空：** 小型的背景和中型是同一片預報天空（`TomorrowWidgetPresentation` 的 `home`／`work`，兩個尺寸共用）。有沒有天空的
+    條件沒改：項目有預報、而且畫天氣欄時才有；「開啟 App 更新」、沒有預報、路線未完成都是品牌深藍，兩個尺寸一樣。
+  - **文字：** 小型的文字不變，只寫鬧鐘決定：不寫降雨機率，也不寫天氣名稱（「因雨提早 N 分鐘」不帶 %）。
+  - **標記：** 小型**畫預報天空時**，最下面多一列 Apple 的  Weather 標記（和中型同一個：官方圖，還沒下載前是文字）；不畫預報
+    天空就沒有標記。兩者一起出現、一起消失（`hasForecastSky`）。
+  - **StandBy、著色與透明主畫面：** 標記跟著 `showsWidgetContainerBackground`：系統拿掉 widget 的背景時天空不在，小型這一面
+    就沒有任何天氣資料，所以也不畫標記。StandBy 會拿掉背景是 Apple 文件寫明的；著色與透明主畫面預期也是，但還沒在裝置上看過
+    （見「尚未驗證」）。中型不變：天氣欄的文字還在，標記照舊。
+  - **點按：** 小型有 `widgetURL`（`rainyclock://alarm`，`TomorrowWidgetSnapshot.alarmTabURL`）：點小型開 App 並切到鬧鐘頁，
+    不管 App 上次停在哪一頁（同日審查：沒有它時，App 停在設定頁被叫回前景就看不到標記與連結）。鬧鐘頁天氣卡的
+    `WeatherAttributionView` 有標記與 Apple 法律頁的連結。中型的點按不變。標記本身是 widget `Link`（和中型天氣欄同一個 `rainyclock://weather-attribution`）：系統在 systemSmall 接受 `Link` 的話，
+    點標記就經 App 開法律頁，和中型的天氣欄一樣；不接受就和點其他地方一樣開 App。
+  - **VoiceOver：** 小型整面仍是一個標籤；有標記時最後加上天空畫的內容與標示（例：“Home Sunny, Work Rainy, Apple Weather”），
+    不念降雨機率。
+  - 不變：中型、鎖定畫面三種、讓字在天空上看得清楚的那層疊色（legibility overlay）、snapshot 格式（版本 4）；沒有新字串。
+- **Apple 的規定（2026-10-02 取自 https://developer.apple.com/weatherkit/get-started/ ）：** “If your apps, web apps, or websites
+  display any weather data from Apple (other than weather alerts or value-added services or products, as described below), you
+  must clearly display the Apple Weather trademark ( Weather), as well as the legal link to other data sources.” 沒有公布大小、
+  位置、widget 或空間不足時的規定。App Review 5.2.5：“If your app displays Apple Weather data, it should follow the attribution
+  requirements provided in the WeatherKit documentation.” 依天氣畫的天空從 D-A 起就算天氣資料，所以畫它的那一面要有標記。
+  Apple 的文件對 systemSmall 能不能用 `Link` 說法不一：WWDC20 與〈Creating a widget extension〉說只有 medium 以上可以；
+  〈Linking to specific app scenes〉把 systemSmall 列在放得下 `Link` 的尺寸裡。
+- **前例與殘餘風險：** 查到的做法：2023 年開發者論壇有人回報，在每個有天氣資料的畫面放  Weather 文字標記、法律連結留在 credits
+  頁，通過審查；查到的退件是 widget 完全沒有標示，或連結埋得很深。**殘餘風險（擁有者接受）：** 系統不接受小型的 `Link` 時，
+  小型的法律頁連結在 App 裡，從 widget 算起要點兩下（點 widget 開 App 的鬧鐘頁，再點天氣卡的標記）。VoiceOver 在小型上聽得到
+  “Apple Weather”，但整面是一個元素，走的一律是這條兩下的路。
+- **放棄的：** 小型的雨天不再表示「雨讓鬧鐘提早了」。降雨 60%、門檻 70%（沒有提早）、停班停課、略過的日子、鬧鐘已關閉，現在都畫
+  預報說的天空，中型本來就是這樣；預報過期或抓取失敗時仍畫上一次預報的天空。鬧鐘決定照舊由文字那一行說。
+- **版面：** 標記列在小型的最下面，優先保留自己的高度，放不下時由上面的鬧鐘內容讓出高度。有標記時，時間不再把「上午／下午」
+  疊到數字上面（那會多佔一行、把上下擠出邊界；同日審查），改成同一行、數字縮小。模擬器上看到的兩種讓法：時間數字縮小
+  （前一天響鈴的項目、12 小時制的兩位數小時），或欄底改用短字（停班停課：「停班停課略過」／“Work or school closed”，來源兩行
+  都還在）。沒有標記時（沒有預報、StandBy）版面和 39 一樣。
+- **否決（一起提出、擁有者沒有選的三個）：** ①兩個都用品牌深藍（中型不再依天氣畫天空，那是 D-A 以來一直有的）；③中型一半深藍、
+  一半天空（天空只留在天氣欄後面）；④維持原樣（小型深藍、中型跟天氣，就是擁有者問的不一致）。
+- **尚未驗證**（清單與結果記在 [STATUS-IOS](STATUS-IOS.md)「1.8.0 準備中」最上方一點）：小型上的 Apple 官方標記圖（要在裝置上連
+  WeatherKit；模擬器只看過文字標記）、StandBy、著色／透明主畫面、iOS 26 在 systemSmall 是否接受 `Link`、真機。
+- **取代：** D-A（2026-09-24）的「只有 medium 顯示天氣資料」「small 天空只在因雨提早時下雨、其他時候品牌深藍」，以及同日審查修正的
+  small 深藍；原文保留並在原處標註。D-A 其餘不變（StandBy 與鎖定畫面只顯示決定、中型的標記與連結、標記只用白字版）。下面各節
+  10/2 稍早寫的「見最上方」「最上方一節」指的是接下來兩節（預報時間、今天的項目也顯示天氣），不是本節；指本節的註記都標
+  「2026-10-02 晚」。
+
+## 中型 widget 今天的預報超過 3 小時：寫預報時間，不警告 — 2026-10-02（擁有者決定，1.8.0（39））
+
+- **決定（擁有者核准的文字）：** 今天的項目（午夜到今天的鬧鐘響），預報超過 widget 的 3 小時門檻（D-B）時，中型天氣欄
+  **不寫**「⚠ 天氣資料需要更新／Weather needs an update」，也不出警示標記，改寫一行中性的預報時間：繁中「預報時間 22:00」、
+  英文「Forecast as of 10:00 PM」。時間和 widget 其他時間一樣照 App 的 12／24 小時設定（12 小時制是「預報時間 下午 10:00」，
+  24 小時制是「Forecast as of 22:00」）。VoiceOver 讀同一行。
+- **理由（擁有者）：** 預報通常是前一晚抓的，鬧鐘也還沒響，所以 04:00 看到前一晚的預報是預期中的事，不是錯誤。
+- **不變：** 明天的項目照 D-B，超過 3 小時仍警告（天氣欄的三角形與文字；小型與鎖定畫面的那一行，或因雨提早時的警示標記）。
+  抓取**失敗**兩種項目都照樣警告（今天的寫「今天天氣更新失敗」）。沒有預報仍寫「尚未取得今天天氣」（擁有者已核准）。
+  小型、StandBy 與鎖定畫面不變（今天的項目本來就不出天氣提示，D-C）。 Weather 標記與法律頁連結仍跟著天氣欄。
+  **（2026-10-02 晚改：小型的天空改跟預報，畫預報天空時自己也帶標記，見最上方；小型的文字照本句不變。）**
+  預報未滿 3 小時仍是「天氣更新於 …」。
+- **做法：** snapshot 不變（今天的項目照樣存 `.stale`，版本仍是 4），所以 widget 在「抓取時間 ＋ 3 小時」的下一秒自己換字，
+  App 不用醒著。寫哪一行由 `TomorrowWidgetPresentation` 決定：今天的 `.stale` 不算天氣欄的提示（`weatherColumnNotice` 是空的，
+  所以沒有三角形），欄底（`weatherColumnFooter`，VoiceOver 也讀它）改用 widget 專用字 `widget_forecast_as_of`，和「天氣更新於」
+  一樣用淡色、不帶符號。同一份預報在前一晚的明天項目上照樣會先警告（例：18:00 抓的，21:00:01 起「天氣資料需要更新」），
+  午夜變成今天的項目後改寫「預報時間 18:00」。
+- 否決：照 39 原本寫「天氣資料需要更新」（擁有者：不是錯誤）。下一節「要知道的」提過的改一行做法（今天的項目不標過期，
+  寫一般的「天氣更新於 下午10:00」）也沒有採用，擁有者核准的是「預報時間」這個文字。
+
+## 中型 widget 今天的項目也顯示天氣 — 2026-10-02（擁有者決定，1.8.0（39））
+
+- **起因：** 擁有者 10/2 04:00 看到中型 widget 寫「Today · Fri, Oct 2 7:30 AM／Rings as usual」，沒有天氣，要求今天的
+  項目也顯示天氣。**決定：** 中型 widget 從午夜到今天的鬧鐘響（今天的項目），也畫天氣欄：住家／公司天氣、降雨機率、
+  天空，以及  Weather 標記與法律頁連結（D-A 不變，標記永遠在天氣欄下方）。**（2026-10-02 晚改：小型畫預報
+  天空時也有自己的標記列，D-A 的「只有 medium」已被取代，見最上方。）**隨 1.8.0（39）上傳；build 號 38 → 39。
+- **資料：不新增抓取、儲存或背景工作。** App 抓的是主卡「接下來的早上」的預報（`dayOffset` 不給），午夜後那就是今天的
+  早上，也是 App 唯一會抓的早上；widget 今天的狀態（`todayStatus`）本來就讀同一份紀錄、用它做今天的決定，只是 snapshot
+  把它丟掉了。預報請求相等（原定時間、檢查點、時區、兩個地址與座標、交通方式）把預報綁在那一個早上、那條路線與那個提前
+  分鐘：前一天的預報、或用舊提前分鐘／舊路線抓的預報，都不會出現在今天的項目上。晚上抓的明天預報，午夜後就是今天的；
+  午夜後要更新，靠打開 App 停在鬧鐘頁（主卡的預報超過 30 分鐘就重抓）或背景工作。點中型的天氣欄**不算**：它雖然會開
+  App，但 App 一拿到法律頁網址就交給 Safari；熱啟動回來停在別的分頁就不會抓，抓到一半 App 進背景，發布給 widget 的
+  也還是舊資料（審查修正，2026-10-02）。
+- **規則：**
+  - 過期照 D-B：天氣超過 3 小時寫「天氣資料需要更新」（snapshot 事先算好那一秒，App 不用醒著）；抓取失敗立刻寫
+    「今天天氣更新失敗」並保留上一次的預報；沒有預報寫「尚未取得今天天氣」。和明天的項目同一套規則。
+    **（過期的部分已被上一節取代：今天的項目改寫「預報時間 22:00」，不警告，擁有者 2026-10-02。）**
+  - **寫「今天」的天氣提示只出現在中型的天氣欄**（取代「天氣更新於 …」）。小型、StandBy、鎖定畫面三種，以及中型標題的
+    警示標記都照 38（D-C 在那裡保留：今天的項目只會出現「請完成路線」這一個天氣提示）；路線降雨 % 仍只在中型、天氣欄旁邊。
+    （2026-10-02 晚改：小型的天空不再照 38，改跟預報並帶標記，今天的項目也一樣，見最上方；提示文字與降雨 % 照本句不變。）
+  - 今天的**原定時間過後**若沒有預報，不畫天氣欄：App 那時已改抓明天的預報，「尚未取得今天天氣」不會成真。只有舊登記的
+    鈴比新的原定時間晚（改早鬧鐘後重新登記失敗）時會遇到。判斷是嚴格大於，原定時間那一秒仍照上面的規則給提示——
+    不是因為那一秒還是今天的請求（App 的「接下來的早上」在那一秒已經換成明天，`TomorrowWeatherRequest` 一樣是嚴格大於），
+    而是為了連續：略過的日子，今天的項目顯示到原定時間那一秒（含），天氣欄留到最後一秒，不會在換成明天之前少掉一秒。
+  - build 38 寫的今天項目都沒有預報，提示也只有缺地址時的「請完成路線」。沒有提示的照 38 的樣子畫、不畫天氣欄，直到
+    App 下次發布。帶「請完成路線」的會畫天氣欄（端點「—」、欄底「請完成路線」、 Weather 標記），38 是左邊占滿；這是
+    刻意的：39 對同一個狀態寫出的項目一模一樣，明天的項目也這樣畫，所以 App 重新發布時、今天換成明天時畫面都不會跳
+    （審查修正，2026-10-02）。snapshot 版本維持 4（格式沒變）。
+- **文字：** 新字「尚未取得今天天氣」／「Today's forecast is not available yet」（widget 專用
+  `widget_today_weather_unavailable`，對應已採用的「尚未取得明天天氣」），**擁有者已核准（2026-10-02）**；「今天天氣
+  更新失敗」／「Today's weather could not be updated」是 App 主卡已採用的 `ux_today_weather_failed`，widget 表逐字共用。
+  「天氣資料需要更新」與各短字本來就不寫日子，沿用。**（今天的部分已被上一節取代：今天的預報超過 3 小時不再寫「天氣資料
+  需要更新」，改寫 widget 專用字「預報時間 22:00」（`widget_forecast_as_of`），不警告，擁有者 2026-10-02；明天的項目照舊
+  沿用。）**What's New 與審查備註的天氣句子（「中型另外顯示住家與公司天氣」、
+  「Only medium shows weather, with the Apple Weather mark」）本來就沒限定明天，照舊成立、不用重貼。
+  **（2026-10-02 晚改：審查備註的「Only medium shows weather…」不再成立——小型也畫預報的天空並帶標記——build 40 版的審查備註
+  已改寫這一句，要隨 build 40 整份重貼，見最上方與 STATUS-IOS。What's New 那句說的是住家與公司的天氣文字，小型仍不寫，照舊成立。）**
+- **要知道的：** 午夜後的預報要開 App 或背景工作才會更新（BGProcessing 最早在檢查點前 9 小時、BGAppRefresh 最早在
+  檢查點前 45 分鐘，跑不跑由 iOS 決定），所以大約 01:00 到 06:15 常會看到前一晚的預報加「天氣資料需要更新」——這是誠實的
+  狀態，打開 App 停在鬧鐘頁就會更新（點天氣欄不算，見上面「資料」），不是改壞了。擁有者若比較想看到一般的「天氣更新於 下午10:00」，改一行就能讓
+  今天的項目不標過期。**（已被上一節取代：擁有者 2026-10-02 決定這段時間寫「預報時間 22:00」，不警告。）**天氣欄也可能和左邊的決定不同（例：檢查點過後寫「下雨 72%」，左邊「照常響鈴」），兩者都對，
+  主卡與明天的中型本來就是這樣。
+- 否決：①把過期的今天預報藏起來（主卡與明天的項目都照樣顯示並警告）；②今天的天氣提示出現在所有尺寸（改掉 D-C 對
+  小型與鎖定畫面的決定，而且多數放不下）；③中型標題加警示標記（天氣欄的提示有自己的三角形）；④snapshot 版本升到 5
+  （38 的 TestFlight 裝置會先看到「開啟 App 更新」，直到 App 重新發布）；⑤缺地址的今天項目保留 38 的左邊占滿、不畫
+  天氣欄（審查時提出：會和明天的項目不同，今天換成明天時天氣欄突然出現）。
+
+## 正在響或賴床的鬧鐘，只有關閉鬧鐘會結束它 — 2026-10-01（修正系列審查）
+
+- 延續鬧鐘總開關（2026-09-30）的「關閉會結束賴床」，1.8.0 修正系列把反面寫成規則：**其他任何事都不結束正在響或賴床的鬧鐘。**
+  重新登記（過期的判斷、背景更新、停班停課、略過與取消略過）、改地址、清空重複星期，都讓它響完（iOS 17–25：沒按停止的補響鏈照常
+  補響到按停止為止）。使用者沒有要求的重新判斷（過期的開 App、背景工作、推播）在鬧鐘響／賴床時**延後**到下一次：每週鬧鐘在賴床中被
+  替換，停止後會回到舊時間，和新的一起在下一個選定日再響一次，而收掉它要等下一次開 App 或背景工作，可能根本不會發生。延後的代價
+  只是這段時間照上一次的判斷響，這本來就是判斷失敗時的做法。
+- 這是審查修正提出的規則，延續既有決定；**擁有者 2026-10-01 採用**。
+
+## 停班停課公告在它指定的那一天內有效 — 2026-10-01（DAYOFF-SPEC v4）
+
+- 擁有者核准（對抗式審查找到）：18 小時上限原本從**公告時間**算，12:00 公布的「明天停止上班」到隔天 06:00 滿
+  18 小時，之後每次更新都判「公告已過期」，把已略過的 07:30 排回確定放假的早上；提早兩天公布的日期也在前一天下午失效。
+- **規則：** 18 小時只限制**下載的公告資料**（不變，證明沒有更新的公告取代它）。寫明鬧鐘那一天（今天／明天／M/D）的公告
+  在那一天內都有效，但必須是那一天之前**最多兩個台北日**發布的；沒寫日期的公告（本來就不會略過）仍在 18 小時後失效。
+  NCDR 完整 1,374 則裡有日期的公告都在指定日當天或前一天發布，兩天是多留一天餘裕，同時擋住凍結舊資料裡跨年滾動的 M/D。
+  地圖（只顯示）仍用自己的「指定日或前一天發布」，兩者只在從沒出現過的提前兩天公告上不同。
+- 否決：①把 18 小時拉長（只是把斷點往後移，凌晨公布的「明天」或提前兩天的日期仍會失效）；②記住已套用的略過、之後
+  照舊（違反 spec「每次依公告重新判斷、不重播舊結果」；而且 06:30 才第一次拿到公告的手機仍會照響）；
+  ③沿用地圖的「指定日或前一天發布」（涵蓋「明天」，但不涵蓋提前兩天公布的日期）。
+
+## 1.8.0 帶「下次鬧鐘」widget 上架 — 2026-10-01（`ios/widget` 合入 1.8.0 線）
+
+- 擁有者決定：1.8.0（38）同時帶 `ios/widget` 的主畫面／鎖定畫面「下次鬧鐘」widget，以及 `ios/main` 上的
+  颱風臨時放假、鬧鐘總開關、主卡「下次鬧鐘」與排程修正。版本維持 1.8.0（38），尚未上傳。
+- **哪個早上：一套規則、兩種說法。** `TomorrowAlarmStatus.resolve` 只有一個：`dayOffset` 不給是主卡的「接下來的
+  早上」（9/29 規則，也是 App 唯一抓預報的早上；午夜後這份預報也是 widget 今天項目天氣欄的資料，2026-10-02）；給 0／1 是 widget 的今天／日曆明天（D-C）。主卡與 widget 讀
+  同一份「響鈴與原定時間成對往後捲」的每週摘要，所以 App 一直開著與重開之後說的一樣。
+- **兩個「這個早上」的紀錄並用、不互相取代：** `decisionNormalAlarmDate` 記「哪個早上的預報決定了提早」（D-D），
+  `firedEarlyRing`／`earlyRingThatWentOff` 記「哪個早上已經響過」（9/29、9/30）。
+  - 每週摘要被捲過今天那一格時：為今天（或更早的早上）決定的，那一格已經響過——主卡「已響鈴」、不警示；
+    為之後的早上才登記的（檢查點後舊版的週登記），今天已沒有鈴——主卡顯示「鬧鐘設定尚未更新完成」，widget 結束今天。
+  - 離線重新登記與「僅關閉下一次」保存的預報，都只沿用那個早上自己的決定：重開 App 後被捲到明天的沿用提早，
+    不會被記成明天的決定；取消略過時回到原定時間，和 App 一直開著時一致。
+- **仍刻意和主卡不同的地方（其餘都共用 `TomorrowWidgetSnapshotBuilder` 的規則）：**
+  1. 過期警告：widget 3 小時，主卡 30 分鐘（D-B，不變）。**今天的項目（2026-10-02）：** 主卡午夜後預報超過 30 分鐘照樣
+     寫「天氣資料需要更新」；widget 中型今天的天氣欄**從不因預報的時間警告**，超過 3 小時改寫中性的「預報時間 22:00」，
+     只有抓取失敗才警告（第 4 點）。**（原本寫的「2026-10-02 起今天的天氣欄同樣 3 小時」已被最上方一節取代，擁有者
+     2026-10-02。）**
+  2. 今天：widget 從午夜到**響鈴**寫「今天」，響過就換日曆明天；主卡到**原定時間**才換，標題寫「下次鬧鐘」、
+     提早響過後寫「已響鈴」（D-C 與 9/29 各自的決定都保留；D-C 裡「卡片整天講明天」那句已被 9/29 取代）。
+  3. 沿用的提早（D-D）已經響過時，主卡只寫「已響鈴」與響鈴時間，**不寫原因**（擁有者 2026-10-01 決定：那次提早不是
+     那天自己的預報決定的，寫「因雨提早」會說錯；合併時暫定的「因雨提早」已改掉）；widget 沒有「響過的早上」的畫面。
+  4. 今天的天氣提示（2026-10-02）：主卡午夜後在天氣卡寫「今天天氣更新失敗」「天氣資料需要更新」；widget 只寫在中型的
+     天氣欄，小型與鎖定畫面不寫（D-C）。中型今天的天氣欄的提示是「今天天氣更新失敗」（帶三角形）、「尚未取得今天天氣」
+     與「請完成路線」，**不寫**「天氣資料需要更新」：預報超過 3 小時改寫中性的「預報時間 22:00」（第 1 點）。
+     **（原本讀起來 widget 也寫「天氣資料需要更新」，已被最上方一節取代，擁有者 2026-10-02。）**
+- **總開關進 widget：** 關閉時所有尺寸顯示「鬧鐘已關閉」（鎖定畫面圓形放不下，寫「關閉／Off」），不寫日期（寫「明天」
+  會讀成只關那天），只在關閉失敗時警示——天氣過期或抓取失敗也不再在「鬧鐘已關閉」上加警示標記（合併審查後修正）；
+  「僅關閉下一次」那個早上顯示「只關閉這一次，之後的鬧鐘照常響」（inline 寫「明天／今天只關閉這一次」，要說出是哪個早上）。
+  snapshot 版本 2 → 3。
+- **文字：** 英文 `ux_tomorrow_closure` 採 widget 的「Work or school is closed tomorrow」（widget 表逐字共用，
+  與「Work or school is closed today」一致，停班或停課都成立；中文兩邊本來相同）；`ux_today_weekend` 英文對齊為
+  「Today is a weekend day」。新增 widget 用的短字（圓形「關閉／Off」、長方形兩句短版）與主卡的「等待今天預報」，
+  **擁有者 2026-10-01 看過並採用**。另外三句主卡英文隨 widget 表一起改（widget 表逐字共用 App 的字，合併時取 widget
+  那邊），同樣**已採用**：`ux_tomorrow_weekend`「Tomorrow is a weekend」→「Tomorrow is a weekend day」、
+  `ux_rain_applied_forecast`「Route rain %d%% · %d min earlier」→「Route rain %d%%, %d min earlier」（逗號，
+  min 前是不斷行空白）、`ux_weather_rain`「Rain」→「Rainy」（與 Sunny／Cloudy 同詞性）；主卡表也多了 widget 那邊的
+  `ux_tomorrow_awaiting_forecast`（等待明天預報，D-D）。中文都沒改。
+- **合併審查後再定的幾點（2026-10-01，同日）：**
+  - **排程讀和重開 App 一樣的摘要。** App 一直開著跨過幾個早上時，記憶體裡的每週摘要還是登記那天的；沿用的提早在
+    今天響過之後，背景更新、開 App、改設定或「僅關閉下一次」在原定時間前重新登記，會認不出那個已響的早上，把原定時間
+    排回去——同一個早上響兩次。排程（檢查窗、`weeklyComingMorningIsDecided`、`restoreWeeklySchedule`、`datedBasePlan`）
+    現在都先把每週摘要往後捲（和啟動時一樣），所以和主卡的「已響鈴」一致。
+  - **晚上預覽與 D-D 一致。** 沿用到隔天的提早，晚上預覽不再寫成隔天的降雨判斷（「降雨機率 80%…提前到 7:00」其實是
+    前一天的預報），改寫「明天 7:00 有鬧鐘，早上會依當天預報決定」——時間是 AlarmKit 真的會響的那個。
+  - **widget 不丟主卡的警示。** 已提交的停班停課略過不再被目前公告支持，或逐日排程少了這個早上時，主卡到原定時間都
+    顯示「鬧鐘設定尚未更新完成」；widget 的「今天」原本在午夜就結束、直接跳到明天，現在和主卡一樣留到原定時間並帶同一個
+    警示。只有真正響過（或被消耗掉）的早上才提早結束今天。
+  - **widget 上的停班停課要標來源（DAYOFF-SPEC §7）。** 小型、中型與長方形在停班停課那一行下面標「來源：人事總處／NCDR」
+    與來源本身的更新時間（和主卡一樣用公告資料的 `sourceUpdatedAt`）；VoiceOver 也念出來。snapshot 版本 3 → 4。
+    **鎖定畫面圓形與 inline 放不下來源，所以不報停班停課**：圓形改寫「不響／Skipped」、inline 寫「明天略過鬧鐘」，
+    都用一般略過的鈴鐺圖示，不用暴風雨圖示。擁有者 9/23 選的圓形「停班」因此不用（字串保留）；**擁有者 2026-10-01 決定照這樣**，
+    不記 §7 例外，所以 What's New 與審查備註「顯示任何停班停課結果時都會標示資料來源」照舊成立。新字「來源：人事總處／
+    NCDR」「來源更新 %@」與 inline 的「明天／今天只關閉這一次」**已採用**。
+
+## 鬧鐘總開關 — 2026-09-30
+
+- 擁有者要求（併入 1.8.0）：一個總開關可以關閉鬧鐘，並有兩個選項——僅關閉下一次，或一直關閉（像 iPhone 內建鬧鐘）。
+- **所有方案免費。** 開關在鬧鐘頁標題旁；關閉時跳出選擇：「僅關閉下一次鬧鐘」或「關閉，直到我重新開啟」，取消則保持開啟。
+  打開開關立刻生效（取消略過，或重新排定）。
+- 設計由四位讀者整理程式、三個方案與一位評審定案，實作後再經對抗式審查：
+  - 「關閉」移除全部已排的鬧鐘；只要開關關著，任何路徑都不會自動重排（啟動、背景、設定修改、停班停課、假日更新）。
+  - 「僅關閉下一次」記下那個早上的**原定日期**（不是提早響的時間），只在 `CalendarAlarmPlan.make` 套用；
+    之後的早上都保留排定，App 沒打開也照響。每週排程的免費使用者暫時改用逐日排程，那個早上過後回到每週鬧鐘。
+  - 略過優先於手動「照響」與停班停課；每週鬧鐘正在響／賴床時，不提供「僅關閉下一次」。
+    原本「提早響過後到原定時間之間」也不提供；**2026-09-30 擁有者決定開放**：這段時間選「僅關閉下一次」，關的是明天
+    （下一個會響的）鬧鐘；今天已提早響過的早上不會在原定時間再響，取消略過也不會。這個限制原本也在擋排程會把今天
+    原定時間的鈴排回去的問題，同日已修正（見 `STATUS-IOS.md`）。
+- 評審留下的五個選擇，採用建議值（擁有者可再改，多半只改文字）：
+  1. 第二個選項叫「關閉，直到我重新開啟」，不叫「永久關閉」（「永久」容易讀成無法恢復）。
+  2. 鬧鐘關閉時仍保留停班停課推播註冊，推播改成安靜的「你的鬧鐘目前關閉，這則公告不會改變鬧鐘。」；隱私說明不必改。
+  3. 離線時打開開關仍以原本時間排定鬧鐘，警示列說明雨天檢查尚未完成，可重試。
+  4. 被略過那天的前一晚，照常時間送一則安靜提醒「依你的選擇，明天的鬧鐘只關閉這一次，之後的鬧鐘照常響。」
+  5. 略過的那天若在付費日曆設為「照響」，以略過為準。
+- 否決：用付費日曆的「靜音」覆寫（免費方案會被剝除）、清空重複星期、以全部靜音的逐日排程代表關閉、先全部取消再由背景重排、「永久」這個字。
+- 已知限制（1.8.0 不處理）：iOS 17–25 略過期間每個早上只有 1 次補響；略過後 27 天完全沒執行 App 時逐日排程會到期。
+  要處理需要「每週鬧鐘＋單日固定鬧鐘」混合排程，另案。
+
+## 鬧鐘頁主卡描述接下來的早上 — 2026-09-29
+
+- **規則**：主卡與天氣卡描述「接下來的早上」——今天的鬧鐘原定時間還沒過就是今天，過了（含剛好等於）才換到明天。
+  午夜只把標題「明天」換成「下次鬧鐘」（擁有者同日決定不寫「今天」），日期、狀態與已抓到的天氣都不變，
+  不會在午夜重抓。卡片裡的說明句與天氣卡標題仍用「今天」。
+- **起因**：2026-09-29 真機 00:39，9/29 已因停班停課略過，主卡卻寫「Tomorrow Wed, Sep 30 7:30」，擁有者自己都讀成
+  今天早上的鬧鐘。凌晨說的「明天」是睡醒的那個早上。
+- 從檢查點（原定時間減提前分鐘）到原定時間，已排定的決定就是最終結果：顯示「預計響鈴」或提早響過後的「已響鈴」，
+  之後的新預報或新公告都不會改寫已經響過的鬧鐘。
+- 停班停課略過今天時，主卡本身寫擁有者認可的那句「今天 7:30 的鬧鐘因臨時停班／停課略過」＋資料來源；
+  主卡上方另加的那一行（`8e07321`）因此移除，不重複說兩次。
+- 已提交的略過若目前公告不再支持（撤回或資料過期），或排程裡少了這個早上，顯示「鬧鐘設定尚未更新完成」，
+  不說「已略過」、也不承諾一個沒排的鬧鐘。
+- 「已響鈴」的時間取自排程當時記下的實際響鈴（`firedEarlyRing`），不用現在的提前分鐘回推：使用者被提早叫醒後
+  改了提前分鐘，卡片仍寫實際響的那個時間。
+- 文字：新增 11 組「今天」版本；晚上看到的「明天」文字一字未改。（英文 3 句於 10/01 合併 widget 時改，見上方 2026-10-01
+  「文字」；中文未改。）
+- 否決：①午夜切換（就是這次的問題）；②檢查點切換（07:00–07:30 會把今天還沒響的 7:30 藏起來）；
+  ③提早響鈴時切換（要讓天氣請求依賴已排定的排程，改動太大）；④固定 04:00（05:00 才公布的「今天」會漏掉）；
+  ⑤不寫日子的中性文字（會改掉已認可的晚上文字）。
+
+## 颱風臨時放假納入月訂閱與買斷 — 2026-09-28（最新權益）
+
+- 擁有者決定：1.8.0 的颱風／天災臨時放假規則，**月訂閱與買斷
+  （`com.shukaihu.RainyClock.banner.lifetime`）都包含**；免費方案不含。
+- 此決定取代下方 9/24「權益未定（買斷是否包含）」、9/21「本次不決定下一版該功能是否
+  納入買斷」及 9/16 起各處「未來買斷資格未定」的說法；那些段落保留當時原文。
+
+| 項目 | 免費 | 月訂閱 | 買斷 |
+| --- | --- | --- | --- |
+| 臨時放假規則（1.8.0 起） | 不含，開關鎖定 | 訂閱有效期間 | 買斷有效即持續提供 |
+| 「查看地圖示範」 | 可用 | 可用 | 可用 |
+
+- 結果是臨時放假與它所在的日曆權益走同一套規則（兩者都在「設定 → 日曆」），會員頁兩張
+  方案卡的權益清單相同。和日曆一樣，訂閱到期而買斷仍有效時，規則繼續套用；兩者同時持有
+  不改變任何東西。
+- 這是逐項加入買斷的決定，不改「買斷不自動包含尚未發表的未來功能」的原則。
+- 實作（工作樹）：伺服器 `weather-proxy/membership/service.js` 的 `deriveEntitlements`（權益以它為準）、
+  iOS `MembershipEntitlements.valid(at:)`（依手機時間判斷訂閱過期時保留買斷權益）及模擬器
+  本機 StoreKit 測試用的 `MembershipStoreKitEntitlements`，`temporaryClosures` 都改為買斷或訂閱任一有效；
+  會員頁每張付費方案卡都列「颱風臨時放假」，訂閱卡對買斷使用者的特別按鈕文字
+  「買斷已涵蓋其他權益」拿掉，回到「已由買斷涵蓋」；免費方案的鎖頭一行改為點名兩方案
+  （`ux_closure_plan_locked`：「訂閱或買斷可使用臨時放假規則」）。
+- 部署：Sandbox 會員服務正隨此變更重新部署。正式會員服務 `rainyclock-membership` 當時尚未
+  重新部署（**2026-09-30 已部署 `rainyclock-membership-00006-hnb`**）；1.8.0 發布前必須部署，否則買斷使用者
+  在 1.8.0 看到的是鎖住的開關（畫面對買斷者顯示「尚未確認你的方案」`ux_closure_plan_unconfirmed`，
+  不顯示點名方案的鎖頭一行，免得說「你買的方案包含」卻鎖著；伺服器授予後自動解鎖）。1.7.1 的 gate 為 false、不使用這個欄位，所以正式服務可以
+  先於 1.8.0 部署。
+- App Store Connect 的買斷說明（9/21 保存）只列 banner、日曆與每日 AI；是否補上臨時放假
+  由擁有者在 ASC 修改，見 [appstore-metadata.md](appstore-metadata.md)。
+## 1.8.0「明天」widget 的四項決定 — 2026-09-24（使用者決定 D-A～D-D，已實作於 `ios/widget`）
+
+- **D-A WeatherKit 標示。** 只有 medium 顯示天氣資料（住家／公司天氣、降雨 %、依天氣畫的天空），
+  並帶 Apple 的  Weather 組合標記與法律頁連結。依據 Apple〈Apple Weather and third-party
+  attribution〉(developer.apple.com/weatherkit/get-started)：顯示 Apple 天氣資料就必須清楚顯示
+   Weather 商標與其他資料來源的法律連結；5.2.5 有 widget 缺標記被退的前例。標記圖由 App 在
+  已經連 WeatherKit 的時候（卡片的 `WeatherAttributionView`、背景更新）下載
+  `combinedMarkDarkURL`（白字版，理由見下方「審查後的修正」）存進 App Group，widget 畫它；還沒下載前
+  畫文字「 Weather」。
+  medium 的天氣欄是 widget `Link`（`rainyclock://weather-attribution`），App 收到後開
+  `legalPageURL`。**其他尺寸**（small、StandBy、長方形、圓形、inline）只顯示鬧鐘決定：
+  因雨提早 N 分鐘（不帶路線降雨 %）、一般日「照常響鈴」、small 天空只在因雨提早時下雨、其他時候
+  品牌深藍（不畫晴天或多雲、不跟預報）、StandBy 不再有天氣符號。**（2026-10-02 晚改：「只有 medium 顯示天氣資料」與
+  small 的天空這兩句已被取代——small 的天空改跟預報，和 medium 同一片，畫的時候帶  Weather 標記；small 的文字、StandBy 與
+  鎖定畫面照本條不變。見最上方。）**天氣「過期／失敗／尚無預報」是資料新舊，
+  保留。**殘餘風險：** Apple 對「value-added」（由天氣資料轉換的產品）另要求標註  Weather 並
+  註明資料已修改；「因雨提早」是否算此類由使用者判斷，目前照 D-A 不在非 medium 尺寸加標記。
+  （2026-10-02 晚：small 畫預報天空時已帶標記；沒有天空的 small（StandBy、著色／透明主畫面、沒有預報）與鎖定畫面仍照本句，
+  不加標記。）
+- **D-B 過期。** 背景更新（BGTask）在發布 widget 前也抓明天天氣（`refreshTomorrowWeatherIfNeeded`，
+  只在前 15 秒內開始、會被逾時取消、不登記也不改鬧鐘）。（合併後抓的是主卡「接下來的早上」：午夜到今天的原定時間
+  是今天的預報，之後才是明天的；所以今天提早響過到原定時間之間，widget 的「明天」沒有預報，見 STATUS-IOS 1.8.0 合併
+  那一點的「已知（未改）」。）**widget 只在天氣超過 3 小時才警告過期**；
+  卡片維持 30 分鐘。刻意不同：widget 整天掛在畫面上又不能自己更新，卡片是點開才看且會自己更新。
+  鬧鐘決定（`TomorrowAlarmStatus.resolve`）仍用 30 分鐘，沒有改。
+- **D-C 午夜到響鈴前顯示「今天」。** 從當地午夜到今天的鬧鐘響（略過的日子到原本時間），widget
+  所有尺寸顯示**今天**的鬧鐘與原因（例：今天 上午6:40 因雨提早 30 分鐘），響過之後才換「明天」。
+  顯示的是 AlarmKit 實際會響的已登記時間，今天的項目也在那個時間結束；只有午夜後 30 分鐘內預報
+  仍新鮮又和登記不同時，才和卡片一樣顯示預報的決定並標「鬧鐘設定尚未更新完成」。
+  snapshot 事先算好這些項目，App 不用醒著。**卡片不變**，整天都講明天：在 App 裡看的是要改什麼，
+  今天的決定已經登記了。（**已被 2026-09-29「鬧鐘頁主卡描述接下來的早上」取代**：卡片午夜後也描述今天、
+  標題「下次鬧鐘」，到原定時間才換；widget 的 D-C 仍照本條，差別見上方 2026-10-01。）今天的項目不顯示
+  天氣警告（App 只抓明天的預報，今天的無從更新；而且那些文字寫著「明天」）（2026-10-02 起中型的天氣欄會顯示，字寫「今天」）。（合併後這個理由已不成立：App 抓的是
+  主卡那個「接下來的早上」，午夜後就是今天的，23:00 或 01:00 抓到的今天預報能用好幾個小時。今天的項目仍不帶預報，
+  是保留 D-C 的畫面決定：今天的鬧鐘已經登記，今天的項目只說 AlarmKit 會在幾點響（今天的決定已寫在原因那一行），
+  中型今天不畫天氣欄與  Weather 標記；要不要在今天的項目也顯示天氣，是擁有者可以再改的設計選擇，不是技術限制。）
+  （**2026-10-02 擁有者已改：** 中型在今天的項目也畫天氣欄與  Weather 標記，見最上方；其他尺寸今天仍不顯示天氣警告。）
+- **D-D 響鈴後沿用的提早。** 週鬧鐘在提早響過之後，隔天仍會在同一個提早時間響；顯示這個時間
+  （真的會響），但在隔天自己的預報決定之前**不說「因雨提早」**，改成「等待明天預報」（今天的項目為
+  「等待今天預報」）。卡片同規則。用同一天的預報決定、只是預報已過期的提早，仍說因雨提早。
+  （合併後卡片午夜後寫「等待今天預報」；沿用的提早已經響過時，卡片只寫「已響鈴」不帶原因——擁有者 2026-10-01 決定，
+  與本條一致。）
+- **審查後的修正（2026-09-24 晚，同日對實作做的審查，逐項對照程式確認後修）：**
+  - D-A：small 的天空在沒有「因雨提早」的日子改成品牌深藍（不再是晴天）：失敗、尚無預報、停班停課、
+    60%（門檻 70%）都不該畫太陽。**（2026-10-02 晚改：small 的天空改跟預報並帶標記，停班停課、60%、抓取失敗但留有上一次
+    預報的日子都畫預報的天空，可能是太陽；尚無預報仍是深藍。見最上方。）**medium 的標記**永遠用深色版（白字）**：著色／透明主畫面會把圖的亮度
+    轉成透明度，淺色版的黑字會整個消失，而那時天氣資料還在。只下載這一版。medium 的天氣欄是
+    VoiceOver 可點的獨立連結（「Apple Weather」＋「開啟 Apple 天氣的資料來源與法律聲明」）。
+    太陽改畫在天氣欄上下兩列文字之間的空隙裡，不再依 widget 高度猜位置（加了標記列後光芒壓到「晴天」）。
+    widget 名稱改「下次鬧鐘／Next Alarm」，首次畫面改「開啟 App 以顯示下次鬧鐘」。
+  - D-B／D-C：**今天的項目不帶預報**，medium 在今天的項目不畫天氣欄與標記（左邊占滿）。那份預報是
+    前一晚的，到午夜已經好幾小時，App 也不會再抓今天的；帶著它就得依 3 小時規則警告一個誰都清不掉的
+    過期，或在 App 換成明天的預報後留下空白欄。（**2026-10-02 已被取代**，見最上方：兩個理由都不成立了——午夜後
+    App 會抓今天的預報（開 App 時、背景工作），過期警告清得掉；紀錄要到原定時間才換成明天的，那時今天的項目已經結束，
+    只有比原定時間晚的舊登記鈴還在，而那段時間沒有預報就不畫天氣欄，不會留下空白欄。）
+  - D-C：今天顯示的時間是 AlarmKit 真的會響的：(1) 設定改了但重新登記失敗／被延後時，舊登記仍在，
+    今天的項目顯示舊的響鈴時間並標「鬧鐘設定尚未更新完成」，舊鈴響過就結束今天；(2) 在今天的檢查點
+    之後才做的週登記（例如 07:10 改鈴聲，決定的是週三），若週三不下雨，週重複在今天 07:30 仍會響，
+    widget 照樣顯示今天 07:30；(3) 00:10 這類提早會跨午夜的鬧鐘，前一晚 23:40 響過之後到午夜前，
+    不再改口說「明天 00:10 照常響鈴」（AlarmKit 不會在 00:10 響），而是維持響之前那個項目到午夜。
+  - D-D：**離線重新登記**（假日表更新、關掉日曆規則、會員到期）時，沿用提早只看「預報決定的是哪天早上」
+    （`decisionNormalAlarmDate`），不看重開 App 時往後捲過的日期；否則前一天的提早會被記成今天自己的
+    決定，並顯示「因雨提早」。這會讓「重開 App 後離線重新登記」與「App 一直開著」得到同樣的登記：
+    沒有預報決定過的早上用原本時間。1.8.0 以前存的摘要沒有這個日期，App 啟動時用存檔裡（還沒捲過）的
+    日期補上。
+
+## 颱風／臨時放假改定 1.8.0 — 2026-09-24
+
+- 使用者決定：颱風與天災臨時放假的目標版本由 **1.7.1 改為 1.8.0**；1.7.1 保留給其他工作。
+- 功能範圍、權益未定（買斷是否包含）與已部署的 dayoff-service 都不變，只改版本定位。
+  （2026-09-28：權益已決定為月訂閱與買斷都包含，見上方。）
+- 本檔與 `STATUS-IOS.md` 較早的紀錄保留當時寫的「1.7.1」；凡指這項功能的，都應讀成 1.8.0。
+  備忘改名為 [1.8.0 deferred disaster](1.8.0-DEFERRED-DISASTER.md)。
+
+## 舊會員 AI 次數遷移 — 2026-09-21（已批准）
+
+- 使用者選定：**舊會員固定補發 1 次；舊廣告餘額保留待核對**。
+- 後端依 Apple 驗證身分判定遷移資格，一個會員只領一次；手機申報數量不決定補發量。
+- 已有舊會員待核對紀錄可安全補發一次。跨装置並行、刪除再建立及重送申報不再補發。
+- 舊廣告申報保留，不直接變成可花用額度；新會員初始一次、付費共用每日一次不變。
+
+## 會員方案頁順序與管理入口 — 2026-09-21
+
+- 方案卡改為月訂閱在前、買斷在後；這是畫面排序，不改買斷權益優先的規則。
+- 月訂閱英文標題為 **Monthly subscription**。恢復購買是正式功能，與同步、管理訂閱及
+  刪除會員一起收進右上角會員管理選單，不再佔用底下整張操作卡。
+- 有效訂閱顯示效期及自動續訂狀態；點續訂列開 Apple 訂閱管理，不提供未經 Apple 處理的
+  本機續訂開關。Sandbox 效期包含時間，方便測加速續訂。
+- 使用者要求退回剛購買的沙盒買斷，以測月訂閱。採 Apple 的測試退款表單＋已驗證退款
+  通知撤權，入口僅 Debug Sandbox 顯示；不把清空測試歷史誤稱為退款成功。
+
+## 買斷包含日曆並優先顯示 — 2026-09-21（最新權益）
+
+使用者最新指定月訂閱與買斷都包含「移除 banner＋日曆」。買斷取得這些當前權益的永久
+使用資格，會員層級高於月訂閱；此決定取代下方歷史「買斷不含日曆」規則。
+
+| 項目 | 月訂閱 | 買斷 |
+| --- | --- | --- |
+| 移除 banner、日曆 | 訂閱有效期間 | 買斷有效即持續提供 |
+| 每日免看廣告 AI 生成 | 1 次 | 1 次 |
+| 額外 AI 生成 | 每次需完成 1 次獎勵廣告 | 同左 |
+| 兩者同時持有 | 顯示買斷會員；共用每日 1 次，保留 Apple 訂閱實際狀態及管理入口 | 同左 |
+
+- 使用者另行確認 AI 規則維持不變：當地午夜更新、未用不累積；免費仍初始 1 次，非每日。
+  買斷＋訂閱不能疊加成每日 2 次，既有已存音檔的播放不扣次數。
+- 已有有效買斷時，不再允許重複購買月訂閱。若原本已有 Apple 訂閱，繼續呈現真實效期／
+  續訂狀態與「管理訂閱」入口，由使用者管理；App 不自動取消、退款或宣稱已取消。
+- 訂閱到期仍有有效買斷時，日曆也持續可用，不降回基本規則；只有確認已沒有日曆權益時，
+  才依原安全重排規則銜接，保留設定及既有排程。買斷退款／撤銷仍依 Apple 驗證狀態。
+- 定價保持下表，年方案仍不販售。颱風臨時放假仍延至 1.7.1；本次不決定下一版
+  該功能是否納入買斷，也不把「永久」解讀成尚未承諾的所有未來功能。
+  （2026-09-28 已決定：1.8.0 的臨時放假規則月訂閱與買斷都包含，見最上方。）
+- 本次新權益已更新獨立 Sandbox（`00004-kkd`），ASC 買斷中英說明也已保存／讀回；
+  沒有送審、發布或部署正式會員。測試與實際證據見 [iOS Status](STATUS-IOS.md) 與
+  [測試環境紀錄](MEMBERSHIP-STAGING.md)，真機登入／購買仍待驗收。
+
+## iOS 買斷調價 — 2026-09-29
+
+使用者決定調高非消耗型買斷，月訂閱不變。此決定取代下方 9/21 表中的買斷價格。
+
+| 商店 | 月訂閱 | 買斷（一次付款） |
+| --- | --- | --- |
+| 美國 | US$1／月（不變） | **US$15**（原 US$10） |
+| 台灣 | NT$10／月（不變） | **NT$150**（原 NT$100） |
+
+- 同一天再次確認：臨時放假規則包含在月訂閱與買斷，免費不含（9/28 的決定不變）。
+- 台灣仍是獨立指定的價格，不採美國價格換算，與原本 NT$100／US$10 是同一個模式。
+- 價格由擁有者在 App Store Connect 修改：先把美國基準價改成 US$15（Apple 會重算其他自動地區），
+  再把台灣手動設為 NT$150，並讀回「目前定價」確認；供應地區仍只有美國與台灣。
+- App 顯示 StoreKit 回傳的當地價格，不需改程式。本機 StoreKit 測試設定
+  `Configuration/RainyClockMembership.storekit` 已同步改為 15.00。
+- 非消耗型商品調價不需要買家同意，生效日起所有新購買都用新價，不分 App 版本；已經買斷的人不受影響。
+- **生效日：1.8.0 上架當天**（擁有者 9/29 決定），和臨時放假一起上路。1.8.0 是手動發佈，所以在按下發佈的同一天
+  讓 ASC 的新價格生效（排程日期設成那天，或當天再改）。
+- 這裡只處理 iOS。Android（Google Play）的買斷價格在 Play Console 另外設定。
+
+## iOS 定價與方案精簡 — 2026-09-21
+
+使用者最新指定只提供「月訂閱」與「非消耗型買斷」，不再提供年訂閱優惠方案。
+（買斷價格已由上方 2026-09-29 的調價取代。）
+此決定取代下方 2026-09-16 的三方案價格，以及 2026-09-17 暫定的台灣年費／買斷價格。
+
+| 商店 | 月訂閱 | 買斷（一次付款） |
+| --- | --- | --- |
+| 美國 | US$1／月 | US$10 |
+| 台灣 | NT$10／月 | NT$100 |
+
+- 台灣價格為獨立指定，不採美國價格的自動換算值。其他商店價格仍未決定；App 持續顯示
+  StoreKit 回傳的商店本地價格，不硬寫美元或台幣金額。
+- 最新權益已由同日後續決定更新：月訂閱與買斷都包含移除 banner、日曆及每日一次免看廣告
+  AI 生成；買斷優先顯示，永久持有當前權益。額外生成仍需一次獎勵廣告。
+  颱風／天災臨時放假仍延至 1.7.1，不加入 1.7.0 對外文案。
+- 不再將年訂閱列為可購買方案；既有年方案識別碼與已驗證交易不可因停止販售而直接
+  當作退款或到期，仍須遵守 Apple 實際交易狀態及原有安全重排規則。
+- 9/21 已在 ASC 保存並重讀核對上述價格；月訂閱與買斷均只供應美國＋台灣共 2 地區，
+  年方案已停止銷售、0 地區。未來新地區自動供應 OFF。買斷改美國基準 US$10 後，
+  Apple 重算其他地區自動價，再將台灣手動固定 NT$100；未供應地區的自動價格
+  不是已批准售價。詳見 [測試環境紀錄](MEMBERSHIP-STAGING.md)。
+  正式送審、發布與會員收費啟用仍是另外的步驟。
+- 9/21 使用者最新確認及附圖兩列資料證實台灣、美國 Sandbox 帳號皆已建立；
+  頁面總數與兩列不一致，不以總數否定建立完成。手機登入、商品讀取、購買與後端
+  認回仍待驗收，不記錄測試憑證。帳號盤點中間狀態保留於 staging 歷史。
+
+## iOS 美國限定 Sandbox 商品設定 — 2026-09-16（歷史，價格已被上方決策取代）
+
+以下記錄當日實際設定，不能當作目前的方案目錄。
+
+- 使用者明確批准：「先只開美國供 Sandbox 測試；其他地區不開放，對應價仍待確認」。
+  已在 ASC 儲存並重讀核對月訂閱 US$1、年訂閱 US$10、非消耗型買斷 US$5；
+  三個商品均為 USA only，未來新地區自動開放 OFF。
+- 月／年權益相同，同屬 `RainyClock Plus` 群組且同為 level 1。年方案為預付 1 年；
+  未配置「12 個月承諾、逐月付款」。家庭共享仍關閉。
+- Apple 依美國基準產生的非美國對應價不是已批准的正式售價，其他地區不可售。
+  本次批准範圍是 Sandbox 測試準備；沒有送審、發布或開放正式收費，正式上市價格與地區
+  仍需另行確認。英文／繁中六筆商品與兩筆群組本地化已保存；審查截圖及真機驗收仍待完成。
+- 獨立 Sandbox 後端已啟用並通過 Apple TEST 通知；真機商品讀取／購買、App Attest、
+  LevelPlay 與 AI 端到端當時仍未測；Sandbox 帳號已於 9/17 由使用者提供建立完成截圖。
+  正式 weather 服務與已封存 1.7.0（29）的空白會員 URL 不變，未修改 Android。
+  實際商品 ID、文案與驗證證據見 [會員測試環境](MEMBERSHIP-STAGING.md)。
+
+## 免費初始一次與兩種鈴聲 — 2026-09-16（最新）
+
+- 使用者將免費方案的初始 AI 額度從 3 次改為 **1 次**，不是每日重置；
+  已用計數、已獲廣告獎勵保留。付費方案仍每日一次，兩種鈴聲共用生成次數。
+- 「提早響鈴」與「原定時間響鈴」可各選音色或 AI 人聲；舊資料兩者沿用原鈴聲。
+  依實際註冊時間是否提早選用聲音，日曆逐日判斷；稍後提醒沿用該次聲音。
+- 試聽、播放、重用已存 AI 音檔不扣次。新的 AI 生成成功儲存後才切換對應鈴聲。
+  保留舊音檔，避免影響仍在響鈴／稍後提醒或已排程的鬧鐘。
+
+## 1.7.0／1.7.1 發布範圍調整 — 2026-09-16
+
+- 使用者決定 1.7.0 暫不公開颱風／天災臨時放假；移除對外資訊及入口，執行層停用，
+  原始設定、程式、地圖與服務保留給 1.7.1。此決定優先於下方較早方案中的颱風權益。
+- 當時 1.7.0 訂閱文案只列 banner、日曆及每日 AI，買斷未含日曆；後者已由 9/21 最新權益
+  決策取代。臨時放假延後決定保留，不由本次日曆權益更動推論其買斷資格。
+  會員服務尚未正式啟用，不因本次真機安裝而開放購買。
+- 美國來源改為可選，以 OPM 常態聯邦假日及標準補假規則離線計算；不包含各州、
+  學校、公司、輪班或一次性行政放假，可使用原有手動日期調整。
+- 保留備忘與未發布隱私草稿：[1.8.0 deferred disaster](1.8.0-DEFERRED-DISASTER.md)（原 1.7.1）。
+
+## iOS monetization decision — 2026-09-16（歷史設計）
+
+### 使用者確認的方案
+
+本節保留 9/16 當時的決策；價格、年方案及買斷不含日曆已由 9/21 決策取代，颱風功能另延至 1.7.1。
+當時的決策取代較早的「每月 10 次 AI」與「暫不討論天災」方案。當時目標價格為 US$1／月、US$10／年、US$5 買斷，取代先前的
+NT$10／月、NT$100／年、NT$50 買斷；其他權益沿用。當時已加入本機／測試環境實作；
+後續獨立 Sandbox 部署與美國限定商品設定見上方最新決策，正式付費商品仍未上架。
+
+| 權益 | 月訂閱 | 年訂閱 | 買斷 |
+| --- | --- | --- | --- |
+| 9/16 當時美元目標價（已取代） | US$1.00／月 | US$10.00／年 | US$5.00，一次付費 |
+| 移除 banner 廣告 | 訂閱有效期間 | 訂閱有效期間 | 包含 |
+| 日曆功能（國定假日、手動日期響／不響） | 包含 | 包含 | 不包含 |
+| 颱風臨時放假功能 | 包含 | 包含 | 不包含 |
+| 每日免看廣告生成 AI 鈴聲 | 1 次 | 1 次 | 1 次 |
+| 當日超過內含 AI 次數 | 每多 1 次，完成 1 次獎勵廣告；或等隔天 | 同左 | 同左 |
+
+- 對外用語是「移除 banner 廣告」，不能宣稱「完全無廣告」；額外 AI 生成仍可自願看
+  rewarded ad。內含的每日 1 次不需要看廣告。AI 次數指生成，不是播放已儲存的鈴聲。
+- 月訂閱與年訂閱享有相同權益。買斷不解鎖日曆或颱風臨時放假。
+- 使用者最新將免費方案改為初始 1 次加獎勵廣告（非每日）；付費方案仍每日 1 次。
+- 颱風臨時放假重新列入訂閱範圍；既有官方公告來源、資料驗證與手機完成排程的契約
+  仍適用。列為付費功能不代表正式後端已部署或背景更新保證送達。
+- 使用者於 2026-09-16 確認依討論方案繼續：第一版採免註冊會員，以可驗證的 Apple
+  資料對應內部會員，透過現有 Google Cloud Run 後端讀寫 Cloud Firestore Standard
+  資料庫，建議與後端同在台灣 asia-east1。付款使用 StoreKit，不建立信用卡表單。
+  後續已要求直接實作，會員／Apple 驗證／FireStore 額度／恢復購買已加入程式，
+  預設開關保持關閉，正式端尚未建立雲端資源、部署或啟用收費。舊版本機 quota
+  不代表跨裝置額度，安全遷移仍是開放前置條件。
+  執行流程與付款說明見 [Membership and payments](MEMBERSHIP-AND-PAYMENTS.md)。
+
+### 美國價格級距查核 — 2026-09-16
+
+- Apple 官方 USD 價格表明列 X.00 整數美元慣例，支援 US$1.00、US$5.00、US$10.00。
+  不必改成 US$0.99／US$4.99／US$9.99；目前自動續訂及一般 App 內購買定價說明
+  均提供預設最多 800 個價格級距。這是當時的可行性查核；後續已建立並核對商品測試價，見上方決策。
+- 美國售價以美元設定；其他商店使用當地幣別與價格級距。建立商品時可採 Apple 按
+  匯率和稅費產生的對應價，或手動指定。台灣價格在此查核當時尚未選定；9/21 已獨立指定月 NT$10／買斷 NT$100。
+  不能把美元直接乘即時匯率當成上架價格，也不能再使用舊年方案或舊買斷價格。
+- 訂閱的區域對應價格建立後，不會因匯率改變由 Apple 自動調整；一般買斷內購可選
+  美國為基準，讓 Apple 定期更新其他自動管理地區的價格。跨區策略仍是建議。
+
+來源：[Apple USD 價格表，第 1 頁](https://www.apple.com/newsroom/pdfs/App-Store-Pricing-Update.pdf#page=1)、
+[自動續訂定價](https://developer.apple.com/help/app-store-connect/manage-subscriptions/manage-pricing-for-auto-renewable-subscriptions)、
+[一般內購定價](https://developer.apple.com/help/app-store-connect/manage-in-app-purchases/set-a-price-for-an-in-app-purchase/)。
+
+### 使用者已確認的額度與到期規則 — 2026-09-16
+
+- 每日額度依使用者所在地時區午夜更新，未用不累積。以伺服器時間及會員共用的 IANA
+  時區計算，所有裝置共用同一視窗。時區變更不立即補額度；於既有視窗結束後生效，
+  且至多每 24 小時生效一次，防止快速切換時區重複領取。這不代表能以 App Attest
+  證明使用者的實際地理位置。
+- 同時擁有買斷與訂閱，共用每日 1 次。依 9/21 最新權益，訂閱到期仍保留有效買斷的
+  banner／日曆／每日 AI 權益。
+- 成功生成並由伺服器可靠保存後才扣次；失敗退回同一筆每日／免費／廣告來源。
+  重下載不扣次。重試結果保留 24 小時，過期不再提供；重新生成需明確確認新次數。
+- 訂閱到期保留設定與既有排程。伺服器確認到期且沒有有效買斷等日曆權益後，
+  下一次安全重排才改用基本規則；
+  會員離線不視為確認到期，替換失敗不刪舊鬧鐘。若只選了日曆日期而未設每週重複日，
+  保留既有排程，等待使用者選擇基本重複日。
+- 免費方案初始 1 次加獎勵廣告。本機保留已使用計數，剩餘為 max(1 − 已用, 0)，
+  已獲得的廣告額度不變；既存後端 ledger 不重置。不能直接信任舊手機申報為
+  可花用的後端額度。遷移採先記錄待查核，尚未批准任何無證據補發或正式切換。
+
+### 仍需開放前確認
+
+- 台灣價格已於 9/21 指定；其餘商店價格、正式商品啟用及伺服器部署另行處理。
+- 舊版本機免費／廣告次數沒有伺服器證明，轉入與舊匿名生成端點的切換方式待定。
+  目前保留舊版流程，會員服務 URL 留空，沒有讓現有使用者餘額歸零。
+- 會員刪除後防止重複領取所需的最少不可逆摘要，其正式保留期限與法規依據須審定。
+
+### 買斷的持續服務成本
+
+買斷包含持續提供每日 AI 生成，應以實際長期使用率評估；最新售價見 9/21 決策。以查核的 Gemini 2.5
+Flash TTS 的音訊輸出費率（US$10／百萬 audio tokens、每秒 25 tokens），假設每次
+上游實際生成 10 秒、全年每天使用 1 次，純音訊輸出為 US$0.9125／年；以預算假設
+US$1 = NT$32 換算為 NT$29.20／年。這不是使用者平均成本或總成本，也不是成本上限，
+未含文字輸入、語氣分析、伺服器、資料庫、失敗重試與其他支出。程式在收到音訊後才
+裁切到 10 秒，上游實際生成更長仍可能增加費用。額外獎勵廣告收入不能當成每天內含
+1 次一定會產生的收入。此成本檢核不自行改動使用者指定的價格或權益。
+
+來源：[Google Cloud Text-to-Speech pricing](https://cloud.google.com/text-to-speech/pricing)，
+2026-09-16 查核。
+
+### English handoff
+
+The latest decision (2026-09-21) offers only monthly subscription and non-consumable lifetime:
+US$1/month and US$10 once in the US; NT$10/month and NT$100 once in Taiwan. Annual subscriptions
+are no longer offered. This supersedes the September 16 three-plan pricing and September 17
+provisional Taiwan annual/lifetime prices. Taiwan pricing is specified independently, not derived
+from the US price. Other storefront prices remain undecided. StoreKit supplies displayed prices.
+The subsequent September 21 entitlement decision gives both monthly and lifetime banner removal,
+calendar and one shared daily ad-free AI generation. Lifetime is permanent access to these current
+benefits and takes display priority when both are owned. Block redundant monthly purchases while
+lifetime is active; keep the actual Apple subscription status and management entry without silently
+cancelling it. Subscription expiry does not remove calendar while lifetime remains valid. Only a
+verified loss of all calendar access triggers safe fallback planning. Additional generations still
+require a rewarded ad; free remains one initial generation. Disaster closures stay deferred to
+1.7.1, and their future lifetime eligibility is not decided by this change. Existing verified annual transactions must
+still follow Apple's actual status; retiring a sale is not a refund or confirmed expiry.
+The new US/Taiwan prices are saved and read back in ASC. Monthly/lifetime availability is US and
+Taiwan only (2 territories), future-territory auto-expansion off. Annual is off sale (0 territories).
+The lifetime US base-price change recalculated other Apple-managed territories; Taiwan was then
+manually fixed at NT$100. Unavailable territories' generated prices are not approved prices. See
+the staging record for evidence; no review submission, release or production membership activation occurred.
+The user's latest September 21 confirmation and screenshot show Taiwan and US Sandbox testers
+created (two visible rows). An inconsistent heading count does not override that evidence. Device
+login, purchases and identity remain unverified; no credentials are recorded.
+Approved quota rules remain local midnight without rollover, shared daily one for overlapping
+purchases, durable-success debit with same-source refunds, and preserving settings/alarms until
+safe replanning after confirmed expiry. Free users receive one initial generation plus rewards,
+not a daily allowance. Legacy migration remains a launch gate. The cost example above remains a
+historical audio-output-only scenario, not a current bill or profitability guarantee.
+
+## iOS 1.7.0 integration decision — 2026-09-15
+
+使用者已看過獨立預覽，現在授權將預覽功能與 UI/UX 邏輯合回原 `RainyClock-iOS/`
+的 **1.7.0 (29)**，先在模擬器檢視。保留原 App 名稱、bundle ID、深色／藍色／圓角風格，
+沒有另開發布版本、提交 App Store、部署後端或啟用收費。原獨立預覽及合入前備份仍保留。
+
+- 狀態與設定分開。最左頁叫「鬧鐘」，顯示的資訊可前往對應設定；不將編輯控制全塞回狀態頁。
+- 另一頁叫「設定」，分類為「時間／路線／日曆／其他」。「時間」取代設定分類原先的「鬧鐘」名稱。
+- 編輯選項直接保存；不增加「套用變更」、設定完成訊息、「變更會自動更新」等多餘註解。
+- 保留原路線編輯方式。國定假日、手動日期例外、天災設定與唯讀停班停課地圖歸「日曆」。
+- 「其他」只保留支援與「通知與背景更新」相關內容；不增加「排程與資料」分類。
+- 時間格式選項使用「12小時制／24小時制」名稱，不以「上午／下午」命名選項。
+- 天災採「共用伺服器取得官方公告，手機更新本機排程」；每次颱風只更新資料，不需更新 App 版本。
+- 日曆與天災預計為加值功能，但 **StoreKit 訂閱產品、價格上架及權益閘門尚未實作**。
+
+The owner now authorizes integration of the reviewed previews into the original iOS 1.7.0 (29)
+workspace for simulator review. The earlier separate-preview instruction was honored before this
+authorization. The current navigation contract is Alarm / Settings, with Time / Route / Calendar /
+Other categories; status links to settings and edits save directly. The disaster backend remains
+undeployed/unconfigured, and APNs, physical-device scheduling and billing are not production-ready.
+Prior preview test results are historical; the merged navigation and app require a fresh run.
+
+This supersedes the September 10 deferral of temporary suspensions, the 366-day iOS 26 date window,
+the map-only region selection restriction and older keyless/backendless day-off proposals below.
+The current implementation uses a 27-day window and explicit, saved district selection; see
+[DISASTER-PREVIEW.md](DISASTER-PREVIEW.md) for the complete current contract.
+
+## Historical iOS 1.7.0 owner decisions — 2026-09-10
+
+These supersede the earlier three-way work/school selector for iOS. Android is not changed.
+
+- Work and school are independently enabled preferences; mixed-announcement semantics are
+  deferred with temporary-suspension implementation.
+- Manual date overrides have highest priority, including a forced ring on a holiday.
+- 1.7.0 includes Settings, a monthly editor, Taiwan holidays and manual exceptions. Temporary
+  suspensions remain a later version; the stored preferences do not yet silence alarms.
+- Weekly selection is the baseline. The optional Taiwan office calendar removes official off
+  days, including weekends. Users explicitly add make-up/shift days outside their weekly selection.
+- Calendar master switch defaults off for new installs and 1.6.9 upgrades. Off hides its editor/source
+  controls and uses only weekly rules, retaining manual dates for when the switch is re-enabled.
+  Calendar overrides apply only to that exact year. Settings is the sole calendar entry point.
+- Work/school regions come from the home/destination map points, with no manual district input.
+  An unknown region stays pending; changing the route is how the user changes the region.
+- Time format is a saved AM/PM or 24-hour preference (default AM/PM), shared by Alarm and evening
+  previews, including their pickers and notification text. Chinese uses 上午/下午 only. A format
+  change updates presentation, never the actual ring or notification firing time.
+- Fixed-date coverage is explicit: 366 days on iOS 26+, 27 days on iOS 17–25, renewed when the app
+  runs, with a seven-day expiry reminder. Later dates are saved rules, not yet armed alarms.
+
+繁中：上班、上課是兩個獨立開關；手動響／不響優先於自動規則。1.7.0 完成國定假日與
+月曆，臨時停班停課延後。預設沿用每週設定，選用台灣辦公日曆後排除政府休假日；額外
+補班、輪班日可手動加回。每個例外僅適用該年該日，日曆會明示系統已排程的有效期限。
+行事曆有獨立總開關，關閉就隱藏月曆等選項並保留原設定；入口只在設定頁。
+上班／上課的地區從路線地圖帶入。時間可選 24 小時或上午／下午，套用鬧鐘和前晚通知。
+
+
 ## English
 
 ### Current Scope
@@ -37,6 +673,13 @@ Address entry should make resolution quality visible:
 
 - If a user selects a dropdown suggestion, treat that result as confirmed.
 - If the app resolves typed text without an explicit suggestion selection, show the actual address in use.
+  Exception (1.7.1): when Apple matches the typed text *exactly* under the same name — differing only
+  in case, width, diacritics, 臺/台, spaces or punctuation — and the text has no house number and no
+  same-named place more than 2 km away, it is confirmed silently with its coordinate. "Taipei main
+  station" → "Taipei Main Station" asked a question with nothing to decide; a chain name, a bare
+  street number or any other name still asks.
+- An unconfirmed or not-found address blocks scheduling, so the Home/Work row on the Route page must
+  show it (yellow triangle / red mark), not only the address sheet.
 - If an address cannot be resolved, mark only that address field as invalid.
 - The “Use this location” action should replace the typed address with the resolved address.
 
@@ -51,9 +694,37 @@ Scheduling is split by system version behind the `NotificationScheduling` protoc
 
 **Deliberate behaviour change in `1.6.3` (iOS 26 only):** the pre-26 path fires follow-up notifications at the snooze interval, up to 10 times, whether or not the user reacts. AlarmKit instead alerts once and snoozes only when the user taps the button, matching Apple's Clock app. Layering backup notifications on top would restore the "keeps nagging" behaviour but re-introduce the two-mechanism bookkeeping AlarmKit exists to remove, so the system behaviour was accepted — a full-screen alert that pierces silent mode is far harder to sleep through than a banner.
 
-**Scheduled-alarm sync contract (since `1.6.3`):** the registered alarm always matches the visible settings. Parameter edits (weekdays, time, rain lead time, rain threshold, sound, snooze, commute mode) auto-refresh the alarm after a short debounce — no button press needed. Address edits instead *remove* the alarm outright: an alarm for a route the user has not confirmed should never ring, so the schedule button is the only way to re-arm it. The status line under the button is colour-coded — green (armed, in sync), orange (armed, syncing or stale), grey (nothing armed). The amber stale notice remains as a fallback for a failed auto-refresh.
+**Scheduled-alarm sync contract (1.7.0 integration, 2026-09-15):** settings save directly and
+parameter edits debounce into a schedule refresh. Foreground UI explicitly activates automatic
+scheduling; the first alarm is armed only when both route addresses are confirmed and resolved
+and the remaining alarm settings are valid. Draft address typing cannot arm an alarm. Editing
+an existing address removes the old route's schedule; a newly confirmed, resolved route can be
+automatically scheduled without an Apply button. The Alarm tab reports actual schedule state and
+links to the relevant editor; errors or pending changes must not appear as confirmed success.
 
 The intended product behavior is to refresh weather at the configured lead-time point. For example, if the normal alarm is 7:30 and the rain lead time is 30 minutes, the app checks the selected route/weather at 7:00. If the threshold is exceeded, the early alarm fires; otherwise, the normal alarm remains.
+
+### Day-off Suppression
+
+Current iOS implementation is integrated locally into 1.7.0 (29), following the owner's
+September 15 approval. The earlier backendless/keyless proposal in `DAYOFF-SPEC.md` is
+historical where it conflicts with [DISASTER-PREVIEW.md](DISASTER-PREVIEW.md).
+
+- A shared server reads the official NCDR member Atom/CAP API, validates/caches announcements,
+  and optionally sends APNs background hints. Each event changes data, not the App Store binary.
+- iOS uses the original alarm date and explicitly saved home/destination districts; either
+  selected location may qualify. Route interior points do not qualify. Work/school switches
+  remain independent; both enabled currently requires both suspended (AND).
+- Unknown, stale, conflicting or mismatched announcements do not create new skipped alarms.
+  Confirmed applicable announcements may skip that date only. Manual ring overrides in an enabled
+  calendar take precedence. Scheduling success is recorded separately from receiving an announcement.
+- Authenticated receipts report completed local processing only. They contain no location, alarm
+  time or skipped date, and cannot promise future delivery or alarm behavior.
+- Holidays use the official offline office-calendar CSV, not EventKit. The read-only map lives
+  under Calendar and is separate from both alarm scheduling and the date editor.
+- The feature defaults off. Deployment, NCDR/APNs credentials, physical-device behavior, the
+  27-day date-window limitation and StoreKit billing remain release work. No production service
+  or subscription was activated by this local integration.
 
 ### Localization Strategy
 
@@ -109,10 +780,46 @@ Google Places fallback 可在未來加入，但只應在 Apple 地址解析失�
 
 **`1.6.3` 刻意的行為改變（僅 iOS 26）：** 舊路徑不管使用者有沒有反應，都會依賴床間隔補發、最多 10 次。AlarmKit 改成響一次，只有使用者按賴床才會再響，與 Apple 時鐘 App 一致。若在上面再疊備援通知，可以保留「不理也會再吵」的行為，但會把 AlarmKit 本來就要消除的雙機制同步複雜度搬回來，所以選擇接受系統行為 —— 穿透靜音的全螢幕警示本來就比橫幅通知難忽略得多。
 
-**排程鬧鐘同步約定（自 `1.6.3` 起）：** 已註冊的鬧鐘永遠與畫面上的設定一致。參數調整（星期、時間、雨天提前時間、降雨門檻、鬧鈴、賴床、通勤方式）會在短暫 debounce 後自動重新排程，不需要按按鈕。地址調整則直接**移除**鬧鐘：使用者尚未確認的路線不該有鬧鐘替它響，所以只有排程按鈕能重新啟用。按鈕下方的狀態列以顏色區分 —— 綠色（已設定且同步）、橘色（已設定但同步中或不一致）、灰色（沒有鬧鐘）。琥珀色的「設定已變更」提示保留作為自動更新失敗時的後備。
+**排程鬧鐘同步約定（1.7.0 整合，2026-09-15）：** 設定直接保存，參數變更經短暫 debounce
+自動更新排程。前景 UI 明確啟用自動排程後，只有住家、目的地**兩個地址都已確認且解析完成**、
+其餘鬧鐘條件也有效，才建立第一個鬧鐘；正在輸入的地址草稿不會觸發。修改既有地址先移除舊
+路線鬧鐘，新路線確認完成後可自動建立，不需要「套用」按鈕。鬧鐘頁呈現實際排程狀態並連往
+對應設定；錯誤或待套用狀態不能顯示為確定成功。
 
 預期產品行為是在使用者設定的提前時間點刷新天氣。例如平常鬧鐘是 7:30、雨天提前時間是 30 分鐘，App 應在 7:00 檢查路線與天氣。如果超過門檻，提早鬧鐘響起；否則保留正常鬧鐘。
+
+### 停班停課與假日靜音
+
+2026-09-15 已依使用者授權整合至本機 1.7.0 (29)。早期 `DAYOFF-SPEC.md` 的免金鑰、
+無後端與只在響鈴時說明的提案，與目前實作衝突時以 [DISASTER-PREVIEW.md](DISASTER-PREVIEW.md) 為準。
+
+- 共用伺服器取得 NCDR 正式會員 Atom/CAP，驗證及快取公告，再以選用 APNs 提醒手機同步；
+  每次颱風更新資料，不需要使用者下載新版 App。
+- 手機比對原鬧鐘日期及使用者確認的住家／目的地鄉鎮市區，任一已選地點可符合；不檢查途經地區。
+  上班、上課分別勾選，兩者皆選時任一停止即略過（2026-09-22 決定，取代原先暫採的 AND）。
+- 未知、過期、矛盾或日期不符的公告不新增略過；明確符合時只略過該日期。已啟用日曆中的
+  手動「照響」優先。公告已取得與系統排程已成功是不同狀態。
+- 手機成功處理後才上傳認證回報，不含位置、鬧鐘時間或略過日期；回報不是持續在線、
+  推播一定送達或未來鬧鐘狀態的保證。
+- 國定假日使用官方離線辦公日曆 CSV，不用 EventKit。唯讀行政區地圖放在「日曆」，
+  與日期編輯及鬧鐘是否成功略過分開。
+- 功能預設關閉；伺服器部署、NCDR／APNs 金鑰、真機背景行為、27 天日期視窗的產品限制
+  及 StoreKit 收費仍待完成。這次本機整合沒有啟用正式服務或訂閱。
 
 ### 本地化策略
 
 所有使用者可見的 UI 文字都應由本地化字串資源提供。文件應同時提供英文與繁體中文，確保產品與技術決策在兩種語言中保持一致。
+
+## 2026-09-23 — 颱風推播：廣播給所有裝置，手機自己判斷（作法 B）
+
+使用者最擔心的是「整晚沒點開 App 就錯過公告」。iOS 的靜默推播與背景更新都不保證執行，所以改為：伺服器對所有登記裝置送**同一則可見推播**，不含任何位置資料；手機的 Notification Service Extension 在 App 未執行時被系統喚醒，比對 App Group 裡使用者確認過的住家／目的地行政區，把通知改寫成「符合／相關／無關（靜音）」。伺服器不保存縣市或行政區，隱私政策只需說明推播 token 與匿名註冊。被拒絕的替代方案：伺服器保存裝置縣市再分區推送（多一筆位置資料）；每兩小時定時拉取（iOS 不提供這種排程）。鬧鐘的略過仍只由 App 自己決定，推播只是通知。詳見 [DISASTER-PREVIEW.md](DISASTER-PREVIEW.md)「推播與整晚沒碰手機的使用者」。
+
+同日另決定：停班、停課兩者都勾時是 OR，任一公告符合即略過（spec v3）。使用者看過模擬器推播截圖後確認作法 B 的結果，正式納入 1.7.1 範圍。
+
+## 2026-09-15 — 天災停班停課實作與後續整合
+
+本次採用共用伺服器輪詢官方 NCDR Atom/CAP，手機保留地區及判斷邏輯；停班資訊可隨時更新，每日一次不足。只在成功調整指定日期鬧鐘後宣稱已略過，疑慮與失敗不新增略過。功能明確預設關閉，兩勾選暫採 AND；付費權益尚未接入。本版採 27 天固定日期視窗並顯示期限，對應限制與部署需求見 [DISASTER-PREVIEW.md](DISASTER-PREVIEW.md)。最初於獨立預覽實作，現在經使用者授權整合回原 1.7.0 開發目錄；仍未發布。
+
+使用者已確認採用「共用伺服器查公告，手機同步後調整鬧鐘」。事件變更不需要更新 App 版本。新增手機成功處理回報：APNs 送出、手機下載成功與本機排程成功是不同狀態；伺服器只保存最新公告版本及處理結果／時間，不收集位置或鬧鐘日期。Receipt is a historical acknowledgement, not a delivery or future alarm guarantee. 部署與真機驗證仍未完成。
+
+使用者要求加入台灣行政區顏色地圖。原生畫面依今天／明天公告呈現鄉鎮市區，不把無公告當成正常。地圖與鬧鐘設定分開；住家與目的地卡片只定位，經過地區不列入判斷。公告原文保留，部分時段／地區另色，不擴張成全天整區停班。圖資離線隨 App 保存，示範資料明確標示且不修改真實鬧鐘。Native map implementation and display-only boundaries are documented in [DISASTER-MAP-PREVIEW.md](DISASTER-MAP-PREVIEW.md).
