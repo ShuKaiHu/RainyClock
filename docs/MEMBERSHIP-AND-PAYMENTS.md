@@ -25,11 +25,24 @@ AI 完整生成／下載、S2S 廣告與其他驗收請依最新
 
 | 商店 | 月訂閱 | 非消耗型買斷 |
 | --- | --- | --- |
-| 美國 | US$1／月 | US$10 一次 |
-| 台灣 | NT$10／月 | NT$100 一次 |
+| 美國 | US$1／月 | US$10 一次（base price 尚未調整，擁有者待辦） |
+| 台灣 | NT$10／月 | NT$150 一次（2026-10-03 改價，立即生效） |
 
+> **2026-10-03 讀回 ASC：台灣買斷已是 NT$150，美國 base 仍是 US$10。** 1.8.0 (40) 發布當天 14:4x 讀 ASC，
+> 買斷（Apple ID 6812814810，`com.shukaihu.RainyClock.banner.lifetime`）仍是 9/21 價格（台灣 NT$100、美國 base US$10），
+> 9/29 決定尚未執行。Claude 開始自訂價格調整（生效日 2026-10-03、「手動管理特定國家」、只勾台灣，等價基準顯示 US$15.00），
+> 最後的「確認」由擁有者自己按（分類器擋定價確認）。約 15:05 讀回：台灣 (TWD) 目前定價 **$150.00（手動調整）**；
+> 因為那個流程只改勾選的國家，美國 base 與其餘 174 個自動定價國家仍是 **US$10.00**。第二次價格調整對話框也被擋下，
+> 所以美國改價是擁有者待辦，步驟：價格排程 ＋ → 自訂的價格調整 → 立即進行價格調整 → 手動管理所有國家或地區的價格 →
+> 美國 (USD) 輸入 15.00，點「查看其餘價格」確認 $15.00 → 下一步 → 在 175 國表格中把台灣 (TWD) 改回 $150.00
+> （Apple 的自動對應價會是 $490.00）→ 確認。**不要用「全球的價格調整」**，它會把台灣重新等價化成 NT$490。
+> 手機上 14:47 的會員頁仍顯示 NT$100.00（StoreKit 即時價，含 .00；App 的備援表只在幣別不符時顯示，寫法是 `NT$100` 無小數）。
+> 備援表 `MembershipListedPrice`（`RainyClock/Services/MembershipModels.swift` 63-72 行：TWN 買斷 `NT$100`、USA 買斷 `$10.00`）
+> 在已上架的 build 40 仍是舊值；1.8.1（`dd65a13`，同日下午）改為 NT$150／$15.00 並有測試，尚未上傳，而且要等美國 base
+> 改好才能送審（見下方「發布前仍須逐項確認」）。
+>
 > **2026-09-29 調價決定：買斷改為 US$15／NT$150，月訂閱不變**（[產品決策](PRODUCT_DECISIONS.md)）。
-> 上表是 ASC 目前實際售價；擁有者在 ASC 改好並讀回「目前定價」後再更新此表。
+> 上表是 ASC 目前實際售價；擁有者在 ASC 改好並讀回「目前定價」後再更新此表。（2026-10-03：台灣已讀回並更新上表，美國未改。）
 
 不再提供年訂閱優惠方案。9/21 後續最新權益：**月訂閱與買斷都包含移除 banner、日曆
 與每日一次免看廣告 AI 生成**。買斷永久持有目前這些權益、會員顯示優先於月訂閱，
@@ -50,7 +63,8 @@ build 34 增加已驗證 Sandbox／本機測試限定的「檢查測試商店價
 未以語言／GPS／固定台幣覆寫價格，也未決定隱藏價格。正式 App Store 行為尚未驗證。
 9/21 ASC 已保存並重讀核對此表價格；月訂閱與買斷僅供應美國＋台灣共 2 地區，
 未來自動供應 OFF。年方案已停止銷售且供應為 0 地區。買斷以美國 US$10 為新基準，
-台灣另設手動 NT$100；其他未供應地區的 Apple 自動價格不算已定案售價。
+台灣另設手動 NT$100（2026-10-03：台灣已改為 NT$150，美國 base 仍 US$10，見上方目錄表下的
+2026-10-03 註記）；其他未供應地區的 Apple 自動價格不算已定案售價。
 本次買斷日曆已更新獨立 Sandbox `00004-kkd`，ASC 買斷中英說明也已保存並讀回；
 完整證據見 [測試環境紀錄](MEMBERSHIP-STAGING.md)，未送審或正式上架。
 年方案舊交易仍依 Apple 驗證後的狀態處理，停售不等於撤銷已購權益。
@@ -162,6 +176,10 @@ HMAC 防重紀錄仍能辨認回來的同一 Apple 身分，**不可說成不可
 
 ## 發布前仍須逐項確認
 
+- 2026-10-03 擁有者待辦，**也是 1.8.1 送審前的擋板**：在 ASC 把買斷美國 base price 改為 US$15.00（步驟見「最新方案目錄」
+  下的 2026-10-03 註記；用「手動管理所有國家或地區的價格」，並在同一個表格把台灣改回 $150.00，不要用「全球的價格調整」），
+  改好後讀回「目前定價」再更新目錄表的美國欄。1.8.1（`dd65a13`）的 `MembershipListedPrice` 備援表已改為 NT$150／$15.00
+  並有測試；在美國 base 改好之前不能送審 41，否則幣別不一致的備援路徑會顯示 Apple 不會收的價格（build 40 仍是 NT$100／$10.00）。
 - 本機／emulator 測試不替代 TestFlight 的 production App Attest、恢復購買、換機、
   退款／到期、跨裝置並行、AI 音檔完成下載及正式 LevelPlay callback 驗收。
   雲端 TEST 通知只證明通知投遞與驗簽，不能替代購買或退款事件。
@@ -385,7 +403,11 @@ TestFlight, production purchases, refunds, AI delivery or live rewarded-ad verif
 
 Current products: US$1/month or US$10 lifetime; NT$10/month or NT$100 lifetime in Taiwan.
 On 2026-09-29 the owner decided to raise lifetime to US$15 / NT$150 (monthly unchanged); ASC still
-charges the old lifetime price until the owner changes it there.
+charges the old lifetime price until the owner changes it there. (2026-10-03: Taiwan lifetime is now
+NT$150 in ASC, read back as $150.00; the US base is still US$10.00 until the owner runs the custom
+price change described in the 2026-10-03 note under 最新方案目錄. The app's `MembershipListedPrice`
+fallback still says NT$100 / $10.00 in the shipped build 40; the 1.8.1 change to NT$150 / $15.00 is
+committed as `dd65a13` on ios/main the same afternoon, not yet uploaded; the US base price change on App Store Connect gates that submission.)
 Both include banner removal, calendar and one shared daily AI generation. Additional generations
 require a verified rewarded ad. Annual is off sale, historical valid transactions remain supported,
 and temporary disaster closures are not public in 1.7.0. From 1.8.0 the closure rule is included

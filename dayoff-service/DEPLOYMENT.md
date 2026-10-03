@@ -1,8 +1,9 @@
 # 停班停課服務部署（Cloud Run Job + service + Firestore）
 
 2026-09-24：程式與測試完成（`npm test` 100 通過、7 個 Emulator 測試略過；Firestore Emulator 全套 107 通過）。
-資料庫、TTL、索引豁免、secret、映像、service、Job、Scheduler 與 APNs 推播都已就緒並以 `open-data` 來源運行中；告警通道與三個 policy 已建，absence 告警實測寄達；只剩真機推播驗證，見最下方「執行紀錄」。
+資料庫、TTL、索引豁免、secret、映像、service、Job、Scheduler 與 APNs 推播都已就緒並以 `open-data` 來源運行中；告警通道與三個 policy 已建，absence 告警實測寄達；只剩真機推播驗證（2026-10-03 已完成），見最下方「執行紀錄」。
 2026-10-02：為了成本，輪詢由每 5 分鐘改為每 30 分鐘，快照上限改為 1 小時，absence 告警改為 2 小時（新視窗尚未重測）；程式與映像沒有變，見「成本」與「執行紀錄」。
+2026-10-03：1.8.0（40）上架後，擁有者手機以 App Store build 首次對正式服務登記（`devices` 0 → 1），強制 revision 改變的推播 `accepted=1`、擴充功能抓到 Feed、橫幅送達：真機推播驗證完成，production APNs 與 `aps-environment` 的搭配確認無誤，見「執行紀錄」。
 每一步實際執行後，把讀回的結果寫進最下方的「執行紀錄」，沒做過的不要寫成做過。
 設計依據見 `docs/DISASTER-PREVIEW.md` 與 `README.md`；本頁只講怎麼部署、怎麼看、怎麼救。
 
@@ -44,6 +45,8 @@ account，只在具名資料庫 `dayoff-production` 上有權限。沿用 `weath
 3. 確認 App Store／TestFlight 封存的 `aps-environment` 是 `production`（entitlement 檔寫的是
    `development`，Xcode 在 archive 時改成 production），且 `com.shukaihu.RainyClock` 已開 Push
    Notifications capability。`APNS_PRODUCTION` 必須跟裝置的環境一致，否則 APNs 回 `BadDeviceToken`。
+   （2026-10-03 已用 App Store 1.8.0 build 40 實測：`APNS_PRODUCTION=true` 對發行簽章的裝置 `accepted=1`、橫幅送達，
+   見執行紀錄。）
 4. Monitoring 通知管道（目前專案沒有任何一個）與下面第 9 步的告警。
 5. 第一次 Job 成功後，把 Cloud Run 給的 URL（不含路徑、不經轉址、不用自訂網域）填進
    `RainyClock/Info.plist` 的 `DayOffServiceURL`；1.8.0 才翻 `supportsTemporaryClosures`。
@@ -220,9 +223,10 @@ service 回 503 `stale_cache`、手機退回保守規則，直到 `resume` 後�
 - [ ] 兩個 execution 重疊，其中一份摘要 `skipped:"lease_held"`，另一份 `refreshed:true`。
 - [ ] `DELETE /v1/devices` 帶垃圾 JSON 回 400 `invalid_device_request`。
 - [ ] Scheduler 手動派送一次，`executions list` 看得到對應的 execution。
-- [ ] TestFlight 裝置註冊成功（201），強制一次 revision 改變（在 Firestore console 把
+- [x] TestFlight 裝置註冊成功（201），強制一次 revision 改變（在 Firestore console 把
       `state/current.revision` 改成任意別的字串再 `execute` 一次：下一次抓取會判定內容改變、建立 claim；
       或等真實公告），log 只有**一個** `push_batch`，通知服務擴充功能改寫了橫幅。
+      （2026-10-03 以 App Store 1.8.0 build 40 完成，不是 TestFlight；見執行紀錄 2026-10-03 15:18–15:23。）
 - [ ] 下一個 execution 的摘要 `changed:false`、`broadcast:null`。
 - [ ] 暫停 Scheduler 超過 2 小時，absence 告警寄達（最後一次成功輪詢滿 1 小時起 service 回 503
       `stale_cache`，是預期的）；`resume` 後告警自動關閉。
@@ -571,6 +575,7 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
   unregistered=0 retryPending=0`，因為目前沒有任何裝置登記（1.7.0 閘門關著）。`pendingBroadcastRevision`
   已清空。`/health` `pushConfigured:true pushMode:"alert"`。
 - 尚未對真實裝置送過任何推播；第一次真機驗證要等 1.8.0 開閘、手機登記後，再看 `push_batch` 記錄。
+  （2026-10-03 完成：App Store build 40 登記後 `push_batch accepted=1`，見 2026-10-03 15:18–15:23 的紀錄。）
 
 ### 2026-09-24 12:10–12:25（擁有者提供 email；Claude 建告警，讀回值）
 
@@ -599,7 +604,7 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
 - 13:48:32 恢復（ENABLED），補跑 `rainyclock-dayoff-poll-n784k` 成功，`/health` 回到 `ready`。
   注意：`sh` 在 `sleep` 期間收到 SIGTERM 不會立刻跑 trap，要連 `sleep` 一起結束。
 
-**未執行**：真機推播驗證（§10，等 1.8.0 開閘）。之後若要輪替 APNs 金鑰，帶新 Key ID 重跑
+**未執行**：真機推播驗證（§10，等 1.8.0 開閘；2026-10-03 已完成，見該日紀錄）。之後若要輪替 APNs 金鑰，帶新 Key ID 重跑
 `deploy/deploy.sh`（§秘密處理與輪替）。Firestore deny-all rules 未用 firebase-tools 部署（本機未登入）；
 服務帳號走 IAM，rules 只影響手機 SDK。
 
@@ -646,6 +651,35 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
 **未執行**：absence 告警在 2 小時視窗下的端到端實測（暫停 Scheduler 超過 2 小時看是否寄信）沒有重做；
 09-24 的實測是 15 分鐘視窗。退避上限等於排程間隔的問題（運行手冊 `upstream_*` 一列）要等下次重建映像時把上限
 壓到排程間隔以下，這次沒有動程式。
+
+### 2026-10-03 15:18–15:23（1.8.0 上架後，擁有者手機首次對正式服務登記與推播實測，讀回值）
+
+- 背景：1.8.0（40）審核通過、擁有者手動發佈，約 14:36 在 App Store 公開。擁有者手機（iOS 27，App Store
+  build 40）的會員 session 先因裝置金鑰問題持續 401、臨時放假開關停用，15:18:37 恢復後 App 才開始對本服務
+  登記（經過與處置在 `weather-proxy/membership/MAINTENANCE.md`「裝置金鑰斷言失敗與處理 — 2026-10-03」）。
+- 正式 service `rainyclock-dayoff` 的請求（Cloud Logging，user agent `RainyClock/40`）：15:18:42
+  `GET /v1/suspensions` 200 與 `POST /v1/devices` 201；15:18:45 `POST /v1/devices/sync-receipt` 200；
+  15:19:07 `POST /v1/devices` 200（續約）。`dayoff-production` 的 `devices` 數量 0 → 1。**這是第一次有正式簽章的
+  build 對正式堆疊登記**；09-24 11:58 的 broadcast `accepted=0` 就是因為當時沒有任何裝置。
+- 推播實測（§10「強制一次 revision 改變」）：Claude 的寫入被 auto-mode 分類器擋下，兩道指令都由擁有者在自己的
+  終端機執行：Firestore `PATCH state/current.revision = "push-test-2026-10-03-owner-device"`（200），再
+  `gcloud run jobs execute rainyclock-dayoff-poll --wait` → execution `rainyclock-dayoff-poll-zpwlk`。
+- Job log 07:22:34–35Z：`source_checked changed=true noticeCount=14`；`dayoff_warmup status=200 revisionMatches=true`；
+  `push_batch accepted=1 failed=0 unregistered=0 retryPending=0 attempts=1 state=done`，revision `63655ce2…`；
+  摘要 `ok=true refreshed=true changed=true durationMs=1913`。log 裡只有**一個** `push_batch`。Job 已把
+  `state/current.revision` 寫回真實的 `63655ce2…`，測試字串不必還原。
+- 07:22:36Z `GET /v1/suspensions` 200，user agent `RainyClockDayOffNotification/40`：通知服務擴充功能在推播送出後
+  0.4 秒抓了 Feed。`/health/details` 回到 `ready`、revision `63655ce2…`、broadcast state `done`。
+- 擁有者 15:23 鎖定畫面截圖：橫幅「Work/school closure update — Not for your districts; the alarm rings as usual.」
+  （安靜的通用文字：Feed 的 14 則裡沒有擁有者行政區的停班停課），鎖定畫面矩形小工具
+  「Tomorrow · S… Skipped — Tomorrow is a weekend day」。
+- 結論：§10 的真機推播驗證項目完成。production APNs 憑證、發行簽章的 `aps-environment=production` 配
+  `APNS_PRODUCTION=true`、以及通知擴充功能的改寫都已在正式堆疊驗證；09-24 11:58「尚未對真實裝置送過任何推播」
+  與 09-24 13:48「未執行：真機推播驗證」自此關閉，「由擁有者親手完成」第 3 點的 `APNS_PRODUCTION`／
+  `aps-environment` 不確定性也解除。
+
+**未讀回**：這次之後下一個排程 execution（15:35）的摘要是否 `changed:false`、`broadcast:null`（§10 下一項）；
+真實公告（而不是改 revision 字串）觸發的推播，仍要等颱風期間才有。
 
 ### 更早
 第一次執行時，在這裡逐條記錄：日期、指令、讀回的結果（資料庫設定、SA 與 IAM 條件、secret 版本號、

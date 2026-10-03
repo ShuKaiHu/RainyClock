@@ -8,6 +8,10 @@ UI 或所有正式會員情境均已驗收。其他發布紀錄見 `docs/MEMBERS
 16:07）。Job、環境變數與批次上限未變；原因與影響見「IAM 與 Cloud Scheduler」及文末
 「排程調整 — 2026-10-02」。
 
+2026-10-03：與本 Job 無關的一次正式庫手動處置：擁有者手機對 `/v1/membership/session` 持續
+快速 401，刪除正式庫一份 `authDevices` 文件後恢復。確認與處置步驟見「運行手冊：單一裝置的
+快速 401」，經過與 1.8.1 的後續見文末「裝置金鑰斷言失敗與處理 — 2026-10-03」。
+
 ## 行為
 
 `node membership/maintenance-cli.js` 只處理已有 `deletedAt` 且
@@ -112,6 +116,43 @@ node --test test/membership-maintenance.test.js test/membership-domain.test.js t
 且正式 active 會員完全未變。最後查 Scheduler 的實際派送與對應 execution；只建立
 資源或本機通過，不能宣稱排程與雲端恢復流程已驗收。
 
+## 運行手冊：單一裝置的快速 401
+
+症狀：同一支手機反覆 `POST /v1/membership/challenge` 200 → `POST /v1/membership/session` 401，
+每次 60–100 ms，其他會員的 `/session` 正常；App 的會員畫面顯示「Showing last verified status」、
+診斷列 `session · MembershipHTTP/401`（1.8.1 起會帶錯誤碼：`session · MembershipHTTP/401 · invalid_assertion ·
+store=TWN · currency=TWD`），同步失敗；若 keychain 快照太舊，設定 › 行事曆的臨時放假
+開關還會停用並顯示「尚未確認你的方案」。這麼快的 401 表示請求還沒走到 Apple 那一段，不是 App Store
+交易或收據的問題。
+
+確認：
+
+0. 從帶有 `membership_request_failed` 的 revision（00007 以後）起，先查 log 就有錯誤碼：
+   `gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="rainyclock-membership" AND jsonPayload.event="membership_request_failed" AND jsonPayload.code!="app_transaction_refresh_required"' --limit 50`，
+   看 `jsonPayload.code`（`invalid_assertion`／`assertion_replayed`／`key_not_registered` 是裝置金鑰那一類；
+   `app_transaction_refresh_required` 是每天都會有的正常過期）。這個事件的 severity 是 NOTICE（5xx 才是 ERROR），
+   用 `jsonPayload.event` 查，不要用 severity 篩。00006 以前的 revision 沒有這行，只能靠下面兩項旁證。
+
+1. 延遲。`/session` 在 App Attest 斷言檢查就失敗（`auth.js` `bootstrapIdentityAndDevice` →
+   `attestation.js` `verifyAssertion`，推斷為 `invalid_assertion`）只有兩次 Firestore 讀取加本機
+   ECDSA，60–100 ms；Apple JWS 階段失敗約 0.6–0.7 s；成功 1.9–2.6 s。Cloud Run `responseSize`
+   185 對應 17 字元的錯誤碼。
+2. 未消耗的 challenge。由支援碼取得會員 id（支援碼是會員 id 前 8 碼轉大寫），在正式庫
+   `membershipNamespaces/membership_production_v1/authDevices` 找 `memberId` 等於該會員的文件，
+   拿到 `deviceKeyHash`；再查同一 namespace 的 `authChallenges` 裡 `purpose == "bootstrap"`、
+   `deviceKeyHash` 相同的文件。成功的 bootstrap 會在交易裡刪掉 challenge，所以留著好幾份就是每次
+   都在 challenge 之後、交易之前失敗。順便讀 `authDevices` 文件的 `signCount`、`lastUsedAt`、
+   `appleEnvironment`，確認它是舊的、而不是別人剛登記的。
+
+處置：1.8.1 以後的 client 收到 `invalid_assertion` 會自己換鑰（bootstrap 與既有 session 的 `/status` 兩條路徑都會），
+通常不用人介入；1.8.0 以前的 client 不會，要由操作者刪除正式庫那一份 `authDevices/<deviceKeyHash>` 文件（只這一份；先把
+文件 JSON 備份到 repo 之外）。下一次 bootstrap 會因 `key_not_registered` 讓 client 換一把 App Attest 金鑰並重新 attest，
+server 照常驗證 attestation、`device_key_already_registered` 與 `apple_proof_replayed_on_other_device`，
+所以這個動作不會多給任何權益。使用者端只要強制關閉 App、再按「同步會員狀態」，預期先看到幾組
+快速 401，然後 200。**App 裡的「刪除會員資料」幫不上忙，也不能用在這裡**：那個請求本身需要有效
+session（這支手機正是拿不到 session），而且它刪的是會員與購買資料，不是這把裝置金鑰。識別碼寫進
+文件時一律截成 6 碼；實例見文末「裝置金鑰斷言失敗與處理 — 2026-10-03」。
+
 ## 官方操作依據
 
 - [Cloud Scheduler 執行 Cloud Run Job](https://docs.cloud.google.com/run/docs/execute/jobs-on-schedule)
@@ -181,3 +222,64 @@ node --test test/membership-maintenance.test.js test/membership-domain.test.js t
   16:07 Asia/Taipei) in production and TestFlight databases`（原文寫 every five minutes），讀回時
   URI、OAuth service account 與 scope、POST、body、重試 3 次、deadline 60s 都沒有變。
 - 尚未驗證：新排程的第一次實際派送與對應 execution（下一次為 2026-10-03 04:07）。
+
+## 裝置金鑰斷言失敗與處理 — 2026-10-03
+
+時間為台灣時間（CST），標 Z 的是 UTC。數值均自 App Store Connect、Cloud Logging、Firestore 或擁有者
+截圖讀回；只有 401 的錯誤碼是推斷，原因見下。
+
+- 症狀：1.8.0（40）審核通過、擁有者手動發佈後約 14:36 公開。14:39–14:47 擁有者的 iPhone（iOS 27，
+  App Store build 40）設定 › 行事曆的「使用臨時放假規則」開關停用並顯示「尚未確認你的方案」
+  （`ux_closure_plan_unconfirmed`），重啟 App 也一樣；會員畫面顯示「One-time member」、「Showing last
+  verified status」、診斷列 `session · MembershipHTTP/401 · store=TWN · currency=TWD`，按同步得到
+  「Membership action could not be completed」。
+- 正式會員服務 log：`POST /v1/membership/challenge` 200 之後 `POST /v1/membership/session` 401，
+  60–100 ms，06:39:55Z、06:41:32Z、06:47:33Z（`RainyClock/40`）。同一支手機在 TestFlight 38
+  （10-01 19:55Z）與 TestFlight 40（10-02 13:48Z）就已出現同樣的快速 401 特徵。
+- 診斷（三次互相獨立的唯讀調查結論一致）：401 是 App Attest 斷言檢查失敗（`auth.js`
+  `bootstrapIdentityAndDevice` → `attestation.js` `verifyAssertion`），錯誤碼推斷為 `invalid_assertion`。
+  證據：(a) 延遲 60–100 ms 等於兩次 Firestore 讀取加本機 ECDSA，Apple JWS 階段失敗是 0.6–0.7 s、
+  成功是 1.9–2.6 s；(b) Cloud Run `responseSize` 185，對應 17 字元的錯誤碼，`app_transaction_refresh_required`
+  會是 200；(c) 正式庫 `membershipNamespaces/membership_production_v1/authChallenges` 有三份該裝置金鑰
+  `561e4b…` 未消耗的 bootstrap challenge。裝置文件 `authDevices/561e4b…` 存在：`appleEnvironment`
+  Production、`signCount` 26、2026-09-26T05:39:45Z 由 App Store 1.7.1（37）登記、`lastUsedAt`
+  09-26T05:44:55Z、會員 `3f2390…`、終身購買、未刪除。錯誤碼之所以是推斷：server 不記錄
+  錯誤碼（`http.js` 只在 body 回 `{error: code}`），App 的 `MembershipDiagnostic` 又把 server 錯誤縮成
+  `MembershipHTTP/<status>`。
+- 排除：TestFlight 與 App Store 環境混用。Client 的 Keychain service 依 Apple 環境與 host 分開
+  （`RainyClock/Services/MembershipModels.swift` 約 317–318 行），server 的 Production 與 Sandbox 是不同
+  資料庫；沒有任何裝置金鑰 hash 同時出現在兩庫。這支手機的兩把金鑰（Production `561e4b…`、Sandbox
+  `436f90…`）都是在 TestFlight 與 App Store 安裝互換之後才不再通過驗證；確切機制（App Attest 簽章
+  計數器對上已存的 `signCount` 26，或簽章本身）看不到，原因同上。
+- 為什麼 App 顯示「尚未確認你的方案」：Production keychain 裡的快照最後一次是 2026-09-26 由 server
+  revision 00005 寫入，當時 `deriveEntitlements` 對終身會員給 `temporaryClosures=false`
+  （lifetime||subscription 的修正是 `c822562`，09-30 部署為 revision 00006）；
+  `TemporaryClosureControlState.resolve`（`MembershipModels.swift` 約 591–604 行）對終身會員因此得到
+  `.locked`、`offersPlans=false`，就印出這一行。每次同步都失敗，快照一直沒被取代。手機上沒有任何
+  操作能修：client 只在 `key_not_registered`、`invalid_key` 或本機 `DCError` 時換 App Attest 金鑰
+  （`RainyClock/Services/MembershipSecurity.swift` `requiresKeyRotation` 約 148–159 行）；重新整理與
+  還原只在 `app_transaction_refresh_required` 時重試。
+- 其他會員不受影響：另一位會員 10-02 21:08Z 在 revision 00006 上 `/session` 成功；新會員 `c3a049…`
+  （裝置 `0ef25f…`）15:06（07:06Z）以 1.8.0 bootstrap，session 200、2.4 s。
+- 處置（擁有者的明確決定：「先用 A」）：約 15:16 Claude 以 REST `DELETE` 刪除正式庫單一文件
+  `membership-production/membershipNamespaces/membership_production_v1/authDevices/561e4b…`（200，
+  之後 `GET` 404）。文件的 JSON 備份只放在該 session 的 scratchpad，不在 repo。沒有動會員、購買、
+  session 或其他裝置文件。
+- 恢復：擁有者強制關閉 App、按「同步會員狀態」。15:18:09–15:18:35（07:18Z）log 有五組 challenge →
+  session 快速 401（client 換鑰與重新 attest 的過程；各次的錯誤碼同樣沒有記錄），15:18:37 session
+  200、1.35 s；會員 `3f2390…` 名下有新裝置文件 `33a940…`（`signCount` 0、`verifiedAt` 07:18:37Z）。
+  行事曆開關解鎖（15:19 擁有者截圖：開關開啟，Closure preferences、Closure map 兩列可見）。
+  隨後 15:18:42 起停班停課第一次在正式簽章的 build 上對正式服務登記並完成推播實測，記在
+  `dayoff-service/DEPLOYMENT.md` 執行紀錄。
+- 1.8.1 後續（同日下午已改好並測試，`dd65a13` 於 `ios/main`；server 的部分**尚未部署**，App **尚未上傳**）：(1) client：
+  `MembershipDeviceProof.requiresKeyRotation` 在 server 回 `invalid_assertion`（與 `attestation_key_rotation_required`）時也換鑰，
+  bootstrap 之外，既有 session 的 `/status` 回 `invalid_assertion` 時 `MembershipIdentitySynchronization.run` 也會清 session 再
+  bootstrap；server 仍驗 attestation、
+  `device_key_already_registered` 與 `apple_proof_replayed_on_other_device`，所以不會因此多拿到權益。
+  (2) server：`weather-proxy/membership/http.js` 在錯誤回應時記一行不含秘密的
+  `{event:"membership_request_failed", severity, path, status, code}`，沒有 JWS、token 或 body；`code`、`path` 只接受字串且限定
+  形狀。(3) client：`MembershipDiagnostic` 帶上 server 錯誤碼（固定字彙，不是使用者資料；要求含 g–z 的字母，所以雜湊與純數字的
+  識別碼不會被顯示），會員畫面改讀如 `session · MembershipHTTP/401 · invalid_assertion · store=TWN · currency=TWD`。
+  (4) `MembershipListedPrice` 的終身價改為 NT$150／$15.00（App Store Connect 當天只改了台灣，美國基準價仍 US$10，是擁有者的
+  待辦，也是 1.8.1 送審前的擋板）。(5) 以上各有測試。(6) 待做：部署 weather-proxy 成 `rainyclock-membership` 00007+，讀回
+  `membership_server_listening` 與第一筆 `membership_request_failed`，更新 README.md 與 `MEMBERSHIP-AND-PAYMENTS.md` 的 revision 紀錄。

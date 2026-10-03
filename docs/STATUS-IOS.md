@@ -11,12 +11,13 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-10-02.
+Last updated: 2026-10-03.
 
 > **1.7.1（37）已上架：2026-09-26 05:33 UTC（台灣 13:33）**，台灣與美國商店的 App Store lookup 都回 1.7.1。
 > 這是 1.7.0（34）退審後的重送版，包含會員方案（月訂閱、買斷）、LevelPlay 廣告、地址建議清單修復。
 > **上架後待確認（正式環境第一次有資料）：**
-> 1. 用台灣 Apple 帳號從 App Store 安裝，會員頁卡片應為 NT$10／月、NT$100（9/23 的正式版價格檢查）。
+> 1. 用台灣 Apple 帳號從 App Store 安裝，會員頁卡片應為 NT$10／月、NT$100（9/23 的正式版價格檢查）。（2026-10-03 起台灣買斷改
+>    NT$150，見「1.8.0 準備中」最上方一點。）
 > 2. 正式會員服務（production App Attest、Production Apple 交易）第一筆真實購買與恢復購買。
 > 3. LevelPlay 正式廣告流量、ATT 同意率與 Organizer／Crashes 的 1.7.1 崩潰。
 
@@ -25,9 +26,12 @@ Last updated: 2026-10-02.
 >
 > **1.8.0（39）= 颱風停班停課 ＋ 鬧鐘總開關 ＋ 主畫面／鎖定畫面「下次鬧鐘」widget**（39 比 38 多了中型 widget
 > 今天的項目也顯示天氣，超過 3 小時的預報寫「預報時間」、不警告，2026-10-02）。38 已上傳 TestFlight（10/2，擁有者手機測試完成，widget 天氣是那時發現的）；**39 已於 10/2 08:27 上傳**，08:50 前後在 App Store Connect 改選 build 39、審查說明第一行改成 (39) 並儲存（讀回正確；仍未送審）。
-> **1.8.0（40）已於 2026-10-03 00:14 送審，狀態「等待審查」**（發佈方式：手動）。40 比 39 多：停班停課輪詢改每 30 分鐘、App 的
-> 公告新鮮度上限改 1 小時；小型 widget 的天空和中型一樣跟著預報，並帶  Weather 標記。10/2 21:44 上傳，10/3 00:1x 在 App Store
-> Connect 改選 build 40、審查備註整份換成 (40) 版。見「1.8.0 準備中」最上方幾點。
+> **1.8.0（40）已上架：2026-10-03 00:14 送審，審查通過後由擁有者手動發佈，約 14:36 公開**（App Store 頁面 14:40 顯示 1.8.0
+> 「4 分鐘前」；14:36 的 `itunes.apple.com/lookup` 仍回 1.7.1，那個 API 會延遲；確切的審查通過時間沒有讀回）。40 比 39 多：
+> 停班停課輪詢改每 30 分鐘、App 的公告新鮮度上限改 1 小時；小型 widget 的天空和中型一樣跟著預報，並帶  Weather 標記。
+> 10/2 21:44 上傳，10/3 00:1x 在 App Store Connect 改選 build 40、審查備註整份換成 (40) 版。上架當天擁有者手機的會員 401
+> 根因與處理、停班停課第一次在正式環境跑通含推播、買斷價（台灣已改 NT$150、美國待改）與 1.8.1 待辦，都在「1.8.0 準備中」
+> 最上方一點。
 > `ios/widget`（worktree `RainyClock-widget`，`ad0b628`）已於 **2026-10-01** 依擁有者決定以合併 commit 合入
 > 1.8.0 線。合併時統一的規則見「1.8.0 準備中」的「`ios/widget` 合入 1.8.0 線」一點，
 > 送審前欠項見同一點與該節末的 widget 小節。
@@ -235,7 +239,88 @@ Last updated: 2026-10-02.
 
 ## 1.8.0 準備中：颱風／天災臨時放假 — 2026-09-22（原標 1.7.1，2026-09-24 改）
 
-- **2026-10-03 00:14：1.8.0（40）已送審，App Store Connect 顯示「等待審查」。** 擁有者在自己的 Chrome 登入後，由 Claude 操作：
+- **2026-10-03 14:36–15:23：1.8.0 上架；擁有者手機的會員 401 根因與處理；停班停課首次在正式環境走通含推播；買斷價台灣已改、
+  美國待改；1.8.1 待辦。** 以下除了標明「推論」的，都是從 App Store Connect、Cloud Logging、Firestore 或擁有者的截圖讀回的；
+  時間是台北時間，帶 Z 的是 UTC。
+  - **上架：** 審查通過，擁有者手動發佈。App Store 頁面 14:40 顯示 1.8.0「4 分鐘前」，所以約 14:36 公開；14:36 的
+    `itunes.apple.com/lookup` 仍回 1.7.1（那個 API 會延遲）。確切的審查通過時間沒有讀回。
+  - **擁有者手機的症狀（14:39–14:47，iOS 27，App Store 的 build 40）：** 設定 › 行事曆的「使用臨時放假規則」開關鎖定，寫
+    「尚未確認你的方案」（`ux_closure_plan_unconfirmed`），重開 App 也一樣；會員頁寫 "One-time member"、"Showing last verified
+    status"，診斷行 `session · MembershipHTTP/401 · store=TWN · currency=TWD`，按同步得到 "Membership action could not be
+    completed"。正式會員服務日誌：`POST /v1/membership/challenge` 200 之後 `POST /v1/membership/session` 401，每次 60–100 ms，
+    06:39:55Z、06:41:32Z、06:47:33Z（RainyClock/40）。同一支手機在 TestFlight 38（10/1 19:55Z）與 TestFlight 40（10/2 13:48Z）
+    就出現過同樣的快速 401。
+  - **根因（三個獨立的唯讀調查結論一致）：** 401 是 App Attest assertion 檢查回的 `invalid_assertion`
+    （`weather-proxy/membership/auth.js` `bootstrapIdentityAndDevice` → `attestation.js` `verifyAssertion`）。**這個錯誤碼是推論，
+    不是從日誌讀到的**：伺服器不記錯誤碼（`http.js` 只在回應本文回 `{error: code}`），App 的 `MembershipDiagnostic` 也把伺服器
+    錯誤縮成 `MembershipHTTP/<status>`。依據：
+    - 延遲：60–100 ms 等於兩次 Firestore 讀取加本機 ECDSA 驗章；在 Apple JWS 階段失敗的請求要 0.6–0.7 s，成功的要 1.9–2.6 s。
+    - 回應大小：Cloud Run `responseSize` 185，相當於一個 17 字元的錯誤碼；若是 `app_transaction_refresh_required` 會回 200。
+    - `membership-production/membershipNamespaces/membership_production_v1/authChallenges` 裡有三份這支手機的 device key
+      `561e4b…` 沒被消耗的 bootstrap challenge。
+    - 裝置紀錄 `authDevices/561e4b…` 存在、沒有被刪除：`appleEnvironment` Production、`signCount` 26、2026-09-26T05:39:45Z 由
+      App Store 1.7.1（37）登記、`lastUsedAt` 09-26T05:44:55Z、會員 `3f2390…`（買斷）。
+    - 「TestFlight 與 App Store 環境混用」的假設被否決：App 的 Keychain service 依 Apple 環境與主機分開
+      （`RainyClock/Services/MembershipModels.swift` 約 317–318 行），伺服器的 Production 與 Sandbox 是不同資料庫，沒有任何
+      device key hash 同時出現在兩邊。這支手機的兩把 key（Production `561e4b…`、Sandbox `436f90…`）都是在手機於 TestFlight 與
+      App Store 安裝之間切換之後才驗不過；確切機制（App Attest 計數器對上已存的 `signCount` 26，還是簽章本身）看不到，原因同上。
+    - 其他使用者不受影響：另一位會員 10/2 21:08Z 在 revision 00006 上 `/session` 成功；新會員 `c3a049…`（裝置 `0ef25f…`）
+      15:06（07:06Z）用 1.8.0 bootstrap，`/session` 200、2.4 s。
+  - **為什麼寫「尚未確認你的方案」：** Production keychain 裡的快照最後一次是 2026-09-26 由伺服器 revision 00005 寫的，那版的
+    `deriveEntitlements` 給買斷的 `temporaryClosures=false`（買斷也給臨時放假是 `c822562`，9/30 以 revision 00006 部署）；
+    `TemporaryClosureControlState.resolve`（`MembershipModels.swift` 約 591–604 行）對買斷會員因此回 `.locked` 且
+    `offersPlans=false`，印出的就是那一行。每次同步都失敗，沒有東西換掉快照。手機上沒有任何操作能自救：App 只在
+    `key_not_registered`、`invalid_key` 或本機 `DCError` 時換 App Attest key（`RainyClock/Services/MembershipSecurity.swift`
+    `requiresKeyRotation` 約 148–159 行）；重新整理與恢復購買只對 `app_transaction_refresh_required` 重試。
+  - **處理（擁有者決定「先用 A」）：** 約 15:16 由 Claude 刪除 Firestore 的單一文件
+    `membership-production/membershipNamespaces/membership_production_v1/authDevices/561e4b…`（REST DELETE 200，之後 GET 404）；
+    該文件的 JSON 備份只存在 session 的 scratchpad，不在 repo。擁有者強制關閉 App 再按「同步會員狀態」。日誌 15:18:09–15:18:35
+    （07:18Z）：五組 challenge → session 快速 401（App 換 key 並重新 attest），15:18:37 `session` 200、1.35 s；會員 `3f2390…`
+    名下出現新的裝置紀錄 `33a940…`（`signCount` 0、`verifiedAt` 07:18:37Z）。日曆開關解鎖（擁有者 15:19 截圖：開關開、看得到
+    "Closure preferences" 與 "Closure map" 兩列）。
+  - **停班停課第一次在正式簽章的 build 上對正式服務跑通：** 15:18:42 `GET /v1/suspensions` 200、`POST /v1/devices` 201，
+    15:18:45 `POST /v1/devices/sync-receipt` 200，15:19:07 `POST /v1/devices` 200（續期），都是 RainyClock/40；dayoff-production
+    的 devices 由 0 筆變 1 筆。
+  - **推播測試（兩個指令由擁有者在自己的終端機執行，auto mode 分類器擋下 Claude 的寫入）：** `PATCH state/current.revision =
+    "push-test-2026-10-03-owner-device"`（200），再 `gcloud run jobs execute rainyclock-dayoff-poll --wait` → execution
+    `rainyclock-dayoff-poll-zpwlk`。Job 日誌 07:22:34–35Z：`source_checked changed=true noticeCount=14`；`dayoff_warmup`
+    status 200、`revisionMatches true`；`push_batch accepted=1 failed=0 unregistered=0 retryPending=0 attempts=1 state=done`，
+    revision `63655ce2…`；summary `ok=true refreshed=true changed=true durationMs 1913`。07:22:36Z `GET /v1/suspensions` 200，
+    user agent `RainyClockDayOffNotification/40`（通知擴充功能在推播後 0.4 s 抓到公告）。`/health/details` 回到 ready、revision
+    是真的 `63655ce2…`、broadcast state done。擁有者 15:23 鎖定畫面截圖：橫幅 "Work/school closure update — Not for your
+    districts; the alarm rings as usual."（安靜的通用文字；擁有者的行政區沒有停班停課），鎖定畫面長方形 widget
+    "Tomorrow · S… Skipped — Tomorrow is a weekend day"。因此正式 APNs 憑證、發行簽章的 `aps-environment` 與擴充功能改寫通知
+    三者都已驗證。
+  - **買斷價：** App Store Connect 在 14:4x 顯示買斷（Apple ID `6812814810`，`com.shukaihu.RainyClock.banner.lifetime`）仍是
+    9/21 的價格（台灣 NT$100、美國基準 US$10）；9/29 的決定（上架當天改 US$15／NT$150）沒有執行過。Claude 開了一次自訂價格調整
+    （生效 2026-10-03、「手動管理特定國家或地區」、只選台灣，等值價格以 US$15.00 為基準顯示），最後的「確認」由擁有者自己按
+    （分類器擋下價格確認）。約 15:05 讀回：台灣（TWD）目前價格 $150.00（手動調整）；**美國基準與 174 個自動國家仍是 US$10.00**，
+    因為那個流程只改選到的國家。分類器接著也擋下開第二個價格調整對話框，所以**美國改價是擁有者待辦**，步驟：價格排程 ＋ →
+    自訂的價格調整 → 立即進行價格調整 → 手動管理所有國家或地區的價格 → 美國（USD）價格輸入 15.00，按「查看其餘價格」讓
+    $15.00 出現 → 下一步 → 在 175 國表格把台灣（TWD）改回 $150.00（Apple 的等值價會是 $490.00）→ 確認。**不要用「全球的價格
+    調整」**（會把台灣重新等值成 NT$490）。手機上會員與方案 14:47 仍顯示 NT$100.00（StoreKit 的即時價格，帶 ".00"；App 寫死的
+    備用價會是沒有小數的 "NT$100"，而且只在幣別不一致時出現）。備用價表 `MembershipListedPrice`（`MembershipModels.swift`
+    約 63–72 行：TWN 月訂閱 NT$10、買斷 NT$100；USA 月訂閱 $1.00、買斷 $10.00）在 `70f0eda` 仍是舊的買斷價，1.8.1 要改。
+  - **1.8.1 計畫（擁有者：「寫進文件後開始改 1.8.1」）：** (1) App：`MembershipDeviceProof.requiresKeyRotation` 遇到伺服器碼
+    `invalid_assertion` 也換 key（只在 bootstrap；伺服器仍檢查 attestation、`device_key_already_registered` 與
+    `apple_proof_replayed_on_other_device`，所以不會多給任何權利）；(2) 伺服器：`weather-proxy/membership/http.js` 在錯誤回應時
+    記一行不含秘密的 `{event:"membership_request_failed", path, status, code}`（沒有 JWS、token 或本文）；(3) App：
+    `MembershipDiagnostic` 帶上伺服器錯誤碼（固定詞彙，不是使用者資料），會員頁改讀成例如
+    `session · MembershipHTTP/401 · invalid_assertion · store=TWN · currency=TWD`；(4) `MembershipListedPrice` 買斷 NT$150／$15.00；
+    (5) 每一項都加測試；(6) 部署 weather-proxy 到 `rainyclock-membership`（00007+），讀回 `membership_server_listening` 與第一筆
+    `membership_request_failed`，再更新 `weather-proxy/membership/README.md` 與 `MEMBERSHIP-AND-PAYMENTS.md` 的 revision 紀錄——
+    這一步和 App 審查無關，可以先做。
+  - **1.8.1（41）同日下午已改好（`dd65a13`）**，經三個獨立審查者（安全、行為、維運）審過並依意見補強：(1) 除了 bootstrap，
+    `MembershipIdentitySynchronization.run` 在既有 session 的 `/status` 回 `invalid_assertion` 時也清掉 session 再 bootstrap（否則
+    session 24 小時內會一直卡住）；清單另加伺服器自己的 `attestation_key_rotation_required`。(2) 錯誤碼過濾要求至少一個 g–z 的字母，
+    所以雜湊、Apple 交易號等純十六進位／純數字的識別碼不會被當成錯誤碼顯示。(3) 伺服器 log 行加 `severity`（5xx ERROR、其餘
+    NOTICE），`code` 與 `path` 只接受字串；gRPC 的數字 code 記成 `unrecognized_code`。完整測試 iOS 26.5 與 27.0 各 632 通過、
+    0 失敗、4 略過；`weather-proxy` 188 通過、3 略過。**尚未**：archive／上傳 41、部署伺服器（第 (6) 項）。
+    **送審 1.8.1 前的擋板：App Store Connect 買斷美國 base 讀回 US$15.00**，否則 `MembershipListedPrice` 的 $15.00 在幣別
+    不一致的備援路徑上會顯示 Apple 不會收的價格。另外，10/3 那支手機第一次開 1.8.1 時，換鑰後的第二次 bootstrap 可能還是回
+    `app_transaction_refresh_required`（快取的 AppTransaction 超過 5 分鐘），按一次「同步會員狀態」即可完成。
+- **2026-10-03 00:14：1.8.0（40）已送審，App Store Connect 顯示「等待審查」。**（2026-10-03 14:36 起：審查已通過並上架，見上一點。）
+  擁有者在自己的 Chrome 登入後，由 Claude 操作：
   - TestFlight 頁讀到 build 40「準備提交」（已處理完成，在內部群組 SKHU tester）。
   - 1.8.0 版本頁：移除 build 39、選 build 40；審查備註整份換成
     [`appstore-review-notes-1.8.0-40.txt`](appstore-review-notes-1.8.0-40.txt)；儲存。重新載入後讀回：build 40；備註第一行
@@ -247,16 +332,21 @@ Last updated: 2026-10-02.
   - 新的 widget 句子：擁有者在看過訊息裡的全文後說「我覺得很好，開始 submit」，據此貼上。
   - 接下來：等審查結果（Apple 說最長 48 小時）。通過後不會自動上架；上架當天的事見下面「還沒做」與 9/28 的買斷價調整。
     等審查期間可補做：用 TestFlight 40 打開「使用臨時放假規則」，從伺服器端確認正式服務收到登記與抓取（臨時放假還沒在
-    正式簽章的 build 上對正式服務跑過）。
+    正式簽章的 build 上對正式服務跑過）。（2026-10-03：審查通過、約 14:36 上架；TestFlight 補做沒有做，臨時放假是 15:18 起直接在
+    App Store 的 40 上對正式服務跑通的，含推播；買斷價台灣已改、美國待改。見上一點。）
 - **2026-10-03 00:10：擁有者決定送審 1.8.0（40）；支援頁改正並上線；App Store Connect 的動作還沒開始（內建瀏覽器未登入）。**
   - 擁有者回報：TestFlight 40 的小型 widget 在手機上看過，OK（未逐項記錄 StandBy、著色／透明主畫面、官方標記圖）。
   - 上傳已確認成功：送審前檢查的一個代理讀到 `/tmp/rainyclock-180-40/export-check.log` 的 `Upload succeeded`（21:44:23）。
-    App Store Connect 是否處理完、正式簽章後的 `aps-environment` 仍未讀回。
+    App Store Connect 是否處理完、正式簽章後的 `aps-environment` 仍未讀回。（2026-10-03：40 已處理完、審查通過並上架；
+    發行簽章的 `aps-environment` 沒有直接讀回，但 15:22 的正式推播已送達 App Store 的 40 並由擴充功能改寫，等於驗證了。
+    見本節最上方一點。）
   - 送審前檢查（四個唯讀代理：ASC 步驟與商店資料、本紀錄的未完成事項、Release 設定、後端與公開頁面）沒有找到會擋送審的問題。
     要做的只有兩處：版本頁 build 39 → 40、審查備註整份換成 (40) 版；What's New、截圖、隱私問卷不用動，發佈方式維持手動。
     已告知擁有者、擁有者仍決定送審的風險：臨時放假從未在正式簽章的 build 上對正式服務跑過（正式服務收到的 App 請求只有
     TestFlight 38 的一筆 `DELETE /v1/devices`；可在等審查期間用 TestFlight 40 補做）；審查附件欄是空的（1.7.1 附了 ATT 錄影）；
-    上架當天調買斷價時，`MembershipListedPrice` 的備用價格仍是 NT$100／US$10。
+    上架當天調買斷價時，`MembershipListedPrice` 的備用價格仍是 NT$100／US$10。（2026-10-03：三項都有下文——臨時放假 15:18 起在
+    App Store 的 40 上對正式服務跑通含推播；附件欄空著，審查照樣通過；買斷價台灣已改 NT$150、美國待擁有者改，備用價表排進
+    1.8.1。見本節最上方一點。）
   - 支援頁（`docs/support.html`，App Store 上的支援網址）原本寫「App 沒有後端伺服器，也不需要建立帳號」，從 1.6.8 起就不成立。
     擁有者：「該改就改」。改寫後由三個獨立檢查者對照程式與隱私權政策逐句查證；第一版把會員列為「選用功能」被駁回（App 一開啟就
     自動連線會員服務、替沒購買的使用者建立免費會員），改成：地址不會傳到我們的服務、不用註冊表單與密碼、會員在開啟 App 時自動
@@ -496,7 +586,8 @@ Last updated: 2026-10-02.
   審查資訊的附件欄是空的（1.7.1 的 ATT 錄影沒有沿用；新審查說明沒有提到附件）。
   **下一步：**①在 iPhone 上用 TestFlight 跑本節各點的「手機待確認」（**改用 39**，見上一點；38 的結果除了中型今天的天氣欄都適用）；
   ②（原為建版本與貼文字，已完成；**39 上傳後改選 build 39，審查備註第一行改成 (39)**；**10/2 傍晚起要送審的是 40**：40 上傳後改選 build 40、審查備註換成 (40) 版，見本節最上方一點）；③送審當天：發布 App 隱私問卷更新（Device ID、Other Diagnostic Data 加上停班停課用途，見 `appstore-metadata.md`）；
-  ④上架當天：買斷改 US$15／NT$150。隱私權政策的停班停課一節已於 10/1 發布到公開網站（`main` `b4d2c65`）。
+  ④上架當天：買斷改 US$15／NT$150。隱私權政策的停班停課一節已於 10/1 發布到公開網站（`main` `b4d2c65`）。（2026-10-03 上架當天：
+  台灣已改 NT$150；美國基準仍是 US$10，待擁有者，步驟見本節最上方一點。）
 
 - **2026-10-01：1.8.0（38）修正系列（`f77a4ec`…`24cf509`，9 個 commit）與其審查修正（「Review fixes for the 1.8.0
   fix series」）。** 合併 `ios/widget` 後的對抗式審查找到的 9 項各自一個 commit；再審一輪找到 27 項（1 項 major），全在審查修正
@@ -787,7 +878,8 @@ Last updated: 2026-10-02.
   （[產品決策](PRODUCT_DECISIONS.md)）。App 用 StoreKit 當地價格，不改程式；本機 `RainyClockMembership.storekit` 已改 15.00。
   **擁有者待辦（ASC → 買斷 `6812814810` → 價格）**：美國基準價改 US$15（Apple 重算其他自動地區）→ 台灣手動設 NT$150 →
   讀回「目前定價」；供應維持美國＋台灣。**生效日：1.8.0 上架當天**（擁有者 9/29 決定）。改好後更新
-  `MEMBERSHIP-AND-PAYMENTS.md`、`appstore-metadata.md` 兩張價格表。
+  `MEMBERSHIP-AND-PAYMENTS.md`、`appstore-metadata.md` 兩張價格表。（2026-10-03 上架當天只做了一半：台灣讀回 NT$150；美國基準與
+  自動國家仍是 US$10，流程只改了選到的國家，剩下的步驟與「不要用全球的價格調整」的提醒見本節最上方一點。）
 
 - **2026-09-28／29：真機驗證（iPhone 16 Pro，Debug Sandbox build，sandbox 堆疊＋`fixture.sh`）。**
   - 通過：臺南市「明天」公告推播到手機，擴充功能在 App 關閉時改寫成時效性、有聲的通知（睡眠專注模式下仍送達）；
@@ -875,7 +967,7 @@ Last updated: 2026-10-02.
   網址（政府資料開放授權；NCDR 公告 3/31 下架但 9/24 仍正常）。這是明確設定，不是備援。
   之後同日：`run.invoker` 補上、Scheduler 自動觸發驗證通過；APNs `.p8` 掛上、`pushConfigured:true`，
   第一次廣播對零台裝置走完 `done`；三個記錄指標、email 通知通道與三個告警 policy 建好；暫停 Scheduler 實測，absence 告警約
-  20 分鐘後寄達 `shukaihu@icloud.com`，已恢復。**尚未**：真機推播驗證（等 1.8.0 開閘）。指令與逐條執行紀錄見
+  20 分鐘後寄達 `shukaihu@icloud.com`，已恢復。**尚未**：真機推播驗證（等 1.8.0 開閘）（2026-10-03 已完成：App Store 1.8.0（40）對正式服務登記並收到推播，見本節最上方一點與 `dayoff-service/DEPLOYMENT.md` 執行紀錄）。指令與逐條執行紀錄見
   [dayoff-service/DEPLOYMENT.md](../dayoff-service/DEPLOYMENT.md)。
   1.8.0 開閘前仍缺：把服務網址填入 `DayOffServiceURL`、確認正式 build 的 push capability、
   真機驗證（晚間公告、重啟、低耗電、關背景更新、強制結束、撤銷、關閉後恢復、

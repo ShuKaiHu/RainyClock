@@ -115,9 +115,17 @@ TestFlight 群組；不代表已提交 App Review、公開發布或完成所有�
 | Product | Type / duration | United States | Taiwan |
 | --- | --- | --- | --- |
 | Monthly subscription / 月訂閱 | Auto-renewable, one month | US$1 per month | NT$10 per month |
-| One-time purchase / 買斷 | Non-consumable, one payment | US$10 once | NT$100 once |
+| One-time purchase / 買斷 | Non-consumable, one payment | US$10 once（base price，尚未調整；擁有者待辦） | NT$150 once（2026-10-03 改價，立即生效） |
 
-2026-09-29 決定買斷調高為 **US$15／NT$150**（月訂閱不變）；上表是 ASC 目前售價，擁有者在 ASC 改好並讀回後再更新。
+2026-10-03 讀回 ASC：買斷（Apple ID 6812814810，`com.shukaihu.RainyClock.banner.lifetime`）台灣 (TWD) 目前定價
+**$150.00（手動調整）**，於 2026-10-03 約 15:05 讀回；這次自訂價格調整只勾選台灣，所以美國 base price 與其餘 174 個
+自動定價國家仍是 **US$10.00**。2026-09-29 的 US$15 決定在美國尚未執行，是擁有者待辦（分類器擋下第二次開啟價格調整對話框），
+步驟如下：價格排程 ＋ → 自訂的價格調整 → 立即進行價格調整 → 手動管理所有國家或地區的價格 → 美國 (USD) 輸入 15.00，
+點「查看其餘價格」確認顯示 $15.00 → 下一步 → 在 175 國的表格中把台灣 (TWD) 改回 $150.00（Apple 的對應價會是 $490.00）→ 確認。
+**不要用「全球的價格調整」**，它會把台灣重新等價化成 NT$490。月訂閱不變。手機上 14:47 的「會員與方案」仍顯示 NT$100.00
+（StoreKit 即時價格；改價生效後由 StoreKit 自行更新）。App 的備援價目表 `MembershipListedPrice`
+（`RainyClock/Services/MembershipModels.swift` 63-72 行：TWN 買斷 `NT$100`、USA 買斷 `$10.00`，只在幣別不符時顯示）在已上架的
+build 40 仍是舊值；1.8.1（`dd65a13`，同日下午）改為 NT$150／$15.00 並有測試，尚未上傳，美國 base 改好前不送審。
 
 兩方案均移除 banner、解鎖日曆，並共用每日一次免看廣告的 AI 生成；買斷優先顯示，不
 自動取消既有 Apple 訂閱。新購不提供年方案。商品供應目前僅美國與台灣，未來地區自動
@@ -1055,6 +1063,10 @@ auto-expansion is off. The lifetime US base was changed to US$10, then Taiwan wa
 at NT$100. Apple-generated prices for other unavailable territories are not approved product prices.
 On 2026-09-29 the owner decided to raise lifetime to US$15 / NT$150 (monthly unchanged); the table
 above stays the ASC price until the owner changes and reads it back there.
+(2026-10-03: no longer the whole truth — Taiwan lifetime was changed to NT$150 that day and read back
+as $150.00; the US base is still US$10.00 pending the owner's custom price change. The current state and
+the exact owner steps are under "Internal catalog reference" near the top of this file; this table is
+kept as the 2026-09-21 record.)
 No review submission or release has occurred. Evidence is in [MEMBERSHIP-STAGING.md](MEMBERSHIP-STAGING.md).
 Sandbox readiness: the user's September 21 confirmation and screenshot establish both Taiwan and
 US testers are created. Device sign-in and purchase end-to-end verification remain pending.
