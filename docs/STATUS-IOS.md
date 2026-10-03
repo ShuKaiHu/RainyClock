@@ -315,7 +315,14 @@ Last updated: 2026-10-03.
     session 24 小時內會一直卡住）；清單另加伺服器自己的 `attestation_key_rotation_required`。(2) 錯誤碼過濾要求至少一個 g–z 的字母，
     所以雜湊、Apple 交易號等純十六進位／純數字的識別碼不會被當成錯誤碼顯示。(3) 伺服器 log 行加 `severity`（5xx ERROR、其餘
     NOTICE），`code` 與 `path` 只接受字串；gRPC 的數字 code 記成 `unrecognized_code`。完整測試 iOS 26.5 與 27.0 各 632 通過、
-    0 失敗、4 略過；`weather-proxy` 188 通過、3 略過。**尚未**：archive／上傳 41。
+    0 失敗、4 略過；`weather-proxy` 188 通過、3 略過。
+    **2026-10-03 23:47：1.8.1（41）已上傳 App Store Connect**（擁有者「上傳到 TestFlight 吧」）。Archive
+    `build/RainyClock-1.8.1-41.xcarchive` 從 `b47edeb` 建（23:43，`** ARCHIVE SUCCEEDED **`，三個 bundle 都讀回 1.8.1／41，
+    49 個 warning 全是既有的 IronSource nullability／`Text +` 棄用／AppIntents metadata）；`xcodebuild -exportArchive` 配
+    `ExportOptions-AppStoreUpload.plist`，`Upload succeeded`、`** EXPORT SUCCEEDED **`，照例只有 IronSource 沒有 dSYM 的
+    warning。**接著要做**：ASC 等 41 處理完 → 擁有者手機裝 TestFlight 41：看 Lock Screen 長方形 widget 英文 header（現在是
+    "Tomorrow" 單獨一個字）、會員頁（第一次開可能回一次 `app_transaction_refresh_required`，按「同步會員狀態」即可；
+    診斷行現在會帶伺服器錯誤碼）→ 審查備註 41 → 送審。
     **第 (6) 項 2026-10-03 23:38 已做：正式會員服務部署為 `rainyclock-membership-00007-k68`，100% 流量**（擁有者「好 部署吧」）。
     映像從 HEAD `b47edeb` 以 Cloud Build 建（標籤 `request-failure-log-20261003`、digest `94c6762c…`），和 00006 的程式差異只有
     `http.js` 的 log 行與其測試；`gcloud run deploy --image=<digest>` 只換映像，前後 `services describe` 全文比對除 nonce 與映像外
