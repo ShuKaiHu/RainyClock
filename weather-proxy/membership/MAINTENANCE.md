@@ -293,3 +293,4 @@ session（這支手機正是拿不到 session），而且它刪的是會員與�
   弱點：`@grpc/grpc-js` 1.14.0–1.14.4（Firestore client 拉進來的；GHSA-m9gg-hp2v-232j、GHSA-f596-whhp-79r4，兩個都是
   gRPC **伺服器**端的問題，這個服務只當 gRPC client）。`package-lock.json` 自 2026-09-22 的 `71c8533` 起沒變，所以
   00001–00006 都帶著它，不是這次引入的；下次改 weather-proxy 相依時一併 `npm audit fix` 再部署。
+- 2026-10-03 後續（**尚未部署**）：`npm audit fix`（未用 `--force`）只把 `package-lock.json` 的 `@grpc/grpc-js` 從 1.14.4 升到 1.14.5（`package.json` 與其他相依都沒動），`npm audit --omit=dev` 回 0 個弱點、`npm test` 188 pass／3 skipped；00007-k68 仍帶舊版，下次部署 Cloud Build 自然帶上。
