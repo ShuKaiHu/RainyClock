@@ -711,11 +711,20 @@ private struct RectangularTomorrowView: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
             } else {
-                Label(header, systemImage: presentation.hasIssue ? TomorrowWidgetPresentation.Glyph.warning.rawValue
-                                                                  : presentation.glyph.rawValue)
-                    .font(.subheadline.weight(.semibold))
-                    .widgetAccentable()
-                    .lineLimit(1)
+                // The face is two Lock Screen slots wide: beside the glyph, "Tomorrow · Sat"
+                // does not fit in English and was cut to "Tomorrow · S…" (owner, 2026-10-03).
+                // The weekday goes before the word would, as on the small face.
+                Label {
+                    ViewThatFits(in: .horizontal) {
+                        Text(verbatim: header).lineLimit(1)
+                        Text(verbatim: headerShort).lineLimit(1)
+                    }
+                } icon: {
+                    Image(systemName: presentation.hasIssue ? TomorrowWidgetPresentation.Glyph.warning.rawValue
+                                                            : presentation.glyph.rawValue)
+                }
+                .font(.subheadline.weight(.semibold))
+                .widgetAccentable()
                 hero
                 if let line = presentation.line {
                     ViewThatFits(in: .horizontal) {
@@ -747,6 +756,13 @@ private struct RectangularTomorrowView: View {
         if case .on(let ringDay)? = presentation.ringDay { return style.longDate(ringDay) }
         guard let day = presentation.day, let word = presentation.dayWordKey else { return style.text("app_title") }
         return style.text(word) + (style.isChinese ? " " : " · ") + style.weekday(day)
+    }
+
+    /// Where the full header would be cut: 明天 / Tomorrow alone, and a ring on another day
+    /// keeps its date, since the day is the point of that header.
+    private var headerShort: String {
+        if case .on(let ringDay)? = presentation.ringDay { return style.longDate(ringDay) }
+        return style.smallHeaderShort(presentation)
     }
 
     @ViewBuilder
