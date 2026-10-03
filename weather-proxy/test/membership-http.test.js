@@ -8,7 +8,7 @@ const { createMemoryStore } = require('../membership/store')
 const { createPolicy } = require('../membership/policy')
 const { createMembershipService } = require('../membership/service')
 const { createGenerationService } = require('../membership/generation')
-const { createMembershipHandler } = require('../membership/http')
+const { createMembershipHandler, requestFailureLine } = require('../membership/http')
 const { createLevelPlayVerifier } = require('../membership/rewards')
 const { cleanupDeletedMembers } = require('../membership/maintenance')
 const { products, validateInput } = require('../membership/runtime')
@@ -73,8 +73,10 @@ async function fixture(t) {
   const generation = createGenerationService({ membership, generate: async () => {
     calls++; return { pcm: Buffer.from([1, 0, 2, 0]), sampleRate: 24000, emotions: ['neutral'] }
   } })
+  const logged = []
   const handler = createMembershipHandler({ membership, auth, apple,
-    rewards: createLevelPlayVerifier({ privateKey, now: () => clockValue }), generation, validateInput })
+    rewards: createLevelPlayVerifier({ privateKey, now: () => clockValue }), generation, validateInput,
+    log: (line) => logged.push(line) })
   const server = http.createServer(async (req, res) => {
     if (!await handler(req, res)) { res.writeHead(404); res.end('outside membership') }
   })
@@ -98,7 +100,7 @@ async function fixture(t) {
     query.set('signature', createHash('md5').update(query.get('timestamp') + query.get('eventId') + query.get('userId') + query.get('rewards') + privateKey).digest('hex'))
     return '/v1/membership/levelplay/callback?' + query
   }
-  return { request, bootstrap, membership, auth, store, rewardURL, get memberId() { return currentMember },
+  return { request, bootstrap, membership, auth, store, rewardURL, logged, get memberId() { return currentMember },
     get calls() { return calls }, get rawReceived() { return rawReceived }, setHistory: (value) => { history = value },
     setNotification: (value) => { notification = value }, setCleanupFails: (value) => { cleanupFails = value },
     setSyncFails: (value) => { syncFails = value } }
@@ -121,6 +123,32 @@ test('HTTP contract recognizes member, reconciles purchase, shares quota and ret
   const restored = await f.bootstrap()
   assert.equal(restored.memberId, session.memberId)
   assert.equal(restored.state.quota.dailyRemaining, 0)
+})
+
+test('HTTP logs the route, status and error code of a failed request and nothing else', async (t) => {
+  const f = await fixture(t)
+  // A rejected bootstrap: the 2026-10-03 case (a phone's App Attest assertion refused on every
+  // launch) left no trace beyond a 401 in the request log, because this line did not exist.
+  const refused = await f.request('/v1/membership/session', { timeZone: 'Asia/Taipei', secret: 'JWS.not-for-logs' })
+  assert.equal(refused.status, 401)
+  assert.deepEqual(f.logged, [{ event: 'membership_request_failed', severity: 'NOTICE', path: '/v1/membership/session', status: 401, code: 'invalid_apple_proof' }])
+  assert.ok(!JSON.stringify(f.logged).includes('not-for-logs'))
+  // Successes log nothing here; an unknown route under the prefix logs its 404.
+  await f.bootstrap()
+  assert.equal(f.logged.length, 1)
+  const missing = await f.request('/v1/membership/does-not-exist')
+  assert.equal(missing.status, 404)
+  assert.deepEqual(f.logged[1], { event: 'membership_request_failed', severity: 'NOTICE', path: '/v1/membership/does-not-exist', status: 404, code: 'not_found' })
+  // The line only ever carries a route shape and an identifier shape.
+  assert.deepEqual(requestFailureLine('/v1/membership/session?token=abc', 401, 'invalid_assertion'),
+    { event: 'membership_request_failed', severity: 'NOTICE', path: 'invalid_path', status: 401, code: 'invalid_assertion' })
+  assert.deepEqual(requestFailureLine('/v1/membership/session', 503, 'Bearer eyJhbGciOi'),
+    { event: 'membership_request_failed', severity: 'ERROR', path: '/v1/membership/session', status: 503, code: 'unrecognized_code' })
+  assert.deepEqual(requestFailureLine('/v1/membership/session', 503, 'x'.repeat(65)).code, 'unrecognized_code')
+  // A numeric gRPC status or an object is never echoed as the code; nor is a non-string path.
+  assert.deepEqual(requestFailureLine('/v1/membership/status', 503, 14).code, 'unrecognized_code')
+  assert.deepEqual(requestFailureLine('/v1/membership/status', 503, { toString: () => 'x' }).code, 'unrecognized_code')
+  assert.deepEqual(requestFailureLine(undefined, 503, undefined), { event: 'membership_request_failed', severity: 'ERROR', path: 'invalid_path', status: 503, code: 'unrecognized_code' })
 })
 
 test('HTTP passes original body bytes to proof verifier and rejects method/body/auth violations', async (t) => {

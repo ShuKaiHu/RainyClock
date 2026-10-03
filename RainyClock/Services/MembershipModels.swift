@@ -64,9 +64,9 @@ enum MembershipListedPrice {
     static func text(for plan: MembershipPlan, storefrontCountryCode: String) -> String? {
         switch (storefrontCountryCode, plan) {
         case ("TWN", .monthly): "NT$10"
-        case ("TWN", .lifetime): "NT$100"
+        case ("TWN", .lifetime): "NT$150"
         case ("USA", .monthly): "$1.00"
-        case ("USA", .lifetime): "$10.00"
+        case ("USA", .lifetime): "$15.00"
         default: nil
         }
     }
@@ -242,10 +242,13 @@ enum MembershipIdentitySynchronization {
             catch {
                 // A server-expired/revoked session can bootstrap once, and so can a
                 // session bound to a device key this install no longer holds (a
-                // keychain that outlived a reinstall); bootstrap rotates that key.
-                // Other 401s, App Attest service failures and network errors remain
-                // fail-closed.
+                // keychain that outlived a reinstall), or one whose key the server
+                // now rejects outright (invalid_assertion, 2026-10-03: inside the
+                // session's 24 hours the status call hits it first); bootstrap rotates
+                // that key. Other 401s, App Attest service failures and network errors
+                // remain fail-closed.
                 guard isServerError(error, code: "invalid_session", status: 401)
+                        || isServerError(error, code: "invalid_assertion", status: 401)
                         || MembershipDeviceProof.isUnusableLocalKey(error) else { throw error }
                 clearSession()
             }
@@ -461,12 +464,27 @@ struct MembershipDiagnostic: Equatable, Sendable {
     let stage: MembershipDiagnosticStage
     let domain: String
     let code: Int
+    /// The server's error code (`{"error": "invalid_assertion"}`): a fixed vocabulary of
+    /// snake_case words, kept only when it has that shape. The shape check keeps out
+    /// URLs, JWS, emails and non-ASCII, and also hex digests and bare numbers (the
+    /// server's identifiers), because every real code contains a letter past `f`.
+    /// nil for every other error.
+    let serverCode: String?
+
+    /// Lowercase letters, digits and underscores, at most 64 bytes, with at least one
+    /// letter in g–z.
+    nonisolated static func safeServerCode(_ value: String) -> String? {
+        guard (1...64).contains(value.utf8.count),
+              value.utf8.allSatisfy({ (97...122).contains($0) || (48...57).contains($0) || $0 == 95 }),
+              value.utf8.contains(where: { (103...122).contains($0) }) else { return nil }
+        return value
+    }
 
     init(stage: MembershipDiagnosticStage, error: any Error) {
         self.stage = stage
         if let memberError = error as? MembershipError {
             switch memberError {
-            case .server(_, let status): domain = "MembershipHTTP"; code = status
+            case .server(let code, let status): domain = "MembershipHTTP"; self.code = status; serverCode = Self.safeServerCode(code); return
             case .notConfigured: domain = "Membership"; code = 1
             case .unavailable: domain = "Membership"; code = 2
             case .unverified: domain = "Membership"; code = 3
@@ -477,8 +495,10 @@ struct MembershipDiagnostic: Equatable, Sendable {
             case .productUnavailable: domain = "Membership"; code = 8
             case .keychainUnavailable: domain = "Membership"; code = 9
             }
+            serverCode = nil
             return
         }
+        serverCode = nil
         let native = error as NSError
         // Even NSError.domain is untrusted. Do not accept arbitrary strings merely
         // because they look identifier-like: they could contain an account or token.
@@ -501,7 +521,8 @@ struct MembershipDiagnostic: Equatable, Sendable {
             return value
         }
         let currency = Set(currencies.compactMap(safeCode)).sorted().joined(separator: ",")
-        return "\(stage.rawValue) · \(domain)/\(code) · store=\(safeCode(storefront) ?? "unknown") · currency=\(currency.isEmpty ? "unknown" : currency)"
+        let reason = serverCode.map { " · \($0)" } ?? ""
+        return "\(stage.rawValue) · \(domain)/\(code)\(reason) · store=\(safeCode(storefront) ?? "unknown") · currency=\(currency.isEmpty ? "unknown" : currency)"
     }
 }
 

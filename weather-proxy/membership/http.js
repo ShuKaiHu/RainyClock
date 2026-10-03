@@ -23,9 +23,22 @@ async function readBody(req, maximum = 384_000) {
   return { raw, body }
 }
 
+// Only the fixed vocabulary of error codes and the route reach the log: never a
+// JWS, assertion, token, body, header or provider text. The 2026-10-03 incident
+// (a phone's App Attest assertion rejected on every launch) could only be
+// diagnosed from latency and response size because nothing logged the code.
+const LOGGED_PATH = /^\/v1\/membership\/[A-Za-z0-9/_-]{1,64}$/
+const LOGGED_CODE = /^[a-z0-9_]{1,64}$/
+function requestFailureLine(path, status, code) {
+  return { event: 'membership_request_failed', severity: status >= 500 ? 'ERROR' : 'NOTICE',
+    path: typeof path === 'string' && LOGGED_PATH.test(path) ? path : 'invalid_path',
+    status, code: typeof code === 'string' && LOGGED_CODE.test(code) ? code : 'unrecognized_code' }
+}
+
 // Dependency injection is intentional: HTTP contracts can be tested without
 // issuing a real Apple purchase, ad impression, speech request or cloud write.
-function createMembershipHandler({ membership, auth, apple, rewards, generation, validateInput }) {
+function createMembershipHandler({ membership, auth, apple, rewards, generation, validateInput,
+  log = (line) => console.log(JSON.stringify(line)) }) {
   const limiter = createRateLimiter({ limit: 120, windowMs: 60_000 })
   const sync = async (memberId, appTransactionId) => {
     await generation.recoverAbandoned(memberId)
@@ -137,12 +150,15 @@ function createMembershipHandler({ membership, auth, apple, rewards, generation,
       }
     } catch (failure) {
       const status = failure.statusCode || failure.status || 503
+      const responseStatus = status >= 400 && status <= 599 ? status : 503
+      // Firestore/gRPC errors carry a numeric code; only the server's own string codes are answered.
+      const code = typeof failure.code === 'string' && failure.code ? failure.code : 'membership_unavailable'
       // No JWS, assertion, token, user text or provider raw response in logs.
-      json(res, status >= 400 && status <= 599 ? status : 503,
-        { error: failure.code || 'membership_unavailable' })
+      try { log(requestFailureLine(url.pathname, responseStatus, code)) } catch { /* Logging never changes the response. */ }
+      json(res, responseStatus, { error: code })
     }
     return true
   }
 }
 
-module.exports = { createMembershipHandler }
+module.exports = { createMembershipHandler, requestFailureLine }

@@ -145,6 +145,12 @@ actor MembershipDeviceProof {
     /// Bootstrap only: it carries a fresh Apple proof and retries once, so a new key
     /// is still attested. A stored key can also fail its assertion with
     /// unknownSystemFailure; a failed attestation of a new key never rotates on it.
+    ///
+    /// `invalid_assertion` is the server rejecting a key it does know (signature or
+    /// counter): on 2026-10-03 the owner's phone hit it on every launch after moving
+    /// between TestFlight and App Store installs, and nothing on the phone could
+    /// recover because only the codes below rotated. A rotated key still has to pass
+    /// attestation and the server's replay checks, so this grants nothing.
     nonisolated static func requiresKeyRotation(_ error: Error) -> Bool {
         if isUnusableLocalKey(error) { return true }
         let original = MembershipDiagnosticFailure.original(error)
@@ -153,7 +159,7 @@ actor MembershipDeviceProof {
                 && (error as? MembershipDiagnosticFailure)?.diagnostic.stage == .appAttestAssertion
         }
         if case MembershipError.server(let code, _) = original {
-            return ["key_not_registered", "invalid_key"].contains(code)
+            return ["key_not_registered", "invalid_key", "invalid_assertion", "attestation_key_rotation_required"].contains(code)
         }
         return false
     }

@@ -93,9 +93,10 @@ final class MembershipProductCatalogTests: XCTestCase {
 
     func testListedPricesCoverOnlyTheStorefrontsWherePlansAreSold() {
         XCTAssertEqual(MembershipListedPrice.text(for: .monthly, storefrontCountryCode: "TWN"), "NT$10")
-        XCTAssertEqual(MembershipListedPrice.text(for: .lifetime, storefrontCountryCode: "TWN"), "NT$100")
+        // The 2026-09-29 decision, applied on App Store Connect from 2026-10-03.
+        XCTAssertEqual(MembershipListedPrice.text(for: .lifetime, storefrontCountryCode: "TWN"), "NT$150")
         XCTAssertEqual(MembershipListedPrice.text(for: .monthly, storefrontCountryCode: "USA"), "$1.00")
-        XCTAssertEqual(MembershipListedPrice.text(for: .lifetime, storefrontCountryCode: "USA"), "$10.00")
+        XCTAssertEqual(MembershipListedPrice.text(for: .lifetime, storefrontCountryCode: "USA"), "$15.00")
         XCTAssertNil(MembershipListedPrice.text(for: .yearly, storefrontCountryCode: "TWN"))
         XCTAssertNil(MembershipListedPrice.text(for: .monthly, storefrontCountryCode: "JPN"))
     }
@@ -195,8 +196,33 @@ final class MembershipDiagnosticTests: XCTestCase {
     func testServerErrorPayloadCannotBecomeDiagnosticText() {
         let error = MembershipError.server("https://server/?token=secret JWS.apple-account", 401)
         let diagnostic = MembershipDiagnostic(stage: .session, error: error)
+        XCTAssertNil(diagnostic.serverCode)
         XCTAssertEqual(diagnostic.summary(storefront: nil, currencies: []),
             "session · MembershipHTTP/401 · store=unknown · currency=unknown")
+    }
+
+    /// 2026-10-03: a phone's bootstrap failed on every launch with `session · MembershipHTTP/401`
+    /// and nothing said which of the server's dozen 401 codes it was. A code that looks like
+    /// one of the server's identifiers is shown; anything else is dropped.
+    func testServerErrorCodeAppearsInDiagnosticOnlyWhenItLooksLikeAnIdentifier() {
+        let known = MembershipDiagnostic(stage: .session, error: MembershipError.server("invalid_assertion", 401))
+        XCTAssertEqual(known.serverCode, "invalid_assertion")
+        XCTAssertEqual(known.summary(storefront: "TWN", currencies: ["TWD"]),
+            "session · MembershipHTTP/401 · invalid_assertion · store=TWN · currency=TWD")
+        XCTAssertEqual(MembershipDiagnostic(stage: .refresh, error: MembershipError.server("quota_exhausted_v2", 402)).serverCode,
+                       "quota_exhausted_v2")
+        // Hex digests and bare numbers are the server's identifiers (device key hashes, member
+        // ids, reward ids, Apple transaction ids), never its codes: every code has a letter past f.
+        for rejected in ["", "Invalid_Assertion", "invalid-assertion", "invalid assertion", "code.with.dots",
+                         "a@b", "jws=eyJhbGciOi", String(repeating: "a", count: 65), "token:secret", "錯誤",
+                         String(repeating: "0123456789abcdef", count: 4), "704477283", "deadbeef_0", "1_2_3"] {
+            let diagnostic = MembershipDiagnostic(stage: .session, error: MembershipError.server(rejected, 401))
+            XCTAssertNil(diagnostic.serverCode, rejected)
+            XCTAssertEqual(diagnostic.summary(storefront: nil, currencies: []),
+                "session · MembershipHTTP/401 · store=unknown · currency=unknown", rejected)
+        }
+        XCTAssertNil(MembershipDiagnostic(stage: .products, error: MembershipError.unavailable).serverCode)
+        XCTAssertNil(MembershipDiagnostic(stage: .challengeNetwork, error: URLError(.timedOut)).serverCode)
     }
 
     func testStorefrontAndCurrencyDiagnosticsRejectUnexpectedValues() {
@@ -333,6 +359,25 @@ final class MembershipIdentitySynchronizationTests: XCTestCase {
             clearSession: { cleared += 1 },
             bootstrap: { _ in bootstraps += 1; bodies.append(body) })
         XCTAssertEqual(bodies, [body, body])
+        XCTAssertEqual(bootstraps, 1)
+        XCTAssertEqual(cleared, 1)
+        XCTAssertEqual(refreshes, 0)
+    }
+
+    /// 2026-10-03: inside a session's 24 hours the rejected key is first seen by the status
+    /// call, not by a bootstrap. An explicit sync then clears the session and bootstraps
+    /// once, where the key is rotated; the server still attests the new key from scratch.
+    func testRejectedAssertionOnAReusedSessionClearsItAndBootstrapsOnce() async throws {
+        var bootstraps = 0
+        var cleared = 0
+        var refreshes = 0
+        try await MembershipIdentitySynchronization.run(
+            allowInteractiveRefresh: true, restoresDeletedMembership: false,
+            shared: { "verified" }, refresh: { refreshes += 1; return "fresh" },
+            isDeleted: { false }, canReuseSession: { true },
+            reuseSession: { throw MembershipDiagnosticFailure.wrapping(MembershipError.server("invalid_assertion", 401), at: .request) },
+            clearSession: { cleared += 1 },
+            bootstrap: { _ in bootstraps += 1 })
         XCTAssertEqual(bootstraps, 1)
         XCTAssertEqual(cleared, 1)
         XCTAssertEqual(refreshes, 0)
@@ -1045,6 +1090,18 @@ final class MembershipTests: XCTestCase {
         XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(NSError(domain: DCErrorDomain, code: DCError.Code.invalidKey.rawValue)))
         XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(NSError(domain: DCErrorDomain, code: DCError.Code.invalidInput.rawValue)))
         XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(MembershipError.server("key_not_registered", 401)))
+        // 2026-10-03: the server knew the key but rejected what it signed, on every launch,
+        // after the phone moved between TestFlight and App Store installs. A rotated key is
+        // attested from scratch, so rotating here only costs one attestation.
+        XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(MembershipError.server("invalid_assertion", 401)))
+        XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(
+            MembershipDiagnosticFailure.wrapping(MembershipError.server("invalid_assertion", 401), at: .session)))
+        XCTAssertTrue(MembershipDeviceProof.requiresKeyRotation(MembershipError.server("attestation_key_rotation_required", 401)))
+        // A rejected attestation of a NEW key, or a replay, must not spin up key after key.
+        for code in ["invalid_attestation", "attestation_environment_mismatch", "device_key_already_registered",
+                     "assertion_replayed", "apple_proof_replayed_on_other_device", "invalid_apple_proof"] {
+            XCTAssertFalse(MembershipDeviceProof.requiresKeyRotation(MembershipError.server(code, 401)), code)
+        }
         XCTAssertFalse(MembershipDeviceProof.requiresKeyRotation(URLError(.timedOut)))
         XCTAssertFalse(MembershipDeviceProof.requiresKeyRotation(NSError(domain: DCErrorDomain, code: DCError.Code.serverUnavailable.rawValue)))
         XCTAssertFalse(MembershipDeviceProof.requiresKeyRotation(MembershipError.unverified))
