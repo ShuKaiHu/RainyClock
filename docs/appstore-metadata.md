@@ -1,5 +1,56 @@
 # Rainy Clock App Store Metadata
 
+## 1.8.1 (41) — What's New — membership key rotation, Lock Screen header
+
+> **DRAFT, 2026-10-03.** Build 41 was uploaded to App Store Connect at 23:47 (archive from `b47edeb`);
+> nothing below is pasted or submitted — the owner approves the text first. Every app-side change
+> since the submitted 1.8.0 (40) is in four files: `MembershipSecurity.swift` (a server
+> `invalid_assertion` / `attestation_key_rotation_required` now rotates the App Attest key at
+> bootstrap, like `key_not_registered` did), `MembershipModels.swift` (the reused-session path treats
+> `invalid_assertion` like `invalid_session`; the diagnostic line carries the server's error code when it
+> looks like one; fallback lifetime price NT$150 / $15.00), `TomorrowWidgetViews.swift` (the rectangular
+> Lock Screen face falls back to the day word when "Tomorrow · Sat" would be cut), and the version
+> numbers. No new permission, endpoint, SDK or data; the description, keywords, screenshots and the
+> privacy questionnaire do not change.
+>
+> The 1.8.0 description, keywords and screenshots stay. **Paste this review note, not the 40 one:
+> [`appstore-review-notes-1.8.1-41.txt`](appstore-review-notes-1.8.1-41.txt)** (3,982 characters,
+> under the 4,000 limit): the 40 note with line 1 changed, the three "NEW:" prefixes dropped, a
+> CHANGES SINCE 1.8.0 (40) paragraph added after the first line, and — to make room — the small
+> widget's "Open the app…" sentence, the alarm card's "Next alarm" sentence, "Failed updates never clear
+> alarms", "A typed name also works unpicked", the "(revision, times, applied/no-alarm)" receipt
+> detail and a few words of the tracking, typhoon and purchase sentences cut. Every remaining claim is
+> one the 40 note already made.
+
+### What's New — English (DRAFT)
+
+```
+• Membership: fixes a case where the app kept saying "Your plan hasn't been confirmed yet" even though the purchase was valid.
+• Lock Screen widget: the header no longer gets cut off in English.
+```
+
+### What's New — 繁體中文（草稿）
+
+```
+・會員：修正購買有效、App 卻一直顯示「尚未確認你的方案」的問題。
+・鎖定畫面小工具：英文標題不再被截斷。
+```
+
+### Before pasting — internal, not App Store copy
+
+- [ ] The owner has seen TestFlight 41 on a device: the rectangular Lock Screen widget's English header,
+      and the membership screen (the first launch after 40 may answer `app_transaction_refresh_required`
+      once; one "Sync membership status" tap completes it, and the diagnostic line now ends in the server
+      code).
+- [x] Both bullets quote the real string: `ux_closure_plan_unconfirmed` = "Your plan hasn't been confirmed
+      yet" / 「尚未確認你的方案」, the closure-rule row in Settings › Calendar
+      (`SettingsCalendarView.swift:352`) — where the owner saw the symptom on 2026-10-03. The membership
+      screen itself showed the diagnostic line (`session · MembershipHTTP/401 · …`).
+- [ ] App Store Connect: 1.8.1 version created from 1.8.0, build 41 selected, both What's New pasted, the
+      (41) note pasted and read back, manual release kept.
+
+---
+
 ## 1.8.0 (38) — What's New — typhoon closures, alarm switch, Next Alarm widget
 
 > **Pasted into App Store Connect on 2026-10-02** (version 1.8.0, both localizations, saved and read

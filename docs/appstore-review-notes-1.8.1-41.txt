@@ -1,0 +1,35 @@
+RAINY CLOCK 1.8.1 (41)
+
+iPhone-only, iOS 17+. Alarms use AlarmKit on iOS 26+, local notifications on iOS 17-25. No login or demo account; Apple-verified purchase data recognize membership.
+
+CHANGES SINCE 1.8.0 (40)
+Maintenance release: no new feature, permission, endpoint or data. Membership: a device whose App Attest key our server rejects now registers a new key (still attested, replay-checked) instead of failing every launch; the membership screen's diagnostic line names the server's error code. Lock Screen rectangular widget: the English header no longer truncates.
+
+"Next Alarm" WIDGET (iOS 26+)
+Small, medium; Lock Screen rectangular, circular, inline. Shows the next alarm (today's until it rings, then tomorrow's) and why (rain, a holiday, a closure). Small (forecast background) and medium (weather column) show the Apple Weather mark. Tapping that column opens Apple's legal page via the app; small opens the app's Alarm tab, whose weather card links to it. No network or ads; it reads an address-free snapshot from the app.
+Test on an iPhone; iPad compatibility mode has no widgets. After Route and Time setup, add Rainy Clock from the Home Screen (long-press > Edit > Add Widget) or Lock Screen (long-press > Customize).
+
+TYPHOON CLOSURES (TAIWAN)
+Settings > Calendar > "Use temporary closure rules": off by default; both paid plans, not free. A verified official closure (DGPA via NCDR) for the home or work district skips that day's alarm; failed or unverified data never changes it. No typhoon, no announcement; "View map demo" below the switch (every plan, no purchase) is fictional, marked "Demo data · Not live", and changes nothing.
+Turning it on asks once for notification permission and registers for pushes; turning it off deletes that. Pushes carry no location; a push alone never cancels an alarm. Addresses are geocoded with Apple Maps on the device to find districts; no location permission. The phone sends our service a random installation ID, the APNs token and a device-held credential (the server keeps only its SHA-256 hash), plus a receipt after each check. Addresses, districts, routes and alarm times are never sent to it.
+
+ALARM SWITCH (every plan)
+The switch beside the Alarm title offers "Turn Off Next Alarm Only" or "Turn Off Until I Turn It Back On"; the card then shows "Skipped" or "Alarm Off".
+
+TRACKING PERMISSION (2.1)
+On first launch, Apple's tracking request appears before the ad SDK starts, which stays uninitialized until the choice is known. iOS shows it only if Settings > Privacy & Security > Tracking allows requests. In the EEA, UK and Switzerland the app's own ad-privacy choice comes first; the request follows once it closes. Declining limits no feature.
+
+LOCATION TEST (2.1(a))
+Settings > Route > Home: type Taipei Main Station, pick the suggestion. Work: type Taipei 101, pick the Xinyi Rd. Sec. 5 result; the route preview appears.
+
+PURCHASES
+Settings > Other > Membership: monthly auto-renewable com.shukaihu.RainyClock.plus.monthly; one-time non-consumable com.shukaihu.RainyClock.banner.lifetime. Both remove banner ads and include calendar and closure rules and a daily AI generation. One-time does not cancel a subscription. Top-right menu: Restore purchases, Manage subscriptions, Delete membership data.
+
+CALENDAR AND ALARM
+Paid plan: Settings > Calendar > "Use calendar rules", then tap dates in "Alarm calendar" to toggle ring/silent. Ring test: Settings > Time, wake-up time a few minutes ahead; Settings > Calendar, include today in "Repeat days"; allow alarms; lock the iPhone.
+
+AI VOICE, SANDBOX
+Settings > Time > a sound > "AI Voice". Free: one initial generation; paid: one daily; extras need a rewarded ad. Our backend and Google speech services process the text. Sandbox/TestFlight membership data are isolated; production ads are off, so ads may not load.
+
+Privacy: https://shukaihu.github.io/RainyClock/privacy-policy.html
+Terms: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/

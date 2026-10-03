@@ -322,7 +322,11 @@ Last updated: 2026-10-03.
     `ExportOptions-AppStoreUpload.plist`，`Upload succeeded`、`** EXPORT SUCCEEDED **`，照例只有 IronSource 沒有 dSYM 的
     warning。**接著要做**：ASC 等 41 處理完 → 擁有者手機裝 TestFlight 41：看 Lock Screen 長方形 widget 英文 header（現在是
     "Tomorrow" 單獨一個字）、會員頁（第一次開可能回一次 `app_transaction_refresh_required`，按「同步會員狀態」即可；
-    診斷行現在會帶伺服器錯誤碼）→ 審查備註 41 → 送審。
+    診斷行現在會帶伺服器錯誤碼）→ 審查備註 41 → 送審。**送審文案已擬好（草稿，擁有者核准後才貼）**：審查備註
+    [`appstore-review-notes-1.8.1-41.txt`](appstore-review-notes-1.8.1-41.txt)（3,982 字；40 的備註加「CHANGES SINCE 1.8.0 (40)」一段，
+    拿掉三個 NEW: 與幾句話騰出空間，剩下的每一句 40 都說過）；What's New 兩種語言各兩點（會員「Your plan hasn't been
+    confirmed yet」／「尚未確認你的方案」——這是設定 › 行事曆那一列 `ux_closure_plan_unconfirmed` 的原字——與鎖定畫面英文標題），
+    在 [`appstore-metadata.md`](appstore-metadata.md) 最上面。
     **第 (6) 項 2026-10-03 23:38 已做：正式會員服務部署為 `rainyclock-membership-00007-k68`，100% 流量**（擁有者「好 部署吧」）。
     映像從 HEAD `b47edeb` 以 Cloud Build 建（標籤 `request-failure-log-20261003`、digest `94c6762c…`），和 00006 的程式差異只有
     `http.js` 的 log 行與其測試；`gcloud run deploy --image=<digest>` 只換映像，前後 `services describe` 全文比對除 nonce 與映像外
