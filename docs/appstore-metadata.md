@@ -17,7 +17,7 @@
 > privacy questionnaire do not change.
 >
 > The 1.8.0 description, keywords and screenshots stay. **Paste this review note, not the 40 one:
-> [`appstore-review-notes-1.8.1-42.txt`](appstore-review-notes-1.8.1-42.txt)** (under 4,000 characters,
+> [`appstore-review-notes-1.8.1-42.txt`](appstore-review-notes-1.8.1-42.txt)** (3,991 characters,
 > under the 4,000 limit): the 40 note with line 1 changed, the three "NEW:" prefixes dropped, a
 > CHANGES SINCE 1.8.0 (40) paragraph added after the first line, and — to make room — the small
 > widget's "Open the app…" sentence, the alarm card's "Next alarm" sentence, "Failed updates never clear
