@@ -323,10 +323,17 @@ Last updated: 2026-10-03.
     warning。**接著要做**：ASC 等 41 處理完 → 擁有者手機裝 TestFlight 41：看 Lock Screen 長方形 widget 英文 header（現在是
     "Tomorrow" 單獨一個字）、會員頁（第一次開可能回一次 `app_transaction_refresh_required`，按「同步會員狀態」即可；
     診斷行現在會帶伺服器錯誤碼）→ 審查備註 41 → 送審。**送審文案已擬好（草稿，擁有者核准後才貼）**：審查備註
-    [`appstore-review-notes-1.8.1-41.txt`](appstore-review-notes-1.8.1-41.txt)（3,982 字；40 的備註加「CHANGES SINCE 1.8.0 (40)」一段，
+    `appstore-review-notes-1.8.1-41.txt`（2026-10-06 改名為 [`-42`](appstore-review-notes-1.8.1-42.txt) 並加一句；當時 3,982 字；40 的備註加「CHANGES SINCE 1.8.0 (40)」一段，
     拿掉三個 NEW: 與幾句話騰出空間，剩下的每一句 40 都說過）；What's New 兩種語言各兩點（會員「Your plan hasn't been
     confirmed yet」／「尚未確認你的方案」——這是設定 › 行事曆那一列 `ux_closure_plan_unconfirmed` 的原字——與鎖定畫面英文標題），
     在 [`appstore-metadata.md`](appstore-metadata.md) 最上面。
+  - **2026-10-06：1.8.1 改為 build 42——設定 › 時間的「提早時間」與「降雨門檻」脫鉤**（擁有者：「點下去下面跳出來的是重複的
+    我覺得不好 應該要脫鉤」）。原本兩列都開同一張 `Setting.rain` 的 sheet（兩個滑桿、標題「下雨提早」）；現在各開各的
+    （`.rain` = 提早時間、新增 `.rainThreshold` = 降雨門檻，標題用列名），每張 sheet 的滑桿下面多一行次要文字寫完整規則
+    （原本沒用到的 `ux_rain_rule`：「降雨達 60% 提早 30 分鐘」），sheet 高度 390 → 270。主卡「因雨提早」的深連結（anchor
+    `rain`）開提早時間那張。版本號 42（`Info.plist` 與 11 處 `CURRENT_PROJECT_VERSION`）；審查備註改名
+    [`appstore-review-notes-1.8.1-42.txt`](appstore-review-notes-1.8.1-42.txt) 並加一句、文案各加一點（`appstore-metadata.md`）。
+    Build 41 留在 TestFlight，不送審。
   - **2026-10-04 00:xx–01:xx：widget 全情境視覺審查（擁有者要求「中文英文的樣式都給我看一遍」）。** 主畫面小＋中：iPhone 17 Pro
     iOS 26.5 模擬器以 `-widget-demo` 跑完 39 個情境 × 中英文（Debug build **必須簽章**，`CODE_SIGNING_ALLOWED=NO` 的 build 沒有
     App Group，widget 永遠停在「開啟 App 以顯示下次鬧鐘」）。鎖定畫面長方形／圓形／inline：Xcode 27 模擬器加不了鎖定畫面

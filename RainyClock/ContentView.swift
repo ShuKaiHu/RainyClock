@@ -823,7 +823,10 @@ struct AlarmTimeSettingsView: View {
     var onNavigationRequestHandled: (UUID) -> Void = { _ in }
     @State private var presentedSetting: Setting?
     private enum Setting: String, Identifiable {
-        case time, rain, normalSound, earlySound, snooze, evening
+        // `.rain` is the early-alarm lead time and `.rainThreshold` the rain chance that
+        // triggers it: one sheet each (owner, 2026-10-06; they used to share one sheet, so
+        // either row opened the same two sliders).
+        case time, rain, rainThreshold, normalSound, earlySound, snooze, evening
         var id: String { rawValue }
         var soundSlot: CommuteAlarmSettings.SoundSlot? {
             switch self {
@@ -835,7 +838,8 @@ struct AlarmTimeSettingsView: View {
         var title: String {
             switch self {
             case .time: String(localized: "ux_wake_time")
-            case .rain: String(localized: "ux_rain_earlier")
+            case .rain: String(localized: "ux_early_time")
+            case .rainThreshold: String(localized: "rain_threshold")
             case .normalSound: String(localized: "alarm_sound_normal")
             case .earlySound: String(localized: "alarm_sound_early")
             case .snooze: String(localized: "ux_snooze")
@@ -852,7 +856,7 @@ struct AlarmTimeSettingsView: View {
                     Divider().padding(.leading, 48)
                     settingRow("ux_early_time", icon: "cloud.rain", value: String.localizedStringWithFormat(String(localized: "rain_lead_time_value"), viewModel.settings.rainLeadTimeMinutes), setting: .rain)
                     Divider().padding(.leading, 48)
-                    settingRow("rain_threshold", icon: "drop", value: "\(Int(viewModel.settings.rainProbabilityThreshold * 100))%", setting: .rain)
+                    settingRow("rain_threshold", icon: "drop", value: "\(Int(viewModel.settings.rainProbabilityThreshold * 100))%", setting: .rainThreshold)
                 }
                 settingsGroup {
                     settingRow("alarm_sound_early", icon: "cloud.rain", value: viewModel.settings.sound(for: .early).displayName, setting: .earlySound)
@@ -894,6 +898,16 @@ struct AlarmTimeSettingsView: View {
         }.buttonStyle(.plain)
     }
 
+    /// The whole rule in one line under either slider, since each sheet now shows only
+    /// half of it: "At 60% rain, 30 min earlier".
+    private var rainRuleCaption: some View {
+        Text(String.localizedStringWithFormat(String(localized: "ux_rain_rule"),
+                                              Int(viewModel.settings.rainProbabilityThreshold * 100),
+                                              viewModel.settings.rainLeadTimeMinutes))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+    }
+
     private func settingsGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0, content: content)
             .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -912,10 +926,13 @@ struct AlarmTimeSettingsView: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack { Text("ux_early_time"); Spacer(); Text(String.localizedStringWithFormat(String(localized: "rain_lead_time_value"), viewModel.settings.rainLeadTimeMinutes)).foregroundStyle(Color.accentColor) }
                                 Slider(value: rainLeadTimeSliderValue, in: 1...60, step: 1)
+                                rainRuleCaption
                             }
+                        case .rainThreshold:
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack { Text("rain_threshold"); Spacer(); Text("\(Int(viewModel.settings.rainProbabilityThreshold * 100))%").foregroundStyle(Color.accentColor) }
                                 Slider(value: $viewModel.settings.rainProbabilityThreshold, in: 0.1...0.9, step: 0.05)
+                                rainRuleCaption
                             }
                         case .normalSound, .earlySound:
                             soundSettings(for: setting.soundSlot ?? .normal)
@@ -943,7 +960,8 @@ struct AlarmTimeSettingsView: View {
                 } }
                 .background(Color.appBackground)
             }
-            .presentationDetents(setting.soundSlot != nil ? [.large] : [.height(390)])
+            .presentationDetents(setting.soundSlot != nil ? [.large]
+                                 : setting == .rain || setting == .rainThreshold ? [.height(230)] : [.height(390)])
             .presentationDragIndicator(.visible)
         }
     }

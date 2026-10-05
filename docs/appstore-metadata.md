@@ -1,20 +1,23 @@
 # Rainy Clock App Store Metadata
 
-## 1.8.1 (41) — What's New — membership key rotation, Lock Screen header
+## 1.8.1 (42) — What's New — membership key rotation, Lock Screen header, separate rain sheets
 
-> **DRAFT, 2026-10-03.** Build 41 was uploaded to App Store Connect at 23:47 (archive from `b47edeb`);
-> nothing below is pasted or submitted — the owner approves the text first. Every app-side change
-> since the submitted 1.8.0 (40) is in four files: `MembershipSecurity.swift` (a server
+> **DRAFT, 2026-10-03, revised 2026-10-06 for build 42.** Build 41 was uploaded to App Store Connect on
+> 2026-10-03 at 23:47 (archive from `b47edeb`) but never submitted; 42 adds one Settings change (below).
+> Nothing below is pasted or submitted — the owner approves the text first. Every app-side change
+> since the submitted 1.8.0 (40) is in five files: `MembershipSecurity.swift` (a server
 > `invalid_assertion` / `attestation_key_rotation_required` now rotates the App Attest key at
 > bootstrap, like `key_not_registered` did), `MembershipModels.swift` (the reused-session path treats
 > `invalid_assertion` like `invalid_session`; the diagnostic line carries the server's error code when it
 > looks like one; fallback lifetime price NT$150 / $15.00), `TomorrowWidgetViews.swift` (the rectangular
-> Lock Screen face falls back to the day word when "Tomorrow · Sat" would be cut), and the version
-> numbers. No new permission, endpoint, SDK or data; the description, keywords, screenshots and the
+> Lock Screen face falls back to the day word when "Tomorrow · Sat" would be cut), `ContentView.swift`
+> (Settings › Time: "Early alarm" and "Rain threshold" open separate sheets — they used to share one
+> with both sliders, so either row opened the same thing (owner, 2026-10-06); each sheet ends with the
+> whole rule, "At 60% rain, 30 min earlier"), and the version numbers. No new permission, endpoint, SDK or data; the description, keywords, screenshots and the
 > privacy questionnaire do not change.
 >
 > The 1.8.0 description, keywords and screenshots stay. **Paste this review note, not the 40 one:
-> [`appstore-review-notes-1.8.1-41.txt`](appstore-review-notes-1.8.1-41.txt)** (3,982 characters,
+> [`appstore-review-notes-1.8.1-42.txt`](appstore-review-notes-1.8.1-42.txt)** (under 4,000 characters,
 > under the 4,000 limit): the 40 note with line 1 changed, the three "NEW:" prefixes dropped, a
 > CHANGES SINCE 1.8.0 (40) paragraph added after the first line, and — to make room — the small
 > widget's "Open the app…" sentence, the alarm card's "Next alarm" sentence, "Failed updates never clear
@@ -27,6 +30,7 @@
 ```
 • Membership: fixes a case where the app kept saying "Your plan hasn't been confirmed yet" even though the purchase was valid.
 • Lock Screen widget: the header no longer gets cut off in English.
+• Settings › Time: Early alarm and Rain threshold now open separately, and each shows the full rule.
 ```
 
 ### What's New — 繁體中文（草稿）
@@ -34,6 +38,7 @@
 ```
 ・會員：修正購買有效、App 卻一直顯示「尚未確認你的方案」的問題。
 ・鎖定畫面小工具：英文標題不再被截斷。
+・設定 › 時間：「提早時間」與「降雨門檻」改為各自開啟，兩邊都會顯示完整規則。
 ```
 
 ### Before pasting — internal, not App Store copy
@@ -46,8 +51,8 @@
       yet" / 「尚未確認你的方案」, the closure-rule row in Settings › Calendar
       (`SettingsCalendarView.swift:352`) — where the owner saw the symptom on 2026-10-03. The membership
       screen itself showed the diagnostic line (`session · MembershipHTTP/401 · …`).
-- [ ] App Store Connect: 1.8.1 version created from 1.8.0, build 41 selected, both What's New pasted, the
-      (41) note pasted and read back, manual release kept.
+- [ ] App Store Connect: 1.8.1 version created from 1.8.0, build 42 selected (41 is on TestFlight too; do not
+      submit it), both What's New pasted, the (42) note pasted and read back, manual release kept.
 
 ---
 
