@@ -334,7 +334,9 @@ Last updated: 2026-10-03.
     `rain`）開提早時間那張。版本號 42（`Info.plist` 與 11 處 `CURRENT_PROJECT_VERSION`）；審查備註改名
     [`appstore-review-notes-1.8.1-42.txt`](appstore-review-notes-1.8.1-42.txt) 並加一句、文案各加一點（`appstore-metadata.md`）。
     Build 41 留在 TestFlight，不送審。模擬器實拍確認中英文兩張 sheet（`e88f16e`）；**`build/RainyClock-1.8.1-42.xcarchive`
-    已從 `e88f16e` 建好（三個 bundle 都是 1.8.1／42，49 個既有 warning），尚未上傳**——上傳 TestFlight 等擁有者說。
+    已從 `e88f16e` 建好（三個 bundle 都是 1.8.1／42，49 個既有 warning），尚未上傳**。擁有者 10/6 決定：**先想還有什麼要改，
+    改完一次打包，暫不上傳**——所以 42 這個 archive 大概會作廢，下次打包前看 build 號要不要再推（ASC 不接受重複的 build 號，
+    41 已上傳；42 還沒上傳所以可以沿用）。
   - **2026-10-04 00:xx–01:xx：widget 全情境視覺審查（擁有者要求「中文英文的樣式都給我看一遍」）。** 主畫面小＋中：iPhone 17 Pro
     iOS 26.5 模擬器以 `-widget-demo` 跑完 39 個情境 × 中英文（Debug build **必須簽章**，`CODE_SIGNING_ALLOWED=NO` 的 build 沒有
     App Group，widget 永遠停在「開啟 App 以顯示下次鬧鐘」）。鎖定畫面長方形／圓形／inline：Xcode 27 模擬器加不了鎖定畫面
