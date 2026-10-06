@@ -330,10 +330,11 @@ Last updated: 2026-10-03.
   - **2026-10-06：停班停課來源斷了——NCDR 免金鑰的 `RssAtomFeed.ashx?AlertType=33` 自 10-05 15:35 起回「請先登入會員」，
     `rainyclock-dayoff-poll` 每個 tick 都 `invalid_source_xml`，degraded 告警 10-05 17:08 寄信。** 手機端安全（503 → 保守規則，
     鬧鐘照常響），但新公告收不到。還能免登入的：不帶 `AlertType` 的全站 feed、CAP 檔、`server/v1/Alerts/Search/history`
-    歷史查詢 API（`DAYOFF-SPEC.md` §2.2，實測仍回停班停課資料）。選項：(a) 擁有者申請 NCDR 會員拿 API key，
-    `NCDR_SOURCE=member` 零程式改動；(b) 改 `open-data` 來源為全站 feed 並只取 `dgpa.gov.tw_workSchlClos_*` 的 entry；
-    (c) 新來源改打歷史查詢 API（今天＋明天兩個日期視窗、3 秒節流）。完整診斷與讀回值在
-    `dayoff-service/DEPLOYMENT.md` 執行紀錄 2026-10-05。
+    歷史查詢 API（`DAYOFF-SPEC.md` §2.2，實測仍回停班停課資料）。**擁有者選 (c)：新來源 `NCDR_SOURCE=history` 打歷史查詢 API，
+    同日 18:5x 部署（`1501064`，service `rainyclock-dayoff-00007-zht`，第一次執行 `c9tvj` `ok:true`、`/health/details`
+    `state:"ready"`）。** 最近三個台灣日各自送出的公告、每頁 10 筆、3 秒節流、429 同輪重試；不看 `expires`（它是公告日的結束，
+    照它丟會在停班當天 00:05 丟掉「明天停班」——審查抓到的）；只在有新公告時推播。其他兩條路（會員金鑰、全站 feed 過濾）沒走。
+    完整診斷、審查發現與讀回值在 `dayoff-service/DEPLOYMENT.md` 執行紀錄 2026-10-05 與 2026-10-06。App 端不用改。
   - **2026-10-06：1.8.1 改為 build 42——設定 › 時間的「提早時間」與「降雨門檻」脫鉤**（擁有者：「點下去下面跳出來的是重複的
     我覺得不好 應該要脫鉤」）。原本兩列都開同一張 `Setting.rain` 的 sheet（兩個滑桿、標題「下雨提早」）；現在各開各的
     （`.rain` = 提早時間、新增 `.rainThreshold` = 降雨門檻，標題用列名），每張 sheet 的滑桿下面多一行次要文字寫完整規則

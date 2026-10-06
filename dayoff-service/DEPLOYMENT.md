@@ -1,7 +1,7 @@
 # 停班停課服務部署（Cloud Run Job + service + Firestore）
 
 2026-09-24：程式與測試完成（`npm test` 100 通過、7 個 Emulator 測試略過；Firestore Emulator 全套 107 通過）。
-資料庫、TTL、索引豁免、secret、映像、service、Job、Scheduler 與 APNs 推播都已就緒並以 `open-data` 來源運行中；告警通道與三個 policy 已建，absence 告警實測寄達；只剩真機推播驗證（2026-10-03 已完成），見最下方「執行紀錄」。
+資料庫、TTL、索引豁免、secret、映像、service、Job、Scheduler 與 APNs 推播都已就緒並以 `history` 來源運行中（2026-10-06 起；`open-data` 在 10-05 被 NCDR 擋下）；告警通道與三個 policy 已建，absence 告警實測寄達；只剩真機推播驗證（2026-10-03 已完成），見最下方「執行紀錄」。
 2026-10-02：為了成本，輪詢由每 5 分鐘改為每 30 分鐘，快照上限改為 1 小時，absence 告警改為 2 小時（新視窗尚未重測）；程式與映像沒有變，見「成本」與「執行紀錄」。
 2026-10-03：1.8.0（40）上架後，擁有者手機以 App Store build 首次對正式服務登記（`devices` 0 → 1），強制 revision 改變的推播 `accepted=1`、擴充功能抓到 Feed、橫幅送達：真機推播驗證完成，production APNs 與 `aps-environment` 的搭配確認無誤，見「執行紀錄」。
 每一步實際執行後，把讀回的結果寫進最下方的「執行紀錄」，沒做過的不要寫成做過。
@@ -711,5 +711,30 @@ build id 與映像 digest、service URL、第一次 execution 名稱與摘要、
 - 對使用者的影響：service 對手機回 503 `stale_cache`／`invalid_source_xml`，App 照原本的保守規則走——鬧鐘照常響、不會
   把舊公告當今天的；設定 › 行事曆那一列會顯示來源不可用。沒有颱風的這段時間，差別只有「無法得知新公告」。
   degraded 告警會一直響到修好為止，absence 告警不會（摘要行還在）。
-- 處置：待擁有者決定來源（見 `docs/STATUS-IOS.md` 2026-10-06）。暫時不暫停 Scheduler：每 30 分鐘一次的失敗輪詢
-  只花 188 ms、仍在免費額度內，而且來源一恢復就自動復原。
+- 處置：擁有者 10-06 選了「改打歷史查詢 API」（`NCDR_SOURCE=history`），同日部署，見下一則紀錄。
+
+### 2026-10-06 18:5x–19:00（Claude 執行，`NCDR_SOURCE=history` 上線，讀回值）
+
+- 程式：`1501064`「Day-off: a third source, NCDR's keyless history search」——`src/service.js` 新來源 `history`
+  （最近三個台灣日各自送出的公告、每頁 10 筆、請求間隔 3 秒、同頁 429 重試兩次、整輪上限 300 秒、單日超過 200 則拒收
+  `too_many_notices`；**不看 `expires`**，因為它是公告日的結束而不是停班日的；只在有新公告或重發時才排推播，視窗滾掉舊公告
+  只換 revision 不推），`src/parser.js` 的 `parseHistoryPage` 與 `source_login_required`，`deploy/deploy.sh` 接受 `history`。
+  本機 `npm test` 131 項 122 過 9 略過；用真 API 跑 8/24 傍晚、8/25 00:05 與今天三個時點：5、10、0 則，CAP 全部抓到且驗證通過。
+  三位獨立審查（正確性／安全／維運）的發現都已處理：原本照 `expires` 丟公告會在停班當天 00:05 把「明天停班」丟掉（高）、
+  視窗要三天才涵蓋 App 的兩天提前規則（中）、午夜滾動不該推播（中）、429 要在同一輪重試（中）、分頁以實收筆數為準、
+  暫停要看 signal 已中止、XML 的登入牆也要報 `source_login_required`、失敗 log 帶 `phase`／`window`／`page`／`requests`。
+- 實測 CAP 檔不受 3 秒限制：歷史查詢後 0.1 秒內連抓兩個 `Capstorage/…cap` 都 200，所以 CAP 仍 4 路並行、不加間隔。
+- 映像：Cloud Build `76d888d4-61c0-4590-ab4e-ad7aa4d2a841`，37 秒，SUCCESS，標籤 `1501064`，
+  `rainyclock-dayoff@sha256:cbc68116bc271156bdf4e06f1febda9b2c234ba77e87fb783893299580eabcac`。
+- `IMAGE=<digest> NCDR_SOURCE=history APNS_KEY_ID=H9SMW8923R APNS_PRODUCTION=true sh dayoff-service/deploy/deploy.sh`：
+  service `rainyclock-dayoff-00007-zht`（部署當下 `/health` 503 是舊快取已過期，正常）；Job 更新（`NCDR_SOURCE=history`、
+  其餘 18 個環境變數與前一版逐一相同、`/secrets/apns` 掛載照舊；template 裡多留了一個沒掛載的舊 volume
+  `dayoff-apns-key-wim-goc`，是 `--set-secrets` 的副作用，無害）；第一次執行 `rainyclock-dayoff-poll-c9tvj` 成功：
+  `ok:true`、`source:"history"`、`refreshed:true`、`changed:true`（從 8 月的 14 則變成空集合，`noticeCount 0`）、
+  `source_checked requests:3`（三個日期視窗各一頁）、6.4 秒；`/health` 200、`/health/details` `state:"ready"`、
+  `errorCode:null`、`lastSuccessAt 2026-10-06T10:58:06Z`、`broadcast:null`（集合變小不排推播，照設計）。
+  service 的環境變數前後無差異，只換映像。Scheduler 已存在未動（`5,35 * * * *` Asia/Taipei）。
+- 告警：degraded policy 看的是 2 小時內的 `ok=false` 次數，10-05 17:08 開始響的事件會在連續兩小時成功後自己結束。
+- 回退：`IMAGE=…@sha256:d4024db97dc0… NCDR_SOURCE=open-data APNS_KEY_ID=H9SMW8923R APNS_PRODUCTION=true sh dayoff-service/deploy/deploy.sh`
+  （會回到被擋的來源，只有 NCDR 恢復免金鑰 feed 時才有意義）。
+
