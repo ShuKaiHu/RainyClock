@@ -37,6 +37,8 @@ test('jobConfig validates every setting before any I/O and applies the documente
   assert.equal(jobConfig({ ...baseEnv, NCDR_API_KEY: undefined, NCDR_SOURCE: 'open-data' }).source, 'open-data');
   assert.equal(jobConfig({ ...baseEnv, NCDR_API_KEY: undefined, NCDR_SOURCE: 'open-data' }).apiKey, null);
   assert.throws(() => jobConfig({ ...baseEnv, NCDR_SOURCE: 'open-data' }), /invalid_configuration/, 'a key with the open-data source is a mistake');
+  assert.equal(jobConfig({ ...baseEnv, NCDR_API_KEY: undefined, NCDR_SOURCE: 'history' }).source, 'history');
+  assert.throws(() => jobConfig({ ...baseEnv, NCDR_SOURCE: 'history' }), /invalid_configuration/, 'a key with the history source is a mistake');
   assert.throws(() => jobConfig({ ...baseEnv, NCDR_SOURCE: 'html' }), /invalid_configuration/);
   assert.throws(() => jobConfig({ ...baseEnv, APNS_TEAM_ID: 'TEAM123456' }), /invalid_apns_configuration/);
   assert.throws(() => jobConfig({ ...baseEnv, APNS_PUSH_MODE: 'silent' }), /invalid_apns_configuration/);

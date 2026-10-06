@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { LIMITS, parseAtom, parseCAP, officialCapURL, isoTimestamp } from './parser.js';
+import { LIMITS, parseAtom, parseCAP, parseHistoryPage, officialCapURL, isoTimestamp } from './parser.js';
 import { ServiceError, safeErrorCode } from './errors.js';
 
 // Two official publications of the same DGPA feed. 'member' is NCDR's
@@ -9,10 +9,41 @@ import { ServiceError, safeErrorCode } from './errors.js';
 // License; NCDR announced its retirement for 2026-03-31 but it was still
 // serving on 2026-09-24. The choice is explicit configuration, never a
 // silent fallback, so a health check always says which one is in use.
+// 'history' is the site's own keyless search (DAYOFF-SPEC §2.2): the alerts
+// sent on a day, ten a page, and it answers 429 to a second request within
+// three seconds. It became the production source on 2026-10-06, the day
+// after both keyless AlertType feeds started answering 請先登入會員.
 export const SOURCES = {
   member: 'https://alerts.ncdr.nat.gov.tw/webapi/RssAtomFeed.ashx',
-  'open-data': 'https://alerts.ncdr.nat.gov.tw/RssAtomFeed.ashx'
+  'open-data': 'https://alerts.ncdr.nat.gov.tw/RssAtomFeed.ashx',
+  history: 'https://alerts.ncdr.nat.gov.tw/server/v1/Alerts/Search/history'
 };
+export const HISTORY_SOURCE = 'history';
+// The history search gives the alerts sent on one day. The phones honour a
+// notice that names the alarm's day if it was sent at most two Taipei days
+// before it (DAYOFF-SPEC §5 step 5), so the live set is what was sent on the
+// last three days. Nothing else prunes it: NCDR's expires is the end of the
+// announcement day, i.e. midnight before the closure (§2.4 trap 1), so
+// dropping on expires would remove a 「明天停班」 at 00:05 on the very morning
+// it applies to.
+export const HISTORY_DAYS = 3;
+// 200 alerts a day is several times the largest day in DGPA's twelve-year
+// archive; more than that is refused as too_many_notices rather than run
+// into the cycle timeout page by page.
+const HISTORY_MAX_PAGES = 20;
+// Two retries of one page after a 429, since the host's three-second rule
+// is also tripped by other clients behind the same egress address.
+const HISTORY_RETRIES = 2;
+
+// A calendar date in Asia/Taipei, the clock every NCDR timestamp is written in.
+const taipeiDateFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' });
+export const taipeiDate = (ms) => taipeiDateFormat.format(new Date(ms));
+// Per DAYOFF-SPEC §2.2: sentdate = D-1 with effective = D returns the alerts sent on D.
+export const historyWindows = (nowMs, days = HISTORY_DAYS) =>
+  Array.from({ length: days }, (_, index) => {
+    const day = nowMs - (days - 1 - index) * 86_400_000;
+    return { sentdate: taipeiDate(day - 86_400_000), effective: taipeiDate(day) };
+  });
 // The third source never contacts NCDR: the feed is whatever an operator
 // wrote to fixture/current in the same namespace. It exists because NCDR
 // only changes during a typhoon, so nothing else can make the sandbox stack
@@ -61,16 +92,31 @@ function retryAfter(value, now) {
   return Number.isFinite(delay) ? Math.max(0, Math.min(delay, 3_600_000)) : 0;
 }
 
-async function boundedXML(fetchImpl, url, maximum, signal, now) {
+const XML_TYPES = /^(?:application\/(?:atom\+xml|xml)|text\/xml)(?:\s*;|$)/i;
+const JSON_OR_XML_TYPES = /^(?:application\/(?:json|atom\+xml|xml)|text\/xml)(?:\s*;|$)/i;
+const boundedXML = (fetchImpl, url, maximum, signal, now) =>
+  boundedBody(fetchImpl, url, maximum, signal, now, 'application/atom+xml, application/xml, text/xml', XML_TYPES);
+// The JSON search; an XML body is read too, because NCDR's login wall is
+// XML whatever was asked for, and that wall has its own runbook row.
+async function boundedJSON(fetchImpl, url, maximum, signal, now) {
+  const text = await boundedBody(fetchImpl, url, maximum, signal, now, 'application/json', JSON_OR_XML_TYPES);
+  if (/^\s*(?:<\?[\s\S]*?\?>\s*)?</.test(text)) {
+    if (/^\s*(?:<\?[\s\S]*?\?>\s*)?<WarningMessage\b/.test(text)) throw new ServiceError('source_login_required');
+    throw new ServiceError('invalid_source_json');
+  }
+  try { return JSON.parse(text); } catch { throw new ServiceError('invalid_source_json'); }
+}
+
+async function boundedBody(fetchImpl, url, maximum, signal, now, accept, types) {
   let response;
   try {
-    response = await fetchImpl(url, { redirect: 'error', signal, headers: { Accept: 'application/atom+xml, application/xml, text/xml', 'User-Agent': 'RainyClock-Dayoff/0.1 (+https://www.dgpa.gov.tw/typh/daily/nds.html)' } });
+    response = await fetchImpl(url, { redirect: 'error', signal, headers: { Accept: accept, 'User-Agent': 'RainyClock-Dayoff/0.1 (+https://www.dgpa.gov.tw/typh/daily/nds.html)' } });
   } catch { throw new ServiceError(signal.aborted ? 'upstream_timeout' : 'upstream_unavailable'); }
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});
     throw new ServiceError(response.status === 429 ? 'upstream_rate_limited' : 'upstream_http_error', { retryAfterMs: retryAfter(response.headers.get('retry-after'), now) });
   }
-  if (!/^(?:application\/(?:atom\+xml|xml)|text\/xml)(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) {
+  if (!types.test(response.headers.get('content-type') ?? '')) {
     await response.body?.cancel().catch(() => {});
     throw new ServiceError('invalid_source_content_type');
   }
@@ -141,6 +187,15 @@ export function fixtureFeed(doc) {
   return { sourceUpdatedAt, notices: doc.notices.map((raw) => fixtureNotice(raw, seen)) };
 }
 
+// Whether the new set carries anything the served set did not: a notice id
+// it lacked, or one whose sentAt moved. An unreadable served set counts as
+// all news, which is the pre-existing behaviour of a first commit.
+function hasNews(notices, servedJSON) {
+  let served;
+  try { served = new Map(JSON.parse(servedJSON).map((notice) => [notice.id, notice.sentAt])); } catch { return true; }
+  return notices.some((notice) => served.get(notice.id) !== notice.sentAt);
+}
+
 // Fields carried forward when a run fails, so the served snapshot survives a
 // bad poll and only the health fields change. A document of another schema
 // carries nothing forward.
@@ -158,7 +213,7 @@ function carriedState(stored) {
 }
 
 export class SuspensionService {
-  constructor({ source = 'member', apiKey, store, owner = null, namespace = null, fetchImpl = fetch, now = Date.now, pollIntervalMs = 300_000, maxCacheAgeMs = 900_000, requestTimeoutMs = 10_000, push = { configured: false, mode: null }, onRevision = async () => {}, log = () => {} }) {
+  constructor({ source = 'member', apiKey, store, owner = null, namespace = null, fetchImpl = fetch, now = Date.now, pollIntervalMs = 300_000, maxCacheAgeMs = 900_000, requestTimeoutMs = 10_000, historyGapMs = 3_100, cycleTimeoutMs = null, push = { configured: false, mode: null }, onRevision = async () => {}, log = () => {} }) {
     if (!knownSource(source)) throw new ServiceError('invalid_configuration');
     this.source = source;
     this.apiKey = apiKey?.trim() ?? '';
@@ -175,6 +230,11 @@ export class SuspensionService {
     this.pollIntervalMs = pollIntervalMs;
     this.maxCacheAgeMs = maxCacheAgeMs;
     this.requestTimeoutMs = requestTimeoutMs;
+    // NCDR throttles the history host to one request every three seconds, and a
+    // typhoon day can run to several pages per window, so that source gets a
+    // longer cycle than the single-document feeds.
+    this.historyGapMs = historyGapMs;
+    this.cycleTimeoutMs = cycleTimeoutMs ?? (source === HISTORY_SOURCE ? 300_000 : 60_000);
     this.push = { configured: Boolean(push?.configured), mode: push?.mode ?? null };
     this.onRevision = onRevision;
     this.log = log;
@@ -240,7 +300,7 @@ export class SuspensionService {
     this.lastAttemptAt = new Date(startedAt).toISOString();
     const cycleAbort = new AbortController();
     this.cycleAbort = cycleAbort;
-    const cycleTimer = setTimeout(() => cycleAbort.abort(), 60_000);
+    const cycleTimer = setTimeout(() => cycleAbort.abort(), this.cycleTimeoutMs);
     const signalFor = () => AbortSignal.any([cycleAbort.signal, AbortSignal.timeout(this.requestTimeoutMs)]);
     try {
       // Both branches end in the same commit: a fixture change is committed,
@@ -253,15 +313,15 @@ export class SuspensionService {
       if (Buffer.byteLength(noticesJSON) > STORED_NOTICES_BYTES) throw new ServiceError('stored_state_too_large');
       const revision = hashOf(noticesJSON);
       const snapshot = { schemaVersion: 1, checkedAt: new Date(this.now()).toISOString(), sourceUpdatedAt, notices, revision };
-      const changed = await this.commit({ snapshot, noticesJSON, fresh, startedAt });
+      const { changed, news } = await this.commit({ snapshot, noticesJSON, fresh, startedAt });
       this.capCache = nextCaps;
       this.snapshot = snapshot;
       this.lastSuccessAt = snapshot.checkedAt;
       this.errorCode = null;
       this.failures = 0;
       this.nextAttemptAt = this.now() + this.pollIntervalMs;
-      this.log({ event: 'source_checked', noticeCount: notices.length, changed });
-      if (changed) void Promise.resolve().then(() => this.onRevision(revision)).catch(() => this.log({ event: 'push_dispatch_failed' }));
+      this.log({ event: 'source_checked', noticeCount: notices.length, changed, ...(this.source === HISTORY_SOURCE ? { requests: this.historyProgress?.requests ?? 0 } : {}) });
+      if (news) void Promise.resolve().then(() => this.onRevision(revision)).catch(() => this.log({ event: 'push_dispatch_failed' }));
       return true;
     } catch (error) {
       if (error instanceof ServiceError && FATAL.has(error.code)) throw error;
@@ -269,17 +329,14 @@ export class SuspensionService {
       this.errorCode = safeErrorCode(error);
       const backoff = Math.min(1_800_000, 30_000 * (2 ** Math.min(this.failures - 1, 6)));
       this.nextAttemptAt = this.now() + Math.max(backoff, error?.retryAfterMs ?? 0);
-      this.log({ event: 'source_check_failed', code: this.errorCode });
+      this.log({ event: 'source_check_failed', code: this.errorCode, ...(this.source === HISTORY_SOURCE && this.historyProgress ? this.historyProgress : {}) });
       await this.recordFailure(startedAt);
       return false;
     } finally { clearTimeout(cycleTimer); this.cycleAbort = null; }
   }
 
   async loadFeed(signalFor, cycleAbort) {
-    const url = new URL(SOURCES[this.source]);
-    url.searchParams.set('AlertType', '33');
-    if (this.source === 'member') url.searchParams.set('apikey', this.apiKey);
-    const feed = parseAtom(await boundedXML(this.fetchImpl, url.href, LIMITS.feedBytes, signalFor(), this.now()));
+    const feed = this.source === HISTORY_SOURCE ? await this.loadHistoryIndex(signalFor, cycleAbort) : await this.loadAtomIndex(signalFor);
     if (feed.sourceUpdatedAt && Date.parse(feed.sourceUpdatedAt) > this.now() + 300_000) throw new ServiceError('source_time_in_future');
     const stored = await this.storedCaps(feed.entries.filter((entry) => !this.capCache.has(entry.id)));
     const nextCaps = new Map();
@@ -308,6 +365,74 @@ export class SuspensionService {
       throw error;
     }
     return { sourceUpdatedAt: feed.sourceUpdatedAt, nextCaps, fresh: [...nextCaps.values()].filter((item) => fetched.has(item.id)) };
+  }
+
+  async loadAtomIndex(signalFor) {
+    const url = new URL(SOURCES[this.source]);
+    url.searchParams.set('AlertType', '33');
+    if (this.source === 'member') url.searchParams.set('apikey', this.apiKey);
+    return parseAtom(await boundedXML(this.fetchImpl, url.href, LIMITS.feedBytes, signalFor(), this.now()));
+  }
+
+  // The same index the Atom feed gave — id, time and CAP location per alert —
+  // assembled from the history search: the alerts sent on each of the last
+  // HISTORY_DAYS days, page by page, three seconds apart. sourceUpdatedAt is
+  // the newest alert's sent time, which is what the feed's own updated tracked.
+  async loadHistoryIndex(signalFor, cycleAbort) {
+    const entries = new Map();
+    let newest = null;
+    this.historyProgress = { phase: 'index', window: null, page: 0, requests: 0 };
+    for (const window of historyWindows(this.now())) {
+      let received = 0;
+      for (let page = 1; ; page += 1) {
+        if (page > HISTORY_MAX_PAGES) throw new ServiceError('too_many_notices');
+        Object.assign(this.historyProgress, { window: window.effective, page });
+        const result = await this.historyPage(window, page, signalFor, cycleAbort.signal);
+        if (result.total > HISTORY_MAX_PAGES * result.pageSize) throw new ServiceError('too_many_notices');
+        received += result.entries.length;
+        for (const entry of result.entries) {
+          if (entries.has(entry.id)) continue;
+          entries.set(entry.id, { id: entry.id, updatedAt: entry.updatedAt, url: entry.url });
+          if (!newest || entry.updatedAt > newest) newest = entry.updatedAt;
+        }
+        // total is an upper bound from an untrusted host: stop on the rows
+        // actually received, or on an empty page.
+        if (result.entries.length === 0 || received >= result.total) break;
+      }
+    }
+    this.historyProgress.phase = 'cap';
+    if (entries.size > LIMITS.entries) throw new ServiceError('too_many_notices');
+    return { sourceUpdatedAt: newest, entries: [...entries.values()] };
+  }
+
+  // One page, paced three seconds after the previous request, retried after
+  // a 429 for as long as the cycle allows.
+  async historyPage(window, page, signalFor, signal) {
+    const url = new URL(SOURCES[HISTORY_SOURCE]);
+    url.searchParams.set('alertTypeId', '33');
+    url.searchParams.set('sentdate', window.sentdate);
+    url.searchParams.set('effective', window.effective);
+    url.searchParams.set('page', String(page));
+    for (let attempt = 0; ; attempt += 1) {
+      if (this.historyProgress.requests > 0) await this.historyPause(signal, this.historyGapMs);
+      this.historyProgress.requests += 1;
+      try {
+        return parseHistoryPage(await boundedJSON(this.fetchImpl, url.href, LIMITS.feedBytes, signalFor(), this.now()));
+      } catch (error) {
+        if (!(error instanceof ServiceError && error.code === 'upstream_rate_limited') || attempt >= HISTORY_RETRIES) throw error;
+        await this.historyPause(signal, Math.max(error.retryAfterMs ?? 0, this.historyGapMs * 2));
+      }
+    }
+  }
+
+  historyPause(signal, ms) {
+    if (signal.aborted) return Promise.reject(new ServiceError('upstream_timeout'));
+    if (ms <= 0) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { signal.removeEventListener('abort', abort); resolve(); }, ms);
+      const abort = () => { clearTimeout(timer); reject(new ServiceError('upstream_timeout')); };
+      signal.addEventListener('abort', abort, { once: true });
+    });
   }
 
   // The fixture is the parsed feed: no CAP fetch and nothing to cache, so
@@ -349,6 +474,13 @@ export class SuspensionService {
       this.assertLease(lease);
       const carried = carriedState(stored);
       const changed = snapshot.revision !== carried.revision;
+      // With the history source a broadcast means news: a notice the served
+      // set did not have, or one re-sent. Its set shrinks by construction when
+      // the three-day window rolls past an alert at midnight, and that changes
+      // the revision for the readers but wakes no phone. The other sources
+      // keep broadcasting every change, the sandbox fixture included, since
+      // clearing the fixture is how a tester reaches the expired path.
+      const news = changed && (this.source !== HISTORY_SOURCE || hasNews(snapshot.notices, carried.noticesJSON));
       const now = this.now();
       tx.set('state/current', {
         schemaVersion: 1,
@@ -362,7 +494,7 @@ export class SuspensionService {
         lastAttemptAt: this.lastAttemptAt,
         lastSuccessAt: snapshot.checkedAt,
         nextAttemptAt: now + this.pollIntervalMs,
-        pendingBroadcastRevision: changed ? snapshot.revision : carried.pendingBroadcastRevision,
+        pendingBroadcastRevision: news ? snapshot.revision : carried.pendingBroadcastRevision,
         source: this.source,
         push: this.push,
         job: { owner: this.owner, finishedAt: new Date(now).toISOString(), durationMs: now - startedAt, code: null, changed },
@@ -370,11 +502,11 @@ export class SuspensionService {
       });
       // A revision that becomes current again after a flip-flop starts a full
       // pass: the claim is overwritten, not resumed.
-      if (changed) {
+      if (news) {
         tx.set(`broadcasts/${snapshot.revision}`, { revision: snapshot.revision, claimedAt: now, state: 'pending', owner: null, leaseUntil: 0, attempts: 0, cursor: null, passComplete: false, accepted: 0, failed: 0, unregistered: 0, retryPending: 0, finishedAt: null, expiresAt: new Date(now + 7 * 24 * 60 * 60 * 1000) });
       }
       if (inline) for (const item of fresh) tx.set(`caps/${item.id}`, this.capDocument(item));
-      return changed;
+      return { changed, news };
     });
   }
 

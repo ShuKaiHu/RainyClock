@@ -84,6 +84,13 @@ ever as the city-wide code `63`.
 
 ### 2.1 The endpoint
 
+> **Retired by NCDR on 2026-10-05.** Both keyless AlertType feeds (`JSONAtomFeed.ashx?AlertType=33` and
+> `RssAtomFeed.ashx?AlertType=33`) now answer `請先登入會員` (HTTP 200, 41/73 bytes). The CAP files under
+> `Capstorage/` and the history search in §2.2 stayed keyless, so from 2026-10-06 the production poll
+> (`NCDR_SOURCE=history`, `dayoff-service/DEPLOYMENT.md`) builds its index from §2.2 — the alerts sent on
+> each of the last two Asia/Taipei days, minus those whose `expires` has passed — and fetches the CAPs as
+> before. Everything below about the feed's fields still describes the CAPs and the history rows.
+
 ```
 https://alerts.ncdr.nat.gov.tw/JSONAtomFeed.ashx?AlertType=33
 ```

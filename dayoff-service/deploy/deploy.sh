@@ -3,10 +3,13 @@
 # Scheduler from one immutable image digest. Run deploy/iam.sh first.
 #
 #   IMAGE=asia-east1-docker.pkg.dev/rainyclock/cloud-run-source-deploy/rainyclock-dayoff@sha256:... \
-#   NCDR_SOURCE=open-data sh dayoff-service/deploy/deploy.sh
+#   NCDR_SOURCE=history sh dayoff-service/deploy/deploy.sh
 #
-#   NCDR_SOURCE   member (needs an enabled version of dayoff-ncdr-api-key) or
-#                 open-data (keyless data.gov.tw URL; no key is mounted).
+#   NCDR_SOURCE   member (needs an enabled version of dayoff-ncdr-api-key),
+#                 open-data (the keyless data.gov.tw URL; refused with 請先登入會員
+#                 since 2026-10-05, kept for the day it comes back), or
+#                 history (NCDR's keyless history search, DAYOFF-SPEC §2.2;
+#                 production since 2026-10-06). No key is mounted for the last two.
 #   APNS_KEY_ID   optional. Set it, with APNS_PRODUCTION=true|false, once
 #                 dayoff-apns-key has a version; without it the Job runs
 #                 fetch-only and phones sync on their own schedule.
@@ -15,7 +18,7 @@
 # prints a secret; the NCDR key and the .p8 are mounted by Cloud Run at run time.
 set -eu
 : "${IMAGE:?set IMAGE to the image digest from gcloud builds submit}"
-: "${NCDR_SOURCE:?set NCDR_SOURCE to member or open-data}"
+: "${NCDR_SOURCE:?set NCDR_SOURCE to member, open-data or history}"
 P=rainyclock
 R=asia-east1
 DB=dayoff-production
@@ -27,9 +30,9 @@ case "$NCDR_SOURCE" in
   member)
     has_version dayoff-ncdr-api-key || { echo "dayoff-ncdr-api-key has no enabled version (DEPLOYMENT.md §4)" >&2; exit 1; }
     JOB_SECRETS="NCDR_API_KEY=dayoff-ncdr-api-key:latest" ;;
-  open-data)
+  open-data|history)
     JOB_SECRETS="" ;;
-  *) echo "NCDR_SOURCE must be member or open-data" >&2; exit 1 ;;
+  *) echo "NCDR_SOURCE must be member, open-data or history" >&2; exit 1 ;;
 esac
 
 APNS_ENV=""

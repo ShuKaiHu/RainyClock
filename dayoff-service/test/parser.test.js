@@ -59,3 +59,37 @@ test('oversized feeds, too many entries and duplicate identities fail closed', (
   assert.throws(() => parseAtom(atom(Array(2).fill({ id: CAP_ID, url: CAP_URL }))), /invalid_source_identity/);
   assert.throws(() => parseAtom(atom(Array(501).fill({ id: CAP_ID, url: CAP_URL }))), /too_many_notices/);
 });
+
+test('a WarningMessage document is the source refusing the request, not malformed XML', () => {
+  assert.throws(() => parseAtom('<WarningMessage><Warning>請先登入會員。</Warning></WarningMessage>'), /source_login_required/);
+  assert.throws(() => parseAtom('<html><body>denied</body></html>'), /invalid_source_xml/);
+});
+
+test('history page: DGPA rows become feed entries with official CAP locations and UTC times', async () => {
+  const { parseHistoryPage, taipeiTimestamp } = await import('../src/parser.js');
+  const { historyPage, historyRow } = await import('./helpers.js');
+  const page = parseHistoryPage(historyPage([historyRow()], 23));
+  assert.equal(page.total, 23);
+  assert.equal(page.pageSize, 10);
+  assert.deepEqual(page.entries, [{ id: CAP_ID, updatedAt: '2026-08-22T06:11:04.000Z', url: CAP_URL }], 'expires is not carried: it ends the announcement day, not the closure');
+  assert.equal(taipeiTimestamp('2026-08-24T18:21:42'), '2026-08-24T10:21:42.000Z');
+  assert.equal(taipeiTimestamp('2026-08-24T18:21:42+08:00'), '2026-08-24T10:21:42.000Z');
+  assert.equal(taipeiTimestamp('2026-08-24T10:21:42Z'), '2026-08-24T10:21:42.000Z');
+  assert.equal(parseHistoryPage(historyPage([historyRow({ expires: null })])).entries.length, 1);
+  assert.throws(() => parseHistoryPage(historyPage([historyRow({ expires: 'soon' })])), /invalid_source_time/);
+  assert.deepEqual(parseHistoryPage(historyPage([], 0)).entries, []);
+});
+
+test('history page: the login wall, foreign identifiers, unsafe paths and oversized totals are refused', async () => {
+  const { parseHistoryPage } = await import('../src/parser.js');
+  const { historyPage, historyRow } = await import('./helpers.js');
+  assert.throws(() => parseHistoryPage({ Warning: '請先登入會員。' }), /source_login_required/);
+  assert.throws(() => parseHistoryPage({ data: [], code: 200, status: false, total: 0 }), /invalid_source_json/);
+  assert.throws(() => parseHistoryPage([]), /invalid_source_json/);
+  assert.throws(() => parseHistoryPage(historyPage([historyRow({ identifier: 'WRA_ReservoirWarn_20261006171840_0000', filePath: 'WRA/2026/ReservoirDis/WRA_ReservoirWarn_20261006171840_0000.cap' })])), /invalid_source_identity/);
+  assert.throws(() => parseHistoryPage(historyPage([historyRow({ filePath: `../DGPA/2026/workschoolclose_cap/${CAP_ID}.cap` })])), /unsafe_source_link/);
+  assert.throws(() => parseHistoryPage(historyPage([historyRow({ filePath: 'DGPA/2026/workschoolclose_cap/dgpa.gov.tw_workSchlClos_20260822141104_i_6403700_002.cap' })])), /unsafe_source_link/, 'the path must name the row\'s own alert');
+  assert.throws(() => parseHistoryPage(historyPage([historyRow({ sentDate: 'yesterday' })])), /invalid_source_time/);
+  assert.throws(() => parseHistoryPage(historyPage([historyRow()], LIMITS.entries + 1)), /too_many_notices/);
+  assert.throws(() => parseHistoryPage(historyPage(Array.from({ length: 11 }, () => historyRow()), 11)), /too_many_notices/);
+});

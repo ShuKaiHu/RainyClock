@@ -36,6 +36,10 @@ function xmlRoot(xml, expected, namespaces, maximum) {
   if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(xml)) throw new ServiceError('unsafe_source_xml');
   const stripped = xml.replace(/^\uFEFF/, '').replace(/<\?[\s\S]*?\?>|<!--[\s\S]*?-->/g, '').trim();
   const opening = /^<((?:[\w.-]+:)?[\w.-]+)\b([^>]*)>/.exec(stripped);
+  // NCDR answers a refused feed with <WarningMessage><Warning>請先登入會員。</Warning></WarningMessage>
+  // (seen 2026-10-05, when the keyless AlertType feeds were retired): name that, so the
+  // runbook can tell "the source wants a login" from "the source sent garbage".
+  if (opening && opening[1].split(':').at(-1) === 'WarningMessage') throw new ServiceError('source_login_required');
   if (!opening || opening[1].split(':').at(-1) !== expected) throw new ServiceError('invalid_source_xml');
   const prefix = opening[1].includes(':') ? opening[1].split(':')[0] : '';
   const namespacePattern = new RegExp(`\\bxmlns${prefix ? `:${prefix}` : ''}\\s*=\\s*(["'])(.*?)\\1`);
@@ -128,3 +132,42 @@ export function parseCAP(xml, expectedID) {
   if (references.length > LIMITS.entries) throw new ServiceError('invalid_source_references');
   return { id, sentAt, description, severity, msgType, status, geocodes, references: [...new Set(references)] };
 }
+
+// NCDR's keyless history search (DAYOFF-SPEC §2.2): one page of the alerts
+// sent on a day, as the site's own JSON. Only the fields the poll needs are
+// read, each under the same rules as the Atom feed: the DGPA identifier
+// shape, an official CAP location, and timestamps NCDR writes in Taiwan
+// local time without an offset.
+const HISTORY_PAGE_SIZE = 10;
+const HISTORY_ROOT = 'https://alerts.ncdr.nat.gov.tw/Capstorage/';
+const NOTICE_ID = /^dgpa\.gov\.tw_workSchlClos_[A-Za-z0-9_-]+$/;
+
+// "2026-08-24T18:21:42" is Asia/Taipei; an offset or Z, if present, is kept.
+export function taipeiTimestamp(value) {
+  const raw = required(value, 40);
+  return isoTimestamp(/(?:Z|[+-]\d{2}:\d{2})$/.test(raw) ? raw : `${raw}+08:00`);
+}
+
+export function parseHistoryPage(document) {
+  if (!document || typeof document !== 'object' || Array.isArray(document)) throw new ServiceError('invalid_source_json');
+  if (typeof document.Warning === 'string') throw new ServiceError('source_login_required');
+  if (document.status !== true || !Array.isArray(document.data) || !Number.isInteger(document.total) || document.total < 0) throw new ServiceError('invalid_source_json');
+  if (document.total > LIMITS.entries || document.data.length > HISTORY_PAGE_SIZE) throw new ServiceError('too_many_notices');
+  const entries = document.data.map((row) => {
+    if (!row || typeof row !== 'object' || Array.isArray(row)) throw new ServiceError('invalid_source_json');
+    const id = required(row.identifier, 256);
+    if (!NOTICE_ID.test(id)) throw new ServiceError('invalid_source_identity');
+    const path = required(row.filePath, 512);
+    if (path.includes('..') || path.startsWith('/')) throw new ServiceError('unsafe_source_link');
+    // The archive path must name the same alert the row does.
+    if (!path.endsWith(`/${id}.cap`)) throw new ServiceError('unsafe_source_link');
+    const url = officialCapURL(HISTORY_ROOT + path);
+    const sentAt = taipeiTimestamp(row.sentDate);
+    // expires is validated for shape only: it is the end of the announcement
+    // day, never the closure's (DAYOFF-SPEC §2.4 trap 1), so nothing reads it.
+    if (row.expires != null && row.expires !== '') taipeiTimestamp(row.expires);
+    return { id, updatedAt: sentAt, url };
+  });
+  return { total: document.total, pageSize: HISTORY_PAGE_SIZE, entries };
+}
+

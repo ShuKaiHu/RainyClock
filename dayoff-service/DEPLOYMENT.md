@@ -267,8 +267,8 @@ Job（`rainyclock-dayoff-poll`）：
 | `APNS_PRODUCTION` | `true`（TestFlight／App Store）或 `false`（Xcode Debug） | 必填，沒有預設 |
 | `APNS_PUSH_MODE` | `alert` | |
 | `APNS_PRIVATE_KEY_PATH` | `/secrets/apns/AuthKey.p8` | Secret 掛載路徑 |
-| `NCDR_SOURCE` | `member` 或 `open-data` | `open-data` 免金鑰（data.gov.tw 資料集 20457 的網址）；個人信箱申請不到 NCDR 會員時用它。第三個值 `fixture` 只給 sandbox Job（namespace 不含 `sandbox` 即啟動失敗 `fixture_not_allowed`） |
-| `NCDR_API_KEY` | secret `dayoff-ncdr-api-key:latest` | `--set-secrets` 注入的環境變數；只在 `member` 來源，`open-data` 時不要掛 |
+| `NCDR_SOURCE` | `member`、`open-data` 或 `history` | `history`（2026-10-06 起的正式值）打 NCDR 免金鑰的歷史查詢 API（`DAYOFF-SPEC.md` §2.2）：最近兩個台灣日各自送出的公告、每頁 10 筆、請求間隔 3 秒，丟掉 `expires` 已過的，CAP 檔照舊抓與驗證。`open-data` 是 data.gov.tw 資料集 20457 的免金鑰網址，**2026-10-05 起回「請先登入會員」**（`source_login_required`），留著等它回來。`member` 要 NCDR 會員金鑰（個人信箱申請不到）。第四個值 `fixture` 只給 sandbox Job（namespace 不含 `sandbox` 即啟動失敗 `fixture_not_allowed`） |
+| `NCDR_API_KEY` | secret `dayoff-ncdr-api-key:latest` | `--set-secrets` 注入的環境變數；只在 `member` 來源，`open-data` 與 `history` 時不要掛（`jobConfig` 會拒絕） |
 | `CLOUD_RUN_EXECUTION` | Cloud Run 注入 | 租約的 owner；同一 execution 的 task 重試可接管 |
 
 四個 `APNS_*` 設定全留白就是只抓不推；填一半會啟動失敗（`invalid_apns_configuration`）。
@@ -422,6 +422,8 @@ gcloud run deploy rainyclock-dayoff --region=asia-east1 --image="$IMAGE"
 gcloud run jobs update rainyclock-dayoff-poll --region=asia-east1 --image="$IMAGE"
 ```
 
+只換映像時用上面兩行；要換來源（例如 2026-10-06 的 `open-data` → `history`）就跑 `deploy/deploy.sh`，它會重設 Job 的整組環境變數與 secret。
+
 兩個工作永遠同一個 digest。改 `state/current` 的欄位時先讀 `README.md` 的 schema 段：service 讀的是
 Job 寫的文件，兩邊的映像不同會讓 `/v1/suspensions` 直接 503 或送出錯的欄位。
 只換 `--image` 不會動環境變數。要重設整組（`--set-env-vars` 會取代全部）就照 §6／§7 或 `deploy/deploy.sh`
@@ -446,6 +448,8 @@ gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name=
 
 | 看到 | 意思 | 做法 |
 | --- | --- | --- |
+| `errorCode:"source_login_required"` | NCDR 對這個來源要求登入（2026-10-05 兩個免金鑰的 AlertType feed 都變成這樣；`history` 來源遇到同一面牆也報這個碼） | 換來源：§5 建映像 → `IMAGE=… NCDR_SOURCE=history sh dayoff-service/deploy/deploy.sh`；`history` 也被擋的話只剩申請會員金鑰（`member`） |
+| `source_check_failed` 帶 `phase`、`window`、`page`、`requests` | 只有 `history` 來源會附：失敗在索引的哪一天哪一頁（`phase:"index"`）或已經在抓 CAP（`phase:"cap"`） | 配合 `too_many_notices`（單日超過 200 則）、`upstream_rate_limited`（同一頁重試兩次仍 429）、`upstream_timeout`（整輪超過 300 秒）看 |
 | `errorCode:"upstream_*"`、`invalid_source_*` | NCDR 端的問題；service 立刻回 503，直到下一次成功輪詢（通常是下一個 tick，約 30 分鐘）。退避上限 30 分鐘剛好等於排程間隔：連續失敗第 7 次起（約 3 小時），或來源回 429 且 `Retry-After` 在 30 分鐘以上（上限 1 小時），下一個 tick 會以 `skipped:"backoff"` 跳過，等於每小時才抓一次，503 可能再多拖 30–60 分鐘 | `nextAttemptAt` 是最早可以再抓的時間，排程要到下一個 5／35 分才會再跑；要提早恢復，過了 `nextAttemptAt` 直接 `jobs execute`，還沒到就在 Firestore console 把 `state/current.nextAttemptAt` 改成 `0`（看得到、有稽核），再 `jobs execute` |
 | `skipped:"backoff"` | 上一次失敗的退避還沒到 | 同上；不要把 Cloud Run 的 retry 調高，那只會撞同一個閘門 |
 | `skipped:"lease_held"` 連續出現 | 前一個 execution 還在跑或被殺時沒釋放 | 租約最長 `LEASE_MS`（2 分鐘）自動過期，而排程相隔 30 分鐘，所以排程的 tick 出現一次就不正常：看 executions 是否有卡住的 task 或有人同時手動執行；連續兩次 service 就會 `stale_cache` |
