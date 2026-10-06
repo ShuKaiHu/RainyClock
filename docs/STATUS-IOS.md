@@ -327,6 +327,13 @@ Last updated: 2026-10-03.
     拿掉三個 NEW: 與幾句話騰出空間，剩下的每一句 40 都說過）；What's New 兩種語言各兩點（會員「Your plan hasn't been
     confirmed yet」／「尚未確認你的方案」——這是設定 › 行事曆那一列 `ux_closure_plan_unconfirmed` 的原字——與鎖定畫面英文標題），
     在 [`appstore-metadata.md`](appstore-metadata.md) 最上面。
+  - **2026-10-06：停班停課來源斷了——NCDR 免金鑰的 `RssAtomFeed.ashx?AlertType=33` 自 10-05 15:35 起回「請先登入會員」，
+    `rainyclock-dayoff-poll` 每個 tick 都 `invalid_source_xml`，degraded 告警 10-05 17:08 寄信。** 手機端安全（503 → 保守規則，
+    鬧鐘照常響），但新公告收不到。還能免登入的：不帶 `AlertType` 的全站 feed、CAP 檔、`server/v1/Alerts/Search/history`
+    歷史查詢 API（`DAYOFF-SPEC.md` §2.2，實測仍回停班停課資料）。選項：(a) 擁有者申請 NCDR 會員拿 API key，
+    `NCDR_SOURCE=member` 零程式改動；(b) 改 `open-data` 來源為全站 feed 並只取 `dgpa.gov.tw_workSchlClos_*` 的 entry；
+    (c) 新來源改打歷史查詢 API（今天＋明天兩個日期視窗、3 秒節流）。完整診斷與讀回值在
+    `dayoff-service/DEPLOYMENT.md` 執行紀錄 2026-10-05。
   - **2026-10-06：1.8.1 改為 build 42——設定 › 時間的「提早時間」與「降雨門檻」脫鉤**（擁有者：「點下去下面跳出來的是重複的
     我覺得不好 應該要脫鉤」）。原本兩列都開同一張 `Setting.rain` 的 sheet（兩個滑桿、標題「下雨提早」）；現在各開各的
     （`.rain` = 提早時間、新增 `.rainThreshold` = 降雨門檻，標題用列名），每張 sheet 的滑桿下面多一行次要文字寫完整規則

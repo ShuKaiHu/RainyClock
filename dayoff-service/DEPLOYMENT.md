@@ -685,3 +685,27 @@ Emulator 那一組跑的是真的 Firestore 交易：容量上限下的並行註
 第一次執行時，在這裡逐條記錄：日期、指令、讀回的結果（資料庫設定、SA 與 IAM 條件、secret 版本號、
 build id 與映像 digest、service URL、第一次 execution 名稱與摘要、重疊測試的兩份摘要、Scheduler
 派送與 execution、告警建立與 absence 實測、真機推播證據），以及本機證據檔的路徑。
+
+### 2026-10-05 15:35 起：NCDR 免金鑰的停班停課 feed 改為要求登入，輪詢全部 `invalid_source_xml`（事件紀錄，Claude 10-06 診斷）
+
+- 症狀：Google Cloud Alerting「rainyclock-dayoff poll degraded」10-05 17:08（UTC 09:08）寄信；從 10-05 15:35（最後一次
+  `ok:true`）之後每一個 tick 都是 `ok:false`、`errorCode:"invalid_source_xml"`、`source:"open-data"`，交替 `skipped:"backoff"`；
+  `/health/details` 是 `state:"unavailable"`、`lastSuccessAt 2026-10-05T07:35:19Z`、revision 不變、`noticeCount 14`。
+  Job 本身沒有錯，`broadcast` 仍是 10-03 的 `done`。
+- 根因：`https://alerts.ncdr.nat.gov.tw/RssAtomFeed.ashx?AlertType=33`（data.gov.tw 資料集 20457 登記的網址，
+  `NCDR_SOURCE=open-data` 就是打它）現在回 HTTP 200、`application/xml`、73 bytes：
+  `<WarningMessage><Warning>請先登入會員。</Warning></WarningMessage>`。根元素不是 `feed`，`parseAtom` 的 `xmlRoot`
+  正確地擲出 `invalid_source_xml`。`JSONAtomFeed.ashx?AlertType=33` 同樣回 `{"Warning":"請先登入會員。"}`。這就是
+  `service.js` 註解裡「NCDR 宣布 2026-03-31 退役、9-24 還活著」的那個退役，10-05 下午生效。
+- 還開著、不用登入的（10-06 18:2x 實測）：①不帶 `AlertType` 的 `RssAtomFeed.ashx`（所有單位的 CAP 合集，236 KB、308 筆，
+  目前全是水利署／氣象署；停班停課的 entry id 是 `dgpa.gov.tw_workSchlClos_*`，有公告時應該也會在裡面，但現在無法驗證）；
+  ②`Capstorage/...cap` 檔案本身（200，`application/xml`）；③`server/v1/Alerts/Search/history?alertTypeId=33&sentdate=<D-1>&effective=<D>`
+  （`DAYOFF-SPEC.md` §2.2 的歷史查詢 API）：`sentdate=2026-08-23&effective=2026-08-24` 回 `total>0`，每列有 `filePath`
+  指到 `Capstorage/DGPA/2026/workschoolclose_cap/dgpa.gov.tw_workSchlClos_…cap`；同站 429「限制存取間隔時間為3秒」照舊。
+  會員 API（`webapi/RssAtomFeed.ashx?AlertType=33&apikey=…`，`NCDR_SOURCE=member`）程式早就支援，但 `dayoff-ncdr-api-key`
+  至今沒有版本——擁有者個人信箱申請不到會員。
+- 對使用者的影響：service 對手機回 503 `stale_cache`／`invalid_source_xml`，App 照原本的保守規則走——鬧鐘照常響、不會
+  把舊公告當今天的；設定 › 行事曆那一列會顯示來源不可用。沒有颱風的這段時間，差別只有「無法得知新公告」。
+  degraded 告警會一直響到修好為止，absence 告警不會（摘要行還在）。
+- 處置：待擁有者決定來源（見 `docs/STATUS-IOS.md` 2026-10-06）。暫時不暫停 Scheduler：每 30 分鐘一次的失敗輪詢
+  只花 188 ms、仍在免費額度內，而且來源一恢復就自動復原。
