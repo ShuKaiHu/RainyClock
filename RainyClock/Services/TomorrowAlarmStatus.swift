@@ -78,8 +78,9 @@ struct TomorrowAlarmStatus: Equatable {
         expectedRingDate != nil && (hasCommittedClosureSkip || isMissingFromPlan)
     }
 
-    /// The card's (and the decision's) freshness rule. The widget only *warns* after
-    /// `TomorrowWidgetSnapshotBuilder.widgetWeatherLifetime`; this is unchanged by that.
+    /// The card's (and the decision's) freshness rule. The widget only marks weather stale after
+    /// `TomorrowWidgetSnapshotBuilder.widgetWeatherLifetime` and shows no warning for it (owner,
+    /// 2026-10-09); this is unchanged by that.
     static let weatherLifetime: TimeInterval = 30 * 60
 
     /// `summary` is the registration as the model reads it: a weekly summary rolled forward
@@ -390,5 +391,30 @@ struct TomorrowWeatherRecord: Codable, Equatable {
             && snapshot.checkedAt <= now.addingTimeInterval(5 * 60)
             && !snapshot.segments.isEmpty
             && snapshot.segments.allSatisfy { $0.precipitationProbability.isFinite && (0...1).contains($0.precipitationProbability) }
+    }
+}
+
+/// The request whose refresh last failed, kept beside `TomorrowWeatherRecord`. A launch that
+/// publishes without trying the fetch (a background run out of time, a closure push) builds a
+/// fresh model; without this it would forget the failure and publish the old forecast with no
+/// warning, which the widget no longer shows for age alone (owner, 2026-10-09). It only counts
+/// while it equals the current request, so an older morning or another route never inherits it.
+enum TomorrowWeatherFailure {
+    static let cacheKey = "tomorrowWeatherFailedRequest.v1"
+    private static let maximumCacheBytes = 16_384
+
+    static func load(from storage: UserDefaults, matching request: TomorrowWeatherRequest) -> TomorrowWeatherRequest? {
+        guard request.hasRoute, let data = storage.data(forKey: cacheKey), data.count <= maximumCacheBytes,
+              let failed = try? JSONDecoder().decode(TomorrowWeatherRequest.self, from: data), failed == request else { return nil }
+        return failed
+    }
+
+    /// nil removes it: a successful fetch, or a failure the model no longer holds.
+    static func save(_ request: TomorrowWeatherRequest?, to storage: UserDefaults) {
+        guard let request, let data = try? JSONEncoder().encode(request), data.count <= maximumCacheBytes else {
+            storage.removeObject(forKey: cacheKey)
+            return
+        }
+        storage.set(data, forKey: cacheKey)
     }
 }

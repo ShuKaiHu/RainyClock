@@ -3,10 +3,10 @@ RAINY CLOCK 1.8.1 (42)
 iPhone-only, iOS 17+. Alarms use AlarmKit on iOS 26+, local notifications on iOS 17-25. No login or demo account; Apple-verified purchase data recognize membership.
 
 CHANGES SINCE 1.8.0 (40)
-Maintenance release: no new permission, endpoint or data. Membership: a device whose App Attest key our server rejects now registers a new key (attested, replay-checked) instead of failing every launch; the membership screen's diagnostic line names the server's error code. Lock Screen rectangular widget: the English header no longer truncates. Settings > Time: "Early alarm" and "Rain threshold" open separate sheets, each ending with the rule.
+Maintenance release: no new permission, endpoint or data. Membership: a device whose App Attest key our server rejects now registers a new key (attested, replay-checked) instead of failing every launch; the membership screen's diagnostic line names the server's error code. Widget: no warning just because the forecast is hours old (failures still warn); the Lock Screen English header no longer truncates. Settings > Time: "Early alarm" and "Rain threshold" open separate sheets.
 
 "Next Alarm" WIDGET (iOS 26+)
-Small, medium; Lock Screen rectangular, circular, inline. Shows the next alarm (today's until it rings, then tomorrow's) and why (rain, a holiday, a closure). Small (forecast background) and medium (weather column) show the Apple Weather mark. Tapping that column opens Apple's legal page via the app; small opens the app's Alarm tab, whose weather card links to it. No network or ads; it reads an address-free snapshot from the app.
+Small, medium; Lock Screen rectangular, circular, inline. Shows the next alarm (today's until it rings, then tomorrow's) and why (rain, a holiday, a closure). Small (forecast background) and medium (weather column) show the Apple Weather mark. Tapping that column opens Apple's legal page via the app; small opens the app's Alarm tab, whose weather card links to it. No network or ads; it reads an address-free app snapshot.
 Test on an iPhone; iPad compatibility mode has no widgets. After Route and Time setup, add Rainy Clock from the Home Screen (long-press > Edit > Add Widget) or Lock Screen (long-press > Customize).
 
 TYPHOON CLOSURES (TAIWAN)
@@ -29,7 +29,7 @@ CALENDAR AND ALARM
 Paid plan: Settings > Calendar > "Use calendar rules", then tap dates in "Alarm calendar" to toggle. Ring test: Settings > Time, wake-up time a few minutes ahead; Settings > Calendar, include today in "Repeat days"; allow alarms; lock the iPhone.
 
 AI VOICE, SANDBOX
-Settings > Time > a sound > "AI Voice". Free: one initial generation; paid: one daily; extras need a rewarded ad. Our backend and Google speech services process the text. Sandbox/TestFlight membership data are isolated; production ads are off, so ads may not load.
+Settings > Time > a sound > "AI Voice". Free: one initial generation; paid: one daily; extras need a rewarded ad. Our backend and Google speech services process the text. Sandbox/TestFlight membership data are isolated; ads may not load there.
 
 Privacy: https://shukaihu.github.io/RainyClock/privacy-policy.html
 Terms: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/

@@ -2,10 +2,10 @@
 
 ## 1.8.1 (42) — What's New — membership key rotation, Lock Screen header, separate rain sheets
 
-> **DRAFT, 2026-10-03, revised 2026-10-06 for build 42.** Build 41 was uploaded to App Store Connect on
-> 2026-10-03 at 23:47 (archive from `b47edeb`) but never submitted; 42 adds one Settings change (below).
+> **DRAFT, 2026-10-03, revised 2026-10-06 and 2026-10-09 for build 42.** Build 41 was uploaded to App Store Connect on
+> 2026-10-03 at 23:47 (archive from `b47edeb`) but never submitted; 42 adds a Settings change and a widget one (below).
 > Nothing below is pasted or submitted — the owner approves the text first. Every app-side change
-> since the submitted 1.8.0 (40) is in five files: `MembershipSecurity.swift` (a server
+> since the submitted 1.8.0 (40) is in six files: `MembershipSecurity.swift` (a server
 > `invalid_assertion` / `attestation_key_rotation_required` now rotates the App Attest key at
 > bootstrap, like `key_not_registered` did), `MembershipModels.swift` (the reused-session path treats
 > `invalid_assertion` like `invalid_session`; the diagnostic line carries the server's error code when it
@@ -13,11 +13,15 @@
 > Lock Screen face falls back to the day word when "Tomorrow · Sat" would be cut), `ContentView.swift`
 > (Settings › Time: "Early alarm" and "Rain threshold" open separate sheets — they used to share one
 > with both sliders, so either row opened the same thing (owner, 2026-10-06); each sheet ends with the
-> whole rule, "At 60% rain, 30 min earlier"), and the version numbers. No new permission, endpoint, SDK or data; the description, keywords, screenshots and the
+> whole rule, "At 60% rain, 30 min earlier"), `TomorrowWidgetPresentation.swift` (a forecast past the widget's 3 hours is
+> no warning on any face, tomorrow's as today's already was; only a failed refresh or a schedule issue warns — owner,
+> 2026-10-09, `PRODUCT_DECISIONS.md`), and the version numbers. `TomorrowWidgetViews.swift` also carries the
+> test-only render harness (`8b12b15`: `#if` guards and a `bundle` field that defaults to `.main`), which changes
+> nothing the widget draws. No new permission, endpoint, SDK or data; the description, keywords, screenshots and the
 > privacy questionnaire do not change.
 >
 > The 1.8.0 description, keywords and screenshots stay. **Paste this review note, not the 40 one:
-> [`appstore-review-notes-1.8.1-42.txt`](appstore-review-notes-1.8.1-42.txt)** (3,991 characters,
+> [`appstore-review-notes-1.8.1-42.txt`](appstore-review-notes-1.8.1-42.txt)** (3,995 characters,
 > under the 4,000 limit): the 40 note with line 1 changed, the three "NEW:" prefixes dropped, a
 > CHANGES SINCE 1.8.0 (40) paragraph added after the first line, and — to make room — the small
 > widget's "Open the app…" sentence, the alarm card's "Next alarm" sentence, "Failed updates never clear
@@ -31,6 +35,7 @@
 • Membership: fixes a case where the app kept saying "Your plan hasn't been confirmed yet" even though the purchase was valid.
 • Lock Screen widget: the header no longer gets cut off in English.
 • Settings › Time: Early alarm and Rain threshold now open separately, and each shows the full rule.
+• Widget: no more warning sign just because the forecast is a few hours old. It only warns when something actually failed.
 ```
 
 ### What's New — 繁體中文（草稿）
@@ -39,6 +44,7 @@
 ・會員：修正購買有效、App 卻一直顯示「尚未確認你的方案」的問題。
 ・鎖定畫面小工具：英文標題不再被截斷。
 ・設定 › 時間：「提早時間」與「降雨門檻」改為各自開啟，兩邊都會顯示完整規則。
+・小工具：預報只是放久了不再顯示驚嘆號，只有真的更新失敗才會提醒。
 ```
 
 ### Before pasting — internal, not App Store copy

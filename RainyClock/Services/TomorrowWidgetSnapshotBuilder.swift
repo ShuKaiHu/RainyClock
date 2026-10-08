@@ -8,11 +8,13 @@ import Foundation
 /// - Every entry is what the card would show about that morning at its `validFrom`,
 ///   resolved by the same `TomorrowAlarmStatus.resolve` from the same pair-rolled summary,
 ///   with these deliberate differences:
-/// - Staleness (D-B): the widget only warns that the weather is stale once it is older than
+/// - Staleness (D-B): the snapshot marks the weather stale only once it is older than
 ///   `widgetWeatherLifetime` (3 h), where the card warns after
 ///   `TomorrowAlarmStatus.weatherLifetime` (30 min). A widget sits on a screen all day and
 ///   cannot refresh anything itself; the card is looked at for seconds and refreshes on
-///   sight. The decision (ring time, reason) is the card's either way.
+///   sight. The decision (ring time, reason) is the card's either way. The widget shows no
+///   warning for it at all (`TomorrowWidgetPresentation`; owner, 2026-10-02 for today's
+///   entry, 2026-10-09 for tomorrow's): the mark only picks 預報時間… over 天氣更新… for today.
 /// - Which morning (D-C, kept after the card's 2026-09-29 rule): the widget names calendar
 ///   days. Between local midnight and today's ring (or, for a day that does not ring, its
 ///   normal time) it shows TODAY's alarm (`todayStatus(now:)`), labelled 今天 / Today; one
@@ -38,9 +40,11 @@ import Foundation
 ///   schedule) carry forward unchanged, so the widget never drops a warning the app
 ///   has not cleared (a today entry the committed schedule lacks stays, flagged, until its
 ///   normal time, as on the card: `todayShownUntil`).
-/// - Alarm off: no stale or failed weather notice. On the widget it would badge 鬧鐘已關閉,
-///   where only a failure to turn off may warn; the card's weather card still says its
-///   weather is old, beside a card that shows no warning.
+/// - Alarm off: no stale or failed weather notice. A failed one would badge 鬧鐘已關閉, where
+///   only a failure to turn off may warn, and a stale one (which warns nowhere since
+///   2026-10-09) would still switch today's column to 預報時間… for a decision nobody asked
+///   for; the card's weather card still says its weather is old, beside a card that shows no
+///   warning.
 /// - A closure carries the feed's own update time (`Context.closureSourceUpdatedAt`), which
 ///   the widget prints beside the source, as the card does (DAYOFF-SPEC §7).
 /// - A typical 36–48 h window yields about 5 to 12 entries, around 5 KB.
@@ -48,8 +52,10 @@ import Foundation
 enum TomorrowWidgetSnapshotBuilder {
     static let maximumEntries = 24
     static let epsilon: TimeInterval = 1
-    /// How old the weather may get before the WIDGET says it needs an update (D-B). Display
-    /// only: `TomorrowAlarmStatus.resolve` still decides with its own 30-minute lifetime.
+    /// How old the weather may get before the snapshot marks it `.stale` (D-B). No face warns
+    /// about that (owner, 2026-10-02 for today's entry, 2026-10-09 for tomorrow's); the mark only
+    /// picks 預報時間… over 天氣更新於… on a today entry. Display only:
+    /// `TomorrowAlarmStatus.resolve` still decides with its own 30-minute lifetime.
     static let widgetWeatherLifetime: TimeInterval = 3 * 3_600
 
     struct CardFlags: Equatable, Sendable {
@@ -275,8 +281,9 @@ enum TomorrowWidgetSnapshotBuilder {
         }
         var weatherNotice = isToday ? todayWeatherNotice(for: status, addressesMissing: context.addressesMissing, at: validFrom)
             : widgetWeatherNotice(for: status, addressesMissing: context.addressesMissing, at: validFrom)
-        // Off (2026-10-01): only a failure to turn off warns. Stale or failed weather is about
-        // a decision nobody asked for; it would put an orange badge on 鬧鐘已關閉.
+        // Off (2026-10-01): only a failure to turn off warns. Failed weather is about a decision
+        // nobody asked for and would put an orange badge on 鬧鐘已關閉; a stale mark warns nowhere
+        // (2026-10-09) but would still turn today's column to 預報時間… for that decision.
         if status.reason == .alarmOff, weatherNotice == .stale || weatherNotice == .failed { weatherNotice = nil }
         return .init(validFrom: validFrom, isToday: isToday, day: status.day, normalAlarmDate: status.normalAlarmDate,
                      expectedRingDate: status.expectedRingDate,
@@ -309,7 +316,8 @@ enum TomorrowWidgetSnapshotBuilder {
         // "Tomorrow" moves on; weather and the failure flag drop because the request changes.
         if days.count > 1 { candidates.append(days[1]) }
         // Staleness is a strict `>`: at weatherLifetime the decision stops reading the forecast
-        // (the card's rule); at widgetWeatherLifetime the widget starts to warn.
+        // (the card's rule); at widgetWeatherLifetime the snapshot marks it `.stale` (today's
+        // column then reads 預報時間…; nothing warns, 2026-10-09).
         for checkedAt in ([first] + todays).compactMap(\.weather?.checkedAt) {
             candidates.append(checkedAt.addingTimeInterval(TomorrowAlarmStatus.weatherLifetime + epsilon))
             candidates.append(checkedAt.addingTimeInterval(widgetWeatherLifetime + epsilon))

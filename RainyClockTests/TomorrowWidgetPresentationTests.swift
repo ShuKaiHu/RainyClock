@@ -138,7 +138,7 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
     }
 
     func testWarningBadgeOnlyWhenLineIsNotTheWarning() {
-        XCTAssertTrue(presentation(.rainStale).showsWarningBadge, "Stale weather behind a rain reason line")
+        XCTAssertFalse(presentation(.rainStale).showsWarningBadge, "An hours-old forecast is no warning (owner, 2026-10-09)")
         XCTAssertFalse(presentation(.weatherFailed).showsWarningBadge, "The footer already shows the failure")
         XCTAssertFalse(presentation(.scheduleUpdateNeeded).showsWarningBadge, "The footer already shows the issue")
         XCTAssertFalse(presentation(.normalClear).showsWarningBadge)
@@ -162,17 +162,43 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         today.scheduleIssue = .updateNeeded
         XCTAssertEqual(Presentation(.status(today)).line, .issue(.updateNeeded))
         XCTAssertFalse(Presentation(.status(today)).showsWarningBadge, "The line is the warning; the stale forecast's time is the column's")
-        XCTAssertTrue(Presentation.Line.todayNotice(.stale).isWarning)
         XCTAssertTrue(Presentation.Line.todayNotice(.failed).isWarning)
         XCTAssertFalse(Presentation.Line.todayNotice(.noForecast).isWarning)
         XCTAssertFalse(Presentation.Line.todayNotice(.routeNeeded).isWarning)
 
         XCTAssertTrue(Presentation.Line.issue(.updateNeeded).isWarning)
-        XCTAssertTrue(Presentation.Line.notice(.stale).isWarning)
         XCTAssertFalse(Presentation.Line.notice(.routeNeeded).isWarning)
         XCTAssertEqual(Presentation.Line.notice(.failed).leadingSymbol, "exclamationmark.triangle.fill")
         XCTAssertNil(Presentation.Line.ringsAsUsual.leadingSymbol)
         XCTAssertNil(Presentation.Line.reason(.weekend).leadingSymbol)
+    }
+
+    /// No face ever says a forecast is stale (owner, 2026-10-02 for today, 2026-10-09 for
+    /// tomorrow): with every sample forced to `.stale`, today's and tomorrow's, with and without
+    /// a forecast, no line, medium line or column notice is a stale one, and the badge is only
+    /// ever a schedule issue's.
+    func testNoFaceEverSaysAForecastIsStale() {
+        let forecast = TomorrowWidgetSnapshot.RouteForecast(
+            checkedAt: now, home: .init(condition: .cloudy, percent: 30), work: nil, maximumPercent: 30)
+        for scenario in Scenario.allCases {
+            guard case .status(let sample) = state(scenario) else { continue }
+            for isToday in [false, true] {
+                for withForecast in [false, true] {
+                    var entry = sample
+                    entry.isToday = isToday
+                    entry.weatherNotice = .stale
+                    entry.forecast = withForecast ? forecast : nil
+                    let face = Presentation(.status(entry), language: "zh-Hant")
+                    let label = "\(scenario) today \(isToday) forecast \(withForecast)"
+                    for line in [face.line, face.mediumLine, face.weatherColumnNotice] {
+                        XCTAssertNotEqual(line, .notice(.stale), label)
+                        XCTAssertNotEqual(line, .todayNotice(.stale), label)
+                    }
+                    XCTAssertNotEqual(face.weatherColumnFooter?.key, "ux_tomorrow_weather_stale", label)
+                    if face.showsWarningBadge { XCTAssertNotNil(entry.scheduleIssue, "\(label): only an issue badges") }
+                }
+            }
+        }
     }
 
     func testMediumLineNeverRepeatsTheWeatherColumn() {
@@ -186,11 +212,12 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
                 XCTAssertNil(value.weatherColumnFooter, "\(scenario)")
                 continue
             }
-            // The column's notice is the entry's, named for its day (今天 on a today entry), except
-            // today's stale forecast, which is no notice: the footer gives its time (2026-10-02).
-            let todayStale = entry.isToday && entry.weatherNotice == .stale
+            // The column's notice is the entry's, named for its day (今天 on a today entry), except a
+            // stale forecast, which is no notice: the footer gives its time (2026-10-02 for today,
+            // 2026-10-09 for tomorrow).
+            let stale = entry.weatherNotice == .stale
             XCTAssertEqual(value.weatherColumnNotice,
-                           todayStale ? nil : entry.weatherNotice.map { entry.isToday ? .todayNotice($0) : .notice($0) },
+                           stale ? nil : entry.weatherNotice.map { entry.isToday ? .todayNotice($0) : .notice($0) },
                            "\(scenario)")
             if let notice = value.weatherColumnNotice {
                 XCTAssertEqual(value.weatherColumnFooter, notice.full, "\(scenario): the footer prints the notice")
@@ -230,8 +257,9 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
 
         guard case .status(var entry) = state(.normalClear) else { return XCTFail("normalClear must be a status") }
         entry.weatherNotice = .stale
-        XCTAssertEqual(Presentation(.status(entry)).line, .notice(.stale), "Data age is not weather data: it may stay")
-        XCTAssertEqual(Presentation(.status(entry)).mediumLine, .ringsAsUsual, "Only the column says it is stale")
+        XCTAssertEqual(Presentation(.status(entry)).line, .ringsAsUsual, "An hours-old forecast is no notice (2026-10-09)")
+        XCTAssertEqual(Presentation(.status(entry)).mediumLine, .ringsAsUsual)
+        XCTAssertNil(Presentation(.status(entry)).weatherColumnNotice, "The column gives the forecast's time")
         entry.scheduleIssue = .updateNeeded
         XCTAssertEqual(Presentation(.status(entry)).mediumLine, .issue(.updateNeeded))
     }
@@ -543,11 +571,11 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertFalse(bareFace.showsWarningBadge)
     }
 
-    /// The rest of the column is unchanged (owner, 2026-10-02): a fresh forecast gives the time
-    /// it was checked, with no forecast-time line; a failed refresh warns on today and tomorrow
-    /// alike; tomorrow's stale forecast keeps D-B's warning everywhere it had it; and no forecast
-    /// still says 尚未取得今天天氣.
-    func testOnlyTodaysStaleForecastLosesTheWarning() throws {
+    /// A stale forecast is a time, never a warning: today's says 預報時間… (owner, 2026-10-02),
+    /// tomorrow's keeps 天氣更新於… with no triangle, line or badge (owner, 2026-10-09). A fresh
+    /// forecast gives the time it was checked; a failed refresh warns on today and tomorrow
+    /// alike; and no forecast still says 尚未取得今天天氣.
+    func testAStaleForecastIsATimeNeverAWarning() throws {
         let zh = try WidgetStringTable("zh-Hant")
         let en = try WidgetStringTable("en")
         let warning = Presentation.Glyph.warning.rawValue
@@ -576,20 +604,35 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         XCTAssertTrue(spokenColumn(failedFace, failed, zh).hasSuffix("，今天天氣更新失敗，Apple Weather"))
         XCTAssertFalse(spokenColumn(failedFace, failed, zh).contains("預報時間"))
 
-        // Stale, tomorrow: D-B's warning in the column, and on the small and Lock Screen faces
-        // (a normal ring) or as the badge (behind a rain line), as before.
+        // Stale, tomorrow (owner, 2026-10-09): the column keeps 天氣更新於 and its time, and no
+        // face warns: not the column, not the small and Lock Screen line, not the badge. The
+        // background refresh before the alarm re-decides; until then the ring is registered.
         var tomorrow = failed
         tomorrow.isToday = false
         tomorrow.weatherNotice = .stale
         let tomorrowFace = Presentation(.status(tomorrow), clockFormat: .twentyFourHour, language: "zh-Hant")
-        XCTAssertEqual(tomorrowFace.weatherColumnNotice, .notice(.stale))
-        XCTAssertEqual(tomorrowFace.weatherColumnNotice?.leadingSymbol, warning)
-        XCTAssertEqual(footer(tomorrowFace, zh), "天氣資料需要更新")
-        XCTAssertEqual(footer(tomorrowFace, en), "Weather needs an update")
-        XCTAssertTrue(spokenColumn(tomorrowFace, tomorrow, zh).hasSuffix("，天氣資料需要更新，Apple Weather"))
-        XCTAssertEqual(tomorrowFace.line, .notice(.stale), "The small and Lock Screen faces warn too")
-        XCTAssertEqual(presentation(.rainStale).weatherColumnNotice, .notice(.stale))
-        XCTAssertTrue(presentation(.rainStale).showsWarningBadge, "Behind a rain line, the badge")
+        XCTAssertNil(tomorrowFace.weatherColumnNotice)
+        XCTAssertEqual(footer(tomorrowFace, zh), "天氣更新於 22:00")
+        XCTAssertEqual(footer(tomorrowFace, en), "Weather checked 22:00")
+        XCTAssertTrue(spokenColumn(tomorrowFace, tomorrow, zh).hasSuffix("，天氣更新於 22:00，Apple Weather"))
+        XCTAssertFalse(spokenColumn(tomorrowFace, tomorrow, zh).contains("需要更新"))
+        XCTAssertEqual(tomorrowFace.line, .ringsAsUsual, "The small and Lock Screen faces say the decision")
+        XCTAssertFalse(tomorrowFace.showsWarningBadge)
+        XCTAssertNil(presentation(.rainStale).weatherColumnNotice)
+        XCTAssertFalse(presentation(.rainStale).showsWarningBadge, "Behind a rain line, no badge either")
+        // Failed, tomorrow: still the warning, in the column and on the line.
+        tomorrow.weatherNotice = .failed
+        let failedTomorrow = Presentation(.status(tomorrow), clockFormat: .twentyFourHour, language: "zh-Hant")
+        XCTAssertEqual(failedTomorrow.weatherColumnNotice, .notice(.failed))
+        XCTAssertEqual(failedTomorrow.weatherColumnNotice?.leadingSymbol, warning)
+        XCTAssertEqual(failedTomorrow.line, .notice(.failed))
+        // A stale tomorrow entry without a forecast, which no build writes, says there is none.
+        tomorrow.weatherNotice = .stale
+        tomorrow.forecast = nil
+        let bareTomorrow = Presentation(.status(tomorrow), clockFormat: .twentyFourHour, language: "zh-Hant")
+        XCTAssertEqual(bareTomorrow.weatherColumnNotice, .notice(.noForecast))
+        XCTAssertFalse(bareTomorrow.showsWarningBadge)
+        tomorrow.forecast = failed.forecast
         // The same entry as today's (after midnight): the time, no warning anywhere.
         var asToday = tomorrow
         asToday.isToday = true

@@ -92,7 +92,14 @@ final class AlarmViewModel: ObservableObject {
     @Published private(set) var routeWeatherSnapshot: RouteWeatherSnapshot?
     @Published private(set) var isRefreshingTomorrowWeather = false
     @Published private var tomorrowWeatherRecord: TomorrowWeatherRecord?
-    @Published private var tomorrowWeatherFailureRequest: TomorrowWeatherRequest?
+    @Published private var tomorrowWeatherFailureRequest: TomorrowWeatherRequest? {
+        // Persisted beside the record (`TomorrowWeatherFailure`), so a later process that
+        // publishes the widget without fetching still says the last check failed.
+        didSet {
+            guard tomorrowWeatherFailureRequest != oldValue else { return }
+            TomorrowWeatherFailure.save(tomorrowWeatherFailureRequest, to: settingsStorage)
+        }
+    }
     private var activeTomorrowWeatherRequest: TomorrowWeatherRequest?
     private var tomorrowWeatherGeneration = 0
     private var lastTomorrowWeatherAttempt: (request: TomorrowWeatherRequest, at: Date)?
@@ -304,6 +311,8 @@ final class AlarmViewModel: ObservableObject {
         let cacheNow = Date()
         tomorrowWeatherRecord = TomorrowWeatherRecord.load(from: settingsStorage,
             matching: TomorrowWeatherRequest(settings: settings, now: cacheNow), now: cacheNow)
+        tomorrowWeatherFailureRequest = TomorrowWeatherFailure.load(from: settingsStorage,
+            matching: TomorrowWeatherRequest(settings: settings, now: cacheNow))
         if var storedSummary = Self.loadScheduledAlarmSummary(from: settingsStorage) {
             // A weekly summary stored before 1.8.0 names no decided morning; the stored date,
             // before the roll below moves it on, is the best record of it. Without this a

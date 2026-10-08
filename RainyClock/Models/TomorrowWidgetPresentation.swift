@@ -35,12 +35,16 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
         case notice(TomorrowWidgetSnapshot.WeatherNotice)
         /// The same notice about today's forecast, in the medium's weather column only
         /// (2026-10-02): the lines that name 明天 name 今天 instead. The presentation never
-        /// makes it `.stale`: today's forecast past 3 hours is no warning, and the column's
-        /// footer gives its time instead (`weatherColumnFooter`, owner 2026-10-02).
+        /// makes this or `.notice` `.stale`: a forecast past the widget's 3 hours is no
+        /// warning, and the column's footer gives its time instead (`weatherColumnFooter`;
+        /// owner, 2026-10-02 for today's, 2026-10-09 for tomorrow's).
         case todayNotice(TomorrowWidgetSnapshot.WeatherNotice)
         /// A normal ringing day: 照常響鈴 / Rings as usual.
         case ringsAsUsual
 
+        /// `.notice(.stale)` and `.todayNotice(.stale)` stay warnings here, but no presentation
+        /// builds them since 2026-10-09 (`testNoFaceEverSaysAForecastIsStale`); their strings
+        /// stay for the snapshot's vocabulary.
         var isWarning: Bool {
             switch self {
             case .issue, .notice(.failed), .notice(.stale), .todayNotice(.failed), .todayNotice(.stale): true
@@ -164,11 +168,12 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
 
     var glyph: Glyph
     var hero: Hero
-    /// Small footer and rectangular line 3. On a today entry it never carries a weather
-    /// notice other than "complete your route" (D-C): today's failed or missing forecast is
-    /// a notice in the medium's weather column only (`weatherColumnNotice`; failed with the
-    /// triangle), and today's stale forecast is no notice at all: the column gives its time
-    /// in `weatherColumnFooter` (預報時間…), neutral, with no triangle (owner, 2026-10-02).
+    /// Small footer and rectangular line 3. It never says a forecast is stale: past the
+    /// widget's 3 hours the medium's column gives the forecast's time, neutral, and nothing
+    /// else changes (owner, 2026-10-09; today's since 2026-10-02). On a today entry it never
+    /// carries a weather notice other than "complete your route" (D-C): today's failed or
+    /// missing forecast is a notice in the medium's weather column only
+    /// (`weatherColumnNotice`; failed with the triangle).
     var line: Line?
     /// The medium widget's left footer: `line`, unless it repeats the weather notice the
     /// medium's weather column already shows (the notice's own text, or "waiting for the
@@ -184,19 +189,22 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
     /// Not for the open-the-app faces either.
     var showsWeatherColumn: Bool
     /// The weather column's footer notice, in place of 天氣更新於…: `.todayNotice` on a
-    /// today entry (今天), `.notice` on a tomorrow entry. nil without the column, and for
-    /// today's stale forecast, which is no notice (`weatherColumnFooter`).
+    /// today entry (今天), `.notice` on a tomorrow entry. nil without the column, and for a
+    /// stale forecast, which is no notice (`weatherColumnFooter`).
     var weatherColumnNotice: Line?
     /// What the weather column prints under its endpoints, and VoiceOver reads: the notice's
-    /// text; else, with a forecast, its time. That is 天氣更新於… / Weather checked…, except on a
-    /// today entry whose forecast is past the widget's 3 hours (D-B): 預報時間… / Forecast as
-    /// of…, neutral (owner, 2026-10-02). It is normally last evening's forecast, which decided
-    /// this morning, and hours old before the ring is expected, not an error. Tomorrow's stale
-    /// forecast keeps the warning, and a failed refresh warns on both. nil without the column.
+    /// text; else, with a forecast, its time. That is 天氣更新於… / Weather checked…, however old
+    /// tomorrow's forecast is (owner, 2026-10-09: the app only refreshes in the background
+    /// before the alarm, so every forecast passes the widget's 3 hours a few hours after the
+    /// app was last opened, and the ring time was decided and registered regardless). On a
+    /// today entry past those 3 hours (D-B) it is 預報時間… / Forecast as of…, neutral (owner,
+    /// 2026-10-02): normally last evening's forecast, which decided this morning. A failed
+    /// refresh still warns on both. nil without the column.
     var weatherColumnFooter: LocalizedLine?
-    /// A warning exists that the footer line is not already showing. Today's weather never
-    /// raises it: a failed refresh is the column's own warning (its footer carries the
-    /// triangle), and a stale forecast is no warning, only its time (owner, 2026-10-02).
+    /// A warning exists that the footer line is not already showing: a schedule issue, or
+    /// tomorrow's failed weather refresh. A stale forecast never raises it (owner, 2026-10-09;
+    /// today's since 2026-10-02), and today's failed refresh is the column's own warning (its
+    /// footer carries the triangle).
     var showsWarningBadge: Bool
     var hasIssue: Bool
     /// The sky of both home-screen families, from the forecast; nil (the brand navy) when
@@ -288,13 +296,20 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 }
             }
 
+            // A stale forecast is no notice anywhere (owner, 2026-10-02 for today's, 2026-10-09
+            // for tomorrow's): the widget cannot refresh it, and the ring time was decided and
+            // registered regardless; the column gives the forecast's time instead. The snapshot
+            // still marks it `.stale`, which picks 預報時間… over 天氣更新於… for today. Only a
+            // forecast goes stale (`widgetWeatherNotice`); a stale entry without one, which no
+            // build writes, has no time to give and says there is no forecast.
+            let staleForecast = entry.weatherNotice == .stale ? entry.forecast : nil
+            let notice: TomorrowWidgetSnapshot.WeatherNotice? = entry.weatherNotice == .stale
+                ? (staleForecast == nil ? .noForecast : nil) : entry.weatherNotice
             // The notice the alarm's own lines and badge may carry. A today entry keeps D-C on
             // every face: only "complete your route" (what build 38 stored for today). Today's
             // failed or missing forecast is a notice in the medium's weather column only, worded
-            // 今天 there (`weatherColumnNotice`; failed with the triangle). Today's stale forecast
-            // is no notice: the column gives its time in `weatherColumnFooter` (預報時間…),
-            // neutral, with no triangle (owner, 2026-10-02).
-            let alarmNotice = entry.isToday && entry.weatherNotice != .routeNeeded ? nil : entry.weatherNotice
+            // 今天 there (`weatherColumnNotice`; failed with the triangle).
+            let alarmNotice = entry.isToday && notice != .routeNeeded ? nil : notice
             // First match wins: an issue, the reason, the freshness notice (data age, not
             // weather), then 照常響鈴 for a day that simply rings.
             func lines(withWeather: Bool) -> [Line] {
@@ -315,22 +330,15 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             // build 38 drew it; "complete your route" draws it as 39 writes it and as tomorrow's
             // entries do, so a route-incomplete widget does not change when the app republishes.
             showsWeatherColumn = !entry.isToday || entry.forecast != nil || entry.weatherNotice != nil
-            // The weather column prints the notice's own text (stale, failed, no forecast,
-            // or route needed, which is also the route-incomplete reason's text), named for its
-            // day. Today's stale forecast is no notice (owner, 2026-10-02): the footer gives its
-            // time instead. Only a forecast goes stale (`widgetWeatherNotice`); a stale today
-            // entry without one, which no build writes, has no time to give, and says so.
-            let todaysOldForecast = entry.isToday && entry.weatherNotice == .stale ? entry.forecast : nil
-            func columnNotice(_ notice: TomorrowWidgetSnapshot.WeatherNotice) -> Line? {
-                guard entry.isToday else { return .notice(notice) }
-                guard notice == .stale else { return .todayNotice(notice) }
-                return todaysOldForecast == nil ? .todayNotice(.noForecast) : nil
-            }
-            weatherColumnNotice = showsWeatherColumn ? entry.weatherNotice.flatMap(columnNotice) : nil
+            // The weather column prints the notice's own text (failed, no forecast, or route
+            // needed, which is also the route-incomplete reason's text), named for its day; with
+            // no notice, the forecast's time.
+            weatherColumnNotice = showsWeatherColumn ? notice.map { entry.isToday ? .todayNotice($0) : .notice($0) } : nil
             if let notice = weatherColumnNotice {
                 weatherColumnFooter = notice.full
             } else if showsWeatherColumn, let forecast = entry.forecast {
-                weatherColumnFooter = LocalizedLine(key: todaysOldForecast == nil ? "ux_weather_updated" : "widget_forecast_as_of",
+                let asOf = entry.isToday && staleForecast != nil
+                weatherColumnFooter = LocalizedLine(key: asOf ? "widget_forecast_as_of" : "ux_weather_updated",
                                                     arguments: [.time(forecast.checkedAt, clockFormat)])
             } else {
                 weatherColumnFooter = nil
@@ -347,8 +355,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 return line.full != columnText
             }
 
-            let weatherWarning = alarmNotice == .failed || alarmNotice == .stale
-            showsWarningBadge = (weatherWarning || entry.scheduleIssue != nil) && line?.isWarning != true
+            showsWarningBadge = (alarmNotice == .failed || entry.scheduleIssue != nil) && line?.isWarning != true
             hasIssue = entry.scheduleIssue != nil
             // The sky is weather data too: on the medium only beside the column that
             // attributes it, and the small draws the same sky under its own mark.

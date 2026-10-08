@@ -391,14 +391,15 @@ final class TomorrowWidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(stale.expectedRingDate, date(15, 7))
         XCTAssertEqual(stale.reason, .rain)
         XCTAssertEqual(stale.reasonLine, .rainEarlier(minutes: 30))
-        XCTAssertNil(stale.weatherNotice, "Half an hour old: the card warns, the widget does not yet (D-B)")
+        XCTAssertNil(stale.weatherNotice, "Half an hour old: the card warns; the widget's snapshot does not mark it (D-B)")
         XCTAssertNotNil(stale.forecast, "The card keeps showing the stale forecast")
         XCTAssertNil(stale.scheduleIssue)
     }
 
-    /// D-B: the widget warns only after 3 hours; the card keeps its 30 minutes, and the
-    /// decision (which stops reading the forecast at 30 minutes) is the card's either way.
-    func testWidgetWarnsAboutStaleWeatherOnlyAfterThreeHours() throws {
+    /// D-B: the snapshot marks the weather stale only after 3 hours (no face warns about it,
+    /// owner 2026-10-09); the card keeps its 30 minutes, and the decision (which stops reading
+    /// the forecast at 30 minutes) is the card's either way.
+    func testWidgetMarksStaleWeatherOnlyAfterThreeHours() throws {
         XCTAssertEqual(Builder.widgetWeatherLifetime, 3 * 3_600)
         XCTAssertEqual(TomorrowAlarmStatus.weatherLifetime, 30 * 60, "The card's rule is unchanged")
         let now = date(14, 19)
@@ -1495,8 +1496,9 @@ extension TomorrowWidgetSnapshotTests {
     }
 
     /// Off warns only when turning off fails (2026-10-01). The card still fetches the coming
-    /// morning while it is on screen, so a forecast can age past 3 h or fail while off: that
-    /// must not put an orange badge on 鬧鐘已關閉 (merge review).
+    /// morning while it is on screen, so a forecast can fail while off: that must not put an
+    /// orange badge on 鬧鐘已關閉 (merge review). An aged one is dropped too, though it warns
+    /// nowhere since 2026-10-09, so today's column gives no 預報時間 for a decision nobody asked for.
     func testAlarmOffCarriesNoWeatherWarning() {
         var off = settings()
         off.isAlarmEnabled = false
@@ -1520,7 +1522,7 @@ extension TomorrowWidgetSnapshotTests {
                 XCTAssertFalse(presentation.line?.isWarning ?? false, label)
             }
         }
-        // The same weather with the alarm on still warns (D-B).
+        // The same weather with the alarm on is still marked stale (D-B); no face warns about it (2026-10-09).
         let on = Builder.snapshot(now: evening, context: context(settings(), summary: nil),
                                   status: statusProvider(settings(), weather: record(settings(), requestedAt: evening,
                                                                                      checkedAt: date(14, 17)), summary: nil))
@@ -1699,8 +1701,9 @@ extension TomorrowWidgetSnapshotTests {
         }
     }
 
-    /// D-B on every entry, today's included: an entry that shows a forecast without a warning
-    /// never outlives that forecast's 3 hours, because the stale second is always a boundary.
+    /// D-B on every entry, today's included: an entry that carries a forecast without the
+    /// `.stale` mark never outlives that forecast's 3 hours, because the stale second is always
+    /// a boundary (today's column switches to 預報時間 there; nothing warns, 2026-10-09).
     func testNoForecastIsSilentlyStale() {
         let value = settings()
         let weekly = summary(normal: date(15, 7, 30), ring: date(15, 7))
@@ -1722,7 +1725,7 @@ extension TomorrowWidgetSnapshotTests {
                         let end = index + 1 < snapshot.entries.count ? snapshot.entries[index + 1].validFrom : snapshot.expiresAt
                         XCTAssertLessThanOrEqual(end.timeIntervalSince(forecast.checkedAt),
                                                  Builder.widgetWeatherLifetime + Builder.epsilon,
-                                                 "\(label): \(entry.validFrom) shows it unwarned for too long")
+                                                 "\(label): \(entry.validFrom) carries it unmarked for too long")
                     }
                 }
             }
@@ -1891,11 +1894,11 @@ extension TomorrowWidgetSnapshotTests {
         }
     }
 
-    /// The same forecast is tomorrow's warning in the evening and today's neutral time after
-    /// midnight. Checked at 18:00, it is stale from 21:00:01 on tomorrow's entry (D-B, unchanged:
-    /// ⚠ 天氣資料需要更新 in the column, and on the small and Lock Screen faces); from midnight,
-    /// when the entry is today's, the column says 預報時間 18:00 and nothing warns.
-    func testTomorrowsStaleWarningGivesWayToTodaysForecastTimeAtMidnight() throws {
+    /// The same forecast is tomorrow's checked time (天氣更新於) in the evening and today's 預報時間
+    /// after midnight. Checked at 18:00, it is stale from 21:00:01 on tomorrow's entry (D-B), which the
+    /// snapshot marks and no face warns about (owner, 2026-10-09: the column keeps 天氣更新於 18:00);
+    /// from midnight, when the entry is today's, the column says 預報時間 18:00 and nothing warns.
+    func testTomorrowsCheckedTimeGivesWayToTodaysForecastTimeAtMidnight() throws {
         let afternoon = date(14, 18)
         let value = settings()
         let dry = record(value, requestedAt: afternoon, checkedAt: afternoon, probability: 0.1)
@@ -1919,13 +1922,13 @@ extension TomorrowWidgetSnapshotTests {
         XCTAssertEqual(footer(freshFace), "天氣更新於 18:00")
 
         for moment in [date(14, 21, 0, 1), date(14, 23, 59, 59)] {
-            let (warned, face) = try shown(at: moment)
-            XCTAssertFalse(warned.isToday, "\(moment)")
-            XCTAssertEqual(warned.weatherNotice, .stale, "\(moment)")
-            XCTAssertEqual(face.weatherColumnNotice, .notice(.stale), "\(moment)")
-            XCTAssertEqual(face.weatherColumnNotice?.leadingSymbol, TomorrowWidgetPresentation.Glyph.warning.rawValue)
-            XCTAssertEqual(footer(face), "天氣資料需要更新", "\(moment)")
-            XCTAssertEqual(face.line, .notice(.stale), "\(moment): tomorrow's small and Lock Screen faces warn, as before")
+            let (stale, face) = try shown(at: moment)
+            XCTAssertFalse(stale.isToday, "\(moment)")
+            XCTAssertEqual(stale.weatherNotice, .stale, "\(moment): the snapshot still marks its age")
+            XCTAssertNil(face.weatherColumnNotice, "\(moment)")
+            XCTAssertEqual(footer(face), "天氣更新於 18:00", "\(moment)")
+            XCTAssertEqual(face.line, .ringsAsUsual, "\(moment): tomorrow's small and Lock Screen faces no longer warn")
+            XCTAssertFalse(face.showsWarningBadge, "\(moment)")
         }
 
         for moment in [date(15, 0), date(15, 4), date(15, 7, 30)] {

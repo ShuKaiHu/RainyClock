@@ -709,6 +709,52 @@ final class TomorrowWeatherRefreshTests: XCTestCase {
         XCTAssertEqual(count, 3)
         XCTAssertFalse(model.tomorrowStatus(now: now).weatherRefreshFailed)
     }
+    /// A failure outlives the process (2026-10-09): a background run or a closure push builds a
+    /// fresh model and publishes without fetching, and must still say the last check failed,
+    /// since the widget no longer warns about an old forecast by itself. A success clears it.
+    func testFailureSurvivesRelaunchUntilAFetchSucceeds() async {
+        let now = Date()
+        let service = TomorrowWeatherStub(checkedAt: now)
+        let original = model(service: service, scheduler: TomorrowSchedulerSpy())
+        await original.refreshTomorrowWeatherIfNeeded(now: now)
+        let good = original.tomorrowStatus(now: now).weather
+        XCTAssertNotNil(good)
+        XCTAssertNil(storage.data(forKey: TomorrowWeatherFailure.cacheKey))
+        await service.setFailure(true)
+        await original.refreshTomorrowWeatherIfNeeded(now: now.addingTimeInterval(2), force: true)
+        XCTAssertTrue(original.tomorrowStatus(now: now).weatherRefreshFailed)
+        XCTAssertNotNil(storage.data(forKey: TomorrowWeatherFailure.cacheKey))
+
+        let relaunched = AlarmViewModel(routeWeatherService: service, notificationScheduler: TomorrowSchedulerSpy(),
+            settingsStorage: storage, calendarWeatherTimeout: .seconds(2))
+        XCTAssertTrue(relaunched.tomorrowStatus(now: now).weatherRefreshFailed, "Restored before any fetch")
+        XCTAssertEqual(relaunched.tomorrowStatus(now: now).weather, good, "Beside the last good forecast")
+        // Only for the request it failed: the morning after, or another route, starts clean.
+        XCTAssertFalse(relaunched.tomorrowStatus(now: now.addingTimeInterval(86_400)).weatherRefreshFailed)
+
+        await service.setFailure(false)
+        await relaunched.refreshTomorrowWeatherIfNeeded(now: now.addingTimeInterval(70), force: true)
+        XCTAssertFalse(relaunched.tomorrowStatus(now: now).weatherRefreshFailed)
+        XCTAssertNil(storage.data(forKey: TomorrowWeatherFailure.cacheKey), "A success removes it for the next launch too")
+        let again = AlarmViewModel(routeWeatherService: service, notificationScheduler: TomorrowSchedulerSpy(),
+            settingsStorage: storage, calendarWeatherTimeout: .seconds(2))
+        XCTAssertFalse(again.tomorrowStatus(now: now).weatherRefreshFailed)
+    }
+
+    func testFailureIsNotRestoredForAnotherRoute() async {
+        let now = Date()
+        let service = TomorrowWeatherStub(checkedAt: now)
+        let original = model(service: service, scheduler: TomorrowSchedulerSpy())
+        await service.setFailure(true)
+        await original.refreshTomorrowWeatherIfNeeded(now: now, force: true)
+        XCTAssertTrue(original.tomorrowStatus(now: now).weatherRefreshFailed)
+        original.settings.homeAddress = "Elsewhere"
+        XCTAssertFalse(original.tomorrowStatus(now: now).weatherRefreshFailed)
+        let relaunched = AlarmViewModel(routeWeatherService: service, notificationScheduler: TomorrowSchedulerSpy(),
+            settingsStorage: storage, calendarWeatherTimeout: .seconds(2))
+        XCTAssertFalse(relaunched.tomorrowStatus(now: now).weatherRefreshFailed, "The stored failure names the old home")
+    }
+
     func testAddressEditRejectsOldInFlightForecast() async {
         let now = Date()
         let service = TomorrowWeatherStub(checkedAt: now, gated: true)
