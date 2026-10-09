@@ -394,6 +394,149 @@ struct TomorrowWeatherRecord: Codable, Equatable {
     }
 }
 
+/// Which forecast decided each morning (owner, 2026-10-09: say when a morning was not
+/// re-checked): the recent decisions, each with the morning it decided (its normal alarm date)
+/// and the fetch time of the forecast it used. All of them, not the latest per morning: a
+/// fetch after the check point (an open at 06:31) must not erase the evening decision the
+/// alarm actually rings on. Written only where a forecast
+/// decision was registered with AlarmKit (`AlarmViewModel`'s weekly and dated paths, beside
+/// `lastWeatherEvaluationAt`), never by an offline restore, a calendar-only re-plan or the
+/// card's own forecast fetch. Keyed by morning because the scalar `lastWeatherEvaluationAt` is
+/// overwritten by the next morning's decision the moment the app is opened after the ring.
+struct WeatherDecisionLog: Codable, Equatable {
+    struct Decision: Codable, Equatable {
+        var morning: Date
+        var checkedAt: Date
+    }
+
+    static let cacheKey = "weatherDecisionLog.v1"
+    /// About four days of the three or four decisions a day makes (evening open, overnight
+    /// processing, morning refresh): more than the one morning that is ever asked about.
+    static let maximumDecisions = 16
+    /// A morning counts as re-checked when a decision for it used a forecast fetched in the
+    /// nine hours before its check point: the span the app asks iOS for on its behalf (the
+    /// overnight processing task from 9 h before, the app refresh from 45 min before;
+    /// `BackgroundWeatherRefresh`). Earlier is the previous evening's decision, kept.
+    static var recheckWindow: TimeInterval { BackgroundWeatherRefresh.processingLeadTime }
+    /// How long after the morning's normal time the card and the widget still say so: the
+    /// moment someone picks up the phone after the ring (owner to confirm the length).
+    static let retrospective: TimeInterval = 3 * 3_600
+
+    var decisions: [Decision] = []
+
+    mutating func record(morning: Date, checkedAt: Date) {
+        let decision = Decision(morning: morning, checkedAt: checkedAt)
+        guard !decisions.contains(decision) else { return }
+        decisions.append(decision)
+        decisions.sort { $0.checkedAt < $1.checkedAt }
+        if decisions.count > Self.maximumDecisions { decisions.removeFirst(decisions.count - Self.maximumDecisions) }
+    }
+
+    /// A decision for `morning` on a forecast fetched in [checkPoint − recheckWindow, checkPoint).
+    /// One fetched after the check point cannot have moved the ring (nothing re-decides then).
+    func wasRechecked(morning: Date, checkPoint: Date) -> Bool {
+        decisions.contains { $0.morning == morning && $0.checkedAt < checkPoint
+            && $0.checkedAt >= checkPoint.addingTimeInterval(-Self.recheckWindow) }
+    }
+
+    /// The fetch time of the newest forecast a decision used before `checkPoint`, for `morning`
+    /// only when given. nil when there is none.
+    func latestForecast(before checkPoint: Date, for morning: Date? = nil) -> Date? {
+        decisions.filter { morning == nil || $0.morning == morning }.map(\.checkedAt).filter { $0 < checkPoint }.max()
+    }
+
+    static func load(from storage: UserDefaults) -> Self {
+        guard let data = storage.data(forKey: cacheKey), data.count <= 32_768,
+              let log = try? JSONDecoder().decode(Self.self, from: data) else { return Self() }
+        return log
+    }
+
+    func save(to storage: UserDefaults) {
+        guard let data = try? JSONEncoder().encode(self) else { return }
+        storage.set(data, forKey: Self.cacheKey)
+    }
+}
+
+/// A ring morning whose decision no newer forecast confirmed: what the card and the widget
+/// say from its check point until `WeatherDecisionLog.retrospective` after its normal time.
+struct UnrecheckedMorning: Equatable {
+    /// The morning's normal alarm date.
+    var morning: Date
+    /// When the forecast the alarm rings on was fetched: the last decision for this morning, or,
+    /// on a weekly registration, whose repeat carries the last decision's time, the last decision
+    /// for any morning. nil on a dated plan with none for this morning: it rings at its normal time.
+    var forecastCheckedAt: Date?
+
+    /// `today` is today's status at `now` (`AlarmViewModel.todayStatus`). Only a ring day that
+    /// a forecast decides (a normal, rain or manual-ring day with a ring), with a rain lead
+    /// (without one there is nothing to re-check), between its check point and the
+    /// retrospective's end on the same calendar day (a lead that crosses midnight starts it at
+    /// midnight: narrower, never wrong), with an earlier decision on record and none in the
+    /// re-check window. The registration is not read: after the ring the next morning's is in
+    /// place, and a schedule issue outranks this wherever both would show. `weekly` says the
+    /// registration repeats the last decision's ring (`forecastCheckedAt`).
+    static func evaluate(today: TomorrowAlarmStatus, isAlarmEnabled: Bool, rainLeadTimeMinutes: Int,
+                         log: WeatherDecisionLog, weekly: Bool = true, now: Date, calendar: Calendar) -> UnrecheckedMorning? {
+        guard decidesByForecast(today, isAlarmEnabled: isAlarmEnabled, rainLeadTimeMinutes: rainLeadTimeMinutes) else { return nil }
+        let morning = today.normalAlarmDate
+        let checkPoint = morning.addingTimeInterval(-Double(rainLeadTimeMinutes) * 60)
+        guard now >= checkPoint, now < morning.addingTimeInterval(WeatherDecisionLog.retrospective),
+              calendar.isDate(now, inSameDayAs: morning),
+              !log.wasRechecked(morning: morning, checkPoint: checkPoint),
+              log.latestForecast(before: checkPoint) != nil else { return nil }
+        let forecast = log.latestForecast(before: checkPoint, for: morning)
+            ?? (weekly ? log.latestForecast(before: checkPoint) : nil)
+        return UnrecheckedMorning(morning: morning, forecastCheckedAt: forecast)
+    }
+
+    /// The launch-time counterpart: the card's coming morning is one a forecast decides, inside
+    /// its re-check window, and no decision in it is on record, so opening the app must re-decide
+    /// even if the last decision is younger than `AlarmViewModel.weatherDecisionLifetime`;
+    /// otherwise an evening open would leave the morning flagged although the app was running.
+    /// Not before a day that does not ring (a weekend, a holiday, a skip, a closure): nothing
+    /// would ever record it, so every open there would re-fetch for nothing.
+    static func awaitsRecheck(coming: TomorrowAlarmStatus, isAlarmEnabled: Bool, rainLeadTimeMinutes: Int,
+                              log: WeatherDecisionLog, now: Date) -> Bool {
+        guard decidesByForecast(coming, isAlarmEnabled: isAlarmEnabled, rainLeadTimeMinutes: rainLeadTimeMinutes) else { return false }
+        let checkPoint = coming.normalAlarmDate.addingTimeInterval(-Double(rainLeadTimeMinutes) * 60)
+        guard now >= checkPoint.addingTimeInterval(-WeatherDecisionLog.recheckWindow), now < checkPoint else { return false }
+        return !log.wasRechecked(morning: coming.normalAlarmDate, checkPoint: checkPoint)
+    }
+
+    /// A ring day a forecast decides: the alarm on, a rain lead, and a normal, rain or manual-ring
+    /// day with a ring.
+    private static func decidesByForecast(_ status: TomorrowAlarmStatus, isAlarmEnabled: Bool, rainLeadTimeMinutes: Int) -> Bool {
+        guard isAlarmEnabled, rainLeadTimeMinutes > 0, status.expectedRingDate != nil else { return false }
+        switch status.reason {
+        case .normal, .rain, .manual: return true
+        default: return false
+        }
+    }
+
+    /// The Alarm card's caption: 今天響鈴前沒有重新確認天氣，鬧鐘依 <when> 的預報決定。 where <when> is the
+    /// time alone today, 昨天 and the time yesterday, else the date and time; without a deciding
+    /// forecast (a dated plan's morning), 今天響鈴前沒有確認天氣，鬧鐘照原定時間響。 While background
+    /// updates cannot run at all, the reason follows, in the present tense so it is true when read.
+    func captionText(now: Date, calendar: Calendar, format: ClockTimeFormat, canRefreshInBackground: Bool) -> String {
+        var text: String
+        if let fetched = forecastCheckedAt {
+            let when: String
+            if calendar.isDate(fetched, inSameDayAs: now) {
+                when = format.time(fetched)
+            } else if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(fetched, inSameDayAs: yesterday) {
+                when = String.localizedStringWithFormat(String(localized: "ux_time_yesterday"), format.time(fetched))
+            } else {
+                when = format.dateTime(fetched)
+            }
+            text = String.localizedStringWithFormat(String(localized: "ux_today_not_rechecked"), when)
+        } else {
+            text = String(localized: "ux_today_not_checked")
+        }
+        if !canRefreshInBackground { text += " " + String(localized: "ux_no_background_now") }
+        return text
+    }
+}
+
 /// The request whose refresh last failed, kept beside `TomorrowWeatherRecord`. A launch that
 /// publishes without trying the fetch (a background run out of time, a closure push) builds a
 /// fresh model; without this it would forget the failure and publish the old forecast with no

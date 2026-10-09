@@ -42,7 +42,7 @@ final class TomorrowWidgetStringsTests: XCTestCase {
         var lines: [Line] = TomorrowWidgetSnapshot.ScheduleIssue.allCases.map { .issue($0) }
         lines += TomorrowWidgetSnapshot.WeatherNotice.allCases.map { .notice($0) }
         lines += TomorrowWidgetSnapshot.WeatherNotice.allCases.map { .todayNotice($0) }
-        lines += [.ringsAsUsual]
+        lines += [.ringsAsUsual, .notRechecked(retrospective: false), .notRechecked(retrospective: true)]
         let reasons: [TomorrowWidgetSnapshot.ReasonLine] = [
             .rainForecast(percent: 80, minutes: 30), .rainEarlier(minutes: 30), .awaitingForecast, .holidayNamed("國慶日"), .holiday,
             .manualSkip, .manualRing, .weekend, .unselectedWeekday, .closure, .routeNeeded, .alarmOff, .skippedOnce]
@@ -81,8 +81,9 @@ final class TomorrowWidgetStringsTests: XCTestCase {
         }
         // 44 for the widget, plus the master switch's circular word and two short lines (1.8.0),
         // plus the inline one-time skip (today, tomorrow) and the closure source credit and time,
-        // plus today's "no forecast yet" and today's forecast time in the medium's column (2026-10-02).
-        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 53)
+        // plus today's "no forecast yet" and today's forecast time in the medium's column (2026-10-02),
+        // plus today's "not re-checked" line, full and short (2026-10-09).
+        XCTAssertEqual(TomorrowWidgetStrings.widgetOnlyKeys.count, 55)
         XCTAssertTrue(TomorrowWidgetStrings.widgetOnlyKeys.contains("widget_forecast_as_of"))
         XCTAssertEqual(Set(TomorrowWidgetStrings.widgetOnlyKeys).count, TomorrowWidgetStrings.widgetOnlyKeys.count)
         for language in languages {

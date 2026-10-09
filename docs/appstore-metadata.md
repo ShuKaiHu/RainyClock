@@ -17,7 +17,13 @@
 > no warning on any face, tomorrow's as today's already was; only a failed refresh or a schedule issue warns — owner,
 > 2026-10-09, `PRODUCT_DECISIONS.md`), and the version numbers. `TomorrowWidgetViews.swift` also carries the
 > test-only render harness (`8b12b15`: `#if` guards and a `bundle` field that defaults to `.main`), which changes
-> nothing the widget draws. No new permission, endpoint, SDK or data; the description, keywords, screenshots and the
+> nothing the widget draws. Also 2026-10-09 (owner: 「兩件事都做」): "today's alarm was not re-checked" — a
+> `WeatherDecisionLog` recorded where a forecast decision is registered (`AlarmViewModel`), the rule in
+> `TomorrowAlarmStatus.swift` (`UnrecheckedMorning`), an optional `Entry.notRecheckedMorning` in the widget snapshot
+> (still version 4), a neutral line in `TomorrowWidgetPresentation`, a caption on the Alarm card (`ContentView.swift`),
+> and an app open inside the morning's 9-hour window re-deciding; and the medium widget's left half reads in
+> VoiceOver the line it draws (`TomorrowWidgetViews.swift`). Rules and the owner's open choices:
+> `PRODUCT_DECISIONS.md`. No new permission, endpoint, SDK or data; the description, keywords, screenshots and the
 > privacy questionnaire do not change.
 >
 > The 1.8.0 description, keywords and screenshots stay. **Paste this review note, not the 40 one:
@@ -36,6 +42,7 @@
 • Lock Screen widget: the header no longer gets cut off in English.
 • Settings › Time: Early alarm and Rain threshold now open separately, and each shows the full rule.
 • Widget: no more warning sign just because the forecast is a few hours old. It only warns when something actually failed.
+• Alarm card and widget: if the weather couldn't be re-checked before today's alarm (Background App Refresh off, Low Power Mode, phone off overnight), they now say so.
 ```
 
 ### What's New — 繁體中文（草稿）
@@ -45,6 +52,7 @@
 ・鎖定畫面小工具：英文標題不再被截斷。
 ・設定 › 時間：「提早時間」與「降雨門檻」改為各自開啟，兩邊都會顯示完整規則。
 ・小工具：預報只是放久了不再顯示驚嘆號，只有真的更新失敗才會提醒。
+・鬧鐘卡片與小工具：響鈴前沒能重新確認天氣時（背景 App 重新整理關閉、低耗電模式、整晚關機），現在會註明。
 ```
 
 ### Before pasting — internal, not App Store copy

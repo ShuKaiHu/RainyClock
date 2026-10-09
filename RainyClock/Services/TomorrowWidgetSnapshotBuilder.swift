@@ -327,10 +327,12 @@ enum TomorrowWidgetSnapshotBuilder {
             candidates.append(normal.addingTimeInterval(-Double(context.rainLeadTimeMinutes) * 60 + epsilon))
         }
         // Today's entry ends after its ring (or normal time) second; the exact second too,
-        // so the switch is never late by ε.
+        // so the switch is never late by ε. "Not re-checked" ends `retrospective` after the
+        // normal time (it starts at the check point, already a candidate above).
         for today in todays {
             candidates.append(todayShownUntil(today).addingTimeInterval(epsilon))
             candidates.append(today.normalAlarmDate.addingTimeInterval(epsilon))
+            candidates.append(today.normalAlarmDate.addingTimeInterval(WeatherDecisionLog.retrospective))
         }
         // Where `rollingForwardAsPair` changes the rolled summary (a ring passing).
         for anchor in context.ringAnchors {
@@ -354,8 +356,11 @@ enum TomorrowWidgetSnapshotBuilder {
     /// `status` resolves calendar tomorrow (`AlarmViewModel.calendarTomorrowStatus`), and
     /// `today` the day that has begun (`AlarmViewModel.todayStatus`); without it every entry
     /// describes tomorrow.
+    /// `notRechecked` is today's unconfirmed ring morning at a moment (`UnrecheckedMorning`), or
+    /// nil; every entry carries it, and the presentation decides where it shows.
     static func snapshot(now: Date, context: Context, status: (Date) -> TomorrowAlarmStatus,
-                         today: ((Date) -> TomorrowAlarmStatus)? = nil) -> TomorrowWidgetSnapshot {
+                         today: ((Date) -> TomorrowAlarmStatus)? = nil,
+                         notRechecked: ((Date) -> Date?)? = nil) -> TomorrowWidgetSnapshot {
         let expires = expiresAt(now: now, calendar: context.calendar)
         let first = status(now)
         let midnight = context.calendar.date(byAdding: .day, value: 1, to: context.calendar.startOfDay(for: now))
@@ -363,6 +368,11 @@ enum TomorrowWidgetSnapshotBuilder {
         let atMidnight = status(midnight)
         let todays = today.map { provider in [now, midnight].map(provider) } ?? []
         func shown(at moment: Date) -> TomorrowWidgetSnapshot.Entry {
+            var shown = alarmEntry(at: moment)
+            shown.notRecheckedMorning = notRechecked?(moment)
+            return shown
+        }
+        func alarmEntry(at moment: Date) -> TomorrowWidgetSnapshot.Entry {
             if let today {
                 let value = today(moment)
                 if moment <= todayShownUntil(value) {
@@ -428,7 +438,7 @@ enum TomorrowWidgetSnapshotBuilder {
     /// calendar tomorrow.
     static func snapshot(for model: AlarmViewModel, now: Date = Date()) -> TomorrowWidgetSnapshot {
         snapshot(now: now, context: context(for: model), status: { model.calendarTomorrowStatus(now: $0) },
-                 today: { model.todayStatus(now: $0) })
+                 today: { model.todayStatus(now: $0) }, notRechecked: { model.unrecheckedMorning(now: $0)?.morning })
     }
 
     private static func percent(_ probability: Double) -> Int {

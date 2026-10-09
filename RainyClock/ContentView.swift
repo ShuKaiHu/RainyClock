@@ -430,9 +430,29 @@ private struct AlarmHomeView: View {
                     .font(.caption2).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).frame(maxWidth: .infinity)
             }
+            // Today's ring morning that no newer forecast confirmed (owner, 2026-10-09): a quiet
+            // caption, never the orange issue box (nothing re-decides after the check point, so
+            // nothing could clear it), and an issue the card shows outranks it.
+            if scheduleIssue == nil, let unconfirmed = viewModel.unrecheckedMorning(now: now) {
+                notRecheckedCaption(unconfirmed)
+            }
         }.padding(compact ? 15 : 18)
             .frame(maxWidth: .infinity)
             .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+    }
+
+    /// `UnrecheckedMorning.captionText`, quiet: caption, secondary, an accent icon.
+    private func notRecheckedCaption(_ unconfirmed: UnrecheckedMorning) -> some View {
+        let text = unconfirmed.captionText(now: now, calendar: AlarmCalendarSettings.calendar,
+                                           format: viewModel.settings.timeFormat,
+                                           canRefreshInBackground: viewModel.canRefreshWeatherInBackground)
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: "clock.arrow.circlepath").foregroundStyle(Color.accentColor)
+            Text(text).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.caption).foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     /// docs/DAYOFF-SPEC.md §7: a surface that reports a closure names the source (the OGDL

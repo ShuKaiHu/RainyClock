@@ -125,3 +125,7 @@
    and inline faces cannot fit them, so they do not name the closure (merge review, 2026-10-01). */
 "widget_closure_source" = "Source: DGPA / NCDR";
 "widget_closure_source_updated" = "Source updated %@";
+
+/* Today's ring morning that no newer forecast confirmed: neutral, never a warning (owner, 2026-10-09). The short form is for today's entry only. */
+"widget_today_not_rechecked" = "Weather not re-checked today";
+"widget_not_rechecked_short" = "Weather not re-checked";

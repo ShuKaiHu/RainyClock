@@ -73,6 +73,9 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             .todayStale: (.alarm, "time", .ringsAsUsual),
             .todayWeatherFailed: (.alarm, "time", .ringsAsUsual),
             .todayForecastUnavailable: (.alarm, "time", .ringsAsUsual),
+            // Not re-checked (2026-10-09): neutral, in place of 照常響鈴.
+            .todayNotRechecked: (.alarm, "time", .notRechecked(retrospective: false)),
+            .notRechecked: (.alarm, "time", .notRechecked(retrospective: true)),
             .expired: (.refresh, "openApp.expired", nil),
             .missing: (.refresh, "openApp.missing", nil),
         ]
@@ -201,6 +204,72 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
         }
     }
 
+    /// "Not re-checked" (owner, 2026-10-09) is neutral on every face. On today's entry only an
+    /// issue and a manual-ring day's reason come before it; the weather-decided lines describe a
+    /// check that did not happen. After the ring, on tomorrow's entries, tomorrow's reason comes
+    /// first, and it takes the place of tomorrow's notice and 照常響鈴; a failed refresh it
+    /// displaces is the badge. Its short form names no day, so a tomorrow entry keeps the full one.
+    func testNotRecheckedIsNeutralAndNeverHidesAnIssueOrTomorrowsNews() {
+        typealias Line = Presentation.Line
+        XCTAssertFalse(Line.notRechecked(retrospective: false).isWarning)
+        XCTAssertFalse(Line.notRechecked(retrospective: true).isWarning)
+        XCTAssertNil(Line.notRechecked(retrospective: false).leadingSymbol)
+        XCTAssertEqual(Line.notRechecked(retrospective: false).full.key, "widget_today_not_rechecked")
+        XCTAssertEqual(Line.notRechecked(retrospective: true).full.key, "widget_today_not_rechecked")
+        XCTAssertEqual(Line.notRechecked(retrospective: false).short.key, "widget_not_rechecked_short")
+        XCTAssertEqual(Line.notRechecked(retrospective: true).short.key, "widget_today_not_rechecked")
+
+        func face(_ scenario: Scenario, _ edit: (inout TomorrowWidgetSnapshot.Entry) -> Void = { _ in }) -> Presentation {
+            guard case .status(var entry) = state(scenario) else { XCTFail("\(scenario) must be a status"); return presentation(scenario) }
+            entry.notRecheckedMorning = entry.normalAlarmDate
+            edit(&entry)
+            return Presentation(.status(entry), language: "zh-Hant")
+        }
+        // Today.
+        for scenario in [Scenario.todayNormal, .todayRain, .todayCarriedOver, .todayStale, .todayWeatherFailed, .todayForecastUnavailable] {
+            XCTAssertEqual(face(scenario).line, .notRechecked(retrospective: false), "\(scenario)")
+            XCTAssertFalse(face(scenario).showsWarningBadge, "\(scenario)")
+        }
+        XCTAssertEqual(face(.todayManualRing).line, .todayReason(.manualRing), "A day the user set to ring says so first")
+        XCTAssertEqual(face(.todayNormal) { $0.scheduleIssue = .updateNeeded }.line, .issue(.updateNeeded))
+        // Tomorrow, after today's ring.
+        XCTAssertEqual(face(.normalClear).line, .notRechecked(retrospective: true))
+        XCTAssertEqual(face(.normalClear).mediumLine, .notRechecked(retrospective: true))
+        XCTAssertEqual(face(.forecastUnavailable).line, .notRechecked(retrospective: true))
+        XCTAssertEqual(face(.forecastUnavailable).weatherColumnNotice, .notice(.noForecast), "The column still says it")
+        // A failed refresh keeps the line, with its triangle, on every face (the rectangular has no
+        // badge); the medium's column says it, so the medium's left footer is the notice.
+        XCTAssertEqual(face(.weatherFailed).line, .notice(.failed))
+        XCTAssertFalse(face(.weatherFailed).showsWarningBadge, "The line is the warning")
+        XCTAssertEqual(face(.weatherFailed).mediumLine, .notRechecked(retrospective: true))
+        XCTAssertEqual(face(.rainForecast).line, .reason(.rainEarlier(minutes: 30)), "Tomorrow's own news wins")
+        XCTAssertEqual(face(.rainForecast).mediumLine, presentation(.rainForecast).mediumLine)
+        XCTAssertEqual(face(.holidayNamed).line, presentation(.holidayNamed).line)
+        XCTAssertEqual(face(.holidayNamed).inlineSkippedText, presentation(.holidayNamed).inlineSkippedText)
+        XCTAssertEqual(face(.scheduleUpdateNeeded).line, .issue(.updateNeeded))
+        // Nothing else moves: hero, glyph, sky, relevance.
+        for scenario in Scenario.allCases {
+            guard case .status = state(scenario) else { continue }
+            let plain = presentation(scenario), flagged = face(scenario)
+            XCTAssertEqual(flagged.hero, plain.hero, "\(scenario)")
+            XCTAssertEqual(flagged.glyph, plain.glyph, "\(scenario)")
+            XCTAssertEqual(flagged.accessoryGlyph, plain.accessoryGlyph, "\(scenario)")
+            XCTAssertEqual(flagged.home, plain.home, "\(scenario)")
+            XCTAssertEqual(flagged.relevanceScore, plain.relevanceScore, "\(scenario)")
+            XCTAssertEqual(flagged.weatherColumnFooter, plain.weatherColumnFooter, "\(scenario)")
+            XCTAssertEqual(flagged.showsWarningBadge, plain.showsWarningBadge, "\(scenario): no warning appears or disappears")
+            // Tomorrow's own news and every warning keep their place.
+            if !plain.isToday, let line = plain.line {
+                switch line {
+                case .reason, .issue, .notice(.failed): XCTAssertEqual(flagged.line, plain.line, "\(scenario)")
+                default: break
+                }
+            }
+            if !plain.isToday, case .reason? = plain.mediumLine { XCTAssertEqual(flagged.mediumLine, plain.mediumLine, "\(scenario)") }
+            if case .issue? = plain.line { XCTAssertEqual(flagged.line, plain.line, "\(scenario)") }
+        }
+    }
+
     func testMediumLineNeverRepeatsTheWeatherColumn() {
         // The weather column prints the notice; the left footer falls through to the next
         // priority, and with a notice present there is none (route rain needs fresh weather).
@@ -326,8 +395,10 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
             }
             let face = faces[0]
             XCTAssertFalse(faces.last!.hasForecastSky, "\(scenario): no forecast, no sky and no mark")
-            // A normal ringing day says so, unless an issue or a freshness notice comes first.
-            if base.reasonLine == nil, base.expectedRingDate != nil, base.scheduleIssue == nil, base.weatherNotice == nil {
+            // A normal ringing day says so, unless an issue, a freshness notice or "not re-checked"
+            // (2026-10-09) comes first.
+            if base.reasonLine == nil, base.expectedRingDate != nil, base.scheduleIssue == nil, base.weatherNotice == nil,
+               base.notRecheckedMorning == nil {
                 XCTAssertEqual(face.line, .ringsAsUsual, "\(scenario)")
             }
         }
@@ -338,7 +409,7 @@ final class TomorrowWidgetPresentationTests: XCTestCase {
 
     /// D-C: today's entry names today everywhere a day is named.
     func testTodayEntriesSayToday() {
-        XCTAssertEqual(todayScenarios.count, 13)
+        XCTAssertEqual(todayScenarios.count, 14)
         for scenario in todayScenarios {
             let value = presentation(scenario)
             XCTAssertTrue(value.isToday, "\(scenario)")

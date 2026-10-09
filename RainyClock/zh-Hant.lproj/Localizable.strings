@@ -490,3 +490,11 @@
 "evening_preview_skip_once" = "依你的選擇，明天的鬧鐘只關閉這一次，之後的鬧鐘照常響。";
 "alarm_renew_title" = "讓鬧鐘繼續響";
 "alarm_renew_body" = "已排程的鬧鐘將在一週後到期。請開啟雨天鬧鐘，讓每週鬧鐘繼續響鈴。";
+
+/* Alarm card: today's ring morning that no newer forecast confirmed (owner, 2026-10-09). %@ is when that forecast was fetched (a time, 昨天 + a time, or a date and time). */
+"ux_today_not_rechecked" = "今天響鈴前沒有重新確認天氣，鬧鐘依 %@ 的預報決定。";
+"ux_time_yesterday" = "昨天 %@";
+/* Appended to it while background updates cannot run at all. Present tense: true when read. */
+"ux_no_background_now" = "目前無法在背景更新預報（低耗電模式，或背景 App 重新整理已關閉）。";
+/* Alarm card: the same, on a dated plan's morning that no forecast decided: it rings at its normal time. */
+"ux_today_not_checked" = "今天響鈴前沒有確認天氣，鬧鐘照原定時間響。";

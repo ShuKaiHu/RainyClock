@@ -485,6 +485,25 @@ final class SkipNextAlarmTests: XCTestCase {
         return model
     }
 
+    /// The dated path records the forecast it attached to its first occurrence (2026-10-09), and
+    /// only when it fetched one: the one-time skip re-plans without a forecast and records nothing.
+    func testTheDatedPathLogsOnlyAFreshForecastDecision() async throws {
+        let scheduler = CalendarSchedulerSpy()
+        let model = await weeklyModel(scheduler)
+        let weekly = WeatherDecisionLog.load(from: storage)
+        XCTAssertEqual(weekly.decisions.map(\.morning), [try XCTUnwrap(model.scheduledAlarmSummary?.normalAlarmDate)])
+        guard case .available(let target) = model.skipAvailability() else { return XCTFail("\(model.skipAvailability())") }
+        let skipped = await model.skipNextAlarm(target)
+        XCTAssertTrue(skipped)
+        XCTAssertEqual(WeatherDecisionLog.load(from: storage), weekly, "A skip re-plans without a new forecast")
+        await model.evaluateRouteAndScheduleAlarm()
+        let next = try XCTUnwrap(scheduler.plans.last?.occurrences.first)
+        let logged = WeatherDecisionLog.load(from: storage)
+        XCTAssertEqual(logged.decisions.count, 2)
+        XCTAssertEqual(logged.decisions.last?.morning, next.normalDate, "Keyed by the occurrence the forecast decided")
+        XCTAssertLessThan(abs(try XCTUnwrap(logged.decisions.last?.checkedAt).timeIntervalSinceNow), 60)
+    }
+
     func testSkipNextOnAWeeklyAlarmRegistersADatedPlanWithoutThatMorning() async throws {
         let scheduler = CalendarSchedulerSpy()
         let model = await weeklyModel(scheduler)

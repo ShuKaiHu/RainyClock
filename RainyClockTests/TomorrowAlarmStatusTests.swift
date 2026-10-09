@@ -952,3 +952,147 @@ private final class TomorrowSchedulerSpy: NotificationScheduling, @unchecked Sen
     }
     func cancelScheduledAlarms() async { lock.withLock { storedCalls += 1 } }
 }
+
+/// "Today was not re-checked" (owner, 2026-10-09): the evidence log and the rule. A 07:00 alarm
+/// with a 30-minute lead has its check point at 06:30 and its re-check window from 21:30 the
+/// evening before (`WeatherDecisionLog.recheckWindow`, the nine hours the app asks iOS for).
+final class UnrecheckedMorningTests: XCTestCase {
+    private var calendar: Calendar { AlarmCalendarSettings.calendar }
+    private func d(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour, minute: minute))!
+    }
+    private func today(_ reason: TomorrowAlarmStatus.Reason = .normal, ring: Date?? = nil) -> TomorrowAlarmStatus {
+        TomorrowAlarmStatus(day: d(10, 0), normalAlarmDate: d(10, 7), expectedRingDate: ring ?? d(10, 7), reason: reason,
+                            holidayName: nil, leadTimeMinutes: 0, weather: nil, weatherIsStale: false, weatherRefreshFailed: false,
+                            registeredRingDate: nil, isScheduleVerified: false, disasterNoticeIDs: [])
+    }
+    private func evaluate(_ log: WeatherDecisionLog, at now: Date, status: TomorrowAlarmStatus? = nil,
+                          lead: Int = 30, enabled: Bool = true) -> UnrecheckedMorning? {
+        UnrecheckedMorning.evaluate(today: status ?? today(), isAlarmEnabled: enabled, rainLeadTimeMinutes: lead,
+                                    log: log, now: now, calendar: calendar)
+    }
+    private func log(_ decisions: (morning: Date, checkedAt: Date)...) -> WeatherDecisionLog {
+        var value = WeatherDecisionLog()
+        for decision in decisions { value.record(morning: decision.morning, checkedAt: decision.checkedAt) }
+        return value
+    }
+
+    func testTheWindowIsWhatTheAppAsksIOSFor() {
+        XCTAssertEqual(WeatherDecisionLog.recheckWindow, 9 * 3_600)
+        XCTAssertEqual(WeatherDecisionLog.recheckWindow, BackgroundWeatherRefresh.processingLeadTime)
+        XCTAssertEqual(WeatherDecisionLog.retrospective, 3 * 3_600)
+    }
+
+    func testAMorningDecidedOnlyTheEveningBeforeIsNotRechecked() {
+        let evening = log((d(10, 7), d(9, 20)))
+        XCTAssertNil(evaluate(evening, at: d(10, 6, 29)), "Before the check point a re-check can still happen")
+        XCTAssertEqual(evaluate(evening, at: d(10, 6, 30)), UnrecheckedMorning(morning: d(10, 7), forecastCheckedAt: d(9, 20)))
+        XCTAssertNotNil(evaluate(evening, at: d(10, 7, 0)), "At the ring")
+        XCTAssertNotNil(evaluate(evening, at: d(10, 9, 59)), "Retrospective: three hours after the normal time")
+        XCTAssertNil(evaluate(evening, at: d(10, 10, 0)))
+    }
+
+    func testAnyDecisionInTheNineHoursBeforeTheCheckPointCounts() {
+        for checked in [d(9, 21, 30), d(10, 2), d(10, 6, 29)] {
+            XCTAssertNil(evaluate(log((d(10, 7), d(9, 20)), (d(10, 7), checked)), at: d(10, 6, 45)), "\(checked)")
+        }
+        XCTAssertNotNil(evaluate(log((d(10, 7), d(9, 21, 29))), at: d(10, 6, 45)), "Just before the window opened")
+        // A forecast fetched after the check point cannot have moved the ring, and must not
+        // erase the evening decision the alarm rings on.
+        let late = log((d(10, 7), d(9, 20)), (d(10, 7), d(10, 6, 31)))
+        XCTAssertEqual(evaluate(late, at: d(10, 6, 45))?.forecastCheckedAt, d(9, 20))
+        // A decision in the window for another morning is not this morning's.
+        XCTAssertNotNil(evaluate(log((d(9, 7), d(9, 20)), (d(11, 7), d(10, 2))), at: d(10, 6, 45)))
+    }
+
+    func testOnlyARingDayAForecastDecidesWithALeadAndAHistory() {
+        let evening = log((d(10, 7), d(9, 20)))
+        XCTAssertNotNil(evaluate(evening, at: d(10, 6, 45), status: today(.rain, ring: d(10, 6, 30))))
+        XCTAssertNotNil(evaluate(evening, at: d(10, 6, 45), status: today(.manual)))
+        for reason in [TomorrowAlarmStatus.Reason.holiday, .weekend, .unselectedWeekday, .disaster, .routeIncomplete, .alarmOff, .skippedOnce] {
+            XCTAssertNil(evaluate(evening, at: d(10, 6, 45), status: today(reason, ring: .some(nil))), "\(reason)")
+        }
+        XCTAssertNil(evaluate(evening, at: d(10, 6, 45), status: today(.normal, ring: .some(nil))), "No ring")
+        XCTAssertNil(evaluate(evening, at: d(10, 6, 45), enabled: false), "Off")
+        XCTAssertNil(evaluate(evening, at: d(10, 6, 45), lead: 0), "Without a lead there is nothing to re-check")
+        XCTAssertNil(evaluate(WeatherDecisionLog(), at: d(10, 6, 45)), "Never decided from a forecast: a first install")
+        XCTAssertNil(evaluate(log((d(10, 7), d(10, 6, 40))), at: d(10, 6, 45)), "Only decided after the check point")
+    }
+
+    func testTheRetrospectiveEndsAtMidnight() {
+        // A 22:30 alarm: three hours after it would run past midnight.
+        let late = TomorrowAlarmStatus(day: d(10, 0), normalAlarmDate: d(10, 22, 30), expectedRingDate: d(10, 22, 30), reason: .normal,
+                                       holidayName: nil, leadTimeMinutes: 0, weather: nil, weatherIsStale: false, weatherRefreshFailed: false,
+                                       registeredRingDate: nil, isScheduleVerified: false, disasterNoticeIDs: [])
+        let decided = log((d(10, 22, 30), d(10, 12)))
+        XCTAssertNotNil(evaluate(decided, at: d(10, 23, 59), status: late))
+        XCTAssertNil(evaluate(decided, at: d(11, 0, 0), status: late))
+    }
+
+    func testTheLogKeepsRecentDecisionsAndSurvivesStorage() throws {
+        var value = WeatherDecisionLog()
+        for hour in 0..<20 { value.record(morning: d(10, 7), checkedAt: d(9, hour)) }
+        value.record(morning: d(10, 7), checkedAt: d(9, 19))
+        XCTAssertEqual(value.decisions.count, WeatherDecisionLog.maximumDecisions)
+        XCTAssertEqual(value.decisions.first?.checkedAt, d(9, 4), "The oldest go first")
+        XCTAssertEqual(value.latestForecast(before: d(9, 10)), d(9, 9))
+        let suite = "UnrecheckedMorningTests.\(UUID().uuidString)"
+        let storage = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { storage.removePersistentDomain(forName: suite) }
+        XCTAssertEqual(WeatherDecisionLog.load(from: storage), WeatherDecisionLog())
+        value.save(to: storage)
+        XCTAssertEqual(WeatherDecisionLog.load(from: storage), value)
+    }
+
+    func testOpeningTheAppInsideTheWindowReDecidesOnlyBeforeARingDayWithoutADecisionThere() {
+        let coming = today()   // 07:00 on 10/10, check point 06:30, window from 21:30 on 10/9
+        func awaits(_ log: WeatherDecisionLog, status: TomorrowAlarmStatus = coming, at now: Date = d(9, 22),
+                    lead: Int = 30, enabled: Bool = true) -> Bool {
+            UnrecheckedMorning.awaitsRecheck(coming: status, isAlarmEnabled: enabled, rainLeadTimeMinutes: lead, log: log, now: now)
+        }
+        XCTAssertTrue(awaits(self.log((d(10, 7), d(9, 20)))))
+        XCTAssertFalse(awaits(self.log((d(10, 7), d(9, 21, 45)))), "Decided inside the window already")
+        XCTAssertFalse(awaits(WeatherDecisionLog(), at: d(9, 20)), "Before the window: the 4-hour rule stands")
+        XCTAssertFalse(awaits(WeatherDecisionLog(), at: d(10, 6, 30)), "From the check point nothing re-decides")
+        XCTAssertFalse(awaits(WeatherDecisionLog(), lead: 0))
+        XCTAssertFalse(awaits(WeatherDecisionLog(), enabled: false))
+        // Friday night before a Mon–Fri user's Saturday, a holiday, a skip or a closure: nothing
+        // would ever record that morning, so every open would re-fetch for nothing.
+        for reason in [TomorrowAlarmStatus.Reason.unselectedWeekday, .weekend, .holiday, .skippedOnce, .disaster] {
+            XCTAssertFalse(awaits(WeatherDecisionLog(), status: today(reason, ring: .some(nil))), "\(reason)")
+        }
+    }
+
+    /// The card names the forecast the alarm rings on: this morning's last decision; on a weekly
+    /// registration, which repeats the last decision's time, the last one for any morning; on a
+    /// dated plan with none for this morning, no forecast: it rings at its normal time.
+    func testTheForecastNamedIsTheOneTheAlarmRingsOn() {
+        let mixed = log((d(9, 7), d(9, 6)), (d(10, 7), d(9, 20)), (d(11, 7), d(9, 21)))
+        XCTAssertEqual(evaluate(mixed, at: d(10, 6, 45))?.forecastCheckedAt, d(9, 20), "This morning's own decision")
+        let otherMorning = log((d(9, 7), d(9, 6)))
+        XCTAssertEqual(evaluate(otherMorning, at: d(10, 6, 45))?.forecastCheckedAt, d(9, 6), "Weekly: the repeat carries it")
+        let dated = UnrecheckedMorning.evaluate(today: today(), isAlarmEnabled: true, rainLeadTimeMinutes: 30, log: otherMorning,
+                                                weekly: false, now: d(10, 6, 45), calendar: calendar)
+        XCTAssertEqual(dated, UnrecheckedMorning(morning: d(10, 7), forecastCheckedAt: nil), "Dated: no forecast decided it")
+    }
+
+    func testTheCardCaptionNamesWhenTheForecastWasFetched() {
+        let format = ClockTimeFormat.twentyFourHour
+        func caption(_ fetched: Date?, background: Bool = true) -> String {
+            UnrecheckedMorning(morning: d(10, 7), forecastCheckedAt: fetched)
+                .captionText(now: d(10, 7, 10), calendar: calendar, format: format, canRefreshInBackground: background)
+        }
+        func sentence(_ when: String) -> String { String.localizedStringWithFormat(String(localized: "ux_today_not_rechecked"), when) }
+        XCTAssertEqual(caption(d(10, 5)), sentence(format.time(d(10, 5))), "This morning: the time alone")
+        XCTAssertEqual(caption(d(9, 21)),
+                       sentence(String.localizedStringWithFormat(String(localized: "ux_time_yesterday"), format.time(d(9, 21)))))
+        XCTAssertEqual(caption(d(8, 21)), sentence(format.dateTime(d(8, 21))), "Older: date and time")
+        XCTAssertEqual(caption(nil), String(localized: "ux_today_not_checked"))
+        XCTAssertEqual(caption(d(9, 21), background: false),
+                       caption(d(9, 21)) + " " + String(localized: "ux_no_background_now"))
+        XCTAssertTrue(caption(d(9, 21)).contains("21:00"))
+        for key in ["ux_today_not_rechecked", "ux_time_yesterday", "ux_no_background_now", "ux_today_not_checked"] {
+            XCTAssertNotEqual(String(localized: String.LocalizationValue(key)), key, "\(key) is translated")
+        }
+    }
+}

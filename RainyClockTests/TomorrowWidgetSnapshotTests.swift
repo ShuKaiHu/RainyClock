@@ -1163,6 +1163,73 @@ extension TomorrowWidgetSnapshotTests {
 
 /// The 2026-09-24 review of D-A to D-D: what AlarmKit will actually do, in the edge cases.
 extension TomorrowWidgetSnapshotTests {
+    /// "Not re-checked" (owner, 2026-10-09) is precomputed: a snapshot published the evening
+    /// before already holds it from the check point (07:00 for the 07:30 alarm with its 30-minute
+    /// lead) to three hours after the normal time, on today's entry and then tomorrow's, with
+    /// both ends as exact boundaries; a publish whose provider says nothing carries nothing.
+    func testNotRecheckedRunsFromTheCheckPointToThreeHoursAfterTheNormalTime() throws {
+        let evening = date(14, 21)
+        let value = settings()
+        let dry = record(value, requestedAt: evening, checkedAt: evening, probability: 0.1)
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7, 30))
+        let morning = date(15, 7, 30)
+        let checkPoint = date(15, 7)
+        let end = morning.addingTimeInterval(WeatherDecisionLog.retrospective)
+        let snapshot = Builder.snapshot(now: evening, context: context(value, summary: registered, clock: .twentyFourHour),
+                                        status: statusProvider(value, weather: dry, summary: registered),
+                                        today: statusProvider(value, weather: dry, summary: registered, dayOffset: 0),
+                                        notRechecked: { $0 >= checkPoint && $0 < end ? morning : nil })
+        XCTAssertTrue(snapshot.isValid)
+        XCTAssertTrue(snapshot.entries.contains { $0.validFrom == checkPoint }, "The check point is a boundary")
+        XCTAssertTrue(snapshot.entries.contains { $0.validFrom == end }, "So is the retrospective's end")
+        func face(at moment: Date) throws -> (Snapshot.Entry, TomorrowWidgetPresentation) {
+            let entry = try XCTUnwrap(shownEntry(snapshot, at: moment), "\(moment)")
+            return (entry, TomorrowWidgetPresentation(.status(entry), clockFormat: snapshot.clockFormat, language: "zh-Hant"))
+        }
+        let (before, beforeFace) = try face(at: date(15, 6, 59, 59))
+        XCTAssertNil(before.notRecheckedMorning)
+        XCTAssertEqual(beforeFace.line, .ringsAsUsual)
+        let (today, todayFace) = try face(at: date(15, 7, 10))
+        XCTAssertTrue(today.isToday)
+        XCTAssertEqual(today.notRecheckedMorning, morning)
+        XCTAssertEqual(todayFace.line, .notRechecked(retrospective: false))
+        XCTAssertFalse(todayFace.showsWarningBadge)
+        let (after, afterFace) = try face(at: date(15, 9))
+        XCTAssertFalse(after.isToday, "After the ring the widget describes tomorrow")
+        XCTAssertEqual(after.notRecheckedMorning, morning)
+        XCTAssertEqual(afterFace.line, .notRechecked(retrospective: true))
+        let (gone, goneFace) = try face(at: end)
+        XCTAssertNil(gone.notRecheckedMorning)
+        XCTAssertNotEqual(goneFace.line, .notRechecked(retrospective: true))
+
+        let quiet = Builder.snapshot(now: evening, context: context(value, summary: registered, clock: .twentyFourHour),
+                                     status: statusProvider(value, weather: dry, summary: registered),
+                                     today: statusProvider(value, weather: dry, summary: registered, dayOffset: 0),
+                                     notRechecked: { _ in nil })
+        XCTAssertTrue(quiet.entries.allSatisfy { $0.notRecheckedMorning == nil })
+    }
+
+    /// The new field is optional: a 1.8.0 snapshot (version 4, no such key) still decodes.
+    func testASnapshotWithoutTheNotRecheckedFieldStillDecodes() throws {
+        let value = settings()
+        let registered = summary(normal: date(15, 7, 30), ring: date(15, 7, 30))
+        let snapshot = Builder.snapshot(now: date(14, 21), context: context(value, summary: registered),
+                                        status: statusProvider(value, weather: nil, summary: registered),
+                                        notRechecked: { _ in self.date(15, 7, 30) })
+        let encoded = try JSONEncoder().encode(snapshot)
+        XCTAssertEqual(try JSONDecoder().decode(Snapshot.self, from: encoded), snapshot, "The field round-trips")
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var entries = try XCTUnwrap(json["entries"] as? [[String: Any]])
+        for index in entries.indices {
+            XCTAssertNotNil(entries[index]["notRecheckedMorning"])
+            entries[index].removeValue(forKey: "notRecheckedMorning")
+        }
+        json["entries"] = entries
+        let decoded = try JSONDecoder().decode(Snapshot.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertTrue(decoded.isValid)
+        XCTAssertTrue(decoded.entries.allSatisfy { $0.notRecheckedMorning == nil })
+    }
+
     /// The entry the widget renders at `moment`, as its timeline picks it.
     private func shownEntry(_ snapshot: Snapshot, at moment: Date) -> Snapshot.Entry? {
         let plan = TomorrowWidgetTimeline.plan(snapshot: snapshot, now: moment, currentTimeZoneID: calendar.timeZone.identifier)

@@ -41,7 +41,8 @@ enum BackgroundWeatherRefresh {
     static let refreshLeadTime: TimeInterval = 45 * 60
     /// How far ahead to ask for the overnight processing task — far enough back to
     /// land in the night before a morning alarm.
-    private static let processingLeadTime: TimeInterval = 9 * 60 * 60
+    /// Also what counts as re-checking a morning (`WeatherDecisionLog.recheckWindow`).
+    static let processingLeadTime: TimeInterval = 9 * 60 * 60
 
     private static let logger = Logger(subsystem: "com.shukaihu.RainyClock", category: "BackgroundRefresh")
 

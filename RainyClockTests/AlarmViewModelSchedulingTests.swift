@@ -438,6 +438,62 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         XCTAssertEqual(spy.scheduleCalls.count, 2)
     }
 
+    /// A registered forecast decision is recorded for the morning it decided (2026-10-09). Opening
+    /// the app inside that morning's re-check window keeps a young decision made in it, but
+    /// re-decides when none is on record there, however young `lastWeatherEvaluationAt` is: else
+    /// an evening open would leave the morning reading "not re-checked" though the app ran.
+    func testARegisteredDecisionIsLoggedAndAnOpenInsideTheWindowReDecidesWithoutOne() async throws {
+        let spy = SchedulerSpy()
+        let viewModel = makeViewModel(spy: spy)
+        viewModel.settings.rainLeadTimeMinutes = 30
+        // The check point two hours ahead: now is inside its nine-hour window.
+        viewModel.settings.alarmTime = Date().addingTimeInterval(2.5 * 3_600)
+        await viewModel.evaluateRouteAndScheduleAlarm()
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
+        let morning = try XCTUnwrap(viewModel.scheduledAlarmSummary?.normalAlarmDate)
+        let logged = WeatherDecisionLog.load(from: storage)
+        XCTAssertEqual(logged.decisions.map(\.morning), [morning])
+        XCTAssertLessThan(abs(try XCTUnwrap(logged.decisions.first?.checkedAt).timeIntervalSinceNow), 60)
+
+        await viewModel.refreshScheduledAlarmIfWeatherIsStale()
+        XCTAssertEqual(spy.scheduleCalls.count, 1, "A decision inside the window is the re-check")
+
+        // Only an evening decision before the window is on record; the last evaluation is young.
+        var evening = WeatherDecisionLog()
+        evening.record(morning: morning, checkedAt: morning.addingTimeInterval(-11 * 3_600))
+        evening.save(to: storage)
+        let relaunched = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: spy,
+                                        settingsStorage: storage, autoRefreshDebounce: .milliseconds(80))
+        // Moments on the morning's own calendar day (the morning can fall just after midnight).
+        let calendar = AlarmCalendarSettings.calendar
+        let dayStart = calendar.startOfDay(for: morning)
+        let dayEnd = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: dayStart))
+        let afterCheckPoint = max(morning.addingTimeInterval(-10 * 60), dayStart)
+        let afterRing = min(morning.addingTimeInterval(5 * 60), dayEnd.addingTimeInterval(-1))
+        let expected = UnrecheckedMorning(morning: morning, forecastCheckedAt: morning.addingTimeInterval(-11 * 3_600))
+        XCTAssertEqual(relaunched.unrecheckedMorning(now: afterCheckPoint), expected,
+                       "As things stand, the morning would ring on the evening forecast")
+        XCTAssertEqual(relaunched.unrecheckedMorning(now: afterRing), expected, "And says so after the ring")
+        if morning.addingTimeInterval(WeatherDecisionLog.retrospective) < dayEnd {
+            XCTAssertNil(relaunched.unrecheckedMorning(now: morning.addingTimeInterval(WeatherDecisionLog.retrospective)))
+        }
+        // The widget's adapter samples the same rule at its entries' moments.
+        let snapshot = TomorrowWidgetSnapshotBuilder.snapshot(for: relaunched)
+        func shown(at moment: Date) -> TomorrowWidgetSnapshot.Entry? {
+            let plan = TomorrowWidgetTimeline.plan(snapshot: snapshot, now: moment, currentTimeZoneID: calendar.timeZone.identifier)
+            if case .status(let entry) = plan.items[0].state { return entry }
+            return nil
+        }
+        XCTAssertEqual(shown(at: afterCheckPoint)?.notRecheckedMorning, morning)
+        XCTAssertNil(shown(at: Date())?.notRecheckedMorning, "Not before the check point")
+        await relaunched.refreshScheduledAlarmIfWeatherIsStale()
+        XCTAssertEqual(spy.scheduleCalls.count, 2, "Inside the window with no decision there: this open re-decides")
+        XCTAssertTrue(WeatherDecisionLog.load(from: storage).wasRechecked(
+            morning: morning, checkPoint: morning.addingTimeInterval(-30 * 60)))
+        XCTAssertNil(relaunched.unrecheckedMorning(now: afterCheckPoint))
+        XCTAssertNil(relaunched.unrecheckedMorning(now: afterRing))
+    }
+
     /// The refresh runs unprompted, so a failure must not replace the status line of an
     /// alarm that is still correctly armed from the previous run.
     func testAStaleRefreshThatFailsKeepsTheAlarmAndItsStatusMessage() async throws {

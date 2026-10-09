@@ -490,3 +490,11 @@
 "evening_preview_skip_once" = "Tomorrow's alarm is off just this once, as you chose. Alarms after it ring as usual.";
 "alarm_renew_title" = "Keep your alarm ringing";
 "alarm_renew_body" = "Your scheduled alarms end in one week. Open Rainy Clock so your weekly alarm keeps ringing.";
+
+/* Alarm card: today's ring morning that no newer forecast confirmed (owner, 2026-10-09). %@ is when that forecast was fetched (a time, yesterday + a time, or a date and time). */
+"ux_today_not_rechecked" = "Weather wasn't re-checked before today's alarm; it used the forecast from %@.";
+"ux_time_yesterday" = "yesterday at %@";
+/* Appended to it while background updates cannot run at all. Present tense: true when read. */
+"ux_no_background_now" = "Forecasts can't update in the background right now (Low Power Mode, or Background App Refresh is off).";
+/* Alarm card: the same, on a dated plan's morning that no forecast decided: it rings at its normal time. */
+"ux_today_not_checked" = "Weather wasn't checked before today's alarm, so it keeps its usual time.";

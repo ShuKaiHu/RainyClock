@@ -25,6 +25,8 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
     /// without a notice draws no weather column, as in 38; one with "complete your route"
     /// draws the column (endpoints —, 請完成路線, the  Weather mark), exactly as 39 writes
     /// that same entry and as tomorrow's entries draw it, where 38 drew it full width.
+    /// Still 4 in 1.8.1 (42): `Entry.notRecheckedMorning` is optional, so a 1.8.0 snapshot
+    /// decodes with it nil.
     /// A snapshot of another version reads as "open the app" until the app republishes.
     static let currentVersion = 4
     static let maximumBytes = 64_000
@@ -91,6 +93,11 @@ struct TomorrowWidgetSnapshot: Codable, Equatable, Sendable {
         /// the widget prints beside the source credit (DAYOFF-SPEC §7), as the card does. nil
         /// for every other reason, and when the feed gave none (the credit still shows).
         var closureSourceUpdatedAt: Date? = nil
+        /// Today's ring morning (its normal alarm date) when no newer forecast confirmed its
+        /// decision (`UnrecheckedMorning`; owner, 2026-10-09): set on today's entry from the
+        /// check point to the ring, and on tomorrow's entries after the ring for
+        /// `WeatherDecisionLog.retrospective`. A later publish that did re-check replaces it.
+        var notRecheckedMorning: Date? = nil
 
         /// A rain lead this day's own forecast decided, as opposed to one carried over.
         var appliesRainLead: Bool {

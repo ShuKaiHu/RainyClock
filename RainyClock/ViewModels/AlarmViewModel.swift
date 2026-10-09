@@ -193,6 +193,11 @@ final class AlarmViewModel: ObservableObject {
             }
         }
     }
+    /// Which forecast decided each morning (`WeatherDecisionLog`): the evidence for "today was
+    /// not re-checked" (`unrecheckedMorning`), recorded beside `lastWeatherEvaluationAt`.
+    private var weatherDecisionLog = WeatherDecisionLog() {
+        didSet { if weatherDecisionLog != oldValue { weatherDecisionLog.save(to: settingsStorage) } }
+    }
     private var autoRefreshTask: Task<Void, Never>?
     private var automaticSchedulingActivated = false
     private var lastAutomaticInitialAttempt: AlarmScheduleFingerprint?
@@ -329,6 +334,7 @@ final class AlarmViewModel: ObservableObject {
         scheduledFingerprint = Self.loadScheduledFingerprint(from: settingsStorage)
         disasterScheduleNeedsAttention = restoredDisasterAttention
         lastWeatherEvaluationAt = settingsStorage.object(forKey: Self.lastEvaluationStorageKey) as? Date
+        weatherDecisionLog = WeatherDecisionLog.load(from: settingsStorage)
         updateScheduleStaleness()
         updateAlarmKitRescheduleNotice()
         let planChanges = membershipPlanChanges
@@ -402,13 +408,40 @@ final class AlarmViewModel: ObservableObject {
             return
         }
 
+        // A young decision is kept, unless the coming morning is inside its re-check window
+        // with no decision there yet: then this open is that re-check, or the morning reads as
+        // not re-checked although the app was running (`UnrecheckedMorning.awaitsRecheck`).
+        let now = Date()
         if let lastWeatherEvaluationAt,
-           Date().timeIntervalSince(lastWeatherEvaluationAt) < Self.weatherDecisionLifetime {
+           now.timeIntervalSince(lastWeatherEvaluationAt) < Self.weatherDecisionLifetime,
+           !UnrecheckedMorning.awaitsRecheck(coming: tomorrowStatus(now: now), isAlarmEnabled: settings.isAlarmEnabled,
+                                             rainLeadTimeMinutes: settings.rainLeadTimeMinutes,
+                                             log: weatherDecisionLog, now: now) {
             return
         }
 
         _ = await refreshScheduledAlarmUnattended()
     }
+
+    /// Today's ring morning when no newer forecast confirmed its decision: from its check point
+    /// until `WeatherDecisionLog.retrospective` after its normal time (owner, 2026-10-09). The
+    /// card and the widget say so, neutrally; nothing re-decides after the check point, so a
+    /// warning would be one nobody can clear.
+    func unrecheckedMorning(now: Date = Date()) -> UnrecheckedMorning? {
+        let settings = effectiveSchedulingSettings
+        return UnrecheckedMorning.evaluate(today: todayStatus(now: now), isAlarmEnabled: settings.isAlarmEnabled,
+                                           rainLeadTimeMinutes: settings.rainLeadTimeMinutes, log: weatherDecisionLog,
+                                           weekly: scheduledAlarmSummary?.calendarPlan == nil,
+                                           now: now, calendar: AlarmCalendarSettings.calendar)
+    }
+
+    /// For tests: what a registered forecast decision would have recorded.
+    func recordWeatherDecision(morning: Date, checkedAt: Date) {
+        weatherDecisionLog.record(morning: morning, checkedAt: checkedAt)
+    }
+
+    /// Whether background updates can run at all right now, as the card reads it.
+    var canRefreshWeatherInBackground: Bool { canRefreshInBackground() }
 
     /// Re-decides the armed alarm without touching anything the user is looking at.
     ///
@@ -1214,6 +1247,7 @@ final class AlarmViewModel: ObservableObject {
             // contradicted it did not survive a relaunch.
             scheduledAlarmSummary = summary
             lastWeatherEvaluationAt = now
+            weatherDecisionLog.record(morning: summary.normalAlarmDate, checkedAt: snapshot.checkedAt)
             // The fingerprint describes what was actually registered — the frozen
             // snapshot — never the live settings, which may have moved on.
             scheduledFingerprint = settingsSnapshot.scheduleFingerprint()
@@ -2238,6 +2272,8 @@ final class AlarmViewModel: ObservableObject {
         scheduledAlarmSummary = committedSummary
         scheduledFingerprint = snapshot.scheduleFingerprint()
         if let checkedAt { lastWeatherEvaluationAt = checkedAt }
+        // Only a forecast still attached to the morning it was fetched for decided that morning.
+        if let checkedAt, let forecastDate { weatherDecisionLog.record(morning: forecastDate, checkedAt: checkedAt) }
         updateScheduleStaleness()
         updateAlarmKitRescheduleNotice()
         statusMessage = String(localized: plan.occurrences.isEmpty ? "calendar_all_silent" : "calendar_schedule_saved")

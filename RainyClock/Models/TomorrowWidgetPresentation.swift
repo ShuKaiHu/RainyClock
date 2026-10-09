@@ -41,6 +41,12 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
         case todayNotice(TomorrowWidgetSnapshot.WeatherNotice)
         /// A normal ringing day: 照常響鈴 / Rings as usual.
         case ringsAsUsual
+        /// Today's ring morning that no newer forecast confirmed (`Entry.notRecheckedMorning`;
+        /// owner, 2026-10-09): 今天未重新確認天氣. Neutral, never a warning: nothing re-decides
+        /// after the check point, so a triangle could not be cleared. `retrospective` on a
+        /// tomorrow entry after the ring, where the short form without 今天 would read as
+        /// tomorrow's, so it keeps the full one.
+        case notRechecked(retrospective: Bool)
 
         /// `.notice(.stale)` and `.todayNotice(.stale)` stay warnings here, but no presentation
         /// builds them since 2026-10-09 (`testNoFaceEverSaysAForecastIsStale`); their strings
@@ -114,6 +120,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
                 case .stale, .routeNeeded: Line.notice(notice).full
                 }
             case .ringsAsUsual: LocalizedLine(key: "widget_rings_as_usual")
+            case .notRechecked: LocalizedLine(key: "widget_today_not_rechecked")
             }
         }
 
@@ -151,6 +158,7 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             // Every short notice already names no day.
             case .todayNotice(let notice): Line.notice(notice).short
             case .ringsAsUsual: full
+            case .notRechecked(let retrospective): retrospective ? full : LocalizedLine(key: "widget_not_rechecked_short")
             }
         }
     }
@@ -312,15 +320,27 @@ struct TomorrowWidgetPresentation: Equatable, Sendable {
             let alarmNotice = entry.isToday && notice != .routeNeeded ? nil : notice
             // First match wins: an issue, the reason, the freshness notice (data age, not
             // weather), then 照常響鈴 for a day that simply rings.
+            // "Not re-checked" (2026-10-09): on today's entry it follows only an issue and a
+            // manual-ring day's reason, since past the check point the weather-decided lines
+            // (the rain decision, 等待今天預報) describe a check that did not happen; after the
+            // ring, on tomorrow's entries, it follows tomorrow's own reason and a failed refresh,
+            // which keeps its warning on every face (the rectangular one has no badge), and takes
+            // the place of tomorrow's other weather notices and 照常響鈴.
+            let notRechecked = entry.notRecheckedMorning != nil
             func lines(withWeather: Bool) -> [Line] {
                 var lines: [Line] = []
                 if let issue = entry.scheduleIssue { lines.append(.issue(issue)) }
                 if var reason = entry.reasonLine?.displayed(in: language) {
                     // Outside the medium the rain line is the decision alone, no percentage.
                     if !withWeather, case .rainForecast(_, let minutes) = reason { reason = .rainEarlier(minutes: minutes) }
+                    if entry.isToday, notRechecked, reason != .manualRing { lines.append(.notRechecked(retrospective: false)) }
                     lines.append(entry.isToday ? .todayReason(reason) : .reason(reason))
                 }
-                if let notice = alarmNotice { lines.append(.notice(notice)) }
+                if notRechecked, !lines.contains(where: { if case .notRechecked = $0 { true } else { false } }) {
+                    if alarmNotice == .failed { lines.append(.notice(.failed)) }
+                    lines.append(.notRechecked(retrospective: !entry.isToday))
+                }
+                if let notice = alarmNotice, !lines.contains(.notice(notice)) { lines.append(.notice(notice)) }
                 if entry.reasonLine == nil, entry.expectedRingDate != nil { lines.append(.ringsAsUsual) }
                 return lines
             }
@@ -591,6 +611,8 @@ enum TomorrowWidgetStrings {
         "widget_skip_off", "widget_alarm_off_short", "widget_skip_once_short",
         // The inline one-time skip names its day, and a closure names its source (§7) (2026-10-01).
         "widget_inline_skip_once", "widget_inline_today_skip_once",
+        // Today's ring morning that no newer forecast confirmed (owner, 2026-10-09).
+        "widget_today_not_rechecked", "widget_not_rechecked_short",
         "widget_closure_source", "widget_closure_source_updated",
     ]
 }
@@ -606,6 +628,9 @@ enum TomorrowWidgetSamples {
              ringPreviousDay, carriedOver, todayRain, todayNormal, todaySkipped, todayCarriedOver,
              todayHolidayNamed, todayHolidayUnnamed, todayManualSkip, todayManualRing, todayUnselectedWeekday, todayClosure,
              todayStale, todayWeatherFailed, todayForecastUnavailable,
+             // Today's ring morning that no newer forecast confirmed (2026-10-09): today's entry
+             // past the check point, and tomorrow's after the ring.
+             todayNotRechecked, notRechecked,
              expired, missing
     }
 
@@ -769,6 +794,17 @@ enum TomorrowWidgetSamples {
             // Tuesday's 07:00 rain ring has fired; the weekly repeat rings Wednesday at 07:00
             // too, but no forecast for Wednesday has decided that yet.
             return make(ring: early, reason: .rain, line: .awaitingForecast, lead: 30, forecast: nil, notice: .noForecast)
+        case .todayNotRechecked:
+            // 今天未重新確認天氣: decided last evening, nothing re-checked it before 07:00.
+            var entry = make(ring: todayNormal, reason: .normal, normalDate: todayNormal, forecast: forecast(.cloudy, 30, .cloudy, 20),
+                             isToday: true)
+            entry.notRecheckedMorning = todayNormal
+            return entry
+        case .notRechecked:
+            // Tomorrow's entry, after this morning's ring: still says this morning was not re-checked.
+            var entry = make(ring: normal, reason: .normal, forecast: forecast(.clear, 10, .clear, 0))
+            entry.notRecheckedMorning = todayNormal
+            return entry
         case .missing:
             return nil
         }
