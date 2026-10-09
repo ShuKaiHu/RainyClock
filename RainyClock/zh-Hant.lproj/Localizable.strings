@@ -452,7 +452,7 @@
 "ux_schedule_update_needed" = "鬧鐘設定尚未更新完成";
 "disaster_route_address_missing" = "請先在路線設定地址";
 "disaster_route_region_unavailable" = "尚未取得行政區";
-"ux_rain_applied_forecast" = "路線降雨機率 %d%%，提前 %d 分鐘";
+"ux_rain_applied_forecast" = "路線降雨機率 %d%%，提早 %d 分鐘";
 /* The ring is the weekly repeat of an earlier morning's rain lead; tomorrow's own forecast has not decided it yet. */
 "ux_tomorrow_awaiting_forecast" = "等待明天預報";
 /* The same after midnight, when the card describes today's alarm. */
