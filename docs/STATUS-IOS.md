@@ -327,6 +327,18 @@ Last updated: 2026-10-03.
     拿掉三個 NEW: 與幾句話騰出空間，剩下的每一句 40 都說過）；What's New 兩種語言各兩點（會員「Your plan hasn't been
     confirmed yet」／「尚未確認你的方案」——這是設定 › 行事曆那一列 `ux_closure_plan_unconfirmed` 的原字——與鎖定畫面英文標題），
     在 [`appstore-metadata.md`](appstore-metadata.md) 最上面。
+  - **2026-10-10：1.8.1（42）再加一項——因雨原因行的「提前」改成「提早」**（擁有者：「放進 1.8.1」）。主卡與中型 widget 的
+    `ux_rain_applied_forecast` 由「路線降雨機率 %d%%，提前 %d 分鐘」改為「…提早 %d 分鐘」，和設定 › 時間的「提早時間」、小型
+    widget 的「因雨提早」、商店文案一致。App 與 widget 兩份字串在同一個 commit 改（`07d68e0`；`TomorrowWidgetStringsTests`
+    要求共用的 key 逐字相同）。版本號不動：42 還沒上傳，archive 本來就要重建。Build 成功；`TomorrowWidgetStringsTests`、
+    `TomorrowWidgetPresentationTests`、`TomorrowWidgetSnapshotTests` 與 `testAlarmPageDayStringsExistInBothLocalizations`
+    在 iOS 26.5 上 77 過、0 失敗、0 略過。1.8.1 商店截圖（`appstore-1.8.1-screenshots/`）裡仍是「提前」，不重拍。
+    **還在用「提前」的 zh-Hant 字串，要不要統一待擁有者決定：** `status_required`「需要填入住家、公司與提前時間。」（它點名的
+    設定列叫「提早時間」，最直接不一致）、`status_adjusted_checked`、`notification_body_adjusted`、`alarm_alert_title_adjusted`
+    「今天有雨，提前叫你起床」、`evening_preview_rain` 與 `alarm_change_earlier`（「提前到 HH:mm」）、`evening_preview_upcoming`
+    與 `_no_background`。**沒在用的：** `ContentView.rainAdjustmentText(for:)` 沒有呼叫者，所以只在它裡面用到的
+    `minutes_earlier`（「提前 %d 分鐘」）與 `not_applied` 也是死字串；`rain_lead_time`、`status_adjusted`、`evening_preview_hint`、
+    `calendar_priority_hint` 沒有任何程式引用。這些可以另外清理（en 與 zh-Hant 兩份），這次沒動。
   - **2026-10-09（續）：1.8.1（42）再加兩項（擁有者：「兩件事都做」）——「今天未重新確認天氣」與中型 widget 的 VoiceOver。**
     規則、文案與待確認的五點在 `PRODUCT_DECISIONS.md` 最上方。重點：響鈴日的檢查點之前 9 小時內沒有「用新預報、登記成功」的判斷
     （新的 `WeatherDecisionLog`），就從檢查點到原定時間後 3 小時，在 widget（小型、中型、鎖定畫面長方形，中性，不打 ⚠）與 App 卡片
