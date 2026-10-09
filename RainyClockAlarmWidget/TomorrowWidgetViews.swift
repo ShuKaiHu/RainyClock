@@ -200,7 +200,13 @@ struct WidgetStyle {
     /// The alarm's label: header, expected ring (or the hero) and footer. The whole widget's,
     /// or the medium's left half when its weather column is a separate link. `withSky` adds
     /// what the small's forecast sky shows and the Apple Weather attribution under it.
-    func accessibilityLabel(_ presentation: TomorrowWidgetPresentation, withSky: Bool = false) -> String {
+    /// `footer` is the line the face draws: `line` everywhere, but the medium's left half beside
+    /// its weather column draws `mediumLine`, which leaves to the column (and the column's own
+    /// link label) what the column already says. Reading `line` there spoke a failed refresh or
+    /// 請完成路線 twice, and the rain decision without the percentage the face shows.
+    func accessibilityLabel(_ presentation: TomorrowWidgetPresentation,
+                            footer: KeyPath<TomorrowWidgetPresentation, TomorrowWidgetPresentation.Line?> = \.line,
+                            withSky: Bool = false) -> String {
         var pieces = [mediumHeader(presentation, separator: ", ")]
         switch presentation.hero {
         case .time(let ring, _):
@@ -213,7 +219,7 @@ struct WidgetStyle {
         case .off: pieces.append(text("ux_alarm_off"))
         case .openApp(let reason): pieces.append(openAppText(reason))
         }
-        if let line = presentation.line { pieces.append(text(line.full)) }
+        if let line = presentation[keyPath: footer] { pieces.append(text(line.full)) }
         // A closure is never read out without its source and the source's time (§7).
         if let source = presentation.closureSource { pieces += closureSourceLines(source) }
         if withSky, let sky = presentation.skyAccessibilityLabel(separator: listSeparator, text: { line in text(line) }) {
@@ -528,7 +534,7 @@ private struct MediumTomorrowView: View {
             if let status, presentation.showsWeatherColumn {
                 left.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: style.accessibilityLabel(presentation)))
+                    .accessibilityLabel(Text(verbatim: style.accessibilityLabel(presentation, footer: \.mediumLine)))
                 // The family that prints WeatherKit data, so it carries the  Weather mark, and
                 // the column links (through the app) to Apple's legal attribution page. Its
                 // own accessibility element, so VoiceOver can follow the link too.

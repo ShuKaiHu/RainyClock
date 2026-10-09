@@ -63,5 +63,36 @@ final class LockScreenWidgetRenderTests: XCTestCase {
         }
         XCTAssertEqual(written, TomorrowWidgetSamples.Scenario.allCases.count * Self.faces.count * typeSizes.count)
     }
+
+    /// The medium's left half reads what it draws (`mediumLine`), never the notice its weather
+    /// column already reads out (2026-10-09): VoiceOver used to speak 明天天氣更新失敗 or
+    /// 請完成路線 on both halves. Runs with the render build only, like the rest of this file.
+    func testMediumLeftHalfNeverReadsTheColumnsNotice() throws {
+        let extensionURL = Bundle.main.bundleURL.appendingPathComponent("PlugIns/RainyClockAlarmWidget.appex")
+        let widgetBundle = try XCTUnwrap(Bundle(url: extensionURL))
+        let now = Date()
+        var checked = 0
+        var repeatedBefore = 0
+        for scenario in TomorrowWidgetSamples.Scenario.allCases {
+            let entry = TomorrowWidgetEntry.sample(scenario, now: now)
+            guard case .status = entry.state else { continue }
+            let presentation = TomorrowWidgetPresentation(entry.state, clockFormat: entry.clockFormat,
+                                                          language: widgetBundle.preferredLocalizations.first ?? "en")
+            guard presentation.showsWeatherColumn else { continue }
+            var style = WidgetStyle(entry: entry, fullColor: true, family: .systemMedium)
+            style.bundle = widgetBundle
+            let left = style.accessibilityLabel(presentation, footer: \.mediumLine)
+            if let notice = presentation.weatherColumnNotice {
+                XCTAssertFalse(left.contains(style.text(notice.full)), "\(scenario): \(left)")
+                if style.accessibilityLabel(presentation).contains(style.text(notice.full)) { repeatedBefore += 1 }
+            }
+            if let drawn = presentation.mediumLine {
+                XCTAssertTrue(left.contains(style.text(drawn.full)), "\(scenario) reads what it draws: \(left)")
+            }
+            checked += 1
+        }
+        XCTAssertGreaterThan(checked, 20)
+        XCTAssertGreaterThan(repeatedBefore, 0, "Reading `line`, as before, repeats the column's notice somewhere")
+    }
 }
 #endif
