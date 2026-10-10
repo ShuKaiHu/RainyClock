@@ -11,7 +11,7 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-10-03.
+Last updated: 2026-10-10.
 
 > **1.7.1（37）已上架：2026-09-26 05:33 UTC（台灣 13:33）**，台灣與美國商店的 App Store lookup 都回 1.7.1。
 > 這是 1.7.0（34）退審後的重送版，包含會員方案（月訂閱、買斷）、LevelPlay 廣告、地址建議清單修復。
@@ -327,6 +327,25 @@ Last updated: 2026-10-03.
     拿掉三個 NEW: 與幾句話騰出空間，剩下的每一句 40 都說過）；What's New 兩種語言各兩點（會員「Your plan hasn't been
     confirmed yet」／「尚未確認你的方案」——這是設定 › 行事曆那一列 `ux_closure_plan_unconfirmed` 的原字——與鎖定畫面英文標題），
     在 [`appstore-metadata.md`](appstore-metadata.md) 最上面。
+  - **2026-10-10 傍晚：1.8.1（42）重新打包並上傳 App Store Connect；What's New、審查備註、IAP 說明已貼上（未送審）。**
+    擁有者：「接著做」，並選：其餘看得到的「提前」也改、commit 後合併、測試過就上傳、IAP 照草稿改。
+    (1) `claude/adoring-noyce-0c5ffd`（`07d68e0` 原因行「提早」）以 `532da6d` 合入 ios/main（STATUS 衝突兩邊都留）。
+    (2) `6800bf4`：其餘 6 個使用者看得到的繁中字串改「提早」——AlarmKit 響鈴標題「今天有雨，提早叫你起床」、晚間預告三種、
+    早上改時間的通知、iOS 17–25 通知內文。只動 App 字串表（這些 key 不在 widget 表，沒有測試綁字）。上面 10-10 那點列的
+    `status_required`、`status_adjusted_checked` 其實看不到（`statusMessage` 自 `8ab2874` 沒有畫面；`scheduleErrorMessage`
+    只在權限被拒或排程失敗時才取它），所以「看得到的」是 6 個不是 8 個；剩下 7 個「提前」都是不顯示或沒人用的字串，沒動。
+    (3) 測試（`6800bf4`，簽章的 `RainyClock Membership Local`、`-parallel-testing-worker-count 1`、略過 `MembershipStoreKitTests`）：
+    iOS 26.5（B521C391）與 27.0（C2F654DB）各 654 個，650 過、0 失敗、4 略過（`LocalNotificationSchedulerSystemTests` 沒有通知權限的那 4 個）。
+    (4) 10-06 的舊 archive 改名 `build/RainyClock-1.8.1-42-stale-e88f16e.xcarchive`；新的 `build/RainyClock-1.8.1-42.xcarchive`
+    從 `6800bf4` 建（17:54，`** ARCHIVE SUCCEEDED **`，49 個既有 warning），三個 bundle 都是 1.8.1／42；archive 內 App 與 widget
+    的繁中字串是「提早」、`LevelPlayAppKey` 有值、App Attest production。`xcodebuild -exportArchive`（`ExportOptions-AppStoreUpload.plist`）
+    17:57:23 `Upload succeeded`、`** EXPORT SUCCEEDED **`，只有 IronSource 沒有 dSYM 的既有 warning。
+    (5) ASC 1.8.1 版本頁：兩個語系的 What's New（對照程式碼確認過的版本，各 6 點）與審查備註（3,993 字）已貼上、儲存，並以雜湊比對
+    與檔案逐字相同。(6) IAP：買斷與月訂閱的英文、繁中說明都改成提到台灣停班停課（新的本地化版本「準備提交」，審查前仍顯示已核准
+    的舊文字；ASC 的欄位上限是 55 字）。群組裡另有從沒送審的 `plus.yearly`（準備提交）——**送審時不要把它加進去**。
+    **接著：** ASC 處理完 42 → 在 1.8.1 選 build 42（不要選 41）→ 擁有者用 TestFlight 42 在手機上看：鎖定畫面長方形英文標題、
+    會員頁、開 App 三小時後 widget 沒有 ⚠、關背景重新整理睡一晚後的「今天未重新確認天氣」、繁中「提早」→ 送審（加入兩個 IAP 的說明變更），
+    發佈方式維持手動。
   - **2026-10-10（續）：商店文字與新功能。** 擁有者核准後已貼到 ASC 並讀回（未送審）：繁中名稱改「雨天鬧鐘 Rainy Clock」、
     兩個副標題（英文原本是空的）、兩組關鍵字（拿掉 Apple Weather／Apple Maps 與重複字）、兩份描述（補停班停課、小工具、只關下一次）；
     行銷宣傳文字兩個語系貼到 1.8.0（已上線，不用審）與 1.8.1。截圖改用 OFL 字型（Inter＋Noto Sans TC）重新產生並替換。

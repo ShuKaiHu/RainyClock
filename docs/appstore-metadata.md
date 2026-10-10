@@ -29,7 +29,8 @@ keyword bytes rather than characters, trim the zh-Hant list from the end. Check 
 Taiwan account (下雨鬧鐘、天氣鬧鐘、颱風假、停班停課、國定假日鬧鐘) and a US account (rain alarm, commute alarm, alarm widget).
 
 Before submitting 1.8.1: the last sentence of each description describes build 42's "not re-checked today" caption —
-drop it if another build ships; the IAP product descriptions in App Store Connect still omit the closure rule.
+drop it if another build ships (42 is the build that ships, uploaded 2026-10-10). The IAP descriptions now name the closure
+rule — pending, see "In-app purchase descriptions — 2026-10-10" further down.
 
 **iOS 27 header and search-results assets — UPLOADED to 1.8.1, 2026-10-10** (owner: 「這個新的圖片跟1.8.1一起全部上傳」,
 「不用A/B test 直上吧」). Direction D1 "rain on glass" (files and provenance: `docs/appstore-1.8.1-screenshots/README.md`).
@@ -225,7 +226,7 @@ Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
 
 ### Before pasting — internal, not App Store copy
 
-- [ ] The owner has seen TestFlight 41 on a device: the rectangular Lock Screen widget's English header,
+- [ ] The owner has seen TestFlight 42 (41 had the same two fixes) on a device: the rectangular Lock Screen widget's English header,
       and the membership screen (the first launch after 40 may answer `app_transaction_refresh_required`
       once; one "Refresh membership" / 「同步會員狀態」 tap completes it, and the diagnostic line now ends in the server
       code).
@@ -233,8 +234,9 @@ Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
       yet" / 「尚未確認你的方案」, the closure-rule row in Settings › Calendar
       (`SettingsCalendarView.swift:352`) — where the owner saw the symptom on 2026-10-03. The membership
       screen itself showed the diagnostic line (`session · MembershipHTTP/401 · …`).
-- [ ] App Store Connect: 1.8.1 version created from 1.8.0 (done 2026-10-10, screenshots uploaded), build 42 selected (41 is on TestFlight too; do not
-      submit it), both What's New pasted, the (42) note pasted and read back, manual release kept.
+- [ ] App Store Connect: 1.8.1 version created from 1.8.0 (done 2026-10-10, screenshots uploaded); both What's New and the
+      (42) note pasted, saved and hash-checked against these files (done 2026-10-10); build 42 uploaded from `6800bf4`
+      (2026-10-10 17:57) — **still to select once processed** (41 is on TestFlight too; do not submit it); manual release kept.
 
 ---
 
@@ -1343,6 +1345,22 @@ production rollout or review submission occurred. Full verification details are 
 temporary closure rule that lifetime includes from 1.8.0 (the monthly product's description, if
 it enumerates benefits too, has the same gap). They are not wrong about what they list, but if
 they should name the closure rule, the owner edits them in App Store Connect; this repo cannot.
+
+**In-app purchase descriptions — 2026-10-10 (owner: 「照草稿改」), saved in ASC as a new localization version, status
+準備提交; the approved text stays live until review.** Both products grant the same benefits, so they carry the same line.
+ASC's own counter allows 55 characters for these descriptions (Apple's help page says 45; ASC has accepted 55 since
+2026-09). Display names unchanged. They go to App Review with the 1.8.1 submission; do **not** add the never-submitted
+`com.shukaihu.RainyClock.plus.yearly` (準備提交 in the RainyClock Plus group) to that submission.
+
+| Product | Locale | Display name | Description (pending) |
+| --- | --- | --- | --- |
+| lifetime + monthly | English | One-Time Purchase / Monthly subscription | No banners, calendar, Taiwan closures, 1 ad-free AI/day (55) |
+| lifetime + monthly | 繁體中文 | 買斷 / 月訂閱 | 移除 banner，含日曆功能、台灣停班停課規則與每天 1 次免看廣告的 AI 鈴聲生成。 (45) |
+
+Drafted and checked against the code (one drafter, one skeptic): it keeps "ad-free" on the AI item because a generation
+without an ad is the paid benefit (free users get AI too); "No banners", not "ad-free", because rewarded ads remain;
+日曆功能 rather than 國定假日 because the paid calendar also covers 補班, the US calendar and per-day overrides. The two
+products' IAP review notes still describe 1.7.0 (34) and do not mention the closure rule; optional to refresh.
 The ASC description field is short and the current English text already uses most of it, so
 adding the rule likely means rewording, not appending. Nothing in ASC has been changed for this decision.
 

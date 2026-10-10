@@ -111,6 +111,9 @@ Sandbox 會員服務隨此重新部署；正式會員服務已於 2026-09-30 部
 | English | One-Time Purchase | Remove banners. Calendar + 1 ad-free AI creation/day. |
 | 繁體中文 | 買斷 | 移除 banner，含日曆功能與每天 1 次免看廣告的 AI 鈴聲生成。 |
 
+2026-10-10：買斷與月訂閱的說明都改成提到台灣停班停課規則（準備提交，跟 1.8.1 一起審查；審查前仍顯示上表的已核准文字）。
+新文字見 `appstore-metadata.md` 的「In-app purchase descriptions — 2026-10-10」。
+
 ## 已建立的資源
 
 | 項目 | 實際設定 |
