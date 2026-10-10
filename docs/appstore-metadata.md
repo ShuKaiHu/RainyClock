@@ -1,6 +1,6 @@
 # Rainy Clock App Store Metadata
 
-## 1.8.1 — Store listing update (ASO) — PASTED to 1.8.1, 2026-10-10 (not submitted)
+## 1.8.1 — Store listing update (ASO) — PASTED to 1.8.1, 2026-10-10; SUBMITTED with 1.8.1 (42) at 18:26
 
 > Owner decisions 2026-10-10: zh-Hant name → 「雨天鬧鐘 Rainy Clock」; en-US name stays **Rainy-Clock**; descriptions
 > gain the closure / widget / alarm-switch sections (2.3.2: the zh subtitle names the paid closure rule); promotional

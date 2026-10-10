@@ -327,6 +327,13 @@ Last updated: 2026-10-10.
     拿掉三個 NEW: 與幾句話騰出空間，剩下的每一句 40 都說過）；What's New 兩種語言各兩點（會員「Your plan hasn't been
     confirmed yet」／「尚未確認你的方案」——這是設定 › 行事曆那一列 `ux_closure_plan_unconfirmed` 的原字——與鎖定畫面英文標題），
     在 [`appstore-metadata.md`](appstore-metadata.md) 最上面。
+  - **2026-10-10 18:26：1.8.1（42）已送審，3 個項目都是「等待審查」**（擁有者：「好 送吧」；手機上的 TestFlight 42 檢查沒有回報結果）。
+    送審前讀回：build 42、審查備註第一行 `RAINY CLOCK 1.8.1 (42)`、3,993 字、繁中 What's New 280 字、手動發佈、保留現有評分。
+    「新增以供審查」先跳出共享 App 資訊的提示（英文副標題、繁中名稱、繁中副標題會隨這次提交套用）→ 繼續 → 草稿只有 App；再到
+    買斷與月訂閱各自的頁面按「新增以供審查」→ 選既有的「iOS 提交項目草稿」，草稿成為 3 項（iOS App 1.8.1 (42)、RainyClock
+    One-Time Purchase、RainyClock Plus Monthly；**沒有** `plus.yearly`）→「提交以供審查」→「已提交 3 個項目」。提交 ID
+    `d02d404c-9da4-4118-8fb8-09de4d5bd025`。這次也一起審：iOS 27 標題與搜尋結果素材、新截圖、名稱／副標題／關鍵字／描述、兩個 IAP 說明。
+    **接著：** 等審查（Apple 說最長 48 小時）；通過後由擁有者手動發佈。
   - **2026-10-10 傍晚：1.8.1（42）重新打包並上傳 App Store Connect；What's New、審查備註、IAP 說明已貼上（未送審）。**
     擁有者：「接著做」，並選：其餘看得到的「提前」也改、commit 後合併、測試過就上傳、IAP 照草稿改。
     (1) `claude/adoring-noyce-0c5ffd`（`07d68e0` 原因行「提早」）以 `532da6d` 合入 ios/main（STATUS 衝突兩邊都留）。
