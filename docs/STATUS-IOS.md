@@ -327,6 +327,20 @@ Last updated: 2026-10-03.
     拿掉三個 NEW: 與幾句話騰出空間，剩下的每一句 40 都說過）；What's New 兩種語言各兩點（會員「Your plan hasn't been
     confirmed yet」／「尚未確認你的方案」——這是設定 › 行事曆那一列 `ux_closure_plan_unconfirmed` 的原字——與鎖定畫面英文標題），
     在 [`appstore-metadata.md`](appstore-metadata.md) 最上面。
+  - **2026-10-10（續）：商店文字與新功能。** 擁有者核准後已貼到 ASC 並讀回（未送審）：繁中名稱改「雨天鬧鐘 Rainy Clock」、
+    兩個副標題（英文原本是空的）、兩組關鍵字（拿掉 Apple Weather／Apple Maps 與重複字）、兩份描述（補停班停課、小工具、只關下一次）；
+    行銷宣傳文字兩個語系貼到 1.8.0（已上線，不用審）與 1.8.1。截圖改用 OFL 字型（Inter＋Noto Sans TC）重新產生並替換。
+    iOS 27 新的「標題／搜尋結果」創意素材：擁有者選 D1「窗上雨滴」方向，產生器在 `scripts/appstore-screenshots/creative/`，
+    四張成品（標題 3840×1646、搜尋結果 3840×2560，兩個語系）在 `docs/appstore-1.8.1-screenshots/creative/`。
+    擁有者改為**全部跟 1.8.1 一起送審、不做 A/B 測試**：四張已放上 1.8.1 版本頁並重新整理讀回，ASC 預覽（iPhone 產品頁／搜尋結果、iPhone Duo）裁切正常。
+    不做 PPO 的原因：ASC 估計以前一週 96 次曝光、3.13% 轉換，偵測 100% 提升要 28 週，測試上限 90 天。細節見 appstore-metadata.md 最上方。
+  - **2026-10-10：ASC 已建立 1.8.1 版本（準備提交），新截圖已上傳並讀回**（繁中、英文各 8 張，6.9 吋；6.1／6.3 與 6.5 吋沿用）。
+    版本頁其餘未動：沒選建置版本、沒貼 What's New 與審查備註、沒送審。細節見下一點的 README。
+  - **2026-10-09 晚：1.8.1 商店截圖（加框設計版）已做好。** 繁中、英文各 8 張，iPhone 6.9 吋，在
+    [`appstore-1.8.1-screenshots/`](appstore-1.8.1-screenshots/README.md)（上傳順序、每張的來源與取捨都在裡面）。全部是
+    `3fbccba` Debug 建置在獨立模擬器上的真實畫面：首圖是當晚 Apple Weather 對 10/10 早上的真實預報（宜蘭 42%、台北 101 18%，
+    門檻設 40%，7:30 → 7:00）。已知取捨：首圖日期是國慶日週六（擁有者選擇用當天的雨）。排版工具在
+    `scripts/appstore-screenshots/`，改文案可重跑。
   - **2026-10-09（續）：1.8.1（42）再加兩項（擁有者：「兩件事都做」）——「今天未重新確認天氣」與中型 widget 的 VoiceOver。**
     規則、文案與待確認的五點在 `PRODUCT_DECISIONS.md` 最上方。重點：響鈴日的檢查點之前 9 小時內沒有「用新預報、登記成功」的判斷
     （新的 `WeatherDecisionLog`），就從檢查點到原定時間後 3 小時，在 widget（小型、中型、鎖定畫面長方形，中性，不打 ⚠）與 App 卡片
