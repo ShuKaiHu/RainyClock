@@ -8,7 +8,7 @@
 "ux_expected_ring" = "預計響鈴";
 "ux_tomorrow_skipped" = "略過鬧鐘";
 "ux_not_set" = "尚未設定鬧鐘";
-"ux_rain_applied_forecast" = "路線降雨機率 %d%%，提前 %d 分鐘";
+"ux_rain_applied_forecast" = "路線降雨機率 %d%%，提早 %d 分鐘";
 "ux_rain_applied" = "因雨提早 %d 分鐘";
 "ux_tomorrow_awaiting_forecast" = "等待明天預報";
 "ux_tomorrow_holiday_named" = "明天放假：%@";
