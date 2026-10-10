@@ -236,7 +236,8 @@ Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
       screen itself showed the diagnostic line (`session · MembershipHTTP/401 · …`).
 - [ ] App Store Connect: 1.8.1 version created from 1.8.0 (done 2026-10-10, screenshots uploaded); both What's New and the
       (42) note pasted, saved and hash-checked against these files (done 2026-10-10); build 42 uploaded from `6800bf4`
-      (2026-10-10 17:57) — **still to select once processed** (41 is on TestFlight too; do not submit it); manual release kept.
+      (2026-10-10 17:57), processed and selected on the 1.8.1 version at 18:18 (41 stays on TestFlight, not submitted);
+      manual release kept.
 
 ---
 
