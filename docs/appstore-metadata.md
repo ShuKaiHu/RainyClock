@@ -1,5 +1,33 @@
 # Rainy Clock App Store Metadata
 
+## Custom product pages — 2026-10-12, SUBMITTED (waiting for review)
+
+Plan and reasoning (three independent proposals, a judge, a skeptic) chose a first batch built only from the existing 1.8.1
+frames. Apple documents no ranking boost for CPPs or the iOS 27 assets: a CPP with assigned keywords replaces the default page
+on searches where the app already appears. CPP keywords can only come from the latest approved version's keyword field (1.8.1).
+All three: blank page (not a copy), D1 header (`header-zh-Hant` / `header-en` from the Asset Library), no search-results asset
+(batch 2 adds themed ones), no deep link. Submission `63cea8b2-9870-4b9a-b379-31ad846a8a28`, 2026-10-12 19:49.
+
+| Page | Locales | Keywords | Screenshot order (6.9") |
+| --- | --- | --- | --- |
+| P1 颱風假・停班停課 (zh) | zh-Hant | 颱風假, 天災 | 02-typhoon, 06-skip, 01-rain, 07-calendar, 03-rule, 04-widget, 05-route, 08-voice |
+| P2 國定假日・連假 / Holidays | zh-Hant, en-US | 國定假日, 連假, 行事曆 / holiday | zh: 07-calendar, 06-skip, 01-rain, 02-typhoon, 04-widget, 03-rule, 05-route, 08-voice; en: 06-calendar, 05-skip, 01-rain, 02-rule, 03-widget, 04-route, 07-voice |
+| P3 AI 人聲 / AI voice | zh-Hant, en-US | AI語音, 人聲, 鈴聲 / ai, voice | zh: 08-voice, 01-rain, 03-rule, 04-widget, 06-skip, 05-route, 07-calendar, 02-typhoon; en: 07-voice, 01-rain, 02-rule, 03-widget, 05-skip, 04-route, 06-calendar |
+
+Left on the default page on purpose: 放假 (too generic), "day" and "weekday" (free weekday alarms would land on the paid
+holiday page). 停班停課 and 颱風 are subtitle words, not keyword-field words, so the picker does not offer them.
+
+Promotional text:
+- P1 zh: 颱風天，縣市政府宣布你住家或公司所在行政區全天或上午停班停課時，雨天鬧鐘可略過當天的鬧鐘（限台灣，訂閱或買斷）；無法確認公告就照常響，實際以各縣市政府公告為準。「查看地圖示範」不需購買。沒放假的雨天，路線降雨機率達你設的門檻，鬧鐘就提早響。 (120)
+- P2 zh: 連假還被鬧鐘吵醒？開啟日曆功能（訂閱或買斷），雨天鬧鐘依行政機關辦公日曆，國定假日與補假就不響，單日也能自己改成響或不響；學校、公司行事曆可能不同，可自行調整。週末不響、只關下一次鬧鐘，免費就能設定。 (100)
+- P2 en: Holiday alarm? With a subscription or one-time purchase, US federal holidays stay quiet, and you can change any day. Weekdays-only alarms and skipping one alarm are free. (170)
+- P3 zh: 寫下一句想聽的起床台詞，選一種 AI 人聲，就能設成鬧鐘鈴聲。免費方案可先生成一次，之後每看完一段獎勵廣告可再生成一次；重播已存的鈴聲不扣次數。下雨時，雨天鬧鐘也會依通勤路線提早叫你。 (92)
+- P3 en: Write a short wake-up line, pick one of six AI voices and use it as your alarm sound. Free plan: one generation, then one more per rewarded video ad. Replays are free. (167)
+
+After approval: make sure each page is visible; judge the set as a whole (per-page analytics need 5 first-time downloads);
+re-check keyword assignments whenever a new version changes the keyword field. Later: themed search-results assets (batch 2),
+a scooter page and a US commuter page (need new real captures), a 春節 version of P2 in January.
+
 ## 1.8.2 (43) — What's New — DRAFT, 2026-10-12 (not pasted)
 
 > Two owner reports (2026-10-12): a play button on every alarm sound, and the AI Voice draft reverting after a rewarded
