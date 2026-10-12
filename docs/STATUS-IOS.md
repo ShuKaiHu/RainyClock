@@ -11,7 +11,7 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-10-10.
+Last updated: 2026-10-12.
 
 > **1.7.1（37）已上架：2026-09-26 05:33 UTC（台灣 13:33）**，台灣與美國商店的 App Store lookup 都回 1.7.1。
 > 這是 1.7.0（34）退審後的重送版，包含會員方案（月訂閱、買斷）、LevelPlay 廣告、地址建議清單修復。
@@ -327,6 +327,20 @@ Last updated: 2026-10-10.
     拿掉三個 NEW: 與幾句話騰出空間，剩下的每一句 40 都說過）；What's New 兩種語言各兩點（會員「Your plan hasn't been
     confirmed yet」／「尚未確認你的方案」——這是設定 › 行事曆那一列 `ux_closure_plan_unconfirmed` 的原字——與鎖定畫面英文標題），
     在 [`appstore-metadata.md`](appstore-metadata.md) 最上面。
+  - **2026-10-12：1.8.2（43）開始——AI 人聲兩個問題**（擁有者：「這個改動納入1.8.2」）。版本號已改 1.8.2／43（`Info.plist` 兩個值、
+    `project.pbxproj` 11 處）。(1) **每個鈴聲旁都有播放鍵**（擁有者找到了原本清單最下面的「試聽鬧鈴」，但希望每列都有）：
+    設定 › 時間 › 一般／提早響鈴的每一列右邊有自己的 ▶／■（`ContentView.soundPreviewButton`），按了只試聽、不會選取；系統預設鬧鈴（App
+    無法播放）與還沒生成的 AI 人聲那列留隱形佔位，打勾對齊；最下面那顆移除。依審查意見：點擊範圍 44pt、VoiceOver 的「已選取」
+    放在真正選中的鈴聲上，播放中按鈕念「停止試聽「…」」（新字串 `preview_named_sound`、`stop_preview_named_sound`，中英文）。
+    (2) **看完獎勵影片後文字倒退**：原因是 `RewardedAdController.show` 從最上層畫面全螢幕播廣告，蓋住 AI 人聲 sheet，關掉後 SwiftUI
+    再跑一次 `onAppear`，而 `onAppear` 會從設定重新讀入上次存的文字與聲音，蓋掉剛打的字。改為在 `init` 用 `State(initialValue:)`
+    讀一次，`onAppear` 只重讀剩餘次數。驗證：模擬器無法播廣告，用只在暫存副本裡的除錯掛鉤（不 commit）全螢幕蓋住 sheet 3 秒——舊程式碼
+    蓋完文字變回 0/40（重現），新程式碼蓋完與 30 秒後文字和所選聲音都還在。三位獨立審查（草稿修正、清單 UI、回歸）＋反駁驗證：草稿
+    修正沒有問題；兩個無障礙小問題已修。**接著：** 全套測試（26.5／27.0）→ 擁有者決定 1.8.2 是否還要加別的再打包。
+  - **2026-10-11 16:36（台灣）：1.8.1（42）已上架**（`itunes.apple.com/lookup` 讀回 1.8.1、`currentVersionReleaseDate`
+    2026-10-11T08:36:54Z，台灣與美國各 8 張截圖）。**擁有者 10-12 回報：** iOS 27 搜尋結果下方沒有圖（別人有三張截圖），產品頁英文有
+    標題大圖、中文沒有。推測是繁中的標題與搜尋結果素材沒有上線（被退、未核准或處理中），而 App 仍記著一張搜尋結果素材所以沒有退回
+    截圖——**未確認**，ASC 登入過期，待擁有者登入後到素材庫與 App 審查查狀態。
   - **2026-10-10 18:26：1.8.1（42）已送審，3 個項目都是「等待審查」**（擁有者：「好 送吧」；手機上的 TestFlight 42 檢查沒有回報結果）。
     送審前讀回：build 42、審查備註第一行 `RAINY CLOCK 1.8.1 (42)`、3,993 字、繁中 What's New 280 字、手動發佈、保留現有評分。
     「新增以供審查」先跳出共享 App 資訊的提示（英文副標題、繁中名稱、繁中副標題會隨這次提交套用）→ 繼續 → 草稿只有 App；再到

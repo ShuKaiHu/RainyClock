@@ -1132,13 +1132,21 @@ struct AlarmTimeSettingsView: View {
     @ViewBuilder private func soundSettings(for slot: CommuteAlarmSettings.SoundSlot) -> some View {
         let selected = viewModel.settings.sound(for: slot)
         ForEach(soundChoices) { sound in
-            Button { selectSound(sound, for: slot) } label: {
-                HStack {
-                    Text(sound.displayName).foregroundStyle(.primary)
-                    Spacer()
-                    if selected == sound { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
-                }.frame(minHeight: 32).contentShape(Rectangle())
-            }.buttonStyle(.plain)
+            // Two sibling buttons, not one inside the other: the row selects, the
+            // trailing control only plays, so auditioning a tone never picks it.
+            HStack(spacing: 4) {
+                Button { selectSound(sound, for: slot) } label: {
+                    HStack {
+                        Text(sound.displayName).foregroundStyle(.primary)
+                        Spacer()
+                        if selected == sound { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+                    }.frame(minHeight: 32).contentShape(Rectangle())
+                }.buttonStyle(.plain)
+                    // The checkmark is only an image; say it, so "Selected" is read
+                    // on the chosen tone and never on one that is merely playing.
+                    .accessibilityAddTraits(selected == sound ? .isSelected : [])
+                soundPreviewButton(for: sound, slot: slot)
+            }
         }
         if selected == .aiVoice {
             Button("ai_voice_edit") { stopSoundPreview(); showsAIVoiceSheet = true }
@@ -1155,10 +1163,31 @@ struct AlarmTimeSettingsView: View {
                 viewModel.settings = settings
             }
         }
-        if !selected.usesSystemAlarmTone {
-            Button { toggleSelectedSoundPreview(for: slot) } label: {
-                Label("preview_alarm_sound", systemImage: previewingSound == selected ? "stop.circle.fill" : "play.circle.fill")
+    }
+
+    /// A play control on every row that has something to play. The system alarm
+    /// tone has no file this app can open, and an AI voice has none until it has
+    /// been generated; those rows keep an invisible placeholder instead, so every
+    /// checkmark still lines up in one column.
+    @ViewBuilder private func soundPreviewButton(for sound: CommuteAlarmSettings.AlarmSound,
+                                                 slot: CommuteAlarmSettings.SoundSlot) -> some View {
+        let isPlaying = previewingSound == sound
+        if !sound.usesSystemAlarmTone, previewURL(for: sound, slot: slot) != nil {
+            Button { toggleSoundPreview(sound, for: slot) } label: {
+                Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                    .font(.title2)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.accentColor)
+            .accessibilityLabel(Text(String.localizedStringWithFormat(
+                String(localized: isPlaying ? "stop_preview_named_sound" : "preview_named_sound"), sound.displayName)))
+        } else {
+            Image(systemName: "play.circle.fill")
+                .font(.title2)
+                .frame(minWidth: 44, minHeight: 44)
+                .hidden()
         }
     }
 
@@ -1185,8 +1214,7 @@ struct AlarmTimeSettingsView: View {
         viewModel.settings.setSound(sound, for: slot)
     }
 
-    private func toggleSelectedSoundPreview(for slot: CommuteAlarmSettings.SoundSlot) {
-        let sound = viewModel.settings.sound(for: slot)
+    private func toggleSoundPreview(_ sound: CommuteAlarmSettings.AlarmSound, for slot: CommuteAlarmSettings.SoundSlot) {
         if previewingSound == sound {
             stopSoundPreview()
         } else {

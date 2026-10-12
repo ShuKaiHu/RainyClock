@@ -36,6 +36,19 @@ struct AIVoiceSheet: View {
 
     private let client: AIVoiceGenerating = AIVoiceClient()
 
+    init(viewModel: AlarmViewModel, slot: CommuteAlarmSettings.SoundSlot) {
+        _viewModel = ObservedObject(wrappedValue: viewModel)
+        self.slot = slot
+        // Reopen on what was last chosen rather than a blank page: the clip is
+        // audio and cannot be read back into a text field, so the words have to
+        // come from settings or they are gone. Read here, once, and not in
+        // `onAppear`: that also fires when a rewarded video covers the sheet and
+        // closes again, and reloading there put the saved words back over the
+        // ones just typed for the clip the video was watched for.
+        _text = State(initialValue: viewModel.settings.voiceText(for: slot))
+        _persona = State(initialValue: viewModel.settings.voicePersona(for: slot))
+    }
+
     /// Why the count is zero, which decides what the user can do about it.
     private var quotaExhaustedHint: LocalizedStringKey {
         if !RewardedAdController.isConfigured {
@@ -244,11 +257,8 @@ struct AIVoiceSheet: View {
                 }
             }
             .onAppear {
-                // Reopen on what was last chosen rather than a blank page: the clip
-                // is audio and cannot be read back into a text field, so the words
-                // have to come from settings or they are gone.
-                text = viewModel.settings.voiceText(for: slot)
-                persona = viewModel.settings.voicePersona(for: slot)
+                // Only the count is re-read on every appearance, which includes
+                // coming back from a rewarded video; the draft is the user's.
                 remaining = membership.isConfigured ? membership.remaining : AIVoiceQuota.remaining
                 // Loaded ahead of being needed, so the exchange button can say
                 // whether it will work rather than finding out on the tap.

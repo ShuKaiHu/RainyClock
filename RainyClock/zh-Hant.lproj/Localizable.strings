@@ -65,6 +65,8 @@
 "alarm_sound_ai_voice" = "AI 人聲";
 "alarm_sound_system_default" = "系統預設鬧鈴";
 "preview_alarm_sound" = "試聽鬧鈴";
+"preview_named_sound" = "試聽「%@」";
+"stop_preview_named_sound" = "停止試聽「%@」";
 "snooze" = "賴床";
 "snooze_duration" = "賴床間隔";
 "snooze_duration_value" = "%d 分鐘";

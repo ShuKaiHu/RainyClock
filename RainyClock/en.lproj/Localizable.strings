@@ -65,6 +65,8 @@
 "alarm_sound_ai_voice" = "AI Voice";
 "alarm_sound_system_default" = "System Default Alarm";
 "preview_alarm_sound" = "Preview alarm sound";
+"preview_named_sound" = "Preview %@";
+"stop_preview_named_sound" = "Stop preview of %@";
 "snooze" = "Snooze";
 "snooze_duration" = "Snooze duration";
 "snooze_duration_value" = "%d min";

@@ -1,5 +1,25 @@
 # Rainy Clock App Store Metadata
 
+## 1.8.2 (43) — What's New — DRAFT, 2026-10-12 (not pasted)
+
+> Two owner reports (2026-10-12): a play button on every alarm sound, and the AI Voice draft reverting after a rewarded
+> video. Details and the verification are in STATUS-IOS.md. Review note: start from appstore-review-notes-1.8.1-42.txt
+> with line 1 changed and a CHANGES SINCE 1.8.1 (42) sentence; neither change touches permissions, endpoints or data.
+
+### What's New — English (DRAFT)
+
+```
+• Alarm sounds: every sound in the list now has its own play button, so you can preview each one without choosing it.
+• AI Voice: the words you typed are kept after you watch a video for another generation.
+```
+
+### What's New — 繁體中文（草稿）
+
+```
+・鬧鈴聲：清單裡每個鈴聲旁都有播放鍵，不用先選取就能試聽。
+・AI 人聲：看完影片取得生成次數後，剛輸入的文字不會再被清掉。
+```
+
 ## 1.8.1 — Store listing update (ASO) — PASTED to 1.8.1, 2026-10-10; SUBMITTED with 1.8.1 (42) at 18:26
 
 > Owner decisions 2026-10-10: zh-Hant name → 「雨天鬧鐘 Rainy Clock」; en-US name stays **Rainy-Clock**; descriptions
