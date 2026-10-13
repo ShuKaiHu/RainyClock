@@ -12,7 +12,10 @@ struct CalendarAlarmRegistration: Codable, Equatable, Sendable {
         var soundFileNameOverride: String?
         var snoozeMinutes: Int?
         var timeZoneID: String
-        var presentationVersion = 1
+        /// Bumped with `AlarmKitScheduler.presentationRevision`: a stored registration
+        /// from an older presentation then never matches, so every dated alarm is
+        /// registered again instead of being kept with its outdated alert text.
+        var presentationVersion = 2
     }
 
     var id: UUID
@@ -121,6 +124,16 @@ struct AlarmKitScheduler: NotificationScheduling {
     /// Replaced alarms not cancelled yet — ringing or snoozing when they were replaced,
     /// or a cancel that failed. See `retire(_:)`.
     private static let supersededAlarmsKey = "alarmKitSupersededAlarms.v1"
+    /// What the registered alarms show is fixed when they are registered. Bump this
+    /// when that changes so a build that finds older registrations replaces them on
+    /// its first reconcile (revision 2, 1.8.2: alert text that survives an update).
+    static let presentationRevision = 2
+    private static let presentationRevisionKey = "alarmKitPresentationRevision"
+
+    /// False until a registration made with the current presentation has succeeded.
+    static func registrationsCarryCurrentPresentation(defaults: UserDefaults = .standard) -> Bool {
+        defaults.integer(forKey: presentationRevisionKey) >= presentationRevision
+    }
 
     private enum RegistrationError: Error {
         case systemStateChanged
@@ -232,6 +245,7 @@ struct AlarmKitScheduler: NotificationScheduling {
             throw error
         }
         defaults.removeObject(forKey: Self.calendarRegistrationsKey)
+        defaults.set(Self.presentationRevision, forKey: Self.presentationRevisionKey)
         // An upgraded install can still hold pending notification requests from the
         // pre-26 path; leaving them armed would ring twice.
         await cancelNotificationAlarms()
@@ -309,6 +323,7 @@ struct AlarmKitScheduler: NotificationScheduling {
             retiringOldAlarms = true
             try retire(confirmedAlarms.filter { !retainedIDs.contains($0.id) })
             defaults.set(storedRegistrations, forKey: Self.calendarRegistrationsKey)
+            defaults.set(Self.presentationRevision, forKey: Self.presentationRevisionKey)
         } catch {
             if retiringOldAlarms {
                 // Some old IDs may already be gone. Preserve their replacements
@@ -436,8 +451,18 @@ struct AlarmKitScheduler: NotificationScheduling {
     /// widget extension's process to render the snooze Live Activity, where `.main`
     /// would resolve to the appex — which ships no strings — and the UI would show
     /// the raw key.
-    private static func localized(_ key: String.LocalizationValue) -> LocalizedStringResource {
-        LocalizedStringResource(key, bundle: .atURL(Bundle.main.bundleURL))
+    ///
+    /// The URL is the one this install has now, and an App Store update moves the app
+    /// to a new container. An alarm registered before the update then names a bundle
+    /// that no longer exists, and the alert showed the bare key on the lock screen
+    /// ("alarm_snooze_button", reproduced 2026-10-13). The text resolved at scheduling
+    /// time travels along as `defaultValue`, which is what is shown when the lookup
+    /// fails; while the bundle is there the key still follows the device language.
+    private static func localized(_ key: StaticString) -> LocalizedStringResource {
+        let bundle = Bundle.main
+        let resolved = bundle.localizedString(forKey: "\(key)", value: nil, table: nil)
+        return LocalizedStringResource(key, defaultValue: String.LocalizationValue(resolved),
+                                       bundle: .atURL(bundle.bundleURL))
     }
 
     /// The system alarm tone is only reachable through `.default`; every other

@@ -68,6 +68,14 @@ struct SystemAlarmScheduler: NotificationScheduling {
         return LocalNotificationScheduler.hasScheduledAlarmPlan
     }
 
+    /// The registered alarms were made by a build whose alert text is out of date
+    /// (`AlarmKitScheduler.presentationRevision`) and should be registered again.
+    /// The notification path builds its text at delivery, so below iOS 26 never.
+    static func holdsOutdatedAlarmText() -> Bool {
+        if #available(iOS 26.0, *) { return !AlarmKitScheduler.registrationsCarryCurrentPresentation() }
+        return false
+    }
+
     /// A re-registration leaves a ringing or snoozing alarm to finish; once it has, this
     /// cancels it before it rings again at its old time. Only AlarmKit leaves one (the
     /// notification path carries its chain over), so below iOS 26 it does nothing.

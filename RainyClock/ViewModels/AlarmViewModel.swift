@@ -213,6 +213,9 @@ final class AlarmViewModel: ObservableObject {
     private let alarmInProgress: @MainActor () -> Bool
     /// The system still holds alarms of ours, whatever the stored summary says.
     private let systemHoldsAlarms: @MainActor () -> Bool
+    /// The registered alarms carry alert text from an older build and should be
+    /// registered again even though no setting changed (see `holdsOutdatedAlarmText`).
+    private let alarmTextOutdated: @MainActor () -> Bool
     /// Alarms are local notifications with self-repeating follow-ups (iOS 17–25).
     private let usesNotificationAlarms: Bool
     private let calendarWeatherTimeout: Duration
@@ -262,6 +265,9 @@ final class AlarmViewModel: ObservableObject {
         systemHoldsAlarms: @escaping @MainActor () -> Bool = {
             AppEnvironment.isRunningTests ? false : SystemAlarmScheduler.holdsRegisteredAlarms()
         },
+        alarmTextOutdated: @escaping @MainActor () -> Bool = {
+            AppEnvironment.isRunningTests ? false : SystemAlarmScheduler.holdsOutdatedAlarmText()
+        },
         usesNotificationAlarms: Bool? = nil
     ) {
         // Assigning the published summary also clears the success/error state;
@@ -292,6 +298,7 @@ final class AlarmViewModel: ObservableObject {
         self.dayOffPushReceivedAt = dayOffPushReceivedAt
         self.alarmInProgress = alarmInProgress
         self.systemHoldsAlarms = systemHoldsAlarms
+        self.alarmTextOutdated = alarmTextOutdated
         if let usesNotificationAlarms {
             self.usesNotificationAlarms = usesNotificationAlarms
         } else if #available(iOS 26.0, *) {
@@ -411,12 +418,17 @@ final class AlarmViewModel: ObservableObject {
         // A young decision is kept, unless the coming morning is inside its re-check window
         // with no decision there yet: then this open is that re-check, or the morning reads as
         // not re-checked although the app was running (`UnrecheckedMorning.awaitsRecheck`).
+        // Also unless the alarms were registered by a build whose alert text does not survive
+        // an App Store update (it showed the raw key on the lock screen): the unattended run
+        // below replaces them, and waits, like any other, for a ringing or snoozing alarm and
+        // for this morning's window; this method runs again on every activation.
         let now = Date()
         if let lastWeatherEvaluationAt,
            now.timeIntervalSince(lastWeatherEvaluationAt) < Self.weatherDecisionLifetime,
            !UnrecheckedMorning.awaitsRecheck(coming: tomorrowStatus(now: now), isAlarmEnabled: settings.isAlarmEnabled,
                                              rainLeadTimeMinutes: settings.rainLeadTimeMinutes,
-                                             log: weatherDecisionLog, now: now) {
+                                             log: weatherDecisionLog, now: now),
+           !alarmTextOutdated() {
             return
         }
 

@@ -668,6 +668,67 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         XCTAssertNil(model.scheduleErrorMessage)
     }
 
+    // MARK: - Alarms registered with outdated alert text (1.8.2)
+
+    /// Relaunches onto an unchanged weekly registration whose weather decision is young, so
+    /// an open would normally leave it alone. The morning is ~12 hours away: outside its
+    /// check window and its 9-hour re-check window. `textOutdated` stands in for the
+    /// presentation revision AlarmKit records: outdated until a registration succeeds.
+    private func relaunchOntoYoungRegistration(spy: SchedulerSpy, textOutdated: Bool,
+                                               alarmInProgress: Bool = false) throws -> (AlarmViewModel, Date) {
+        let now = Date()
+        var settings = CommuteAlarmSettings()
+        settings.homeAddress = "Home Street 1"
+        settings.workAddress = "Work Street 2"
+        settings.selectedWeekdays = CommuteAlarmSettings.allWeekdays
+        settings.alarmTime = now.addingTimeInterval(12 * 3600)
+        let normal = TomorrowWeatherRequest(settings: settings, now: now).normalAlarmDate
+        let summary = ScheduledAlarmSummary(normalAlarmDate: normal, scheduledAlarmDate: normal,
+            weatherRefreshDate: normal.addingTimeInterval(-30 * 60), exceedsRainThreshold: false, leadTimeMinutes: 0,
+            rainProbabilityThreshold: 0.5, maximumPrecipitationProbability: 0.08)
+        storage.set(try JSONEncoder().encode(settings), forKey: "commuteAlarmSettings")
+        storage.set(try JSONEncoder().encode(summary), forKey: "scheduledAlarmSummaryDisplay")
+        storage.set(try JSONEncoder().encode(settings.scheduleFingerprint()), forKey: "scheduledAlarmFingerprint")
+        storage.set(now.addingTimeInterval(-10 * 60), forKey: "lastWeatherEvaluationAt")
+        let model = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: spy,
+                                   previewScheduler: AutomaticPreviewScheduler(), settingsStorage: storage,
+                                   autoRefreshDebounce: .milliseconds(80),
+                                   alarmInProgress: { alarmInProgress },
+                                   alarmTextOutdated: { textOutdated && spy.scheduleCalls.isEmpty })
+        return (model, normal)
+    }
+
+    /// 1.8.1's alarms name the bundle path of the install that registered them, and an
+    /// update moves it: the lock screen showed "alarm_snooze_button". The first open of a
+    /// build that fixes the text registers them again although the decision is young and
+    /// no setting changed; once registered, later opens leave them alone again.
+    func testAlarmsWithOutdatedAlertTextAreRegisteredAgainOnce() async throws {
+        let spy = SchedulerSpy()
+        let (model, normal) = try relaunchOntoYoungRegistration(spy: spy, textOutdated: true)
+        await model.refreshScheduledAlarmIfWeatherIsStale()
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
+        XCTAssertEqual(spy.scheduleCalls.first?.normalAlarmDate, normal, "The same morning, registered again")
+        await model.refreshScheduledAlarmIfWeatherIsStale()
+        XCTAssertEqual(spy.scheduleCalls.count, 1, "Once the text is current, a young decision is kept again")
+    }
+
+    func testAlarmsWithCurrentAlertTextAreLeftAlone() async throws {
+        let spy = SchedulerSpy()
+        let (model, _) = try relaunchOntoYoungRegistration(spy: spy, textOutdated: false)
+        await model.refreshScheduledAlarmIfWeatherIsStale()
+        XCTAssertTrue(spy.scheduleCalls.isEmpty)
+    }
+
+    /// The user who saw the raw key on the first ring after the update opens the app during
+    /// the snooze. Re-registering now would leave the snoozed alarm to return at its old time
+    /// beside its replacement, still with the old text; the next open does it instead.
+    func testOutdatedAlertTextWaitsForARingingOrSnoozingAlarm() async throws {
+        let spy = SchedulerSpy()
+        let (model, _) = try relaunchOntoYoungRegistration(spy: spy, textOutdated: true, alarmInProgress: true)
+        await model.refreshScheduledAlarmIfWeatherIsStale()
+        XCTAssertTrue(spy.scheduleCalls.isEmpty)
+    }
+
     // MARK: - Inside this morning's check window (adversarial review, 2026-09-29)
 
     /// Relaunches onto a weekly registration for a morning ~10 minutes away whose rain check

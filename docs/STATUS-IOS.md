@@ -11,7 +11,7 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-10-12.
+Last updated: 2026-10-13.
 
 > **1.7.1（37）已上架：2026-09-26 05:33 UTC（台灣 13:33）**，台灣與美國商店的 App Store lookup 都回 1.7.1。
 > 這是 1.7.0（34）退審後的重送版，包含會員方案（月訂閱、買斷）、LevelPlay 廣告、地址建議清單修復。
@@ -336,6 +336,20 @@ Last updated: 2026-10-12.
     在對話中擬好，由擁有者送出）。**19:54 繁中產品頁的標題大圖出現了**（上架約 27 小時後）→ 只是 Apple 端延遲，不用回報。
     搜尋結果那張截圖本 App 顯示「打開」（已安裝），所以沒有圖是 App Store 對已安裝 App 的固定行為，不能拿來判斷；要用沒裝過的
     裝置或帳號看。下次新素材上線，至少等一天再判斷有沒有生效。
+  - **2026-10-13：1.8.2（43）再加一項——App 更新後鎖定畫面鬧鐘出現字串名稱**（擁有者：藍色按鈕「有看到一串英文」，用 AI
+    鈴聲）。**重現：** iOS 27 模擬器、系統繁中、AI 人聲、稍後提醒開：正常情況響鈴畫面是「該起床了／再睡一下／滑動來停止」；
+    但 App 排好鬧鐘後**覆蓋安裝、不打開 App**（等同 App Store 更新）再響，標題變 `alarm_alert_title_normal`、藍色按鈕變
+    `alarm_snooze_button`。**原因：** `AlarmKitScheduler.localized` 用 `LocalizedStringResource(key, bundle: .atURL(Bundle.main.bundleURL))`，
+    鬧鐘記住的是註冊當下的安裝路徑；更新會把 App 搬到新的容器路徑、舊路徑刪除，系統找不到字串就顯示 key。與 AI 鈴聲無關。
+    **修正：** (1) 每段鬧鐘文字（標題、稍後提醒按鈕、賴床中、iOS 26.0 的停止按鈕）帶上註冊當下解析好的文字作 `defaultValue`；
+    路徑還在時照舊跟著裝置語言查表。模擬器同一更新情境驗證：修正版顯示「該起床了／再睡一下」，按下後即時動態「賴床中」。
+    (2) 1.8.1 註冊的鬧鐘沒有這段備援文字，所以 1.8.2 要重新註冊一次：`AlarmKitScheduler.presentationRevision = 2`（UserDefaults
+    `alarmKitPresentationRevision`，只在週期與日曆兩條路徑**成功**註冊後寫入）、`CalendarAlarmRegistration.Configuration.presentationVersion`
+    改 2（舊的日期型註冊不再沿用）；`refreshScheduledAlarmIfWeatherIsStale` 在文字過期時不走「決定還新就跳過」，交給
+    `refreshScheduledAlarmUnattended`——它本來就會等正在響／賴床中的鬧鐘、避開檢查點到響鈴之間，每次回到前景與背景任務都會再試。
+    **限制：** 1.8.1 升到 1.8.2 後、還沒打開 App 也沒跑背景更新前響的那一次，仍可能顯示 key；打開一次後就修好，之後的更新不會再發生。
+    審查（三位＋反駁驗證）抓到初版把重新註冊放在 reconcile 的 debounce，會在響鈴／賴床中重註冊、日曆型使用者還會擋掉啟動的雨況重查，
+    已改走上面的 unattended 路徑；另一個既有問題（取消 debounce 沒有清成 nil）另開任務。測試：新增 6 個（含失敗不寫入、響鈴中不重註冊）。
   - **2026-10-12：1.8.2（43）開始——AI 人聲兩個問題**（擁有者：「這個改動納入1.8.2」）。版本號已改 1.8.2／43（`Info.plist` 兩個值、
     `project.pbxproj` 11 處）。(1) **每個鈴聲旁都有播放鍵**（擁有者找到了原本清單最下面的「試聽鬧鈴」，但希望每列都有）：
     設定 › 時間 › 一般／提早響鈴的每一列右邊有自己的 ▶／■（`ContentView.soundPreviewButton`），按了只試聽、不會選取；系統預設鬧鈴（App

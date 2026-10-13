@@ -22,6 +22,7 @@ final class AlarmKitSchedulerTests: XCTestCase {
         private var onSchedule: (@Sendable () -> Void)?
         private var refusedCancel: UUID?
         private var observers: [AsyncStream<Void>.Continuation] = []
+        private var requests: [UUID: AlarmRequest] = [:]
 
         func alarms() throws -> [AlarmSnapshot] {
             try lock.withLock {
@@ -32,6 +33,7 @@ final class AlarmKitSchedulerTests: XCTestCase {
 
         func schedule(id: UUID, request: AlarmRequest) async throws {
             let change = lock.withLock {
+                requests[id] = request
                 list.removeAll { $0.id == id }
                 list.append(AlarmSnapshot(id: id, state: .scheduled, schedule: request.schedule,
                                           countdownDuration: request.countdownDuration))
@@ -88,6 +90,8 @@ final class AlarmKitSchedulerTests: XCTestCase {
         }
 
         var identifiers: Set<UUID> { lock.withLock { Set(list.map(\.id)) } }
+
+        func request(for id: UUID) -> AlarmRequest? { lock.withLock { requests[id] } }
     }
 
     @available(iOS 26.0, *)
@@ -118,6 +122,90 @@ final class AlarmKitSchedulerTests: XCTestCase {
                                      coveredUntil: (ringDates.last ?? Date()).addingTimeInterval(86_400))
         try await scheduler.scheduleCalendar(plan, sound: .rainyClock, soundFileNameOverride: nil,
                                              snoozeMinutes: 5, title: "Alarm", body: "Wake up")
+    }
+
+    // MARK: The alert text survives an App Store update
+
+    /// An update moves the app to a new container, so a registered alarm names a bundle
+    /// that is gone. Its text used to fall back to the bare key ("alarm_snooze_button" on
+    /// the lock screen, seen on the owner's phone and reproduced 2026-10-13); the text
+    /// resolved when it was registered now travels along and is shown instead.
+    func testAlertTextSurvivesTheAppMovingToANewContainer() async throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        let (scheduler, alarms) = makeScheduler()
+        let id = try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30)
+        let presentation = try XCTUnwrap(alarms.request(for: id)).attributes.presentation
+        let resources = [presentation.alert.title,
+                         try XCTUnwrap(presentation.alert.secondaryButton).text,
+                         try XCTUnwrap(presentation.countdown).title]
+        let installed = Bundle.main.bundleURL.path
+        for resource in resources {
+            let encoded = String(decoding: try JSONEncoder().encode(resource), as: UTF8.self)
+            let moved = encoded
+                .replacingOccurrences(of: installed.replacingOccurrences(of: "/", with: "\\/"),
+                                      with: "\\/private\\/var\\/gone\\/RainyClock.app")
+                .replacingOccurrences(of: installed, with: "/private/var/gone/RainyClock.app")
+            XCTAssertNotEqual(moved, encoded, "The resource must name the installed bundle for this test to move it")
+            let decoded = try JSONDecoder().decode(LocalizedStringResource.self, from: Data(moved.utf8))
+            let shown = String(localized: decoded)
+            XCTAssertNotEqual(shown, resource.key, "A moved bundle must not show the bare key")
+            XCTAssertEqual(shown, Bundle.main.localizedString(forKey: resource.key, value: nil, table: nil))
+        }
+    }
+
+    /// A build finds out from this whether the alarms it inherited were registered with
+    /// the current alert text (`AlarmViewModel` re-registers them once if not).
+    func testARegistrationRecordsTheCurrentPresentation() async throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        for dated in [false, true] {
+            let suite = "AlarmKitSchedulerTests.revision.\(UUID().uuidString)"
+            let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            addTeardownBlock { UserDefaults(suiteName: suite)?.removePersistentDomain(forName: suite) }
+            let alarms = FakeAlarms()
+            let scheduler = AlarmKitScheduler(manager: alarms, defaults: defaults, cancelNotificationAlarms: {})
+            XCTAssertFalse(AlarmKitScheduler.registrationsCarryCurrentPresentation(defaults: defaults),
+                           "An install upgraded from 1.8.1 has no record and counts as outdated")
+            // A failed registration must not mark the old alarms current: they would keep
+            // their raw-key text for good.
+            alarms.setReadable(false)
+            do {
+                if dated {
+                    try await scheduleDated(scheduler, ringingAt: [Date().addingTimeInterval(86_400)])
+                } else {
+                    try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30)
+                }
+                XCTFail("An unreadable alarm list must fail the registration")
+            } catch {}
+            XCTAssertFalse(AlarmKitScheduler.registrationsCarryCurrentPresentation(defaults: defaults),
+                           dated ? "dated, failed" : "weekly, failed")
+            alarms.setReadable(true)
+            if dated {
+                try await scheduleDated(scheduler, ringingAt: [Date().addingTimeInterval(86_400)])
+            } else {
+                try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30)
+            }
+            XCTAssertTrue(AlarmKitScheduler.registrationsCarryCurrentPresentation(defaults: defaults),
+                          dated ? "dated" : "weekly")
+        }
+    }
+
+    /// A dated alarm registered with an older presentation is replaced, not kept: its
+    /// stored configuration no longer matches.
+    func testADatedAlarmFromAnOlderPresentationIsRegisteredAgain() throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        let ring = Date().addingTimeInterval(86_400)
+        var old = CalendarAlarmRegistration.Configuration(normalDate: ring, ringDate: ring, soundRawValue: "rainyClock",
+            soundFileNameOverride: nil, snoozeMinutes: 5, timeZoneID: "Asia/Taipei")
+        old.presentationVersion = AlarmKitScheduler.presentationRevision - 1
+        let current = CalendarAlarmRegistration.Configuration(normalDate: ring, ringDate: ring, soundRawValue: "rainyClock",
+            soundFileNameOverride: nil, snoozeMinutes: 5, timeZoneID: "Asia/Taipei")
+        let previous = CalendarAlarmRegistration(id: UUID(), configuration: old)
+        let result = CalendarAlarmRegistration.reconcile([current], previous: [previous],
+            reusableIdentifiers: [previous.id], now: Date())
+        XCTAssertEqual(result.count, 1)
+        XCTAssertNotEqual(result.first?.id, previous.id)
+        // The two numbers are bumped together; a new configuration carries the current one.
+        XCTAssertEqual(current.presentationVersion, AlarmKitScheduler.presentationRevision)
     }
 
     // MARK: A ringing or snoozing alarm survives re-registration
