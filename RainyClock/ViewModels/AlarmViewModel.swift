@@ -591,7 +591,7 @@ final class AlarmViewModel: ObservableObject {
         // Off until the user turns it back on: nothing registered, nothing re-armed —
         // before the first-arm, premium-lapse and fingerprint rules below get a say.
         guard settings.isAlarmEnabled else {
-            autoRefreshTask?.cancel()
+            cancelPendingAutoRefresh()
             if scheduledAlarmSummary != nil || scheduledFingerprint != nil {
                 enqueueSettingsRemoval(statusKey: "status_alarm_turned_off")
             }
@@ -602,19 +602,19 @@ final class AlarmViewModel: ObservableObject {
                lastAutomaticInitialAttempt != effectiveSchedulingSettings.scheduleFingerprint() {
                 scheduleAutoRefresh()
             } else {
-                autoRefreshTask?.cancel()
+                cancelPendingAutoRefresh()
             }
             return
         }
 
         let current = effectiveSchedulingSettings.scheduleFingerprint()
         if !hasEnabledAlarmDay && (settings.calendarSettings.isActive && settings.calendarSettings.overrides.values.contains(.ring)) {
-            autoRefreshTask?.cancel()
+            cancelPendingAutoRefresh()
             return
         }
         guard current != scheduledFingerprint else {
             // Settings changed and changed back before the debounce fired.
-            autoRefreshTask?.cancel()
+            cancelPendingAutoRefresh()
             return
         }
 
@@ -636,7 +636,7 @@ final class AlarmViewModel: ObservableObject {
     }
 
     private func enqueueSettingsRemoval(statusKey: String.LocalizationValue = "status_alarm_removed_address_changed") {
-        autoRefreshTask?.cancel()
+        cancelPendingAutoRefresh()
         guard settingsRemovalTask == nil else { return }
         settingsRemovalTask = Task { [weak self] in
             guard let self else { return }
@@ -660,7 +660,11 @@ final class AlarmViewModel: ObservableObject {
             guard !Task.isCancelled, let self else {
                 return
             }
-            guard self.settingsRemovalTask == nil else { return }
+            guard self.settingsRemovalTask == nil else {
+                // Ending without running: no handle may outlive it (`cancelPendingAutoRefresh`).
+                self.autoRefreshTask = nil
+                return
+            }
 
             guard !self.isScheduling else {
                 // A manual run is in flight; re-debounce and reconcile after it.
@@ -689,7 +693,7 @@ final class AlarmViewModel: ObservableObject {
     }
 
     private func removeScheduledAlarm(statusKey: String.LocalizationValue = "status_alarm_removed_address_changed") async {
-        autoRefreshTask?.cancel()
+        cancelPendingAutoRefresh()
         if settings.isAlarmEnabled {
             // A settings change (a new address, no repeat day left) removes the registration
             // but not the alarm: a ringing or snoozing one, or a follow-up chain nobody
@@ -1144,7 +1148,7 @@ final class AlarmViewModel: ObservableObject {
         isScheduling = true
         scheduleErrorMessage = nil
         // This run IS the refresh; a queued debounce would only duplicate it.
-        autoRefreshTask?.cancel()
+        cancelPendingAutoRefresh()
         defer { finishScheduling() }
 
         // Freeze the settings for the whole flow: the user can keep moving sliders
@@ -1814,6 +1818,10 @@ final class AlarmViewModel: ObservableObject {
             || registeredSummary(now: now)?.hasFiredEarlyRing(forMorning: coming.normalAlarmDate, now: now) == true
     }
 
+    /// Drops a queued debounce. Always clear the handle, never just cancel the task: a cancelled
+    /// debounce exits without clearing it, and `refreshScheduledAlarmIfWeatherIsStale` reads any
+    /// handle as an edit still pending, so it skipped the stale re-decision on that activation
+    /// and every later one in the process (review, 2026-10-13).
     private func cancelPendingAutoRefresh() {
         autoRefreshTask?.cancel()
         autoRefreshTask = nil
@@ -2063,7 +2071,7 @@ final class AlarmViewModel: ObservableObject {
         }
         isScheduling = true
         scheduleErrorMessage = nil
-        autoRefreshTask?.cancel()
+        cancelPendingAutoRefresh()
         var succeeded = false
         defer {
             finishScheduling()

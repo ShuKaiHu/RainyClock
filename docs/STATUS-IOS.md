@@ -362,6 +362,15 @@ Last updated: 2026-10-13.
     模擬器驗證（iOS 27、繁中、AI 人聲，系統替別的 process 套參數這段只有實機／模擬器看得到）：稍後提醒 7 分鐘，一般響鈴「該起床了／
     再睡 7 分鐘／滑動來停止」；排好鬧鐘後覆蓋安裝、不開 App（舊路徑確定已刪）再響，仍是「再睡 7 分鐘」，按下後即時動態「賴床中」約 13 秒時
     剩 6:47。
+  - **2026-10-13：1.8.2（43）再加一項——取消的 debounce 留下 handle，開 App 的雨況重查從此跳過**（上面「另開任務」那項，既有問題）。
+    `AlarmViewModel` 有 8 處只 `autoRefreshTask?.cancel()`、沒清成 nil，被取消的 debounce 提早結束也不會自己清；
+    `refreshScheduledAlarmIfWeatherIsStale` 的 `guard autoRefreshTask == nil` 把留下的 handle 當成「設定修改還在排隊」直接 return，
+    於是這次、以及同一個 process 之後每次回到前景，都不再重查已過期的雨況決定（背景更新不受影響）。觸發例：日期型方案接近涵蓋期限，
+    開 App 時 coverage 分支呼叫 `applyCalendarSettings`，把剛排好的 debounce 取消；或設定改了又在 debounce 前改回去。
+    **修正：** 凡是「丟掉排隊中的 debounce」都改用 `cancelPendingAutoRefresh()`（取消並清成 nil）；`scheduleAutoRefresh` 自己那處緊接著
+    就重新指派，維持原樣；debounce 因 settings removal 進行中而提早結束時也清掉自己的 handle。測試：新增 2 個（改了又改回、
+    `applyCalendarSettings` 吸收 debounce 之後，開 App 仍重查 5 小時前的決定），未修正的程式兩個都失敗；完整測試（iOS 26.5，略過
+    `MembershipStoreKitTests`）665 個：661 通過、0 失敗、4 略過（`LocalNotificationSchedulerSystemTests`，照例）。
   - **2026-10-12：1.8.2（43）開始——AI 人聲兩個問題**（擁有者：「這個改動納入1.8.2」）。版本號已改 1.8.2／43（`Info.plist` 兩個值、
     `project.pbxproj` 11 處）。(1) **每個鈴聲旁都有播放鍵**（擁有者找到了原本清單最下面的「試聽鬧鈴」，但希望每列都有）：
     設定 › 時間 › 一般／提早響鈴的每一列右邊有自己的 ▶／■（`ContentView.soundPreviewButton`），按了只試聽、不會選取；系統預設鬧鈴（App

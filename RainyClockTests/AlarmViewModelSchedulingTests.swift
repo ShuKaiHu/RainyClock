@@ -520,6 +520,54 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         XCTAssertFalse(armedStatus.isEmpty)
     }
 
+    // MARK: - A dropped debounce (review, 2026-10-13)
+
+    /// Arms a weekly alarm, ages its decision past its lifetime, and relaunches with a debounce
+    /// long enough that only a cancellation can end one queued during the test.
+    private func relaunchOntoAgedDecision(spy: SchedulerSpy) async -> AlarmViewModel {
+        let viewModel = makeViewModel(spy: spy)
+        await viewModel.evaluateRouteAndScheduleAlarm()
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
+        storage.set(Date().addingTimeInterval(-5 * 60 * 60), forKey: "lastWeatherEvaluationAt")
+        let relaunched = AlarmViewModel(routeWeatherService: MockRouteWeatherService(), notificationScheduler: spy,
+                                        settingsStorage: storage, autoRefreshDebounce: .seconds(60))
+        XCTAssertTrue(relaunched.hasScheduledAlarm)
+        return relaunched
+    }
+
+    /// A cancelled debounce exits without clearing its handle, and the open read the leftover
+    /// handle as an edit still pending: it skipped the stale re-decision on that activation and
+    /// every later one in the process. Here an edit reverted before its debounce fired drops it.
+    func testAnEditRevertedBeforeItsDebounceStillLetsAnOpenRedecideAnAgedAlarm() async throws {
+        let spy = SchedulerSpy()
+        let model = await relaunchOntoAgedDecision(spy: spy)
+        let original = model.settings.rainLeadTimeMinutes
+        model.settings.rainLeadTimeMinutes = original + 5
+        model.settings.rainLeadTimeMinutes = original
+        try await Task.sleep(for: .milliseconds(50))
+
+        await model.refreshScheduledAlarmIfWeatherIsStale()
+        XCTAssertEqual(spy.scheduleCalls.count, 2, "The open re-decides the aged alarm")
+        XCTAssertLessThan(abs(try XCTUnwrap(model.lastWeatherEvaluationAt).timeIntervalSinceNow), 60)
+    }
+
+    /// The same through the calendar re-registration a dated plan near its horizon makes on
+    /// open (`applyCalendarSettings`): it absorbs an edit's queued debounce, then the open has
+    /// to go on to the weather.
+    func testACalendarReRegistrationAbsorbingADebounceStillLetsAnOpenRedecideAnAgedAlarm() async throws {
+        let spy = SchedulerSpy()
+        let model = await relaunchOntoAgedDecision(spy: spy)
+        model.settings.snoozeDurationMinutes = 9
+        await model.applyCalendarSettings()
+        XCTAssertEqual(spy.scheduleCalls.count, 2, "The edit is registered without the weather")
+        XCTAssertFalse(model.isScheduleStale)
+
+        await model.refreshScheduledAlarmIfWeatherIsStale()
+        XCTAssertEqual(spy.scheduleCalls.count, 3, "The open re-decides the aged alarm")
+        XCTAssertEqual(spy.scheduleCalls.last?.snoozeMinutes, 9)
+        XCTAssertLessThan(abs(try XCTUnwrap(model.lastWeatherEvaluationAt).timeIntervalSinceNow), 60)
+    }
+
     // MARK: - Master switch (1.8.0)
 
     private func makeSwitchViewModel(spy: SchedulerSpy, weather: RouteWeatherService = MockRouteWeatherService(),
