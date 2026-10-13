@@ -108,20 +108,21 @@ final class AlarmKitSchedulerTests: XCTestCase {
     @available(iOS 26.0, *)
     @discardableResult
     private func scheduleWeekly(_ scheduler: AlarmKitScheduler, _ alarms: FakeAlarms,
-                                hour: Int, minute: Int) async throws -> UUID {
+                                hour: Int, minute: Int, snoozeMinutes: Int? = 5) async throws -> UUID {
         let before = alarms.identifiers
         let ring = try XCTUnwrap(Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()))
         try await scheduler.scheduleAlarm(at: ring, normalAlarmDate: ring, weekdays: [2, 3, 4, 5, 6],
-            sound: .rainyClock, soundFileNameOverride: nil, snoozeMinutes: 5, title: "Alarm", body: "Wake up")
+            sound: .rainyClock, soundFileNameOverride: nil, snoozeMinutes: snoozeMinutes, title: "Alarm", body: "Wake up")
         return try XCTUnwrap(alarms.identifiers.subtracting(before).first)
     }
 
     @available(iOS 26.0, *)
-    private func scheduleDated(_ scheduler: AlarmKitScheduler, ringingAt ringDates: [Date]) async throws {
+    private func scheduleDated(_ scheduler: AlarmKitScheduler, ringingAt ringDates: [Date],
+                               snoozeMinutes: Int? = 5) async throws {
         let plan = CalendarAlarmPlan(occurrences: ringDates.map { .init(normalDate: $0, ringDate: $0) },
                                      coveredUntil: (ringDates.last ?? Date()).addingTimeInterval(86_400))
         try await scheduler.scheduleCalendar(plan, sound: .rainyClock, soundFileNameOverride: nil,
-                                             snoozeMinutes: 5, title: "Alarm", body: "Wake up")
+                                             snoozeMinutes: snoozeMinutes, title: "Alarm", body: "Wake up")
     }
 
     // MARK: The alert text survives an App Store update
@@ -135,11 +136,18 @@ final class AlarmKitSchedulerTests: XCTestCase {
         let (scheduler, alarms) = makeScheduler()
         let id = try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30)
         let presentation = try XCTUnwrap(alarms.request(for: id)).attributes.presentation
-        let resources = [presentation.alert.title,
-                         try XCTUnwrap(presentation.alert.secondaryButton).text,
-                         try XCTUnwrap(presentation.countdown).title]
+        let snoozeText = String.localizedStringWithFormat(
+            Bundle.main.localizedString(forKey: "alarm_snooze_button_minutes", value: nil, table: nil), 5)
+        let expected: [(LocalizedStringResource, String)] = [
+            (presentation.alert.title,
+             Bundle.main.localizedString(forKey: "alarm_alert_title_normal", value: nil, table: nil)),
+            (try XCTUnwrap(presentation.alert.secondaryButton).text, snoozeText),
+            (try XCTUnwrap(presentation.countdown).title,
+             Bundle.main.localizedString(forKey: "alarm_snoozing_title", value: nil, table: nil)),
+        ]
         let installed = Bundle.main.bundleURL.path
-        for resource in resources {
+        for (resource, text) in expected {
+            XCTAssertFalse(text.hasPrefix("alarm_"), "The test bundle must have the string: \(text)")
             let encoded = String(decoding: try JSONEncoder().encode(resource), as: UTF8.self)
             let moved = encoded
                 .replacingOccurrences(of: installed.replacingOccurrences(of: "/", with: "\\/"),
@@ -147,10 +155,75 @@ final class AlarmKitSchedulerTests: XCTestCase {
                 .replacingOccurrences(of: installed, with: "/private/var/gone/RainyClock.app")
             XCTAssertNotEqual(moved, encoded, "The resource must name the installed bundle for this test to move it")
             let decoded = try JSONDecoder().decode(LocalizedStringResource.self, from: Data(moved.utf8))
-            let shown = String(localized: decoded)
-            XCTAssertNotEqual(shown, resource.key, "A moved bundle must not show the bare key")
-            XCTAssertEqual(shown, Bundle.main.localizedString(forKey: resource.key, value: nil, table: nil))
+            XCTAssertEqual(String(localized: decoded), text, "A moved bundle must show the words, not a key")
+            XCTAssertEqual(String(localized: resource), text, "And so must the installed one")
         }
+    }
+
+    /// The button says what pressing it does: "再睡 12 分鐘" for a 12-minute snooze
+    /// (owner, 2026-10-13), not a fixed "再睡一下" — on the weekly and the dated path, with
+    /// the number the snooze countdown runs, in the language the device has when it rings.
+    func testTheSnoozeButtonNamesTheUsersMinutes() async throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        for dated in [false, true] {
+            let (scheduler, alarms) = makeScheduler()
+            if dated {
+                try await scheduleDated(scheduler, ringingAt: [Date().addingTimeInterval(86_400)], snoozeMinutes: 12)
+            } else {
+                try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30, snoozeMinutes: 12)
+            }
+            let request = try XCTUnwrap(alarms.identifiers.first.flatMap(alarms.request(for:)))
+            XCTAssertEqual(request.countdownDuration?.postAlert, 12 * 60)
+            var text = try XCTUnwrap(request.attributes.presentation.alert.secondaryButton).text
+            text.locale = Locale(identifier: "zh-Hant")
+            XCTAssertEqual(String(localized: text), "再睡 12 分鐘", dated ? "dated" : "weekly")
+            text.locale = Locale(identifier: "en")
+            XCTAssertEqual(String(localized: text), "Snooze 12 min", dated ? "dated" : "weekly")
+        }
+        // After an update moves the bundle, the number survives in the fallback too.
+        let gone = LocalizedStringResource("alarm_snooze_button_minutes",
+            defaultValue: AlarmKitScheduler.snoozeFallback(format: "再睡 %lld 分鐘", minutes: 9),
+            bundle: .atURL(URL(fileURLWithPath: "/private/var/gone/RainyClock.app")))
+        XCTAssertEqual(String(localized: gone), "再睡 9 分鐘")
+    }
+
+    /// Snooze off: no blue button, and nothing for one to count down.
+    func testNoSnoozeLeavesNoSnoozeButton() async throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        for dated in [false, true] {
+            let (scheduler, alarms) = makeScheduler()
+            if dated {
+                try await scheduleDated(scheduler, ringingAt: [Date().addingTimeInterval(86_400)], snoozeMinutes: nil)
+            } else {
+                try await scheduleWeekly(scheduler, alarms, hour: 7, minute: 30, snoozeMinutes: nil)
+            }
+            let request = try XCTUnwrap(alarms.identifiers.first.flatMap(alarms.request(for:)))
+            XCTAssertNil(request.attributes.presentation.alert.secondaryButton, dated ? "dated" : "weekly")
+            XCTAssertNil(request.attributes.presentation.countdown, dated ? "dated" : "weekly")
+            XCTAssertNil(request.countdownDuration, dated ? "dated" : "weekly")
+        }
+    }
+
+    /// A dated alarm already registered is kept while nothing changes, but a new snooze
+    /// length replaces it: kept, it would still offer the old number.
+    func testANewSnoozeLengthRegistersTheDatedAlarmsAgain() async throws {
+        guard #available(iOS 26.0, *) else { throw XCTSkip("AlarmKit needs iOS 26") }
+        let (scheduler, alarms) = makeScheduler()
+        let tomorrow = Date().addingTimeInterval(86_400)
+        try await scheduleDated(scheduler, ringingAt: [tomorrow], snoozeMinutes: 5)
+        let five = alarms.identifiers
+        try await scheduleDated(scheduler, ringingAt: [tomorrow], snoozeMinutes: 5)
+        XCTAssertEqual(alarms.identifiers, five, "Unchanged, the registration is reused")
+
+        try await scheduleDated(scheduler, ringingAt: [tomorrow], snoozeMinutes: 9)
+        let nine = alarms.identifiers
+        XCTAssertEqual(nine.count, 1)
+        XCTAssertTrue(nine.isDisjoint(with: five))
+        let request = try XCTUnwrap(nine.first.flatMap(alarms.request(for:)))
+        XCTAssertEqual(request.countdownDuration?.postAlert, 9 * 60)
+        var text = try XCTUnwrap(request.attributes.presentation.alert.secondaryButton).text
+        text.locale = Locale(identifier: "zh-Hant")
+        XCTAssertEqual(String(localized: text), "再睡 9 分鐘")
     }
 
     /// A build finds out from this whether the alarms it inherited were registered with

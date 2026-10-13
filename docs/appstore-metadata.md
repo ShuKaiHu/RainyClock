@@ -30,19 +30,21 @@ a scooter page and a US commuter page (need new real captures), a 春節 version
 
 ## 1.8.2 (43) — What's New — DRAFT, 2026-10-12 (not pasted)
 
-> Three owner reports: a play button on every alarm sound and the AI Voice draft reverting after a rewarded video
+> Four owner reports: a play button on every alarm sound and the AI Voice draft reverting after a rewarded video
 > (2026-10-12); the lock-screen alarm showing raw keys such as "alarm_snooze_button" when it rang after an App Store
-> update before the app was opened (2026-10-13). Details and the verification are in STATUS-IOS.md. Review note: start
+> update before the app was opened, and the snooze button naming the user's snooze length — "再睡 9 分鐘" instead of
+> "再睡一下" (both 2026-10-13). Details and the verification are in STATUS-IOS.md. Review note: start
 > from appstore-review-notes-1.8.1-42.txt with line 1 changed and a CHANGES SINCE 1.8.1 (42) sentence (alarm alert text
 > now carries its resolved wording; on first launch the existing AlarmKit alarms are registered again once). None of
-> the three touches permissions, endpoints or data.
+> the four touches permissions, endpoints or data.
 
 ### What's New — English (DRAFT)
 
 ```
 • Alarm sounds: every sound in the list now has its own play button, so you can preview each one without choosing it.
 • AI Voice: the words you typed are kept after you watch a video for another generation.
-• Alarm screen: after an app update, a ringing alarm could show code-like text such as "alarm_snooze_button" instead of "Snooze". Fixed. Open Rainy Clock once after updating so the alarms you already set pick up the fix.
+• Alarm screen: the snooze button now shows your snooze length, such as "Snooze 9 min".
+• Alarm screen: after an app update, a ringing alarm could show code-like text such as "alarm_snooze_button". Fixed. Open Rainy Clock once after updating so the alarms you already set pick up both changes.
 ```
 
 ### What's New — 繁體中文（草稿）
@@ -50,7 +52,8 @@ a scooter page and a US commuter page (need new real captures), a 春節 version
 ```
 ・鬧鈴聲：清單裡每個鈴聲旁都有播放鍵，不用先選取就能試聽。
 ・AI 人聲：看完影片取得生成次數後，剛輸入的文字不會再被清掉。
-・鬧鐘畫面：App 更新後，響鈴時可能出現「alarm_snooze_button」這類像程式碼的英文字，而不是「再睡一下」。已修正；更新後請打開雨天鬧鐘一次，已設定的鬧鐘就會換成正確的文字。
+・鬧鐘畫面：稍後提醒按鈕會寫出你設定的分鐘數，例如「再睡 9 分鐘」。
+・鬧鐘畫面：App 更新後，響鈴時可能出現「alarm_snooze_button」這類像程式碼的英文字。已修正；更新後請打開雨天鬧鐘一次，已設定的鬧鐘就會換上這兩項改動。
 ```
 
 ## 1.8.1 — Store listing update (ASO) — PASTED to 1.8.1, 2026-10-10; SUBMITTED with 1.8.1 (42) at 18:26

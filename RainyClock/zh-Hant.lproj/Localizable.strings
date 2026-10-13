@@ -113,7 +113,7 @@
 "notification_body_normal" = "降雨機率低於你的門檻，因此使用正常鬧鐘時間。";
 "alarm_alert_title_normal" = "該起床了";
 "alarm_alert_title_adjusted" = "今天有雨，提早叫你起床";
-"alarm_snooze_button" = "再睡一下";
+"alarm_snooze_button_minutes" = "再睡 %lld 分鐘";
 "alarm_snoozing_title" = "賴床中";
 "segment_home_area" = "住家";
 "segment_office_area" = "公司";

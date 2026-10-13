@@ -113,7 +113,7 @@
 "notification_body_normal" = "Rain probability is below your threshold, so the normal alarm time was used.";
 "alarm_alert_title_normal" = "Time to get up";
 "alarm_alert_title_adjusted" = "Rain ahead — up early today";
-"alarm_snooze_button" = "Snooze";
+"alarm_snooze_button_minutes" = "Snooze %lld min";
 "alarm_snoozing_title" = "Snoozing";
 "segment_home_area" = "Home";
 "segment_office_area" = "Office";

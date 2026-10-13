@@ -465,6 +465,33 @@ struct AlarmKitScheduler: NotificationScheduling {
                                        bundle: .atURL(bundle.bundleURL))
     }
 
+    /// "再睡 5 分鐘" / "Snooze 5 min": the minutes the user set, so the button says what
+    /// pressing it does (owner, 2026-10-13). The key is the real one, so while the bundle
+    /// is there the button follows the device language like the title; the minutes ride
+    /// along as the fallback's argument, which the table's `%lld` formats, and after an
+    /// update moves the bundle the fallback itself reads "再睡 5 分鐘" in the language the
+    /// alarm was registered in. A new snooze length changes the schedule fingerprint, so
+    /// the alarm is registered again with the new number.
+    private static func snoozeButtonText(minutes: Int) -> LocalizedStringResource {
+        let bundle = Bundle.main
+        let format = bundle.localizedString(forKey: "alarm_snooze_button_minutes", value: nil, table: nil)
+        return LocalizedStringResource("alarm_snooze_button_minutes",
+                                       defaultValue: snoozeFallback(format: format, minutes: minutes),
+                                       bundle: .atURL(bundle.bundleURL))
+    }
+
+    /// The resolved format rebuilt with `minutes` as a real interpolation, so the value
+    /// carries one integer argument — the shape every table's `%lld` expects — instead of
+    /// a finished string the table could not put the number into.
+    static func snoozeFallback(format: String, minutes: Int) -> String.LocalizationValue {
+        let parts = format.components(separatedBy: "%lld")
+        var value = String.LocalizationValue.StringInterpolation(literalCapacity: format.count, interpolationCount: 1)
+        value.appendLiteral(parts[0])
+        value.appendInterpolation(minutes)
+        value.appendLiteral(parts.dropFirst().joined(separator: "%lld"))
+        return String.LocalizationValue(stringInterpolation: value)
+    }
+
     /// The system alarm tone is only reachable through `.default`; every other
     /// choice names a file, either one this app ships or one it generated into the
     /// container's `Library/Sounds` — AlarmKit resolves both by bare name, and an
@@ -477,15 +504,16 @@ struct AlarmKitScheduler: NotificationScheduling {
     }
 
     private static func presentation(adjustedForRain: Bool, snoozeMinutes: Int?) -> AlarmPresentation {
-        // Localized keys rather than resolved strings: AlarmKit renders the alert in
-        // the system UI, so it resolves them in whatever locale is current when the
-        // alarm fires instead of the one that was active when it was scheduled.
+        // Localized keys rather than resolved strings — the snooze button's minutes
+        // included, as an argument: AlarmKit renders the alert in the system UI, so it
+        // resolves them in whatever locale is current when the alarm fires instead of the
+        // one that was active when it was scheduled.
         let title = adjustedForRain
             ? localized("alarm_alert_title_adjusted")
             : localized("alarm_alert_title_normal")
-        let snoozeButton = snoozeMinutes.map { _ in
+        let snoozeButton = snoozeMinutes.map { minutes in
             AlarmButton(
-                text: localized("alarm_snooze_button"),
+                text: snoozeButtonText(minutes: minutes),
                 textColor: .white,
                 systemImageName: "zzz"
             )
