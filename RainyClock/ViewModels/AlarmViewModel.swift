@@ -110,23 +110,6 @@ final class AlarmViewModel: ObservableObject {
             saveScheduledAlarmSummary()
         }
     }
-    private enum AlarmStatus {
-        case text(String)
-        case weatherDecision(exceedsThreshold: Bool, forecastAt: Date, checkedAt: Date)
-    }
-    @Published private var alarmStatus = AlarmStatus.text(String(localized: "status_enter_settings"))
-    private(set) var statusMessage: String {
-        get {
-            switch alarmStatus {
-            case .text(let message): return message
-            case .weatherDecision(let exceedsThreshold, let forecastAt, let checkedAt):
-                let key: String.LocalizationValue = exceedsThreshold ? "status_adjusted_checked" : "status_normal_checked"
-                return String.localizedStringWithFormat(String(localized: key),
-                    settings.timeFormat.dateTime(forecastAt), settings.timeFormat.time(checkedAt))
-            }
-        }
-        set { alarmStatus = .text(newValue) }
-    }
     @Published private(set) var routePreviewStatusMessage = String(localized: "route_preview_empty")
     @Published private(set) var routeWeatherStatusMessage = String(localized: "route_weather_empty")
     @Published private(set) var isScheduling = false
@@ -334,9 +317,6 @@ final class AlarmViewModel: ObservableObject {
                 storedSummary.decisionNormalAlarmDate = storedSummary.normalAlarmDate
             }
             scheduledAlarmSummary = storedSummary.rollingForward(selectedWeekdays: settings.selectedWeekdays)
-            if let plan = storedSummary.calendarPlan {
-                statusMessage = String(localized: plan.occurrences.isEmpty ? "calendar_all_silent" : "calendar_schedule_saved")
-            } else { statusMessage = String(localized: "status_alarm_scheduled") }
         }
         scheduledFingerprint = Self.loadScheduledFingerprint(from: settingsStorage)
         disasterScheduleNeedsAttention = restoredDisasterAttention
@@ -465,8 +445,8 @@ final class AlarmViewModel: ObservableObject {
     /// launch that the user did not make for this purpose.
     ///
     /// Silent by construction: failures leave the previously registered alarm armed
-    /// and unchanged, and an unprompted run must not repaint the status line or mark
-    /// correctly typed addresses as invalid on the way past.
+    /// and unchanged, and an unprompted run must not mark correctly typed addresses
+    /// as invalid on the way past.
     ///
     /// - Returns: whether the alarm was actually re-registered.
     @discardableResult
@@ -556,7 +536,7 @@ final class AlarmViewModel: ObservableObject {
         // Off, yet the system still holds alarms (an interrupted or failed cancel, or a
         // summary that did not decode): remove them before anything else runs.
         if !settings.isAlarmEnabled, scheduledAlarmSummary == nil, systemHoldsAlarms() {
-            enqueueSettingsRemoval(statusKey: "status_alarm_turned_off")
+            enqueueSettingsRemoval()
         }
         reconcileScheduledAlarmWithSettings()
     }
@@ -593,7 +573,7 @@ final class AlarmViewModel: ObservableObject {
         guard settings.isAlarmEnabled else {
             cancelPendingAutoRefresh()
             if scheduledAlarmSummary != nil || scheduledFingerprint != nil {
-                enqueueSettingsRemoval(statusKey: "status_alarm_turned_off")
+                enqueueSettingsRemoval()
             }
             return
         }
@@ -622,7 +602,7 @@ final class AlarmViewModel: ObservableObject {
             || current.workAddress != scheduledFingerprint.workAddress {
             enqueueSettingsRemoval()
         } else if !hasEnabledAlarmDay {
-            enqueueSettingsRemoval(statusKey: "calendar_off_no_weekdays")
+            enqueueSettingsRemoval()
         } else {
             scheduleAutoRefresh()
         }
@@ -635,7 +615,7 @@ final class AlarmViewModel: ObservableObject {
         return now < check || now >= summary.normalAlarmDate
     }
 
-    private func enqueueSettingsRemoval(statusKey: String.LocalizationValue = "status_alarm_removed_address_changed") {
+    private func enqueueSettingsRemoval() {
         cancelPendingAutoRefresh()
         guard settingsRemovalTask == nil else { return }
         settingsRemovalTask = Task { [weak self] in
@@ -645,7 +625,7 @@ final class AlarmViewModel: ObservableObject {
             while self.isScheduling {
                 try? await Task.sleep(for: .milliseconds(25))
             }
-            await self.removeScheduledAlarm(statusKey: statusKey)
+            await self.removeScheduledAlarm()
             self.settingsRemovalTask = nil
             self.reconcileScheduledAlarmWithSettings()
         }
@@ -692,7 +672,7 @@ final class AlarmViewModel: ObservableObject {
         }
     }
 
-    private func removeScheduledAlarm(statusKey: String.LocalizationValue = "status_alarm_removed_address_changed") async {
+    private func removeScheduledAlarm() async {
         cancelPendingAutoRefresh()
         if settings.isAlarmEnabled {
             // A settings change (a new address, no repeat day left) removes the registration
@@ -712,7 +692,6 @@ final class AlarmViewModel: ObservableObject {
         if !settings.isAlarmEnabled, systemHoldsAlarms() {
             scheduleErrorMessage = String(localized: "alarm_off_failed")
         }
-        statusMessage = String(localized: statusKey)
         updateAlarmKitRescheduleNotice()
     }
 
@@ -1127,10 +1106,7 @@ final class AlarmViewModel: ObservableObject {
 
     func evaluateRouteAndScheduleAlarm() async {
         if let settingsRemovalTask { await settingsRemovalTask.value }
-        guard settings.isAlarmEnabled else {
-            statusMessage = String(localized: "status_alarm_turned_off")
-            return
-        }
+        guard settings.isAlarmEnabled else { return }
         if hasScheduledAlarm,
            settings.scheduleFingerprint() != effectiveSchedulingSettings.scheduleFingerprint(),
            !restrictedRulesTransitionIsSafe {
@@ -1138,12 +1114,8 @@ final class AlarmViewModel: ObservableObject {
             // paid rules expired. The next refresh outside this ring window retries.
             return
         }
-        guard canSchedule else {
-            statusMessage = hasUnconfirmedSuggestedAddresses
-                ? String(localized: "status_confirm_suggested_address")
-                : String(localized: "status_required")
-            return
-        }
+        // What is missing shows on the Settings rows (`addressAttention`) and the card.
+        guard canSchedule else { return }
 
         isScheduling = true
         scheduleErrorMessage = nil
@@ -1163,21 +1135,11 @@ final class AlarmViewModel: ObservableObject {
         do {
             let authorized = try await notificationScheduler.requestAuthorization()
             guard authorized else {
+                // iOS 26 asks for alarm permission, not notification permission, and
+                // the system only prompts once — point at Settings either way.
                 scheduleErrorMessage = if #available(iOS 26.0, *) {
                     String(localized: "status_alarm_permission_denied")
                 } else { String(localized: "status_permission_denied") }
-                // Same reasoning as the catch below: an unattended run says nothing.
-                guard !isRunningUnattended else {
-                    return
-                }
-
-                // iOS 26 asks for alarm permission, not notification permission, and
-                // the system only prompts once — point at Settings either way.
-                statusMessage = if #available(iOS 26.0, *) {
-                    String(localized: "status_alarm_permission_denied")
-                } else {
-                    String(localized: "status_permission_denied")
-                }
                 return
             }
 
@@ -1301,9 +1263,6 @@ final class AlarmViewModel: ObservableObject {
                     timeFormat: settings.timeFormat
                 ))
             }
-
-            alarmStatus = .weatherDecision(exceedsThreshold: exceedsThreshold,
-                forecastAt: snapshot.forecastAt, checkedAt: snapshot.checkedAt)
         } catch {
             scheduleErrorMessage = String.localizedStringWithFormat(
                 String(localized: "status_schedule_failed"), Self.userFacingMessage(for: error))
@@ -1312,18 +1271,14 @@ final class AlarmViewModel: ObservableObject {
                 await previewScheduler.cancelPreviews()
             }
             // An unattended run reports to nobody: the alarm registered by the last
-            // successful run is still armed, so repainting the status line or marking
-            // the addresses invalid would only be noise the user cannot act on.
+            // successful run is still armed, so marking the addresses invalid would only
+            // be noise the user cannot act on.
             guard !isRunningUnattended else {
                 updateScheduleStaleness()
                 return
             }
 
             updateAddressValidation(for: error)
-            statusMessage = String.localizedStringWithFormat(
-                String(localized: "status_schedule_failed"),
-                Self.userFacingMessage(for: error)
-            )
             // Deliberately no reconcile pass on this path. The fingerprint still
             // describes the last alarm that registered, so drifted settings would
             // look like drift forever: reconcile schedules an auto-refresh, that run
@@ -1721,7 +1676,7 @@ final class AlarmViewModel: ObservableObject {
         await notificationScheduler.cancelScheduledAlarms()
         // Reconcile's off branch removes a stored registration; this also sweeps alarms
         // the system holds without one (a summary that failed to decode).
-        if settingsRemovalTask == nil { enqueueSettingsRemoval(statusKey: "status_alarm_turned_off") }
+        if settingsRemovalTask == nil { enqueueSettingsRemoval() }
         await settingsRemovalTask?.value
     }
 
@@ -1731,7 +1686,7 @@ final class AlarmViewModel: ObservableObject {
         guard !settings.isAlarmEnabled, hasScheduledAlarm || scheduledFingerprint != nil || systemHoldsAlarms() else { return }
         let background = beginBackgroundTime("finish-turning-off")
         defer { endBackgroundTime(background) }
-        if settingsRemovalTask == nil { enqueueSettingsRemoval(statusKey: "status_alarm_turned_off") }
+        if settingsRemovalTask == nil { enqueueSettingsRemoval() }
         await settingsRemovalTask?.value
     }
 
@@ -1842,10 +1797,9 @@ final class AlarmViewModel: ObservableObject {
         }
         do {
             guard try await notificationScheduler.requestAuthorization() else {
-                statusMessage = if #available(iOS 26.0, *) {
+                scheduleErrorMessage = if #available(iOS 26.0, *) {
                     String(localized: "status_alarm_permission_denied")
                 } else { String(localized: "status_permission_denied") }
-                scheduleErrorMessage = statusMessage
                 return false
             }
             let snapshot = effectiveSchedulingSettings
@@ -1857,8 +1811,7 @@ final class AlarmViewModel: ObservableObject {
             succeeded = true
             return true
         } catch {
-            statusMessage = String.localizedStringWithFormat(String(localized: "status_schedule_failed"), Self.userFacingMessage(for: error))
-            scheduleErrorMessage = statusMessage
+            scheduleErrorMessage = String.localizedStringWithFormat(String(localized: "status_schedule_failed"), Self.userFacingMessage(for: error))
             return false
         }
     }
@@ -2066,7 +2019,7 @@ final class AlarmViewModel: ObservableObject {
         let current = effectiveSchedulingSettings.scheduleFingerprint()
         guard current.homeAddress == registered.homeAddress, current.workAddress == registered.workAddress else { return }
         if !settings.calendarSettings.isActive, settings.selectedWeekdays.isEmpty {
-            await removeScheduledAlarm(statusKey: "calendar_off_no_weekdays")
+            await removeScheduledAlarm()
             return
         }
         isScheduling = true
@@ -2079,10 +2032,9 @@ final class AlarmViewModel: ObservableObject {
         }
         do {
             guard try await notificationScheduler.requestAuthorization() else {
-                statusMessage = if #available(iOS 26.0, *) {
+                scheduleErrorMessage = if #available(iOS 26.0, *) {
                     String(localized: "status_alarm_permission_denied")
                 } else { String(localized: "status_permission_denied") }
-                scheduleErrorMessage = statusMessage
                 return
             }
             if settings.usesDatedSchedule || keepDated {
@@ -2097,8 +2049,7 @@ final class AlarmViewModel: ObservableObject {
                 await previewScheduler.cancelPreviews()
             }
             updateScheduleStaleness()
-            statusMessage = String.localizedStringWithFormat(String(localized: "status_schedule_failed"), Self.userFacingMessage(for: error))
-            scheduleErrorMessage = statusMessage
+            scheduleErrorMessage = String.localizedStringWithFormat(String(localized: "status_schedule_failed"), Self.userFacingMessage(for: error))
         }
     }
 
@@ -2162,7 +2113,6 @@ final class AlarmViewModel: ObservableObject {
         scheduledFingerprint = snapshot.scheduleFingerprint()
         updateScheduleStaleness()
         updateAlarmKitRescheduleNotice()
-        statusMessage = String(localized: "status_alarm_scheduled")
         // Inside this morning's window its check point has been answered; aim at the next.
         BackgroundWeatherRefresh.scheduleNextRun(before: summary.weatherRefreshDate > now
             ? summary.weatherRefreshDate : nextWeatherCheckDate(for: snapshot, now: now))
@@ -2296,7 +2246,6 @@ final class AlarmViewModel: ObservableObject {
         if let checkedAt, let forecastDate { weatherDecisionLog.record(morning: forecastDate, checkedAt: checkedAt) }
         updateScheduleStaleness()
         updateAlarmKitRescheduleNotice()
-        statusMessage = String(localized: plan.occurrences.isEmpty ? "calendar_all_silent" : "calendar_schedule_saved")
         let nextRefresh = min(summary.weatherRefreshDate, now.addingTimeInterval(24 * 3_600))
         BackgroundWeatherRefresh.scheduleNextRun(before: nextRefresh, now: now)
         await replanEveningPreviews(requestingAuthorization: !isRunningUnattended, summary: committedSummary, settings: snapshot, now: now)
