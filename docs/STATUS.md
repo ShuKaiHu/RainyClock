@@ -20,12 +20,16 @@ hold the whole repo — the separation is by branch, not by directory.
 
 | Platform | State |
 | --- | --- |
-| **iOS** | `1.6.5` live on the App Store since 2026-08-04. `1.6.6 (24)` uploaded to App Store Connect 2026-08-13, not yet submitted for review. |
+| **iOS** | `1.8.0 (40)` live on the App Store since 2026-10-03 (submitted 00:14, approved, released manually by the owner, public about 14:36 Asia/Taipei): typhoon day-off, the master alarm switch and the "Next Alarm" Home/Lock Screen widget (`ios/widget` merged into the 1.8.0 line on 2026-10-01), on top of 1.7.1's RainyClock Plus membership (monthly subscription + one-time purchase), Unity LevelPlay ads and address suggestions (`1.7.1 (37)` was live from 2026-09-26). 38 and 39 went to TestFlight on 2026-10-02; 39 adds today's weather on the medium widget; 40 raises the app's closure-feed freshness limit from 15 minutes to one hour, because the day-off service has polled every 30 minutes since 2026-10-02, and makes the small widget draw the same forecast sky as the medium, with the Apple Weather mark. The closure feature has now been exercised end to end on production by the App Store build (device registration, feed fetch, sync receipt, and a push that the notification extension rewrote on the lock screen, 2026-10-03 15:18–15:23). Same-day findings (the owner's phone failing membership sync with a 401, the lifetime price change half done, the 1.8.1 plan) are in `docs/STATUS-IOS.md`. |
 | **Android** | Never shipped. The port builds, runs and matches the iOS behaviour, but a weather-provider licensing call and a Play developer account still block a first release. |
 
 ## Shared references
 
+- Voice-classification backend migration, deployed 2026-09-16 (Gemini 3.1 Flash-Lite on Vertex;
+  existing Cloud TTS voices retained) → [verification, samples and rollback](annotation-migration-2026-09-16/README.md)
 - Product reasoning and rejected alternatives, both platforms → `docs/PRODUCT_DECISIONS.md`
+- Day-off suppression (typhoon 停班停課 + 國定假日), both platforms → `docs/DAYOFF-SPEC.md`,
+  with `docs/dayoff-fixtures.json` (the contract) and `docs/dayoff-corpus-summary.json` (the evidence)
 - iOS submission mechanics, rejection history, AdMob and app-ads.txt → `docs/app-store-submission-checklist.md`
 - iOS store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Android architecture and platform substitutions → `docs/ANDROID.md`
@@ -42,3 +46,12 @@ hold the whole repo — the separation is by branch, not by directory.
   app registered under the same account needs no change to it.
 - **The alarm tones are shared.** Android copies the iOS target's `.wav` files at build time
   rather than duplicating them; deleting one on the iOS side breaks the Android build.
+- **Day-off suppression is specified once, for both platforms.** `docs/DAYOFF-SPEC.md` (spec v4,
+  2026-10-01; iOS implemented it behind a release gate, Android not started) and `docs/dayoff-fixtures.json` beside it define
+  when a typhoon 停班停課 announcement or a national holiday silences the alarm. The fixtures — 28
+  real DGPA sentence patterns and 25 decision scenarios, drawn from the complete 1,374-alert
+  archive (2014-2026) — are the actual contract: both platforms load them in unit tests, so a rule
+  change on one side surfaces as a failing test on the other rather than as two implementations
+  that quietly disagree during a typhoon. Changing behaviour means editing the fixtures and bumping
+  `specVersion`; each platform records the version it has implemented in its own status log. Read
+  §0 of the spec before touching either file.

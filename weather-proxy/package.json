@@ -10,5 +10,11 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@apple/app-store-server-library": "3.1.0",
+    "@google-cloud/firestore": "9.1.0",
+    "cbor": "10.0.12",
+    "node-app-attest": "1.0.1"
   }
 }

@@ -3,6 +3,13 @@ import Foundation
 struct CommuteAlarmSettings: Codable, Equatable {
     static let allWeekdays = Set(1...7)
 
+    enum SoundSlot: String, CaseIterable, Identifiable, Sendable {
+        case normal
+        case early
+
+        var id: String { rawValue }
+    }
+
     enum CommuteMode: String, CaseIterable, Codable, Identifiable, Equatable {
         case car
         case scooter
@@ -153,6 +160,27 @@ struct CommuteAlarmSettings: Codable, Equatable {
         }
     }
 
+    var timeFormat: ClockTimeFormat = .twelveHour
+    var calendarSettings = AlarmCalendarSettings()
+    var observesWorkSuspensions = true
+    var observesSchoolSuspensions = false
+    // Opt-in, including upgrades from versions that only displayed these choices.
+    var isDisasterSuspensionEnabled = false
+    var homeSuspensionRegion: DisasterRegion?
+    var workSuspensionRegion: DisasterRegion?
+    /// The free master switch on the Alarm page. `false` is "off until I turn it back
+    /// on": nothing is registered and nothing re-arms. Not part of the fingerprint —
+    /// turning off removes the registration instead.
+    var isAlarmEnabled = true
+    /// "Turn off only the next alarm": the Gregorian key (`AlarmCalendarSettings.key`)
+    /// of that morning's NORMAL alarm day, pinned when the user chose it — never the
+    /// rain-adjusted ring date. Applied in `CalendarAlarmPlan.make` only; spent once
+    /// that morning's normal time has passed, retired by the view model at a safe moment.
+    var skippedAlarmDay: String?
+    /// A pending one-time skip needs dated registration even on the free weekly plan: a
+    /// repeating weekly alarm cannot leave out one morning.
+    var usesDatedSchedule: Bool { calendarSettings.isActive || isDisasterSuspensionEnabled || skippedAlarmDay != nil }
+
     var homeAddress: String = ""
     var workAddress: String = ""
     var homeResolvedLocation: ResolvedMapLocation?
@@ -174,8 +202,24 @@ struct CommuteAlarmSettings: Codable, Equatable {
     /// be read back into a text field.
     var aiVoicePersona: VoicePersona = .default
     var aiVoiceText: String = ""
+    var earlyAlarmSound: AlarmSound = .rainyClock
+    var earlyAIVoiceFileName: String?
+    var earlyAIVoicePersona: VoicePersona = .default
+    var earlyAIVoiceText: String = ""
     var isSnoozeEnabled: Bool = true
     var snoozeDurationMinutes: Int = 5
+    /// The 9 p.m. "tomorrow morning" notification before each selected
+    /// weekday. Not part of the schedule fingerprint: it changes nothing about
+    /// the registered alarm, only what is said the night before.
+    var isEveningPreviewEnabled: Bool = true
+    /// When, the evening before, the preview arrives. Only the hour and minute
+    /// are read. 21:00 by default: late enough that the forecast for the morning
+    /// is worth reading, early enough to still change plans.
+    var eveningPreviewTime: Date = Self.defaultEveningPreviewTime
+
+    static var defaultEveningPreviewTime: Date {
+        Calendar.current.date(bySettingHour: 21, minute: 0, second: 0, of: Date()) ?? Date()
+    }
 
     static let snoozeDurationRange = 1...15
 
@@ -183,6 +227,15 @@ struct CommuteAlarmSettings: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        calendarSettings = try values.decodeIfPresent(AlarmCalendarSettings.self, forKey: .calendarSettings) ?? AlarmCalendarSettings()
+        observesWorkSuspensions = try values.decodeIfPresent(Bool.self, forKey: .observesWorkSuspensions) ?? true
+        observesSchoolSuspensions = try values.decodeIfPresent(Bool.self, forKey: .observesSchoolSuspensions) ?? false
+        isDisasterSuspensionEnabled = try values.decodeIfPresent(Bool.self, forKey: .isDisasterSuspensionEnabled) ?? false
+        homeSuspensionRegion = try values.decodeIfPresent(DisasterRegion.self, forKey: .homeSuspensionRegion)
+        workSuspensionRegion = try values.decodeIfPresent(DisasterRegion.self, forKey: .workSuspensionRegion)
+        isAlarmEnabled = try values.decodeIfPresent(Bool.self, forKey: .isAlarmEnabled) ?? true
+        skippedAlarmDay = try values.decodeIfPresent(String.self, forKey: .skippedAlarmDay)
+        timeFormat = try values.decodeIfPresent(ClockTimeFormat.self, forKey: .timeFormat) ?? .twelveHour
         homeAddress = try values.decodeIfPresent(String.self, forKey: .homeAddress) ?? ""
         workAddress = try values.decodeIfPresent(String.self, forKey: .workAddress) ?? ""
         homeResolvedLocation = try values.decodeIfPresent(ResolvedMapLocation.self, forKey: .homeResolvedLocation)
@@ -203,9 +256,24 @@ struct CommuteAlarmSettings: Codable, Equatable {
         aiVoiceFileName = try values.decodeIfPresent(String.self, forKey: .aiVoiceFileName)
         aiVoicePersona = try values.decodeIfPresent(VoicePersona.self, forKey: .aiVoicePersona) ?? .default
         aiVoiceText = try values.decodeIfPresent(String.self, forKey: .aiVoiceText) ?? ""
+        // Before separate sound slots existed, the same clip rang at both times.
+        // Preserve that exact choice, including its generated voice, on upgrade.
+        let decodedEarlySound = try values.decodeIfPresent(AlarmSound.self, forKey: .earlyAlarmSound) ?? alarmSound
+        earlyAlarmSound = AlarmSound.restorableCases.contains(decodedEarlySound) ? decodedEarlySound : .rainyClock
+        if values.contains(.earlyAlarmSound) {
+            earlyAIVoiceFileName = try values.decodeIfPresent(String.self, forKey: .earlyAIVoiceFileName)
+            earlyAIVoicePersona = try values.decodeIfPresent(VoicePersona.self, forKey: .earlyAIVoicePersona) ?? .default
+            earlyAIVoiceText = try values.decodeIfPresent(String.self, forKey: .earlyAIVoiceText) ?? ""
+        } else {
+            earlyAIVoiceFileName = aiVoiceFileName
+            earlyAIVoicePersona = aiVoicePersona
+            earlyAIVoiceText = aiVoiceText
+        }
         isSnoozeEnabled = try values.decodeIfPresent(Bool.self, forKey: .isSnoozeEnabled) ?? true
         let decodedSnoozeDuration = try values.decodeIfPresent(Int.self, forKey: .snoozeDurationMinutes) ?? 5
         snoozeDurationMinutes = min(max(decodedSnoozeDuration, Self.snoozeDurationRange.lowerBound), Self.snoozeDurationRange.upperBound)
+        isEveningPreviewEnabled = try values.decodeIfPresent(Bool.self, forKey: .isEveningPreviewEnabled) ?? true
+        eveningPreviewTime = try values.decodeIfPresent(Date.self, forKey: .eveningPreviewTime) ?? Self.defaultEveningPreviewTime
     }
 
     /// The snooze interval to schedule with, or nil when the user turned snooze off.
@@ -214,7 +282,7 @@ struct CommuteAlarmSettings: Codable, Equatable {
     }
 }
 
-struct RouteWeatherSnapshot: Equatable {
+struct RouteWeatherSnapshot: Codable, Equatable {
     var checkedAt: Date
     var forecastAt: Date
     var segments: [RouteWeatherSegment]
@@ -228,8 +296,8 @@ struct RouteWeatherSnapshot: Equatable {
     }
 }
 
-struct RouteWeatherSegment: Identifiable, Equatable {
-    enum Condition: String, Equatable, Sendable {
+struct RouteWeatherSegment: Codable, Identifiable, Equatable {
+    enum Condition: String, Codable, Equatable, Sendable {
         case clear
         case cloudy
         case rain
@@ -245,6 +313,8 @@ struct RouteWeatherSegment: Identifiable, Equatable {
 /// snapshot against the live settings tells whether the scheduled alarm still
 /// matches what the user currently has configured.
 struct AlarmScheduleFingerprint: Codable, Equatable {
+    var calendarSettings: AlarmCalendarSettings? = nil
+    var disasterSettings: DisasterScheduleFingerprint? = nil
     var homeAddress: String
     var workAddress: String
     var commuteMode: CommuteAlarmSettings.CommuteMode
@@ -258,8 +328,13 @@ struct AlarmScheduleFingerprint: Codable, Equatable {
     /// change: the existing reconcile pass then re-registers the alarm with the new
     /// clip without any extra plumbing.
     var aiVoiceFileName: String?
+    var earlyAlarmSoundRawValue: String
+    var earlyAIVoiceFileName: String?
     var isSnoozeEnabled: Bool
     var snoozeDurationMinutes: Int
+    /// The pending one-time skip (see `CommuteAlarmSettings.skippedAlarmDay`). Last and
+    /// optional: fingerprints stored before 1.8.0 decode to nil and stay equal.
+    var skippedAlarmDay: String? = nil
 }
 
 extension AlarmScheduleFingerprint {
@@ -271,6 +346,8 @@ extension AlarmScheduleFingerprint {
     /// user edits the alarm time, sees no warning, and gets woken at the old one.
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        calendarSettings = try values.decodeIfPresent(AlarmCalendarSettings.self, forKey: .calendarSettings)
+        disasterSettings = try values.decodeIfPresent(DisasterScheduleFingerprint.self, forKey: .disasterSettings)
         homeAddress = try values.decode(String.self, forKey: .homeAddress)
         workAddress = try values.decode(String.self, forKey: .workAddress)
         commuteMode = try values.decode(CommuteAlarmSettings.CommuteMode.self, forKey: .commuteMode)
@@ -281,8 +358,13 @@ extension AlarmScheduleFingerprint {
         rainProbabilityThreshold = try values.decode(Double.self, forKey: .rainProbabilityThreshold)
         alarmSoundRawValue = try values.decode(String.self, forKey: .alarmSoundRawValue)
         aiVoiceFileName = try values.decodeIfPresent(String.self, forKey: .aiVoiceFileName)
+        earlyAlarmSoundRawValue = try values.decodeIfPresent(String.self, forKey: .earlyAlarmSoundRawValue) ?? alarmSoundRawValue
+        earlyAIVoiceFileName = values.contains(.earlyAlarmSoundRawValue)
+            ? try values.decodeIfPresent(String.self, forKey: .earlyAIVoiceFileName)
+            : aiVoiceFileName
         isSnoozeEnabled = try values.decodeIfPresent(Bool.self, forKey: .isSnoozeEnabled) ?? true
         snoozeDurationMinutes = try values.decodeIfPresent(Int.self, forKey: .snoozeDurationMinutes) ?? 5
+        skippedAlarmDay = try values.decodeIfPresent(String.self, forKey: .skippedAlarmDay)
     }
 }
 
@@ -290,6 +372,10 @@ extension CommuteAlarmSettings {
     func scheduleFingerprint(calendar: Calendar = .current) -> AlarmScheduleFingerprint {
         let time = calendar.dateComponents([.hour, .minute], from: alarmTime)
         return AlarmScheduleFingerprint(
+            calendarSettings: calendarSettings.isActive ? calendarSettings : nil,
+            disasterSettings: isDisasterSuspensionEnabled ? DisasterScheduleFingerprint(
+                home: homeSuspensionRegion, destination: workSuspensionRegion,
+                observesWork: observesWorkSuspensions, observesSchool: observesSchoolSuspensions) : nil,
             homeAddress: homeAddress.trimmingCharacters(in: .whitespacesAndNewlines),
             workAddress: workAddress.trimmingCharacters(in: .whitespacesAndNewlines),
             commuteMode: commuteMode,
@@ -300,8 +386,11 @@ extension CommuteAlarmSettings {
             rainProbabilityThreshold: rainProbabilityThreshold,
             alarmSoundRawValue: alarmSound.rawValue,
             aiVoiceFileName: alarmSound == .aiVoice ? aiVoiceFileName : nil,
+            earlyAlarmSoundRawValue: earlyAlarmSound.rawValue,
+            earlyAIVoiceFileName: earlyAlarmSound == .aiVoice ? earlyAIVoiceFileName : nil,
             isSnoozeEnabled: isSnoozeEnabled,
-            snoozeDurationMinutes: snoozeDurationMinutes
+            snoozeDurationMinutes: snoozeDurationMinutes,
+            skippedAlarmDay: skippedAlarmDay
         )
     }
 
@@ -313,16 +402,70 @@ extension CommuteAlarmSettings {
     /// this falls back to a shipped tone rather than naming a file that is not there.
     /// A wrong-sounding alarm is recoverable; a silent one is not.
     var soundFileNameOverride: String? {
-        switch alarmSound {
+        soundFileNameOverride(for: .normal)
+    }
+
+    func sound(for slot: SoundSlot) -> AlarmSound {
+        slot == .early ? earlyAlarmSound : alarmSound
+    }
+
+    mutating func setSound(_ sound: AlarmSound, for slot: SoundSlot) {
+        if slot == .early { earlyAlarmSound = sound } else { alarmSound = sound }
+    }
+
+    func voiceFileName(for slot: SoundSlot) -> String? {
+        slot == .early ? earlyAIVoiceFileName : aiVoiceFileName
+    }
+
+    func voicePersona(for slot: SoundSlot) -> VoicePersona {
+        slot == .early ? earlyAIVoicePersona : aiVoicePersona
+    }
+
+    func voiceText(for slot: SoundSlot) -> String {
+        slot == .early ? earlyAIVoiceText : aiVoiceText
+    }
+
+    mutating func setVoice(fileName: String, persona: VoicePersona, text: String, for slot: SoundSlot) {
+        if slot == .early {
+            earlyAIVoiceFileName = fileName
+            earlyAIVoicePersona = persona
+            earlyAIVoiceText = text
+            earlyAlarmSound = .aiVoice
+        } else {
+            aiVoiceFileName = fileName
+            aiVoicePersona = persona
+            aiVoiceText = text
+            alarmSound = .aiVoice
+        }
+    }
+
+    var generatedVoiceFileNames: Set<String> {
+        Set([aiVoiceFileName, earlyAIVoiceFileName].compactMap { $0 })
+    }
+
+    func soundFileNameOverride(for slot: SoundSlot) -> String? {
+        switch sound(for: slot) {
         case .systemDefault:
             nil
         case .aiVoice:
-            aiVoiceFileName.flatMap(GeneratedVoiceStore.existingFileName(named:))
+            voiceFileName(for: slot).flatMap(GeneratedVoiceStore.existingFileName(named:))
                 ?? AlarmSound.rainyClock.fileName
         default:
-            alarmSound.fileName
+            sound(for: slot).fileName
         }
     }
+
+    /// Use the time actually registered, not just a wet forecast: a zero lead
+    /// time or a missed early time still rings with the normal sound.
+    func soundSelection(ringDate: Date, normalDate: Date) -> AlarmSoundSelection {
+        let slot: SoundSlot = ringDate < normalDate ? .early : .normal
+        return AlarmSoundSelection(sound: sound(for: slot), fileNameOverride: soundFileNameOverride(for: slot))
+    }
+}
+
+struct AlarmSoundSelection: Codable, Equatable, Sendable {
+    var sound: CommuteAlarmSettings.AlarmSound
+    var fileNameOverride: String?
 }
 
 struct ScheduledAlarmSummary: Codable, Equatable {
@@ -333,9 +476,110 @@ struct ScheduledAlarmSummary: Codable, Equatable {
     var leadTimeMinutes: Int
     var rainProbabilityThreshold: Double
     var maximumPrecipitationProbability: Double
+    /// Where along the route `maximumPrecipitationProbability` was read —
+    /// "住家", "路程 ½", "公司" — so the evening preview can say which part of the
+    /// commute moved the alarm. Absent in summaries stored before 1.6.9.
+    var wettestSegmentName: String?
+    var calendarPlan: CalendarAlarmPlan?
+    var calendarForecastDate: Date?
+    /// Published only after the corresponding system schedule was committed.
+    var disasterSkips: [AppliedDisasterSkip]? = nil
+    /// A morning whose early (rain) ring already went off, which the next calendar
+    /// registration therefore dropped from the plan. Kept until its normal time so the
+    /// Alarm page can say when it actually rang, instead of rebuilding that from a lead
+    /// time the user may have changed since. Absent in older summaries.
+    var firedEarlyRing: CalendarAlarmPlan.Occurrence? = nil
+    /// The committed "turn off only the next alarm" morning (its normal date). Set by
+    /// registerCalendar after the system accepted the plan without it.
+    var userSkippedNormalDate: Date? = nil
+    /// The rain decision the skipped morning had before it was skipped, so undoing the
+    /// skip restores it (a rain-advanced 07:00, not the normal 07:30) without a fetch.
+    var skippedMorningForecast: SkippedMorningForecast? = nil
+    /// A weekly registration's `normalAlarmDate` as registered: the morning whose forecast
+    /// decided `scheduledAlarmDate`. Rolling forward never moves it. It answers WHICH
+    /// morning a lead belongs to, where `firedEarlyRing` / `earlyRingThatWentOff` answer
+    /// WHEN a morning already rang; the two are read together, never instead of each other:
+    /// - `TomorrowAlarmStatus` tells a lead the weekly repeat carried past that morning from
+    ///   one decided for the day it serves (D-D), and a rolled summary's slot that already
+    ///   passed from one registered for a later morning;
+    /// - an offline re-registration (`restoreWeeklySchedule`, `registerCalendar`) and the
+    ///   one-time skip's saved forecast reuse a probability only for this morning.
+    /// nil in summaries stored before 1.8.0 (`AlarmViewModel` backfills the stored, not yet
+    /// rolled, date at launch; see `decidedNormalAlarmDate`) and in calendar plans, whose
+    /// rain only ever sits on the occurrence its own forecast decided.
+    var decisionNormalAlarmDate: Date? = nil
+}
+
+struct SkippedMorningForecast: Codable, Equatable {
+    var normalDate: Date
+    var probability: Double
+    var place: String?
 }
 
 extension ScheduledAlarmSummary {
+    /// What the day-off notification extension needs about the schedule, read from what
+    /// was actually committed rather than recomputed: the next normal dates still in the
+    /// calendar plan plus the ones already skipped for a closure (the plan no longer holds
+    /// those), and the skipped ones on their own. Without a calendar plan (plain weekly
+    /// schedule) the single next normal date is all there is. An all-silent plan yields
+    /// none — its `normalAlarmDate` is only the coverage boundary, not an alarm.
+    func dayOffAlarmDates(after now: Date, limit: Int = DayOffSharedState.upcomingDateLimit)
+        -> (upcoming: [Date], skipped: [Date], userSkipped: [Date]) {
+        let skipped = Array(Set((disasterSkips ?? []).map(\.normalDate).filter { $0 > now })).sorted()
+        // The user's one-time skip is its own list: a closure for that day is not news, but
+        // an unrelated announcement must still be judged against the next armed day.
+        let userSkipped = [userSkippedNormalDate].compactMap { $0 }.filter { $0 > now }
+        let scheduled = calendarPlan.map { $0.occurrences.map(\.normalDate) } ?? [normalAlarmDate]
+        let upcoming = Array(Set(scheduled + skipped + userSkipped).filter { $0 > now }).sorted()
+        return (Array(upcoming.prefix(limit)), skipped, userSkipped)
+    }
+
+    /// The next ring the system actually holds. Dated: the plan's first ring still ahead
+    /// (closure-skipped and early-rung mornings are already absent; a rain-advanced ring
+    /// keeps its real time). Weekly: the repeating alarm rings at one clock time —
+    /// normal minus this summary's lead — on every selected weekday.
+    func nextRegisteredRing(settings: CommuteAlarmSettings, holidays: HolidayCalendar, now: Date,
+                            calendar: Calendar = AlarmCalendarSettings.calendar) -> CalendarAlarmPlan.Occurrence? {
+        if let plan = calendarPlan {
+            return plan.occurrences.first { $0.ringDate > now }
+        }
+        var weekly = settings
+        weekly.skippedAlarmDay = nil
+        weekly.calendarSettings.isEnabled = false
+        let lead = TimeInterval(leadTimeMinutes * 60)
+        return CalendarAlarmPlan.make(settings: weekly, holidays: holidays, rain: false, now: now, days: 9, calendar: calendar).occurrences
+            .map { CalendarAlarmPlan.Occurrence(normalDate: $0.normalDate, ringDate: $0.normalDate.addingTimeInterval(-lead)) }
+            .first { $0.ringDate > now }
+    }
+
+    /// Whether morning `morning` (a normal alarm date still ahead) already rang early.
+    func hasFiredEarlyRing(forMorning morning: Date, now: Date) -> Bool {
+        earlyRingThatWentOff(forMorning: morning, now: now) != nil
+    }
+
+    /// The early ring morning `morning` (a normal alarm date still ahead) already had, at
+    /// the time it actually went off. Read from what was committed, none of which
+    /// rollingForward rewrites: the recorded ring, the dated plan's own occurrence, or the
+    /// weekly summary's lead — never `scheduledAlarmDate`, which a relaunch moves on.
+    func earlyRingThatWentOff(forMorning morning: Date, now: Date) -> CalendarAlarmPlan.Occurrence? {
+        guard morning > now else { return nil }
+        if let fired = firedEarlyRing, fired.normalDate == morning, fired.ringDate <= now {
+            return .init(normalDate: morning, ringDate: fired.ringDate)
+        }
+        if let plan = calendarPlan {
+            return plan.occurrences.first { $0.normalDate == morning && $0.ringDate <= now }
+                .map { .init(normalDate: morning, ringDate: $0.ringDate) }
+        }
+        let ring = morning.addingTimeInterval(TimeInterval(-leadTimeMinutes * 60))
+        guard normalAlarmDate == morning, leadTimeMinutes > 0, ring <= now else { return nil }
+        return .init(normalDate: morning, ringDate: ring)
+    }
+
+    /// The morning whose forecast decided this weekly registration's ring. Rolling moves
+    /// `normalAlarmDate` on after that ring; this does not, so re-registering offline
+    /// reuses a lead only for the morning it was decided for.
+    var decidedNormalAlarmDate: Date { decisionNormalAlarmDate ?? normalAlarmDate }
+
     /// Returns the summary with past dates advanced to their next weekly occurrence,
     /// so a summary reloaded after relaunch still describes the upcoming ring.
     func rollingForward(
@@ -343,8 +587,24 @@ extension ScheduledAlarmSummary {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> ScheduledAlarmSummary {
-        let weekdays = selectedWeekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : selectedWeekdays
         var summary = self
+        if let plan = calendarPlan {
+            if let next = plan.occurrences.first(where: { $0.ringDate > now }) {
+                let checkOffset = weatherRefreshDate.timeIntervalSince(normalAlarmDate)
+                summary.normalAlarmDate = next.normalDate
+                summary.scheduledAlarmDate = next.ringDate
+                summary.weatherRefreshDate = next.normalDate.addingTimeInterval(checkOffset)
+                summary.exceedsRainThreshold = next.ringDate < next.normalDate
+                summary.leadTimeMinutes = Int(next.normalDate.timeIntervalSince(next.ringDate) / 60)
+                if calendarForecastDate != next.normalDate {
+                    summary.maximumPrecipitationProbability = 0
+                    summary.wettestSegmentName = nil
+                    summary.calendarForecastDate = nil
+                }
+            }
+            return summary
+        }
+        let weekdays = selectedWeekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : selectedWeekdays
         summary.scheduledAlarmDate = Self.nextOccurrence(
             of: scheduledAlarmDate,
             weekdays: Self.shiftedWeekdays(weekdays, from: normalAlarmDate, to: scheduledAlarmDate, calendar: calendar),
@@ -363,6 +623,52 @@ extension ScheduledAlarmSummary {
             after: now,
             calendar: calendar
         )
+        return summary
+    }
+
+    /// `rollingForward`, except that a weekly summary's ring and normal time move as the
+    /// pair AlarmKit's weekly repeat rings: the next ring after `now`, and the normal time
+    /// that ring serves. For display (`AlarmViewModel.tomorrowStatus`) only.
+    ///
+    /// `rollingForward` moves each date on its own, so between an early ring and its normal
+    /// time it pairs the NEXT ring with TODAY's normal time — for a lead that crosses
+    /// midnight, a mismatch that reads as "update needed". `init` and the background
+    /// refresh guard depend on that unrolled normal time, so they keep `rollingForward`.
+    ///
+    /// Works on a summary that was already rolled one date at a time (a relaunch between
+    /// the ring and the normal time): each date keeps its wall-clock time, so the lead and
+    /// its day shift are recovered from the times of day, not from the stored dates.
+    func rollingForwardAsPair(
+        selectedWeekdays: Set<Int>,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> ScheduledAlarmSummary {
+        var summary = rollingForward(selectedWeekdays: selectedWeekdays, now: now, calendar: calendar)
+        guard calendarPlan == nil else { return summary }
+
+        let day: TimeInterval = 86_400
+        func secondOfDay(_ date: Date) -> TimeInterval {
+            let time = calendar.dateComponents([.hour, .minute, .second], from: date)
+            return TimeInterval((time.hour ?? 0) * 3_600 + (time.minute ?? 0) * 60 + (time.second ?? 0))
+        }
+        let ringTime = secondOfDay(scheduledAlarmDate)
+        let lead = (secondOfDay(normalAlarmDate) - ringTime + day).truncatingRemainder(dividingBy: day)
+        let dayShift = ringTime + lead >= day ? 1 : 0
+        let weekdays = selectedWeekdays.isEmpty ? CommuteAlarmSettings.allWeekdays : selectedWeekdays
+        let ringWeekdays = dayShift == 0 ? weekdays
+            : Set(weekdays.map { AlarmTimeCalculator.shiftedWeekday($0, byDays: -dayShift) })
+        let ring = Self.nextOccurrence(of: scheduledAlarmDate, weekdays: ringWeekdays, after: now, calendar: calendar)
+
+        // An upcoming ring still paired with its own normal time: nothing to re-pair.
+        let storedLead = normalAlarmDate.timeIntervalSince(scheduledAlarmDate)
+        if ring == scheduledAlarmDate, storedLead >= 0, storedLead < day { return summary }
+
+        let normalTime = calendar.dateComponents([.hour, .minute, .second], from: normalAlarmDate)
+        guard let normalDay = calendar.date(byAdding: .day, value: dayShift, to: calendar.startOfDay(for: ring)),
+              let normal = calendar.date(bySettingHour: normalTime.hour ?? 0, minute: normalTime.minute ?? 0,
+                                         second: normalTime.second ?? 0, of: normalDay) else { return summary }
+        summary.scheduledAlarmDate = ring
+        summary.normalAlarmDate = normal
         return summary
     }
 

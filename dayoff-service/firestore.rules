@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Phones never talk to Firestore. Only the two Cloud Run service accounts
+    // use the server SDK, restricted separately through IAM.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

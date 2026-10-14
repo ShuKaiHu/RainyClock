@@ -1,0 +1,201 @@
+{
+  "base": "https://annotate-lite-check---rainyclock-weather-proxy-hclsjropwq-de.a.run.app",
+  "text": {
+    "zh-Hant": "早安，該起床囉。記得帶傘！",
+    "en": "Good morning. Bring an umbrella!"
+  },
+  "results": [
+    {
+      "language": "zh-Hant",
+      "persona": "steady",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "cheerful",
+        "urgent"
+      ],
+      "bytes": 219406,
+      "durationSeconds": 4.5709583333333335,
+      "elapsedMs": 6617,
+      "file": "zh-Hant-steady.wav",
+      "peak": 23424,
+      "rms": 2743.9
+    },
+    {
+      "language": "zh-Hant",
+      "persona": "bright",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "cheerful",
+        "urgent"
+      ],
+      "bytes": 150286,
+      "durationSeconds": 3.1309583333333335,
+      "elapsedMs": 4502,
+      "file": "zh-Hant-bright.wav",
+      "peak": 32768,
+      "rms": 8095.6
+    },
+    {
+      "language": "zh-Hant",
+      "persona": "gentle",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "gentle",
+        "encouraging"
+      ],
+      "bytes": 307726,
+      "durationSeconds": 6.410958333333333,
+      "elapsedMs": 5045,
+      "file": "zh-Hant-gentle.wav",
+      "peak": 32767,
+      "rms": 5234.8
+    },
+    {
+      "language": "zh-Hant",
+      "persona": "buddy",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "cheerful",
+        "urgent"
+      ],
+      "bytes": 205966,
+      "durationSeconds": 4.290958333333333,
+      "elapsedMs": 5399,
+      "file": "zh-Hant-buddy.wav",
+      "peak": 30656,
+      "rms": 4692.6
+    },
+    {
+      "language": "zh-Hant",
+      "persona": "mom",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "cheerful",
+        "gentle"
+      ],
+      "bytes": 288526,
+      "durationSeconds": 6.010958333333333,
+      "elapsedMs": 5516,
+      "file": "zh-Hant-mom.wav",
+      "peak": 32768,
+      "rms": 5903.5
+    },
+    {
+      "language": "zh-Hant",
+      "persona": "sergeant",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "cheerful",
+        "urgent"
+      ],
+      "bytes": 200206,
+      "durationSeconds": 4.170958333333333,
+      "elapsedMs": 4771,
+      "file": "zh-Hant-sergeant.wav",
+      "peak": 30080,
+      "rms": 5454.4
+    },
+    {
+      "language": "en",
+      "persona": "steady",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "cheerful",
+        "urgent"
+      ],
+      "bytes": 179086,
+      "durationSeconds": 3.730958333333333,
+      "elapsedMs": 4434,
+      "file": "en-steady.wav",
+      "peak": 32767,
+      "rms": 4893.9
+    },
+    {
+      "language": "en",
+      "persona": "bright",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "cheerful",
+        "urgent"
+      ],
+      "bytes": 138766,
+      "durationSeconds": 2.8909583333333333,
+      "elapsedMs": 4427,
+      "file": "en-bright.wav",
+      "peak": 32767,
+      "rms": 5139.4
+    },
+    {
+      "language": "en",
+      "persona": "gentle",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "gentle",
+        "encouraging"
+      ],
+      "bytes": 181006,
+      "durationSeconds": 3.770958333333333,
+      "elapsedMs": 5026,
+      "file": "en-gentle.wav",
+      "peak": 17664,
+      "rms": 3323.1
+    },
+    {
+      "language": "en",
+      "persona": "buddy",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "cheerful",
+        "urgent"
+      ],
+      "bytes": 129166,
+      "durationSeconds": 2.690958333333333,
+      "elapsedMs": 3854,
+      "file": "en-buddy.wav",
+      "peak": 29888,
+      "rms": 5524.3
+    },
+    {
+      "language": "en",
+      "persona": "mom",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "cheerful",
+        "urgent"
+      ],
+      "bytes": 290446,
+      "durationSeconds": 6.050958333333333,
+      "elapsedMs": 5895,
+      "file": "en-mom.wav",
+      "peak": 22656,
+      "rms": 5315.1
+    },
+    {
+      "language": "en",
+      "persona": "sergeant",
+      "status": 200,
+      "ok": true,
+      "emotions": [
+        "cheerful",
+        "urgent"
+      ],
+      "bytes": 182926,
+      "durationSeconds": 3.8109583333333332,
+      "elapsedMs": 11384,
+      "file": "en-sergeant.wav",
+      "peak": 32768,
+      "rms": 7663.2
+    }
+  ]
+}

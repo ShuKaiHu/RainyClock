@@ -1,0 +1,79 @@
+SUPERSEDED 2026-10-01 - DO NOT PASTE. When ios/widget was merged into the 1.8.0 line, the one 1.8.0 review-note
+draft became "Version-specific note for 1.8.0 (38)" in docs/appstore-metadata.md (closures, alarm switch and this
+widget section, facts only; to be rewritten under 4,000 characters). This file is kept as the record of the widget
+branch's wording. It predates the gate opening (8031f51): its "disabled in this version" line is false for 1.8.0 (38).
+
+DRAFT - NOT APPROVED. The user approves the final text before anything is pasted into App Store Connect.
+Based on appstore-review-notes-1.7.0-34.txt plus the 1.8.0 widget section. Delete this header block,
+everything down to and including the "PASTE BELOW" line, before pasting.
+
+Editor notes:
+- App Review Information > Notes is limited to 4,000 characters (the 1.7.0 (34) note was 3,979). The
+  paste text below is 3,824 characters with the gated line, 3,994 with the OPTIONAL block swapped in
+  (brackets removed). Recount after any edit.
+- Dropped from the 1.7.0 (34) note: "KNOWN PRICE DISPLAY LIMITATION" (iOS 27 + build 36 showed NT$10 / NT$100
+  on both the cards and Apple's payment sheet; STATUS-IOS says delete it before resubmitting), the Local
+  StoreKit IAP-screenshot paragraph (only needed while the IAPs await their first review - restore it if
+  they still do), and "validation remains in progress" (a status line, not reviewer guidance).
+- New: the widget section, which supersedes every earlier "no Home Screen widget" / 2.1(a) statement,
+  and an ADS AND TRACKING section (1.7.0 (34) was rejected under 2.1 for an ATT prompt Apple could not find).
+  If Apple still wants the physical-device ATT recording, add its link to ADS AND TRACKING - only once
+  the recording exists.
+- Must match the submitted build before pasting:
+  * The Apple Weather mark (decision D-A): medium widget only, under its weather column - Apple's image
+    once the app has fetched it, the text " Weather" until then - and the column opens Apple's legal
+    page through the app. Confirm on the submitted build, on a device, before pasting.
+  * The widget's App ID needs the App Group enabled, or the widget stays on "Open the app..." forever
+    (blocking item 2).
+  * AppEnvironment.supportsTemporaryClosures: if still false, keep the "disabled in this version" line;
+    if true, replace that line with the OPTIONAL block and name the plan(s) that include it.
+  * Build number: 1.8.0 (38) unless it moves.
+
+=== PASTE BELOW THIS LINE ===
+RAINY CLOCK 1.8.0 (38)
+
+iPhone-only, iOS 17+. Alarms use AlarmKit on iOS 26+ and local notifications on iOS 17-25.
+
+NEW: HOME SCREEN AND LOCK SCREEN WIDGET
+Earlier notes said there was no Home Screen widget; there now is one, "Next Alarm" (iOS 26+; test on an iPhone: iPad compatibility mode has no widgets).
+
+Sizes: small, medium; Lock Screen rectangular, circular, inline. Each shows the next alarm and why (earlier for rain on the route; skipped for a holiday, non-repeat day or silent date): today's from midnight until it rings, then tomorrow's. A repeated early ring awaiting its own morning's forecast reads "Waiting for tomorrow's forecast".
+
+Only the medium size shows weather (conditions, rain chance), with the Apple Weather mark under it; tapping that column opens Apple's legal attribution page via the app. Other sizes: no weather.
+
+No network, no ads: it reads a snapshot (no addresses) the app writes to its App Group, also from background refresh.
+
+To test:
+1. Open the app; set Home and Work (Settings > Route) and the time (Settings > Time); allow alarms. Before that the widget reads "Open the app to show your next alarm".
+2. Home Screen: long-press > Edit > Add Widget > search "Rainy Clock" (雨天鬧鐘) > small or medium.
+3. Lock Screen: long-press > Customize > Lock Screen > tap the widget area > Rainy Clock.
+4. Change the time in Settings > Time; the widget follows.
+
+No login, Sign in with Apple or demo account is needed; Apple-verified app and purchase data recognize membership.
+
+PURCHASES
+Settings > Other > Membership:
+- Monthly, auto-renewable: com.shukaihu.RainyClock.plus.monthly
+- One-time, non-consumable: com.shukaihu.RainyClock.banner.lifetime
+Both remove banner ads, unlock calendar features and include one daily AI generation without an ad (shared if both are owned). No annual plan. A one-time purchase does not cancel a subscription. The top-right menu has Restore purchases (benefits only, not alarms or audio), Manage subscriptions and Delete membership data (does not cancel Apple subscriptions).
+
+CALENDAR AND ALARM TEST
+Paid plan: Settings > Calendar > enable calendar rules, choose Taiwan office or US federal holidays (with observed dates). In the alarm calendar, tap a date to toggle ring/silent and confirm at top right; orange dots mark overrides.
+
+Settings > Route: type Home and Work (e.g. Taipei Main Station, Taipei 101), pick a suggestion, choose a travel mode. In Time, set the wake-up time, rain threshold and lead time. Enable the test weekday, set a near-future alarm, lock the iPhone. The Alarm page shows tomorrow; check today's test at its time. Failed updates never clear scheduled alarms.
+
+A Taiwan closure feature in the binary is disabled in this version (no entry point, no push registration).
+
+[OPTIONAL - only if supportsTemporaryClosures is true in the submitted build; replaces the line above]
+TYPHOON CLOSURES (TAIWAN)
+Paid plan: Settings > Calendar > Use temporary closure rules (work, school or both; districts). A matching official closure (DGPA via NCDR) skips that day's alarm and shows on the widget. Push registers only while on; without valid data, alarms ring.
+[END OPTIONAL]
+
+ADS AND TRACKING
+One LevelPlay banner; rewarded ads for extra AI generations. On first launch the Apple tracking prompt appears; in the EEA, UK and Switzerland the app's own consent sheet comes first and the prompt follows when it closes. The ad SDK stays off until they are answered; declining changes nothing else. If none appears, check Settings > Privacy & Security > Tracking. Report an ad and (consent regions) Ad privacy options: Settings > Other > Privacy & ads; "Report this ad" is under the banner.
+
+AI AND SANDBOX
+Settings > Time > a sound > AI Voice: enter a line, pick a voice; previews work offline. Free: one initial generation; paid: one per day. Extras need a completed rewarded ad; saved audio uses no quota. Our backend and Google speech services process the text (see privacy policy). In Sandbox/TestFlight, membership data are isolated and production ads are off, so rewarded ads may be unavailable.
+
+Privacy: https://shukaihu.github.io/RainyClock/privacy-policy.html
+Terms: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/

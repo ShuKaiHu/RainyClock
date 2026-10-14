@@ -1,0 +1,100 @@
+{
+ "lang": "zh-Hant",
+ "frames": [
+  {
+   "id": "01-rain",
+   "headline": "下雨天，\n早點叫你",
+   "highlight": "早點",
+   "subline": "路線降雨機率達你設的門檻，鬧鐘就提早響",
+   "screenshot": "raw/zh-01-rain.png",
+   "tint": "#3B2963",
+   "tintStrength": 0.18,
+   "callout": {
+    "x": 60,
+    "y": 368,
+    "w": 1200,
+    "h": 612,
+    "radius": 84,
+    "band": {
+     "top": 330,
+     "bottom": 1010
+    },
+    "scale": 1.1
+   }
+  },
+  {
+   "id": "02-typhoon",
+   "headline": "颱風假，\n就多睡一會",
+   "highlight": "多睡",
+   "subline": "住家或公司所在行政區停班停課，略過當天鬧鐘",
+   "tag": "訂閱或買斷",
+   "footnote": "僅限台灣・示範畫面，實際以各縣市政府公告為準",
+   "screenshot": "raw/zh-04-typhoon.png",
+   "panelCrop": {
+    "top": 30,
+    "bottom": 0
+   }
+  },
+  {
+   "id": "03-rule",
+   "headline": "降雨達 40%，\n提早 30 分鐘",
+   "highlight": "40%",
+   "subline": "降雨門檻與提早時間，都由你調整",
+   "screenshot": "raw/zh-02-rule-list.png",
+   "callout": {
+    "x": 60,
+    "y": 518,
+    "w": 1200,
+    "h": 470,
+    "radius": 72,
+    "band": {
+     "top": 485,
+     "bottom": 1018
+    },
+    "scale": 1.1
+   }
+  },
+  {
+   "id": "04-widget",
+   "headline": "下次鬧鐘，\n主畫面就看得到",
+   "highlight": "主畫面",
+   "subline": "預計響鈴時間，以及是否因下雨提早",
+   "footnote": "小工具需 iOS 26 以上",
+   "screenshot": "raw/zh-05-widget.png"
+  },
+  {
+   "id": "05-route",
+   "headline": "從家到公司，\n怎麼去你決定",
+   "highlight": "你決定",
+   "subline": "開車、騎車、大眾交通或步行，用地圖預覽路線",
+   "screenshot": "raw/zh-03-route.png"
+  },
+  {
+   "id": "06-skip",
+   "headline": "想休息一天？\n只關下一次",
+   "highlight": "下一次",
+   "subline": "之後的鬧鐘照常響，不用再手動打開",
+   "screenshot": "raw/zh-06-skip.png"
+  },
+  {
+   "id": "07-calendar",
+   "headline": "國定假日，\n鬧鐘不響",
+   "highlight": "不響",
+   "subline": "依台灣辦公日曆略過休假日，單日也能自己改",
+   "tag": "訂閱或買斷",
+   "screenshot": "raw/zh-07-calendar.png"
+  },
+  {
+   "id": "08-voice",
+   "headline": "想聽什麼，\n寫下來就好",
+   "highlight": "寫下來",
+   "subline": "六種 AI 人聲，唸出你寫的起床台詞",
+   "footnote": "免費方案可先生成一次，用完後每看完一段廣告可再生成一次",
+   "screenshot": "raw/zh-08-voice.png",
+   "panelCrop": {
+    "top": 45,
+    "bottom": 0
+   }
+  }
+ ]
+}

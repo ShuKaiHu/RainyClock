@@ -1,0 +1,39 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "state",
+      "fieldPath": "noticesJSON",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "caps",
+      "fieldPath": "xml",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "devices",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "caps",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "broadcasts",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "retries",
+      "fieldPath": "expiresAt",
+      "ttl": true,
+      "indexes": []
+    }
+  ]
+}

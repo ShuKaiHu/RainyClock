@@ -66,19 +66,21 @@ final class MapKitRoutePreviewService: RoutePreviewService {
         workLocation selectedWorkLocation: ResolvedMapLocation? = nil,
         mode: CommuteAlarmSettings.CommuteMode
     ) async throws -> RoutePreview {
-        let homeLocation: ResolvedMapLocation
+        var homeLocation: ResolvedMapLocation
         if let selectedHomeLocation {
             homeLocation = selectedHomeLocation
         } else {
             homeLocation = try await mapItemResolver.resolve(homeAddress)
         }
 
-        let workLocation: ResolvedMapLocation
+        var workLocation: ResolvedMapLocation
         if let selectedWorkLocation {
             workLocation = selectedWorkLocation
         } else {
             workLocation = try await mapItemResolver.resolve(workAddress)
         }
+        homeLocation = await MapItemResolver.includingDistrict(homeLocation)
+        workLocation = await MapItemResolver.includingDistrict(workLocation)
         // MKDirections.calculate() does not support the transit transport type;
         // only calculateETA() does, so transit previews use the ETA estimate.
         if mode == .publicTransit {

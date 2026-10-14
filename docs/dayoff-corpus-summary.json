@@ -1,0 +1,139 @@
+{
+ "generated": "2026-09-10",
+ "specVersion": 2,
+ "what": "Audit trail for every statistic quoted in docs/DAYOFF-SPEC.md. Not the raw corpus — regenerate that with the commands below if you need it.",
+ "corpus": {
+  "alerts": 1374,
+  "from": "2014-07-22T11:34:38",
+  "to": "2026-08-24T18:25:42",
+  "events": 62,
+  "note": "every event NCDR indexes at /server/v1/Generic/capZip, alertTypeId=33, deduplicated by identifier"
+ },
+ "howToRegenerate": [
+  "GET https://alerts.ncdr.nat.gov.tw/server/v1/Generic/capZip  -> 62 events, each with a pk",
+  "GET https://alerts.ncdr.nat.gov.tw/server/v1/Alerts/Search/history?capZip=<pk>&alertTypeId=33&page=<n>  -> 10 rows/page, 'total' in envelope",
+  "CAP XML (where the geocodes live): https://alerts.ncdr.nat.gov.tw/Capstorage/<filePath>",
+  "Keyless. Throttle to <1 req/sec; the public feed on the same host 429s at 3s intervals and took ~65s to recover."
+ ],
+ "severityVsProse": {
+  "停止上班": {
+   "Extreme": 1142
+  },
+  "legacy-no-status-text": {
+   "Extreme": 106,
+   "Severe": 2
+  },
+  "尚未宣布/未列入警戒區": {
+   "Minor": 62,
+   "Severe": 2
+  },
+  "照常上班": {
+   "Minor": 1,
+   "Severe": 42
+  },
+  "照常上班、停止上課": {
+   "Severe": 12
+  },
+  "未達停止上班及上課標準": {
+   "Minor": 1,
+   "Severe": 4
+  }
+ },
+ "severityRule": "Extreme <=> 上班 suspended. Zero counter-examples in the 1,266 records that use the modern format. Severe and Minor both mean 'not a 停班' and are NOT two distinct meanings.",
+ "msgType": {
+  "Alert": 898,
+  "Update": 474,
+  "Cancel": 2
+ },
+ "cancelRecords": [
+  {
+   "sentDate": "2015-07-10T14:40:50",
+   "description": "新竹縣尖石鄉。新竹縣五峰鄉。",
+   "headline": "今天晚上已達停止上班及上課標準",
+   "note": "2015, retired format, same-day midday withdrawal — not a dawn reversal"
+  },
+  {
+   "sentDate": "2015-07-07T11:40:00",
+   "description": "所有縣市照常上班上課。",
+   "headline": "今天照常上班上課",
+   "note": "2015, retired format, same-day midday withdrawal — not a dawn reversal"
+  }
+ ],
+ "geocodeInIdentifier": {
+  "7-digit": 504,
+  "5-digit": 401,
+  "2-digit": 145,
+  "no _i_ segment": 324
+ },
+ "geocodeWarning": "Never read the geocode from the identifier — see spec 2.3. Read every <area>/<geocode> in the CAP instead, and check <valueName> is Taiwan_Geocode_103.",
+ "sentencePatterns": {
+  "N/N停止上班、停止上課。": 379,
+  "明天停止上班、停止上課。": 193,
+  "N/N已達停止上班及上課標準。": 106,
+  "明天已達停止上班及上課標準。": 96,
+  "今天停止上班、停止上課。": 64,
+  "今天已達停止上班及上課標準。": 47,
+  "N/N停止上班、停止上課。人事行政總處。": 41,
+  "N/N照常上班、照常上課。": 39,
+  "尚未宣布消息。": 33,
+  "N/N尚未宣布消息。": 27,
+  "今天晚上N:N起停止上班、停止上課。": 23,
+  "今天下午停止上班、停止上課。": 23,
+  "N/N晚上停止上班、停止上課。": 22,
+  "N/N晚上已達停止上班及上課標準。": 18,
+  "N/N晚上N:N起停止上班、停止上課。": 17,
+  "今天下午N:N起停止上班、停止上課。": 15,
+  "N/N下午停止上班、停止上課。": 9,
+  "N/N下午N:N起停止上班、停止上課。": 9,
+  "今天中午N:N起停止上班、停止上課。": 8,
+  "今天上午N:N起停止上班、停止上課。": 8,
+  "明天照常上班、停止上課。": 8,
+  "N/N已達停止上班及上課標準。人事行政總處。": 8,
+  "今天下午N:N起已達停止上班及上課標準。": 7,
+  "今天晚上停止上班、停止上課。": 7,
+  "N/N晚上停止上班、停止上課。人事行政總處。": 7,
+  "今天下午已達停止上班及上課標準。": 6,
+  "N/N晚上N:N起已達停止上班及上課標準。": 5,
+  "N/N下午已達停止上班及上課標準。": 5,
+  "N/N未達停止上班及上課標準。": 5,
+  "N/N尚未列入警戒區。": 4,
+  "N/N上午已達停止上班及上課標準。人事行政總處。": 4,
+  "N/N晚上照常上班、照常上課。": 3,
+  "N/N下午停止上班、停止上課。人事行政總處。": 3,
+  "N/N中午N:N起停止上班、停止上課。": 2,
+  "N/N上午停止上班、停止上課。": 2,
+  "N/N照常上班、停止上課。": 2,
+  "N/N上午已達停止上班及上課標準。": 2,
+  "N/N下午N:N起停止上班、停止上課。人事行政總處。": 2,
+  "今天上午N:N起已達停止上班及上課標準。": 1,
+  "今天下午照常上班、停止上課。": 1,
+  "N/N中午N:N起已達停止上班及上課標準。": 1,
+  "今天上午停止上班、停止上課。": 1,
+  "N/N上午照常上班、照常上課。": 1,
+  "今天照常上班、停止上課。": 1,
+  "N/N停止上班、停止上課。復興區:今天晚上停止上班、停止上課。人事行政總處。": 1
+ },
+ "formatEra": {
+  "legacyEnds": "2015-09-29T00:29:11",
+  "modernBegins": "2015-07-07T11:40:00",
+  "cutover": "2016-06-13",
+  "legacyRecords": 108,
+  "note": "Legacy records have no [停班停課通知] prefix, no status prose, many areas per record, no _i_ segment, and declare Taiwan_Geocode_100. Treat as unparseable => ring."
+ },
+ "announcementLead": {
+  "generated": "2026-10-01",
+  "what": "Spec v4, section 8 item 2. Days from the Asia/Taipei date of sentDate to the day the modern-format record names (今天/明天/M/D resolved as in section 3.1), over the same 1,374-alert corpus re-harvested with the commands above.",
+  "modernRecords": 1266,
+  "namesNoDay": 33,
+  "leadDays": { "0": 577, "1": 656 },
+  "yearRolledDates": 0,
+  "fullOrMorningWorkClosures": 890,
+  "sentMoreThan18hBefore0730OfTheirDay": [
+   { "sentDate": "2018-08-24T00:32:55", "area": "南投縣", "body": "8/25停止上班、停止上課", "hoursBefore0730": 31.0 },
+   { "sentDate": "2026-07-10T08:50:58", "area": "臺中市", "body": "7/11已達停止上班及上課標準", "hoursBefore0730": 22.7 },
+   { "sentDate": "2026-07-10T09:23:01", "area": "南投縣", "body": "7/11已達停止上班及上課標準", "hoursBefore0730": 22.1 },
+   { "sentDate": "2026-07-10T09:35:03", "area": "臺中市", "body": "7/11已達停止上班及上課標準", "hoursBefore0730": 21.9 }
+  ],
+  "note": "No record names a day more than one day after it was sent, and none relies on the year roll. fullOrMorningWorkClosures counts full-day or 上午 records with no start time whose status suspends 上班; under v3's 18 h notice limit, the four listed would have expired before a 07:30 alarm on the day they name."
+ }
+}

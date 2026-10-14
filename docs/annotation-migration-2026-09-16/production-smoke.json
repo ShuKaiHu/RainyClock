@@ -1,0 +1,19 @@
+{
+  "base": "https://rainyclock-weather-proxy-510427696731.asia-east1.run.app",
+  "results": [
+    {
+      "check": "weather",
+      "status": 200,
+      "hourCount": 25,
+      "ok": true
+    },
+    {
+      "check": "speech",
+      "status": 200,
+      "emotions": "cheerful,encouraging",
+      "sampleRate": "24000",
+      "bytes": 240526,
+      "ok": true
+    }
+  ]
+}

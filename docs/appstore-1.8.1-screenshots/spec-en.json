@@ -1,0 +1,96 @@
+{
+ "lang": "en",
+ "frames": [
+  {
+   "id": "01-rain",
+   "headline": "Rain ahead?\nWake up earlier",
+   "highlight": "earlier",
+   "subline": "If route rain hits your threshold, your alarm rings earlier.",
+   "screenshot": "raw/en-01-rain.png",
+   "tint": "#3B2963",
+   "tintStrength": 0.18,
+   "callout": {
+    "x": 60,
+    "y": 368,
+    "w": 1200,
+    "h": 612,
+    "radius": 84,
+    "band": {
+     "top": 330,
+     "bottom": 1010
+    },
+    "scale": 1.1
+   }
+  },
+  {
+   "id": "02-rule",
+   "headline": "40% rain chance?\n30 min earlier",
+   "highlight": "40%",
+   "subline": "You set the rain threshold and how much earlier your alarm rings.",
+   "screenshot": "raw/en-02-rule-list.png",
+   "callout": {
+    "x": 60,
+    "y": 518,
+    "w": 1200,
+    "h": 470,
+    "radius": 72,
+    "band": {
+     "top": 485,
+     "bottom": 1018
+    },
+    "scale": 1.1
+   }
+  },
+  {
+   "id": "03-widget",
+   "headline": "Next alarm,\nat a glance",
+   "highlight": "glance",
+   "subline": "Your expected alarm, and whether rain moves it earlier.",
+   "footnote": "Widgets require iOS 26 or later",
+   "screenshot": "raw/en-05-widget.png"
+  },
+  {
+   "id": "04-route",
+   "headline": "Built around\nyour commute",
+   "highlight": "commute",
+   "subline": "Car, scooter, transit or walking, with a route preview.",
+   "screenshot": "raw/en-03-route.png"
+  },
+  {
+   "id": "05-skip",
+   "headline": "Day off?\nSkip the next one",
+   "highlight": "next",
+   "subline": "Your alarm comes back on by itself after that morning.",
+   "screenshot": "raw/en-06-skip.png"
+  },
+  {
+   "id": "06-calendar",
+   "headline": "Holidays\nstay quiet",
+   "highlight": "quiet",
+   "subline": "US federal holidays built in, and you can change any day.",
+   "tag": "Subscription or one-time purchase",
+   "screenshot": "raw/en-07-calendar.png"
+  },
+  {
+   "id": "07-voice",
+   "headline": "Wake up to\nyour own words",
+   "highlight": "words",
+   "subline": "Write what you want to hear and pick one of six AI voices.",
+   "footnote": "Free plan: one generation, then one more for each video ad you watch",
+   "screenshot": "raw/en-08-voice.png"
+  },
+  {
+   "id": "08-typhoon",
+   "headline": "Typhoon day off?\nSleep in",
+   "highlight": "Sleep in",
+   "subline": "Home or work district closed? That alarm is skipped.",
+   "tag": "Subscription or one-time purchase",
+   "footnote": "Taiwan only · Demo screen · City and county announcements prevail",
+   "screenshot": "raw/en-04-typhoon.png",
+   "panelCrop": {
+    "top": 30,
+    "bottom": 0
+   }
+  }
+ ]
+}
