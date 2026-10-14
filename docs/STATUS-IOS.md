@@ -353,8 +353,20 @@ Last updated: 2026-10-15.
     `docs/privacy-policy.html` 第三方服務那段（英文第 105 行、繁中第 263 行）同樣不再寫「點選『排程智慧鬧鐘』」，改成「輸入地址，
     以及 App 排程或更新鬧鐘時（改了設定、打開 App、按『重試』或背景更新）」；網頁改動獨立一個 commit：`58bfeac`（`ios/main`）
     與 `0fb1b5f`（`main`，已 push；01:06 讀回線上頁面，兩種語言的新句子在、舊句子不在）。`RainyClockTests` 沒有斷言舊文字或這個 key；Debug 模擬器建置通過（0 error，bundle 讀回 1.8.2／43 與兩個語系的新字串）。
-    What's New 不提（使用者看不出差別）。**沒改、留著的：** `status_alarm_removed_address_changed`（地址改了、鬧鐘移除的狀態列，
-    `AlarmViewModel` 兩處用）仍寫「請按『排程智慧鬧鐘』」；`schedule_stale_notice` 也是，但已沒有程式引用。兩條該一起對照實際介面改。
+    What's New 不提（使用者看不出差別）。**同日稍後把另外兩條也改了（見下一項）。**
+  - **2026-10-15：1.8.2（43）再加一項——剩下兩條指向「排程智慧鬧鐘」按鈕的字串也對照實際介面改掉。**
+    `status_alarm_removed_address_changed`（`AlarmViewModel` 的 `enqueueSettingsRemoval`／`removeScheduledAlarm` 寫進 `statusMessage`）
+    改成「地址已變更，原有鬧鐘已移除。兩個地址確認後，App 會自動為新路線重新排程。」／"Address changed, so the alarm was removed.
+    Once both addresses are confirmed, the app sets it up again for the new route."——這是程式現在的行為：移除後
+    `reconcileScheduledAlarmWithSettings` 等兩個地址都確認（`hasConfirmedAutomaticRoute`）就走 `scheduleAutoRefresh()` 重排，
+    不用按任何按鈕。查證時發現 **`statusMessage` 自 1.7.0（34）的樹 `8ab2874` 起沒有任何畫面顯示**（那次從 `ContentView` 拿掉了
+    `Text(viewModel.statusMessage)`），只剩 `RainyClockTests` 讀它；使用者在地址改完到重排完成的空檔看到的是鬧鐘頁橘色 banner 的
+    `ux_schedule_update_needed`「鬧鐘設定尚未更新完成」＋「重試」（地址未確認時按鈕反灰）。所以這條改了只是讓 ViewModel 的狀態文字
+    與程式一致，使用者看不到；要不要連 `statusMessage` 一起拆掉是另一件事，沒動。`schedule_stale_notice` 兩個語系直接刪掉：同樣自
+    `8ab2874` 起沒有程式引用，過期狀態已由 banner 的 `ux_schedule_update_needed` 表達。`schedule_smart_alarm` 這個 key（舊按鈕標題）
+    也是 `8ab2874` 起無人引用（git 裡按鈕在 1.7.0 的樹就已不在，不只 1.8.0），留著沒動。`grep -rn "Schedule Smart Alarm\|排程智慧鬧鐘"
+    RainyClock RainyClockTests` 只剩那個 key；`plutil -lint` 兩個 .strings OK；Debug 模擬器建置 0 error，bundle 讀回 1.8.2／43、
+    兩個語系的新字串，`schedule_stale_notice` 已不在 bundle 裡。What's New 同樣不提。
   - **2026-10-13：1.8.2（43）再加一項——App 更新後鎖定畫面鬧鐘出現字串名稱**（擁有者：藍色按鈕「有看到一串英文」，用 AI
     鈴聲）。**重現：** iOS 27 模擬器、系統繁中、AI 人聲、稍後提醒開：正常情況響鈴畫面是「該起床了／再睡一下／滑動來停止」；
     但 App 排好鬧鐘後**覆蓋安裝、不打開 App**（等同 App Store 更新）再響，標題變 `alarm_alert_title_normal`、藍色按鈕變
