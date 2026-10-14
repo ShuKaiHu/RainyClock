@@ -499,3 +499,13 @@
 "ux_no_background_now" = "目前無法在背景更新預報（低耗電模式，或背景 App 重新整理已關閉）。";
 /* Alarm card: the same, on a dated plan's morning that no forecast decided: it rings at its normal time. */
 "ux_today_not_checked" = "今天響鈴前沒有確認天氣，鬧鐘照原定時間響。";
+
+/* Update prompts (1.8.2). Soft: the App Store lists a newer version; %@ is that version. */
+"update_available_title" = "有新版本可用";
+"update_available_message" = "雨天鬧鐘 %@ 已在 App Store 上架。";
+"update_available_action" = "更新";
+"update_dismiss" = "關閉";
+/* Hard: the service no longer supports this build. Alarms already set are untouched, and the screen says so. */
+"update_required_title" = "請更新雨天鬧鐘";
+"update_required_message" = "這個版本已不再支援，請到 App Store 更新到最新版本後繼續使用。已排好的鬧鐘不受影響，照常響鈴。";
+"update_required_action" = "前往 App Store";

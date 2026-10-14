@@ -23,22 +23,28 @@ async function readBody(req, maximum = 384_000) {
   return { raw, body }
 }
 
-// Only the fixed vocabulary of error codes and the route reach the log: never a
-// JWS, assertion, token, body, header or provider text. The 2026-10-03 incident
-// (a phone's App Attest assertion rejected on every launch) could only be
-// diagnosed from latency and response size because nothing logged the code.
+// Only the fixed vocabulary of error codes, the route and the caller's build number
+// (X-RC-App-Build, digits only, 1.8.2+) reach the log: never a JWS, assertion, token,
+// body, any other header or provider text. The 2026-10-03 incident (a phone's App
+// Attest assertion rejected on every launch) could only be diagnosed from latency and
+// response size because nothing logged the code.
 const LOGGED_PATH = /^\/v1\/membership\/[A-Za-z0-9/_-]{1,64}$/
 const LOGGED_CODE = /^[a-z0-9_]{1,64}$/
-function requestFailureLine(path, status, code) {
+const LOGGED_BUILD = /^\d{1,9}$/
+function requestFailureLine(path, status, code, appBuild) {
   return { event: 'membership_request_failed', severity: status >= 500 ? 'ERROR' : 'NOTICE',
     path: typeof path === 'string' && LOGGED_PATH.test(path) ? path : 'invalid_path',
-    status, code: typeof code === 'string' && LOGGED_CODE.test(code) ? code : 'unrecognized_code' }
+    status, code: typeof code === 'string' && LOGGED_CODE.test(code) ? code : 'unrecognized_code',
+    ...(typeof appBuild === 'string' && LOGGED_BUILD.test(appBuild) ? { appBuild: Number(appBuild) } : {}) }
 }
 
 // Dependency injection is intentional: HTTP contracts can be tested without
 // issuing a real Apple purchase, ad impression, speech request or cloud write.
+// `minimumSupportedBuild` is only reported, on the session and status answers; the
+// app compares its own CFBundleVersion and shows the "update required" screen itself.
+// 0 (the default) blocks nothing.
 function createMembershipHandler({ membership, auth, apple, rewards, generation, validateInput,
-  log = (line) => console.log(JSON.stringify(line)) }) {
+  minimumSupportedBuild = 0, log = (line) => console.log(JSON.stringify(line)) }) {
   const limiter = createRateLimiter({ limit: 120, windowMs: 60_000 })
   const sync = async (memberId, appTransactionId) => {
     await generation.recoverAbandoned(memberId)
@@ -92,7 +98,7 @@ function createMembershipHandler({ membership, auth, apple, rewards, generation,
         await transactions(state.memberId, bootstrap.signedTransactions || [])
         const refreshed = await sync(state.memberId, bootstrap.identity.appTransactionId)
         const session = await auth.issueSession({ memberId: state.memberId, bootstrap })
-        json(res, 200, { ...session, state: refreshed })
+        json(res, 200, { ...session, state: refreshed, minimumSupportedBuild })
       } else {
         const token = /^Bearer (\S+)$/.exec(req.headers.authorization || '')?.[1]
         const identity = await auth.authenticate({ token, headers: req.headers, rawBody: raw, method: req.method, path: url.pathname })
@@ -100,7 +106,7 @@ function createMembershipHandler({ membership, auth, apple, rewards, generation,
         let responseStatus = 200
         switch (url.pathname) {
         case '/v1/membership/status':
-          result = await sync(identity.memberId, identity.appTransactionId)
+          result = { ...await sync(identity.memberId, identity.appTransactionId), minimumSupportedBuild }
           break
         case '/v1/membership/purchases':
           await transactions(identity.memberId, body.signedTransactions)
@@ -154,7 +160,8 @@ function createMembershipHandler({ membership, auth, apple, rewards, generation,
       // Firestore/gRPC errors carry a numeric code; only the server's own string codes are answered.
       const code = typeof failure.code === 'string' && failure.code ? failure.code : 'membership_unavailable'
       // No JWS, assertion, token, user text or provider raw response in logs.
-      try { log(requestFailureLine(url.pathname, responseStatus, code)) } catch { /* Logging never changes the response. */ }
+      try { log(requestFailureLine(url.pathname, responseStatus, code, req.headers['x-rc-app-build'])) }
+      catch { /* Logging never changes the response. */ }
       json(res, responseStatus, { error: code })
     }
     return true

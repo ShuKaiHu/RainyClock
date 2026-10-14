@@ -69,6 +69,17 @@ function createVerifiedRewardResolver({ rewards, auth }) {
   }
 }
 
+// The lowest CFBundleVersion the owner still supports (MEMBERSHIP_MINIMUM_SUPPORTED_BUILD).
+// Unset or empty is 0: nothing is blocked, and the app treats 0 as "no floor". Anything
+// but digits is a configuration error, like every other setting here: a typo must fail
+// the deploy, not silently lift or set a floor.
+function minimumSupportedBuild(env) {
+  const raw = env.MEMBERSHIP_MINIMUM_SUPPORTED_BUILD
+  if (raw === undefined || raw === null || raw === '') return 0
+  if (typeof raw !== 'string' || !/^\d{1,9}$/.test(raw)) throw new Error('invalid_minimum_supported_build')
+  return Number(raw)
+}
+
 function createMembershipRuntime(env = process.env) {
   if (env.MEMBERSHIP_ENABLED !== '1') return null
   if (env.MEMBERSHIP_APPLE_ENVIRONMENT === 'Production' && env.MEMBERSHIP_ATTEST_ENVIRONMENT === 'development') {
@@ -114,10 +125,11 @@ function createMembershipRuntime(env = process.env) {
     const pcm = await synthesize({ ...input, segments, maximumSeconds: 10 }, speechOptions)
     return { pcm, sampleRate: SAMPLE_RATE, emotions }
   } })
-  const handler = createMembershipHandler({ membership, auth, apple, rewards, generation, validateInput })
+  const handler = createMembershipHandler({ membership, auth, apple, rewards, generation, validateInput,
+    minimumSupportedBuild: minimumSupportedBuild(env) })
   handler.resolveVerifiedReward = createVerifiedRewardResolver({ rewards, auth })
   handler.maintenance = () => cleanupDeletedMembers({ membership, auth })
   return handler
 }
-module.exports = { products, validateInput, createMembershipRuntime, withSandboxNotificationForwarding,
-  createVerifiedRewardResolver, LEGACY_SANDBOX_NOTIFICATION_URL }
+module.exports = { products, validateInput, minimumSupportedBuild, createMembershipRuntime,
+  withSandboxNotificationForwarding, createVerifiedRewardResolver, LEGACY_SANDBOX_NOTIFICATION_URL }

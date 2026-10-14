@@ -5,6 +5,7 @@ import UserNotifications
 struct RainyClockApp: App {
     @UIApplicationDelegateAdaptor(DisasterPushDelegate.self) private var pushDelegate
     @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var updateGate = AppUpdateGate.shared
 
     init() {
         #if DEBUG && targetEnvironment(simulator)
@@ -92,10 +93,25 @@ struct RainyClockApp: App {
         Task {
             await SystemAlarmScheduler.retireSupersededAlarms()
         }
+        // Is a newer version on the App Store? At most once a day, silent on failure.
+        if !AppEnvironment.isRunningTests {
+            Task { await updateGate.checkAppStoreIfDue() }
+        }
     }
 
+    /// The build floor covers the main UI rather than replacing it: everything the app does
+    /// on open (the alarm's stale re-decision, entitlements, push registration) still runs
+    /// underneath, so a blocked install's alarms stay current. Only the ad is held back
+    /// (`ContentView`), since nobody would see it.
     private var mainContent: some View {
         ContentView(viewModel: CommuteAlarmRefresher.currentModel(), showsWeatherAttribution: AppEnvironment.showsWeatherAttribution)
+            .accessibilityHidden(updateGate.requiresUpdate)
+            .allowsHitTesting(!updateGate.requiresUpdate)
+            .overlay {
+                if updateGate.requiresUpdate {
+                    UpdateRequiredView(storeURL: updateGate.storeURL)
+                }
+            }
     }
 }
 

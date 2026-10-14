@@ -6,6 +6,7 @@ const http = require('node:http')
 const { spawnSync } = require('node:child_process')
 const { createMembershipServer, startMembershipServer } = require('../membership/server')
 const { createMembershipHandler } = require('../membership/http')
+const { minimumSupportedBuild } = require('../membership/runtime')
 
 // These values only satisfy entrypoint presence checks for injected handlers.
 // They are never passed to an Apple verifier or used as platform credentials.
@@ -195,4 +196,83 @@ test('Sandbox challenge cap applies across rotated device keys and IPs without b
   assert.equal((await f.request('/health')).status, 200)
   assert.equal((await f.request('/v1/membership/challenge')).status, 405)
   assert.equal((await f.request('/v1/membership/status', { method: 'POST', body: '{}' })).status, 401)
+})
+
+// The smallest runtime that answers a session and a status: fixed identity, no purchases,
+// no Apple round trip. What the build-floor tests need and nothing more.
+function buildFloorRuntime(configuration, seen) {
+  const state = { memberId: 'fixture-member', entitlements: {}, quota: {}, policy: {} }
+  const auth = {
+    async issueChallenge(body) { return { purpose: body.purpose, id: 'fixture-challenge' } },
+    async bootstrapIdentityAndDevice(input) {
+      seen.bootstrap = input
+      return { identity: { appTransactionId: 'fixture-app' }, timeZone: 'Asia/Taipei', signedTransactions: [] }
+    },
+    async issueSession({ memberId }) { return { token: 'fixture-token', expiresAt: 1, memberId } },
+    async authenticate({ token, headers }) {
+      seen.status = { headers }
+      if (token !== 'fixture-token') throw Object.assign(new Error('session required'), { statusCode: 401, code: 'invalid_session' })
+      return { memberId: state.memberId, appTransactionId: 'fixture-app' }
+    }
+  }
+  const membership = { async recognizeMember() { return state }, async reconcileVerifiedPurchases() { return state } }
+  return createMembershipHandler({ auth, membership, apple: { async reconcile() { return { transactions: [] } } },
+    generation: { async recoverAbandoned() {} }, minimumSupportedBuild: minimumSupportedBuild(configuration),
+    log: (line) => seen.logged.push(line) })
+}
+
+test('app build and version headers reach the handler, and the build floor is 0 until the owner sets one', async (t) => {
+  const seen = { logged: [] }
+  const f = await fixture(t, { env: fixtureEnv, createRuntime: (configuration) => buildFloorRuntime(configuration, seen) })
+  const headers = { 'x-rc-app-build': '40', 'x-rc-app-version': '1.8.0', 'x-rc-apple-environment': 'Sandbox' }
+  const session = await f.request('/v1/membership/session', { method: 'POST', body: '{"signedAppTransaction":"fixture"}', headers })
+  assert.equal(session.status, 200)
+  assert.equal(session.data.minimumSupportedBuild, 0)
+  assert.equal(session.data.token, 'fixture-token')
+  assert.equal(session.data.state.memberId, 'fixture-member')
+  assert.equal(seen.bootstrap.headers['x-rc-app-build'], '40')
+  assert.equal(seen.bootstrap.headers['x-rc-app-version'], '1.8.0')
+  const status = await f.request('/v1/membership/status', { method: 'POST', body: '{}',
+    headers: { ...headers, authorization: 'Bearer fixture-token' } })
+  assert.equal(status.status, 200)
+  assert.equal(status.data.minimumSupportedBuild, 0)
+  assert.equal(status.data.memberId, 'fixture-member')
+  assert.equal(seen.status.headers['x-rc-app-build'], '40')
+  assert.equal(seen.status.headers['x-rc-app-version'], '1.8.0')
+  assert.deepEqual(seen.logged, [])
+})
+
+test('MEMBERSHIP_MINIMUM_SUPPORTED_BUILD is answered on session and status and logged on failures as a number only', async (t) => {
+  const seen = { logged: [] }
+  const f = await fixture(t, { env: { ...fixtureEnv, MEMBERSHIP_MINIMUM_SUPPORTED_BUILD: '41' },
+    createRuntime: (configuration) => buildFloorRuntime(configuration, seen) })
+  const session = await f.request('/v1/membership/session', { method: 'POST', body: '{}', headers: { 'x-rc-app-build': '40' } })
+  assert.equal(session.status, 200)
+  assert.equal(session.data.minimumSupportedBuild, 41)
+  const status = await f.request('/v1/membership/status', { method: 'POST', body: '{}',
+    headers: { 'x-rc-app-build': '40', authorization: 'Bearer fixture-token' } })
+  assert.equal(status.data.minimumSupportedBuild, 41)
+  // The floor is a report, never a refusal: an old build still gets its answer.
+  assert.equal(status.status, 200)
+  // A failure line carries the build as a number, and only when it is one.
+  for (const [build, expected] of [['40', { appBuild: 40 }], ['40; rm -rf /', {}], ['x'.repeat(10), {}], ['1234567890', {}], [undefined, {}]]) {
+    seen.logged.length = 0
+    const refused = await f.request('/v1/membership/status', { method: 'POST', body: '{}',
+      headers: build === undefined ? {} : { 'x-rc-app-build': build } })
+    assert.equal(refused.status, 401)
+    assert.deepEqual(seen.logged, [{ event: 'membership_request_failed', severity: 'NOTICE',
+      path: '/v1/membership/status', status: 401, code: 'invalid_session', ...expected }])
+  }
+})
+
+test('an unparsable build floor fails configuration instead of silently blocking nobody or everybody', async (t) => {
+  for (const value of ['4O', '-1', '1e3', ' 41', '41.0', '1234567890']) {
+    assert.throws(() => createMembershipServer({ env: { ...fixtureEnv, MEMBERSHIP_MINIMUM_SUPPORTED_BUILD: value },
+      createRuntime: (configuration) => buildFloorRuntime(configuration, { logged: [] }) }), /invalid_minimum_supported_build/, value)
+  }
+  for (const value of [undefined, '', '0']) assert.equal(minimumSupportedBuild({ MEMBERSHIP_MINIMUM_SUPPORTED_BUILD: value }), 0)
+  assert.equal(minimumSupportedBuild({ MEMBERSHIP_MINIMUM_SUPPORTED_BUILD: '000041' }), 41)
+  const f = await fixture(t, { env: { ...fixtureEnv, MEMBERSHIP_MINIMUM_SUPPORTED_BUILD: '' },
+    createRuntime: (configuration) => buildFloorRuntime(configuration, { logged: [] }) })
+  assert.equal((await f.request('/v1/membership/session', { method: 'POST', body: '{}' })).data.minimumSupportedBuild, 0)
 })

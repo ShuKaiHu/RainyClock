@@ -346,6 +346,36 @@ Last updated: 2026-10-15.
     取消訂閱），並把 10-03 查證指出的「升級 iOS 26 要重新排程一次」改成實際的橘色提醒＋「重試」按鈕（`ContentView.swift` 的
     `scheduleIssue` 列）。App 內 `alarmkit_reschedule_notice` 仍寫「排程智慧鬧鐘」，沒改（同日稍後已改，見下一項）。本機 http.server 預覽過桌面與 375 px 兩種
     語言。`8f8dd61`（`ios/main`）與 `b8e3979`（`main`，已 push）；GitHub Pages 從 `main` 發佈。
+  - **2026-10-15：1.8.2（43）再加一項——兩層「版本過舊」提醒／阻擋**（擁有者：1.8.1 上架後還有人用 1.8.0（40）或更舊，問能不能
+    強迫更新。Apple 沒有強制更新機制，已經在外面的舊版現在改不了；這兩層是替「下一次」準備的開關，1.8.2 起才看得懂）。
+    (1) **軟提示（不靠後端）：** App 回到前景時最多一天查一次 `itunes.apple.com/lookup?bundleId=…&country=tw`（`AppStoreLookup`，15 秒
+    逾時），`results[0].version` 與 `CFBundleShortVersionString` 做語意比較（1.9 > 1.8.2、1.8.0 == 1.8、非數字段當 0），商店較新就在兩個
+    分頁上方顯示可關閉的「有新版本可用／雨天鬧鐘 x.y.z 已在 App Store 上架」橫幅（`UpdateAvailableBanner`，`safeAreaInset(.top)`），
+    「更新」用 `trackViewUrl` 開 App Store 頁。關掉後同一版本不再出現（UserDefaults `appUpdateDismissedVersion`）；查詢結果快取
+    （`appUpdateStoreListing`），一天算從「查過」起、失敗也算，所以離線時不會每次前景都打；失敗一律靜默。測試時不查。
+    (2) **硬門檻（後端可調）：** `MembershipClient.makeRequest` 每個會員請求多送 `X-RC-App-Build`（CFBundleVersion）與
+    `X-RC-App-Version`（CFBundleShortVersionString），跟環境 header 一樣不能被呼叫端的 headers 參數覆蓋；會員服務的 `/session` 與
+    `/status` 回應多一個 `minimumSupportedBuild`。欄位在 `weather-proxy/membership/http.js` 組回應處、環境變數在
+    `membership/runtime.js` 解析（`minimumSupportedBuild(env)`），`weather-proxy/server.js` 與 `membership/server.js` 兩個入口共用同一個
+    handler；失敗 log 行多帶 `appBuild`（header 是 1–9 位純數字才記，否則不記）。**服務只回報、不拒絕**：舊版照樣拿到答案，擋不擋
+    由 App 決定。App 端 `MembershipClient.send` 看到欄位就交給 `AppUpdateGate.record`（UserDefaults `appUpdateMinimumSupportedBuild`，
+    0 也記，這樣才解得開），自己的 build 低於門檻時 `RainyClockApp.mainContent` 用 `UpdateRequiredView` **蓋住** `ContentView`
+    （不是換掉：開 App 時的雨況重查、權益還原、推播註冊照跑；VoiceOver 與點擊被擋、橫幅廣告不載入），按鈕開 App Store（有 lookup
+    結果用 `trackViewUrl`，否則 `apps.apple.com/app/id6780500386`），畫面底下印自己的版本（例如 1.8.0 (40)）方便客服。AlarmKit 已排的
+    鬧鐘、系統的響鈴畫面與 widget 完全不經過這條路；自己的 build 讀不到（0）視為未知、不擋。
+    **待部署（擁有者，這次沒有部署任何東西）：** 正式會員服務 `rainyclock-membership` 與 sandbox 服務（asia-east1）要重新部署
+    `weather-proxy` 才會回這個欄位。環境變數 **`MEMBERSHIP_MINIMUM_SUPPORTED_BUILD`，預設 0（不設就是不擋）**；之後要擋舊版時
+    `gcloud run services update rainyclock-membership --region=asia-east1 --update-env-vars MEMBERSHIP_MINIMUM_SUPPORTED_BUILD=43`，
+    改回 0 或移除就解除；不是純數字（`4O`、`-1`、`41.0`、空白）會啟動失敗 `invalid_minimum_supported_build`，跟其他設定一樣寧可部署
+    失敗也不要默默變成擋全部或擋沒人。門檻只對 1.8.2（43）起的 App 有效，1.8.1 以前收到欄位也沒反應。
+    測試：`weather-proxy` 194 項（191 通過、0 失敗、3 項照例略過，新增 3：header 透傳到 handler、`/session` 與 `/status` 回欄位、沒設是 0
+    ／壞值啟動失敗／log 只記純數字）；Swift 新增 `AppUpdateGateTests` 8 項全過（iOS 27 模擬器、Membership Local scheme：版本比較、
+    一天一次含失敗、關掉持久且下一版再出現、門檻 0 解除、build 0 不擋、lookup 解析、每個請求帶 build／version header 且不可偽造）。
+    模擬器驗證（iPhone 17 Pro iOS 26.5，空白 LevelPlay key；Debug 專用啟動參數 `-update-check-store-version 9.9.9` 代替商店答案並略過
+    一天一次、`-update-check-minimum-build 999` 代替服務答案、`0` 清掉）：繁中橫幅「有新版本可用／雨天鬧鐘 9.9.9 已在 App Store 上架」
+    在「鬧鐘」標題列上方，鬧鐘與設定兩個分頁都有；按 × 消失、重開不再出現；改 9.9.10 英文再出現（"Update available"，初版 "A new
+    version is available" 擠成兩行，已改短）；門檻 999 繁中／英文全螢幕「請更新雨天鬧鐘／前往 App Store／1.8.2 (43)」；門檻 0 主畫面回來。
+    初版用 `safeAreaInset(.top)` 掛橫幅，TabView 的 UIKit 容器不轉傳這個 inset，橫幅蓋住了標題列；改成和 TabView 同一個 VStack 才會把內容往下推。
   - **2026-10-15：1.8.2（43）再加一項——「更新前設定的鬧鐘」提醒不再指向已不存在的按鈕**（10-03 查證就指出、10-15 改網站時仍沒改
     的那則）。`alarmkit_reschedule_notice` 兩個語系從「按一次『排程智慧鬧鐘』即可切換」改成「按『重試』即可切換到新機制」／"Tap Retry
     to switch it to the new system"——它顯示在鬧鐘頁的橘色 banner（`ContentView.swift` 的 `scheduleIssue` 列），旁邊的按鈕是

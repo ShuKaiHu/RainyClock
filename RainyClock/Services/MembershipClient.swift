@@ -124,7 +124,21 @@ actor MembershipClient {
             let code = json?["error"] as? String ?? json?["code"] as? String ?? "unavailable"
             throw MembershipError.server(code, http.statusCode)
         }
+        // The service's build floor rides on its session and status answers. Handed over
+        // off the request path: the gate owns the comparison and the screen.
+        if let minimum = Self.minimumSupportedBuild(in: data) {
+            Task { @MainActor in AppUpdateGate.shared.record(minimumSupportedBuild: minimum) }
+        }
         return data
+    }
+
+    /// `minimumSupportedBuild` from a membership answer, when it carries one: a whole
+    /// number of builds, never negative. Anything else is "no answer", not 0.
+    nonisolated static func minimumSupportedBuild(in data: Data) -> Int? {
+        struct Envelope: Decodable { var minimumSupportedBuild: Int? }
+        guard let value = (try? JSONDecoder().decode(Envelope.self, from: data))?.minimumSupportedBuild,
+              value >= 0 else { return nil }
+        return value
     }
 
     nonisolated static func makeRequest(routing: MembershipRouting, path: String, body: Data,
@@ -138,6 +152,9 @@ actor MembershipClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
         request.setValue(routing.appleEnvironment.rawValue, forHTTPHeaderField: "X-RC-Apple-Environment")
+        // Which build is asking, so the service can tell old installs apart (1.8.2+).
+        request.setValue(AppBuildInfo.buildString, forHTTPHeaderField: "X-RC-App-Build")
+        request.setValue(AppBuildInfo.version, forHTTPHeaderField: "X-RC-App-Version")
         return request
     }
 

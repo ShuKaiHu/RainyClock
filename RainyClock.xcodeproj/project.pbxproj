@@ -126,6 +126,9 @@
 		4AA3B53907D742FE842E6367 /* MembershipLegacyPriceProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E58C0C1FE441E8BE01C9B /* MembershipLegacyPriceProbe.swift */; };
 		2E5F94BE8B7D4458850C5D95 /* MembershipSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A8BE989A8944C9FB116A340 /* MembershipSecurity.swift */; };
 		2F877E6B44674DDDA5F04A8C /* MembershipClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05771F955DCB42D5A27D9D37 /* MembershipClient.swift */; };
+		7E1A5B0C2D3F4A5B6C7D0011 /* AppUpdateGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1A5B0C2D3F4A5B6C7D0001 /* AppUpdateGate.swift */; };
+		7E1A5B0C2D3F4A5B6C7D0012 /* AppUpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1A5B0C2D3F4A5B6C7D0002 /* AppUpdateViews.swift */; };
+		7E1A5B0C2D3F4A5B6C7D0013 /* AppUpdateGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1A5B0C2D3F4A5B6C7D0003 /* AppUpdateGateTests.swift */; };
 		8F2DC58540964EDABA9E658B /* MembershipManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA601E07485145F3AC82B702 /* MembershipManager.swift */; };
 		E7CE6E8A17D7416586EF18D6 /* MembershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904B2BF979344A6ABB930E70 /* MembershipTests.swift */; };
 		38ABA2C657074798B222B397 /* MembershipLegacyPriceProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2C65ECC2D44837BE727569 /* MembershipLegacyPriceProbeTests.swift */; };
@@ -317,6 +320,9 @@
 		7C4E58C0C1FE441E8BE01C9B /* MembershipLegacyPriceProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipLegacyPriceProbe.swift; sourceTree = "<group>"; };
 		0A8BE989A8944C9FB116A340 /* MembershipSecurity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipSecurity.swift; sourceTree = "<group>"; };
 		05771F955DCB42D5A27D9D37 /* MembershipClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipClient.swift; sourceTree = "<group>"; };
+		7E1A5B0C2D3F4A5B6C7D0001 /* AppUpdateGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateGate.swift; sourceTree = "<group>"; };
+		7E1A5B0C2D3F4A5B6C7D0002 /* AppUpdateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateViews.swift; sourceTree = "<group>"; };
+		7E1A5B0C2D3F4A5B6C7D0003 /* AppUpdateGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateGateTests.swift; sourceTree = "<group>"; };
 		EA601E07485145F3AC82B702 /* MembershipManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipManager.swift; sourceTree = "<group>"; };
 		904B2BF979344A6ABB930E70 /* MembershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipTests.swift; sourceTree = "<group>"; };
 		7B2C65ECC2D44837BE727569 /* MembershipLegacyPriceProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembershipLegacyPriceProbeTests.swift; sourceTree = "<group>"; };
@@ -411,6 +417,7 @@
 				940BC0BD776A4E1CA33BF369 /* SettingsCalendarView.swift */,
 				0A1000F02C00000000000005 /* LevelPlayBannerView.swift */,
 				0A1000F82C00000000000005 /* AdConsentSheet.swift */,
+				7E1A5B0C2D3F4A5B6C7D0002 /* AppUpdateViews.swift */,
 				0A1000A02C00000000000003 /* PrivacyInfo.xcprivacy */,
 				0A1000A72C00000000000003 /* RoutePreviewMapView.swift */,
 				0A1000A22C00000000000003 /* WeatherAttributionView.swift */,
@@ -484,6 +491,7 @@
 				51FB23E7585B47E485E9D91C /* MembershipRewardFlow.swift */,
 				EA601E07485145F3AC82B702 /* MembershipManager.swift */,
 				05771F955DCB42D5A27D9D37 /* MembershipClient.swift */,
+				7E1A5B0C2D3F4A5B6C7D0001 /* AppUpdateGate.swift */,
 				0A8BE989A8944C9FB116A340 /* MembershipSecurity.swift */,
 				09057D991C894C34A23AD5AF /* MembershipModels.swift */,
 				7C4E58C0C1FE441E8BE01C9B /* MembershipLegacyPriceProbe.swift */,
@@ -540,6 +548,7 @@
 				7154F44B61E340CB96450D9D /* RainyClockMembership.storekit */,
 				BE9DD135B1874EC8AD51B279 /* MembershipStoreKitTests.swift */,
 				904B2BF979344A6ABB930E70 /* MembershipTests.swift */,
+				7E1A5B0C2D3F4A5B6C7D0003 /* AppUpdateGateTests.swift */,
 				A77000012C00000000000002 /* ConsentManagerTests.swift */,
 				A77000022C00000000000002 /* NotificationResponseTests.swift */,
 				A77000032C00000000000002 /* LocalNotificationSchedulerTests.swift */,
@@ -814,6 +823,7 @@
 			files = (
 				00145F4219C44BA1A4258D73 /* MembershipStoreKitTests.swift in Sources */,
 				E7CE6E8A17D7416586EF18D6 /* MembershipTests.swift in Sources */,
+				7E1A5B0C2D3F4A5B6C7D0013 /* AppUpdateGateTests.swift in Sources */,
 				A77000012C00000000000001 /* ConsentManagerTests.swift in Sources */,
 				A77000022C00000000000001 /* NotificationResponseTests.swift in Sources */,
 				A77000032C00000000000001 /* LocalNotificationSchedulerTests.swift in Sources */,
@@ -857,6 +867,8 @@
 				D2021DA3D3554571956F9CCC /* MembershipRewardFlow.swift in Sources */,
 				8F2DC58540964EDABA9E658B /* MembershipManager.swift in Sources */,
 				2F877E6B44674DDDA5F04A8C /* MembershipClient.swift in Sources */,
+				7E1A5B0C2D3F4A5B6C7D0011 /* AppUpdateGate.swift in Sources */,
+				7E1A5B0C2D3F4A5B6C7D0012 /* AppUpdateViews.swift in Sources */,
 				2E5F94BE8B7D4458850C5D95 /* MembershipSecurity.swift in Sources */,
 				C1689447CDF54A888C42E491 /* MembershipModels.swift in Sources */,
 				4AA3B53907D742FE842E6367 /* MembershipLegacyPriceProbe.swift in Sources */,
