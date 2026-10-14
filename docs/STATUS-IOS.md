@@ -388,8 +388,11 @@ Last updated: 2026-10-15.
     `status_alarm_removed_address_changed` 上一項才改好措辭，這裡隨管線一起刪（兩個 session 同日各自提交，merge `ios/main`
     `9cbbaf0` 時字串表的衝突解成兩個 key 都不留：它和上一項刪的 `schedule_stale_notice`）。驗證：Debug 模擬器建置通過（0 error，97 個既有
     warning）；`AlarmViewModelSchedulingTests`（41）＋`TomorrowAlarmStatusTests`（31）在 iPhone 17 Pro iOS 26.5（B521C391）
-    全過：72 過、0 失敗、0 略過（簽章的 `RainyClock Membership Local`、`-parallel-testing-worker-count 1`）；全套測試沒跑。
-    在 session 分支 `claude/priceless-payne-c1a4d6`，待擁有者 `merge --no-ff` 進 ios/main。
+    全過：72 過、0 失敗、0 略過（簽章的 `RainyClock Membership Local`、`-parallel-testing-worker-count 1`）。擁有者要求落地前跑全套：
+    合併 `ios/main`（`9cbbaf0`）後的樹 `build-for-testing` 一次，iOS 26.5（B521C391）與 27.0（C2F654DB）各 665 個（略過
+    `MembershipStoreKitTests`）：都是 661 過、0 失敗、4 略過（`LocalNotificationSchedulerSystemTests` 沒通知權限的那 4 個，照例）；
+    01:30 左右跑的，沒有碰到接近午夜被 `XCTSkipUnless` 的「今早視窗」測試。Commit `a7060ab` 與合併 `2f5746a`，在 session 分支
+    `claude/priceless-payne-c1a4d6`，待擁有者 `merge --no-ff` 進 ios/main。
   - **2026-10-13：1.8.2（43）再加一項——App 更新後鎖定畫面鬧鐘出現字串名稱**（擁有者：藍色按鈕「有看到一串英文」，用 AI
     鈴聲）。**重現：** iOS 27 模擬器、系統繁中、AI 人聲、稍後提醒開：正常情況響鈴畫面是「該起床了／再睡一下／滑動來停止」；
     但 App 排好鬧鐘後**覆蓋安裝、不打開 App**（等同 App Store 更新）再響，標題變 `alarm_alert_title_normal`、藍色按鈕變
