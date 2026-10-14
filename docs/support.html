@@ -20,7 +20,7 @@
 <body>
 
 <h1>Rainy Clock Support</h1>
-<p class="subtitle">Support page · Last updated October 2026</p>
+<p class="subtitle">Support page · Last updated 15 October 2026</p>
 
 <div class="card">
   <h2>Contact</h2>
@@ -40,8 +40,9 @@ Make sure notifications are enabled and your sound settings allow notification a
 
 <h3>I upgraded to iOS 26 and the alarm still follows the silent switch.</h3>
 <p>An alarm scheduled before the upgrade keeps running on the old notification path.
-Open the app and schedule the alarm once more — it then moves to the new system and
-sounds through Silent mode. The Alarm tab shows a notice while this is pending.</p>
+Open the app: the Alarm tab shows an orange notice about it with a <strong>Retry</strong>
+button. Tap it (or change any alarm setting) and the alarm is scheduled again on the new
+system, where it sounds through Silent mode.</p>
 
 <h3>Why does the app need my home and work address?</h3>
 <p>The app uses your addresses to preview your commute route and check weather
@@ -59,6 +60,40 @@ temporary closure announcements for Taiwan (after you turn the rule on). The
 <h3>Why is weather unavailable?</h3>
 <p>Route weather requires an internet connection and valid route addresses. The app uses Apple Weather / WeatherKit for weather data. If route or weather lookup fails, check the address, network connection, and try again.</p>
 
+<h3>I pay for a plan. Why did the alarm still ring on a typhoon day?</h3>
+<p>The closure rule applies in Taiwan only and must be turned on under Settings → Calendar,
+with your home and workplace districts confirmed there. It skips the alarm only when a city or
+county government suspends work or school for the <em>morning or the whole day</em> in one of
+those districts; an afternoon-only or evening-only closure still rings. If the app could not
+confirm an announcement before the alarm — no network overnight, or the announcement came out
+after the alarm had already rung — the alarm rings as usual by design. Whenever the app does
+skip an alarm for a closure, the Alarm tab and the widget show the announcement's source and
+update time.</p>
+
+<h3>The Next Alarm widget is empty or says "Open the app to show your next alarm".</h3>
+<p>The widget needs iOS 26 or later. After installing or updating, open Rainy Clock once so it
+can write the next alarm for the widget; from then on the widget updates every time the app
+checks the forecast. If it still shows nothing, remove it and add it again from the widget gallery.</p>
+
+<h3>The Alarm tab says today's alarm was not re-checked against a newer forecast.</h3>
+<p>Rainy Clock decides the alarm the evening before and tries to re-check the forecast in the
+morning before it rings. That re-check depends on iOS giving the app background time, so it can
+be skipped when Background App Refresh is off, Low Power Mode is on, or the phone was off
+overnight. The alarm still rings at the time decided the evening before. Opening the app in the
+evening or in the morning triggers a fresh check right away.</p>
+
+<h3>I turned the alarm off for a day and it came back on by itself.</h3>
+<p>That is what "Only the next alarm" does: it skips one morning and then resumes. To stay off
+longer, choose the other option in the same switch; the alarm then stays off until you turn it
+back on.</p>
+
+<h3>How do I restore purchases or manage my subscription?</h3>
+<p>Open Settings → Other → Membership &amp; plans and use the menu in the top-right corner. There
+is no Rainy Clock account: your membership is recognized from Apple-verified app and purchase
+records, so restoring on a new phone needs only the same Apple Account. Restoring brings back
+your plan, not your alarm settings or saved AI sounds. Cancelling a subscription is done in iOS
+Settings → Apple Account → Subscriptions; deleting membership data inside the app does not cancel it.</p>
+
 <h2>繁體中文支援</h2>
 
 <div class="card">
@@ -72,7 +107,7 @@ temporary closure announcements for Taiwan (after you turn the rule on). The
 <p>在 iOS 17 至 25，鬧鐘以本機通知送達，仍會受靜音開關影響 —— 這些版本的 iOS 沒有提供第三方 App 任何繞過的方法。請確認通知權限已開啟，且裝置音量與通知聲音設定正常。</p>
 
 <h3>升級到 iOS 26 後，鬧鐘還是被靜音影響？</h3>
-<p>升級前排好的鬧鐘仍走舊的通知路徑。請打開 App 重新排程一次，鬧鐘就會轉到新機制並穿透靜音。在轉換完成前，鬧鐘頁會顯示提醒。</p>
+<p>升級前排好的鬧鐘仍走舊的通知路徑。打開 App 後，鬧鐘頁會出現一則橘色提醒，旁邊有「<strong>重試</strong>」按鈕；按一下（或改任何鬧鐘設定）鬧鐘就會用新機制重新排程，之後就能穿透靜音。</p>
 
 <h3>為什麼 App 需要住家與公司地址？</h3>
 <p>App 會使用這些地址預覽通勤路線，並查詢路線上的天氣；若開啟臨時放假規則，也會在手機上用來判斷住家與公司所在的行政區。在 iPhone 上，路線由 Apple 地圖計算、天氣來自 Apple Weather，地址不會傳到 Rainy Clock 自己的服務。你不需要填寫註冊表單，也不用設定密碼。</p>
@@ -81,9 +116,24 @@ temporary closure announcements for Taiwan (after you turn the rule on). The
 <h3>為什麼天氣資料無法載入？</h3>
 <p>路線天氣需要網路連線與有效的路線地址。App 會使用 Apple Weather / WeatherKit 查詢天氣。如果路線或天氣查詢失敗，請確認地址與網路後再試一次。</p>
 
+<h3>我有付費方案，颱風天鬧鐘怎麼還是響了？</h3>
+<p>臨時放假規則只適用台灣，而且要先在「設定 → 日曆」開啟，並在那裡確認住家與公司所在的行政區。只有縣市政府宣布這些行政區<em>上午或全天</em>停班停課時才會略過鬧鐘；只停下午或晚上，鬧鐘照常響。如果 App 在響鈴前沒能確認公告——例如整晚沒有網路，或公告在鬧鐘響過之後才發布——就會照常響，這是刻意的設計。只要 App 因停班停課略過鬧鐘，鬧鐘頁與小工具都會標示公告的資料來源與更新時間。</p>
+
+<h3>「下次鬧鐘」小工具是空的，或顯示「開啟 App 以顯示下次鬧鐘」。</h3>
+<p>小工具需要 iOS 26 以上。安裝或更新後請先打開雨天鬧鐘一次，App 才會把下次鬧鐘寫給小工具；之後每次 App 檢查預報都會更新。如果還是沒有內容，請移除小工具後從小工具庫重新加入。</p>
+
+<h3>鬧鐘頁寫「今天的鬧鐘沒有用新預報重新確認」，是什麼意思？</h3>
+<p>雨天鬧鐘在前一晚決定鬧鐘時間，早上響鈴前會再查一次預報。這次重查要靠 iOS 給 App 背景執行的機會，所以在背景 App 重新整理關閉、開啟低耗電模式或整晚關機時可能被跳過。鬧鐘仍會在前一晚決定的時間響。晚上或早上打開 App，就會馬上重新檢查。</p>
+
+<h3>我關掉一天的鬧鐘，隔天它自己又開了。</h3>
+<p>這就是「僅關閉下一次鬧鐘」的行為：略過一個早上，然後恢復。想關久一點，請在同一個開關選另一個選項，鬧鐘就會一直關到你重新開啟為止。</p>
+
+<h3>如何恢復購買或管理訂閱？</h3>
+<p>到「設定 → 其他 → 會員與方案」，用右上角的選單。雨天鬧鐘沒有自己的帳號：會員是依 Apple 可驗證的 App 與購買資料認回，換新手機只要用同一個 Apple 帳號就能恢復。恢復購買只恢復方案，不會同步鬧鐘設定或已存的 AI 鈴聲。取消訂閱請到 iOS「設定 → Apple 帳號 → 訂閱項目」；在 App 內刪除會員資料不會取消訂閱。</p>
+
 <footer>
   <p>Rainy Clock · Support</p>
-  <p><a href="privacy-policy.html">Privacy Policy</a></p>
+  <p><a href="index.html">Rainy Clock</a> · <a href="privacy-policy.html">Privacy Policy</a></p>
 </footer>
 
 </body>

@@ -1,43 +1,433 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant" data-lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rainy Clock</title>
+<title>雨天鬧鐘 Rainy Clock — 下雨提早叫你，颱風假讓你多睡</title>
+<meta name="description" content="雨天鬧鐘 Rainy Clock：通勤路線會下雨，鬧鐘就提早響；颱風停班停課，就讓你多睡一會。Rainy Clock wakes you earlier when rain is forecast on your commute. iPhone, iOS 17 and later.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="雨天鬧鐘 Rainy Clock">
+<meta property="og:description" content="通勤路線會下雨，鬧鐘就提早響；颱風停班停課，就讓你多睡一會。Rain on your commute? Wake up earlier.">
+<meta property="og:image" content="https://shukaihu.github.io/RainyClock/site/header-zh-Hant.jpg">
+<meta property="og:url" content="https://shukaihu.github.io/RainyClock/">
+<link rel="icon" href="site/icon-256.png" type="image/png">
+<link rel="apple-touch-icon" href="site/icon-256.png">
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-         max-width: 760px; margin: 64px auto; padding: 0 24px;
-         color: #f5f5f7; background: #000; line-height: 1.7; }
-  h1 { font-size: 3rem; margin-bottom: 0.2em; }
-  h2 { font-size: 1.25rem; margin-top: 2em; }
-  a { color: #20c7f7; }
-  .subtitle { color: #a1a1aa; font-size: 1.2rem; }
-  .card { background: #1c1c1e; border-radius: 24px; padding: 24px; margin: 24px 0; }
-  footer { margin-top: 3em; color: #a1a1aa; font-size: 0.9rem; }
+  :root {
+    --bg: #000; --card: #1c1c1e; --card-2: #2c2c2e; --panel: #0b1b33;
+    --text: #f5f5f7; --muted: #a1a1aa; --accent: #20c7f7; --accent-dim: rgba(32,199,247,.14);
+    --paid: #ffd166; --radius: 24px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Segoe UI", sans-serif;
+         color: var(--text); background: var(--bg); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1, h2, h3 { line-height: 1.25; margin: 0; }
+  h2 { font-size: 1.75rem; margin-bottom: .35em; }
+  h3 { font-size: 1.1rem; }
+  p { margin: 0 0 1em; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  .muted { color: var(--muted); }
+
+  /* language switch */
+  html[data-lang="zh-Hant"] .en { display: none !important; }
+  html[data-lang="en"] .zh { display: none !important; }
+
+  /* top bar */
+  .top { position: sticky; top: 0; z-index: 10; background: rgba(0,0,0,.72); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+         border-bottom: 1px solid rgba(255,255,255,.08); }
+  .top .wrap { display: flex; align-items: center; gap: 16px; height: 56px; }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; }
+  .brand img { width: 28px; height: 28px; border-radius: 7px; }
+  .brand span { white-space: nowrap; }
+  .top nav { margin-left: auto; display: flex; gap: 18px; font-size: .95rem; }
+  .top nav a { color: var(--muted); }
+  .top nav a:hover { color: var(--text); text-decoration: none; }
+  .lang { display: flex; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; overflow: hidden; font-size: .85rem; }
+  .lang button { background: none; border: 0; color: var(--muted); padding: 4px 11px; cursor: pointer; font: inherit; font-size: .85rem; white-space: nowrap; }
+  .lang button[aria-pressed="true"] { background: var(--text); color: #000; }
+  @media (max-width: 640px) { .top nav { gap: 12px; } .top nav .hide-sm { display: none; } .lang button { padding: 4px 9px; } }
+
+  /* hero */
+  .hero-art { position: relative; aspect-ratio: 1920 / 823; min-height: 220px; max-height: 520px;
+              background-position: center; background-size: cover; background-repeat: no-repeat; }
+  .hero-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0) 55%, var(--bg) 100%); }
+  .hero { text-align: center; padding: 8px 0 48px; }
+  .hero h1 { font-size: clamp(1.45rem, 4.2vw, 2.4rem); font-weight: 700; margin: 0 auto 14px; max-width: 760px; text-wrap: balance; }
+  @media (max-width: 640px) { .hero h1 br { display: none; } }
+  .hero .lead { font-size: 1.1rem; color: var(--muted); max-width: 640px; margin: 0 auto 26px; }
+  .store { display: inline-flex; align-items: center; gap: 10px; background: var(--text); color: #000; font-weight: 600;
+           padding: 12px 22px; border-radius: 999px; font-size: 1rem; }
+  .store:hover { text-decoration: none; background: #fff; }
+  .store svg { width: 20px; height: 20px; }
+  .meta { margin-top: 18px; font-size: .9rem; color: var(--muted); }
+  .pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 28px; }
+  .pill { background: var(--card); border-radius: 999px; padding: 6px 14px; font-size: .9rem; }
+
+  /* sections */
+  section { padding: 44px 0; }
+  section + section { border-top: 1px solid rgba(255,255,255,.08); }
+  .sub { color: var(--muted); margin-bottom: 28px; max-width: 720px; }
+
+  /* feature grid */
+  .features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px 16px; }
+  @media (min-width: 720px) { .features { grid-template-columns: repeat(4, 1fr); gap: 28px 20px; } }
+  .feature .shot { background: var(--panel); border-radius: var(--radius); overflow: hidden; aspect-ratio: 720 / 1564;
+                   box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  .feature .shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .feature h3 { margin: 14px 0 6px; }
+  .feature p { font-size: .92rem; color: var(--muted); margin: 0; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .tag { font-size: .75rem; border-radius: 6px; padding: 2px 8px; background: var(--card-2); color: var(--muted); }
+  .tag.paid { background: rgba(255,209,102,.16); color: var(--paid); }
+  .tag.ios { background: var(--accent-dim); color: var(--accent); }
+
+  /* detail cards */
+  .cards { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 640px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 960px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+  .card { background: var(--card); border-radius: 20px; padding: 20px 22px; }
+  .card h3 { font-size: 1rem; margin-bottom: 6px; }
+  .card p { margin: 0; font-size: .92rem; color: var(--muted); }
+
+  /* membership */
+  .plan { background: var(--card); border-radius: var(--radius); padding: 26px 28px; }
+  .plan ul { margin: .4em 0 1em; padding-left: 1.3em; }
+  .plan li { margin: .2em 0; }
+  .plan .fine { font-size: .88rem; color: var(--muted); margin: 0; }
+
+  /* changelog */
+  .log { list-style: none; margin: 0; padding: 0; }
+  .log li { display: grid; grid-template-columns: 7.5em 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid rgba(255,255,255,.08); }
+  .log li:first-child { border-top: 0; }
+  .log .v { font-weight: 600; }
+  .log .v small { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; }
+  .log p { margin: 0; color: var(--muted); font-size: .95rem; }
+  @media (max-width: 480px) { .log li { grid-template-columns: 1fr; gap: 2px; } }
+
+  footer { padding: 36px 0 56px; border-top: 1px solid rgba(255,255,255,.08); color: var(--muted); font-size: .9rem; }
+  footer .links { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
 
-<h1>Rainy Clock</h1>
-<p class="subtitle">A rain-aware smart alarm for commuters.</p>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="site/icon-256.png" alt="" width="28" height="28"><span class="zh">雨天鬧鐘</span><span class="en">Rainy Clock</span></a>
+    <nav>
+      <a href="#features" class="hide-sm zh">功能</a><a href="#features-en" class="hide-sm en">Features</a>
+      <a href="#plans" class="hide-sm zh">方案</a><a href="#plans-en" class="hide-sm en">Plans</a>
+      <a href="#changelog" class="hide-sm zh">更新</a><a href="#changelog-en" class="hide-sm en">Updates</a>
+      <a href="support.html"><span class="zh">支援</span><span class="en">Support</span></a>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-set-lang="zh-Hant" aria-pressed="true">繁中</button>
+        <button type="button" data-set-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </nav>
+  </div>
+</header>
 
-<div class="card">
-  <h2>About</h2>
-  <p>Rainy Clock helps schedule your morning alarm earlier when rain is expected along your commute route.</p>
-  <p>雨天鬧鐘會在通勤路線可能下雨時，協助你把鬧鐘提前。</p>
+<div class="hero-art zh" style="background-image:url('site/header-zh-Hant.jpg')" role="img" aria-label="雨天鬧鐘 Rainy Clock"></div>
+<div class="hero-art en" style="background-image:url('site/header-en.jpg')" role="img" aria-label="Rainy Clock"></div>
+
+<section class="hero">
+  <div class="wrap">
+    <h1 class="zh">通勤路線會下雨，鬧鐘就提早響；<br>颱風停班停課，就讓你多睡一會。</h1>
+    <h1 class="en">Rain on your commute? Wake up earlier. <br>Government day off? Sleep in.</h1>
+    <p class="lead zh">雨天鬧鐘依 Apple 天氣對通勤路線的降雨預報，決定明早幾點叫你；下次鬧鐘幾點響、為什麼，主畫面和鎖定畫面就看得到。</p>
+    <p class="lead en">Rainy Clock reads the Apple Weather forecast along your commute and decides when tomorrow's alarm should ring. Your next alarm, and why, is right on your Home Screen and Lock Screen.</p>
+    <a class="store zh" href="https://apps.apple.com/tw/app/rainy-clock/id6780500386">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c0-2.6 2.13-3.85 2.22-3.9-1.2-1.77-3.08-2-3.74-2.04-1.6-.16-3.11.94-3.92.94-.8 0-2.05-.92-3.37-.9-1.73.03-3.33 1.01-4.22 2.56-1.8 3.13-.46 7.76 1.3 10.3.86 1.24 1.88 2.63 3.22 2.58 1.3-.05 1.78-.84 3.35-.84 1.56 0 2 .84 3.37.81 1.4-.02 2.28-1.26 3.13-2.5.98-1.44 1.39-2.83 1.41-2.9-.03-.02-2.71-1.04-2.75-4.11zM13.8 4.97c.7-.86 1.18-2.05 1.05-3.24-1.02.04-2.25.68-2.98 1.53-.65.75-1.23 1.97-1.07 3.13 1.13.09 2.29-.58 3-1.42z"/></svg>
+      在 App Store 下載
+    </a>
+    <a class="store en" href="https://apps.apple.com/us/app/rainy-clock/id6780500386">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c0-2.6 2.13-3.85 2.22-3.9-1.2-1.77-3.08-2-3.74-2.04-1.6-.16-3.11.94-3.92.94-.8 0-2.05-.92-3.37-.9-1.73.03-3.33 1.01-4.22 2.56-1.8 3.13-.46 7.76 1.3 10.3.86 1.24 1.88 2.63 3.22 2.58 1.3-.05 1.78-.84 3.35-.84 1.56 0 2 .84 3.37.81 1.4-.02 2.28-1.26 3.13-2.5.98-1.44 1.39-2.83 1.41-2.9-.03-.02-2.71-1.04-2.75-4.11zM13.8 4.97c.7-.86 1.18-2.05 1.05-3.24-1.02.04-2.25.68-2.98 1.53-.65.75-1.23 1.97-1.07 3.13 1.13.09 2.29-.58 3-1.42z"/></svg>
+      Download on the App Store
+    </a>
+    <p class="meta zh">iPhone 專用・iOS 17 以上・免費下載，部分功能需訂閱或買斷・目前版本 1.8.1</p>
+    <p class="meta en">iPhone only · iOS 17 or later · Free, with some features in a subscription or one-time purchase · Version 1.8.1</p>
+    <div class="pills zh">
+      <span class="pill">下雨提早響</span><span class="pill">颱風假多睡一會</span><span class="pill">下次鬧鐘小工具</span><span class="pill">國定假日不響</span><span class="pill">AI 人聲鬧鈴</span>
+    </div>
+    <div class="pills en">
+      <span class="pill">Earlier when it rains</span><span class="pill">Next Alarm widget</span><span class="pill">Holidays stay quiet</span><span class="pill">AI voice alarm</span><span class="pill">Typhoon day off (Taiwan)</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 繁體中文 ===================== -->
+<div class="zh" lang="zh-Hant">
+
+<section id="features">
+  <div class="wrap">
+    <h2>功能</h2>
+    <p class="sub">畫面全部是 1.8.1 的實際擷取，沒有合成資料。標示「訂閱或買斷」的功能需要付費方案；其餘免費。</p>
+    <div class="features">
+
+      <div class="feature">
+        <div class="shot"><img src="site/zh-01-rain.jpg" alt="鬧鐘頁：明天上午 7:00，路線降雨機率 42%，提早 30 分鐘；天氣卡顯示住家下雨、公司多雲" loading="lazy"></div>
+        <h3>下雨天，早點叫你</h3>
+        <p>設定住家、公司和平常的起床時間。雨天鬧鐘依 Apple 天氣對通勤路線各點的預報判斷早上會不會下雨，降雨機率達到你設的門檻，鬧鐘就提早你指定的分鐘數響。</p>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/zh-04-typhoon.jpg" alt="停班停課地圖示範畫面：台灣鄉鎮市區地圖，標示今天與明天的公告" loading="lazy"></div>
+        <h3>颱風假，就多睡一會</h3>
+        <p>縣市政府宣布你住家或公司所在行政區全天或上午停班停課時，略過當天的鬧鐘；只停下午或晚上就照常響。可選只看停班、只看停課或兩者皆算。公告來自行政院人事行政總處的公開資料（經 NCDR 發布），App 會標示來源與更新時間；無法確認公告或沒有網路時，鬧鐘照常響。鄉鎮市區地圖涵蓋 22 縣市、368 鄉鎮市區，「查看地圖示範」不需購買。</p>
+        <div class="tags"><span class="tag paid">訂閱或買斷</span><span class="tag">限台灣</span></div>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/zh-02-rule-list.jpg" alt="設定 › 時間：鬧鐘時間、提早時間、降雨門檻、重複日期、稍後提醒、鈴聲" loading="lazy"></div>
+        <h3>降雨門檻、提早多久，自己定</h3>
+        <p>「提早時間」和「降雨門檻」各有獨立的設定畫面，都會顯示完整規則，例如「降雨達 40% 提早 30 分鐘」。選項改了就自動儲存，已排程的鬧鐘跟著更新。</p>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/zh-05-widget.jpg" alt="主畫面上的中型與小型「下次鬧鐘」小工具" loading="lazy"></div>
+        <h3>下次鬧鐘，主畫面就看得到</h3>
+        <p>主畫面可放小型或中型小工具，也能加到鎖定畫面。顯示下次鬧鐘幾點響與原因：因路線可能下雨而提早，或因週末、假日、停班停課、手動設為安靜而略過。中型另外顯示住家與公司天氣。雨天鬧鐘每次檢查預報都會更新小工具。</p>
+        <div class="tags"><span class="tag ios">iOS 26 以上</span></div>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/zh-03-route.jpg" alt="設定 › 路線：Apple 地圖上從宜蘭到台北 101 的開車路線預覽" loading="lazy"></div>
+        <h3>從家到公司，怎麼去你決定</h3>
+        <p>開車、騎車、步行或大眾交通，用 Apple 地圖預覽通勤路線。輸入地址時有建議清單，確認後就能排鬧鐘；不需要時可以收合地圖。</p>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/zh-06-skip.jpg" alt="鬧鐘頁的開關：僅關閉下一次鬧鐘，或關閉直到重新開啟" loading="lazy"></div>
+        <h3>想休息一天？只關下一次</h3>
+        <p>鬧鐘頁標題旁的開關：只關閉下一次鬧鐘（那次過後自動恢復），或關閉到你重新開啟為止。所有方案都能使用。</p>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/zh-07-calendar.jpg" alt="鬧鐘月曆：12 月，12/25 國定假日不響，12/31 手動改為不響" loading="lazy"></div>
+        <h3>國定假日，鬧鐘不響</h3>
+        <p>選台灣辦公日曆或美國聯邦假日（含標準補假日），在月曆裡查看整年的安排，點一下就能把某一天改成響或不響，手動設定優先。學校、公司的行事曆可能不同，可自行調整。</p>
+        <div class="tags"><span class="tag paid">訂閱或買斷</span></div>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/zh-08-voice.jpg" alt="AI 人聲：輸入起床台詞並選擇聲音" loading="lazy"></div>
+        <h3>想聽什麼，寫下來就好</h3>
+        <p>寫一句想聽的起床台詞，從六種 AI 人聲裡選一種，就能設成鬧鈴。每種聲音都可以先試聽，不需要網路。做好的鈴聲存在手機上，重播不扣次數。免費方案先送一次生成，之後每看完一段獎勵廣告可再生成一次；會員每天有一次免看廣告的生成。</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>還有這些</h2>
+    <div class="cards">
+      <div class="card"><h3>穿透靜音與專注模式</h3><p>iOS 26 以上用 AlarmKit 排程，鬧鐘像內建時鐘一樣穿透靜音與專注模式、全螢幕響鈴。iOS 17–25 以本機通知送達，會受靜音開關影響。</p></div>
+      <div class="card"><h3>稍後提醒</h3><p>可開關，1 到 15 分鐘自選。iOS 26 以上，賴床倒數會顯示在鎖定畫面與動態島。</p></div>
+      <div class="card"><h3>前一晚預告</h3><p>有鬧鐘的前一晚，在你選的時間通知你路上哪一段可能下雨、鬧鐘會不會提早，以及預報是什麼時候查的。</p></div>
+      <div class="card"><h3>兩種鈴聲</h3><p>提早響鈴和原定時間響鈴可以分別選鈴聲，包含已存的 AI 人聲；內建鈴聲都能試聽，iOS 26 以上也能選系統預設鬧鈴。</p></div>
+      <div class="card"><h3>沒能重新確認時會說</h3><p>響鈴前如果沒能用新預報重新確認（例如背景 App 重新整理關閉、低耗電模式、整晚關機），鬧鐘卡片和小工具會註明。</p></div>
+      <div class="card"><h3>不需要帳號</h3><p>沒有 Email、沒有密碼。會員以 Apple 可驗證的 App 與購買資料認回；住家與公司地址用於 Apple 地圖與 Apple 天氣的查詢，不會傳到雨天鬧鐘自己的服務。</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="plans">
+  <div class="wrap">
+    <h2>會員方案：月訂閱或買斷</h2>
+    <p class="sub">基本的雨天提早、鬧鐘開關、路線與鈴聲都免費。想要下面這些，選月訂閱或一次買斷都可以。</p>
+    <div class="plan">
+      <p><strong>兩種方案都包含：</strong></p>
+      <ul>
+        <li>移除橫幅廣告</li>
+        <li>日曆功能：台灣辦公日曆或美國聯邦假日，單日可自行改響或不響</li>
+        <li>颱風、天災臨時放假規則（限台灣）</li>
+        <li>每天一次免看廣告的 AI 鈴聲生成</li>
+      </ul>
+      <p class="fine">月訂閱在訂閱有效期間提供上述權益，會自動續訂，除非在 Apple 的訂閱設定取消；買斷一次付款即可持續使用，沒有定期扣款。價格與供應以你的 App Store 顯示為準。恢復購買與管理訂閱在「設定 › 其他 › 會員與方案」右上角的選單。</p>
+    </div>
+  </div>
+</section>
+
+<section id="changelog">
+  <div class="wrap">
+    <h2>更新紀錄</h2>
+    <ul class="log">
+      <li><div class="v">1.8.1<small>2026 年 10 月 11 日</small></div><p>「提早時間」與「降雨門檻」分開設定，各自顯示完整規則；小工具不再因預報過了幾小時就顯示驚嘆號；響鈴前沒能重新確認天氣時，鬧鐘頁和小工具會註明；修正購買有效卻一直顯示「尚未確認你的方案」的情況。</p></li>
+      <li><div class="v">1.8.0<small>2026 年 10 月 3 日</small></div><p>颱風、天災停班停課規則（訂閱或買斷，限台灣）；鬧鐘頁的總開關，只關下一次或關到重新開啟；主畫面與鎖定畫面的「下次鬧鐘」小工具（iOS 26 以上）。</p></li>
+      <li><div class="v">1.7.1<small>2026 年 9 月 26 日</small></div><p>會員方案（月訂閱、買斷）；台灣辦公日曆與美國聯邦假日的日曆功能；設定分成時間、路線、日曆、其他；提早與原定響鈴可分別選鈴聲；輸入地址時的建議清單。</p></li>
+      <li><div class="v">1.6.9<small>2026 年 9 月 8 日</small></div><p>前一晚預告：前一晚就知道明早鬧鐘會不會提早。</p></li>
+      <li><div class="v">1.6.8<small>2026 年 9 月 1 日</small></div><p>AI 人聲鬧鈴：寫下想聽的話，選一個聲音。</p></li>
+      <li><div class="v">1.6.6<small>2026 年 8 月 18 日</small></div><p>整段通勤路線都查雨，不再只看住家和公司。</p></li>
+      <li><div class="v">1.6.5<small>2026 年 8 月 4 日</small></div><p>每個鬧鐘日依當天的預報各自決定；介面更新。</p></li>
+      <li><div class="v">1.6.3<small>2026 年 7 月 28 日</small></div><p>iOS 26 以上穿透靜音與專注模式；稍後提醒；設定變更自動同步到已排程的鬧鐘。</p></li>
+      <li><div class="v">1.6.1<small>2026 年 7 月 26 日</small></div><p>首次上架。</p></li>
+    </ul>
+  </div>
+</section>
+
 </div>
 
-<div class="card">
-  <h2>Links</h2>
-  <ul>
-    <li><a href="support.html">Support / 支援</a></li>
-    <li><a href="privacy-policy.html">Privacy Policy / 隱私權政策</a></li>
-  </ul>
+<!-- ===================== English ===================== -->
+<div class="en" lang="en">
+
+<section id="features-en">
+  <div class="wrap">
+    <h2>Features</h2>
+    <p class="sub">Every screen is a real capture of version 1.8.1, with no mock data. Features marked “Subscription or one-time purchase” need a paid plan; everything else is free.</p>
+    <div class="features">
+
+      <div class="feature">
+        <div class="shot"><img src="site/en-01-rain.jpg" alt="Alarm tab: tomorrow 7:00 AM, 41% rain chance on the route, 30 minutes earlier; weather card shows rain at home and clouds at work" loading="lazy"></div>
+        <h3>Rain ahead? Wake up earlier</h3>
+        <p>Set your home, your workplace and your usual wake-up time. Rainy Clock checks the Apple Weather forecast at points along your commute; when the rain chance reaches your threshold, the alarm rings earlier by the minutes you chose.</p>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/en-02-rule-list.jpg" alt="Settings › Time: alarm time, early alarm, rain threshold, repeat days, snooze, sounds" loading="lazy"></div>
+        <h3>Your threshold, your lead time</h3>
+        <p>“Early alarm” and “Rain threshold” each open their own screen and show the whole rule, such as “At 40% rain, 30 min earlier”. Changes save automatically and the scheduled alarm follows.</p>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/en-05-widget.jpg" alt="Medium and small Next Alarm widgets on the Home Screen" loading="lazy"></div>
+        <h3>Next alarm, at a glance</h3>
+        <p>Add a small or medium widget to the Home Screen, or one to the Lock Screen. It shows when the next alarm rings and why: earlier for rain on your route, or skipped for a weekend, a holiday, a closure or a day you set to stay silent. The medium widget adds home and work weather. It updates whenever Rainy Clock checks the forecast.</p>
+        <div class="tags"><span class="tag ios">iOS 26 or later</span></div>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/en-03-route.jpg" alt="Settings › Route: a driving route preview on Apple Maps" loading="lazy"></div>
+        <h3>Built around your commute</h3>
+        <p>Drive, ride a scooter, walk or take public transit. Preview the route on Apple Maps, pick an address from the suggestions as you type, and collapse the map when you don't need it.</p>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/en-06-skip.jpg" alt="The Alarm tab switch: turn off only the next alarm, or until turned back on" loading="lazy"></div>
+        <h3>Day off? Skip the next one</h3>
+        <p>The switch next to the Alarm title turns off only the next alarm (it comes back on after that morning), or turns the alarm off until you turn it back on. Free on every plan.</p>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/en-07-calendar.jpg" alt="Alarm calendar for November: Veterans Day and Thanksgiving stay quiet, the 27th set to silent by hand" loading="lazy"></div>
+        <h3>Holidays stay quiet</h3>
+        <p>Choose US federal holidays with standard observed dates, or Taiwan office holidays. Browse the year a month at a time and tap any date to make it ring or stay silent; your manual choices always win. State, school and employer calendars may differ, so adjust as you like.</p>
+        <div class="tags"><span class="tag paid">Subscription or one-time purchase</span></div>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/en-08-voice.jpg" alt="AI Voice: type a wake-up line and choose a voice" loading="lazy"></div>
+        <h3>Wake up to your own words</h3>
+        <p>Write a short wake-up line, pick one of six AI voices and use it as your alarm sound. Previews are built in and work offline. Finished sounds stay on your phone, and replaying one costs nothing. The free plan includes one generation; each extra one takes a rewarded video ad. Members get one ad-free generation a day.</p>
+      </div>
+
+      <div class="feature">
+        <div class="shot"><img src="site/en-04-typhoon.jpg" alt="Closure map demo: Taiwan's townships with today's and tomorrow's announcements" loading="lazy"></div>
+        <h3>Typhoon day off? Sleep in</h3>
+        <p>When a city or county government in Taiwan suspends work or school for the morning or all day in your home or workplace district, Rainy Clock skips that day's alarm. Choose work closures, school closures or both. Announcements come from the Directorate-General of Personnel Administration's public data via NCDR, with the source and update time shown; if none can be confirmed, the alarm rings as usual. The township map covers all 22 cities and counties, and “View map demo” works on any plan.</p>
+        <div class="tags"><span class="tag paid">Subscription or one-time purchase</span><span class="tag">Taiwan only</span></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Also in the box</h2>
+    <div class="cards">
+      <div class="card"><h3>Rings through Silent mode and Focus</h3><p>On iOS 26 and later the alarm is scheduled with AlarmKit, so it sounds through Silent mode and Focus with a full-screen alert, like the built-in Clock app. On iOS 17–25 it is a local notification and follows the silent switch.</p></div>
+      <div class="card"><h3>Snooze</h3><p>On or off, 1 to 15 minutes. On iOS 26 and later the countdown shows on the Lock Screen and in the Dynamic Island.</p></div>
+      <div class="card"><h3>Evening preview</h3><p>The night before an alarm, at a time you choose, Rainy Clock tells you where rain is likely on your route, whether that moves the alarm, and when the forecast was checked.</p></div>
+      <div class="card"><h3>Two sounds</h3><p>Pick separate sounds for the early alarm and the regular one, including saved AI voices. Built-in sounds can be previewed, and iOS 26 adds the system default alarm tone.</p></div>
+      <div class="card"><h3>Honest about re-checks</h3><p>If the weather couldn't be re-checked before today's alarm (Background App Refresh off, Low Power Mode, the phone off overnight), the Alarm tab and the widget say so.</p></div>
+      <div class="card"><h3>No account</h3><p>No email, no password. Apple-verified app and purchase records recognize your membership. Your addresses go to Apple Maps and Apple Weather for lookups, never to Rainy Clock's own services.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="plans-en">
+  <div class="wrap">
+    <h2>Plans: monthly or one-time</h2>
+    <p class="sub">The rain-aware alarm, the alarm switch, routes and sounds are free. For the rest, choose a monthly subscription or a one-time purchase.</p>
+    <div class="plan">
+      <p><strong>Both plans include:</strong></p>
+      <ul>
+        <li>Remove banner ads</li>
+        <li>Calendar features: US federal or Taiwan office holidays, any date adjustable</li>
+        <li>Typhoon and disaster closure rules (Taiwan)</li>
+        <li>One AI voice generation each day without watching an ad</li>
+      </ul>
+      <p class="fine">The monthly plan provides these benefits while it is active and renews automatically unless cancelled in Apple's subscription settings; the one-time purchase provides ongoing access with no recurring payment. Prices and availability come from your App Store. Restore purchases and Manage subscriptions are in Settings › Other › Membership &amp; plans, top-right menu.</p>
+    </div>
+  </div>
+</section>
+
+<section id="changelog-en">
+  <div class="wrap">
+    <h2>What's new</h2>
+    <ul class="log">
+      <li><div class="v">1.8.1<small>October 11, 2026</small></div><p>“Early alarm” and “Rain threshold” open separately and show the whole rule; the widget no longer warns just because the forecast is a few hours old; the Alarm tab and widget say when the weather couldn't be re-checked before today's alarm; fixed a case where a valid purchase kept showing “Your plan hasn't been confirmed yet”.</p></li>
+      <li><div class="v">1.8.0<small>October 3, 2026</small></div><p>Typhoon and disaster closure rules for Taiwan (paid plans); the alarm switch, for one morning or until you turn it back on; the Next Alarm widget for the Home Screen and Lock Screen (iOS 26 or later).</p></li>
+      <li><div class="v">1.7.1<small>September 26, 2026</small></div><p>Membership (monthly subscription or one-time purchase); holiday calendars for the US and Taiwan; Settings organized into Time, Route, Calendar and Other; separate sounds for early and regular alarms; address suggestions as you type.</p></li>
+      <li><div class="v">1.6.9<small>September 8, 2026</small></div><p>Evening preview: know tonight what tomorrow's alarm will do.</p></li>
+      <li><div class="v">1.6.8<small>September 1, 2026</small></div><p>AI voice alarm: write what it should say, pick a voice.</p></li>
+      <li><div class="v">1.6.6<small>August 18, 2026</small></div><p>Rain checks along the whole route, not only at home and at work.</p></li>
+      <li><div class="v">1.6.5<small>August 4, 2026</small></div><p>Each alarm morning decided on its own forecast; interface refresh.</p></li>
+      <li><div class="v">1.6.3<small>July 28, 2026</small></div><p>Alarms sound through Silent mode and Focus on iOS 26; snooze; settings changes re-schedule the alarm automatically.</p></li>
+      <li><div class="v">1.6.1<small>July 26, 2026</small></div><p>First App Store release.</p></li>
+    </ul>
+  </div>
+</section>
+
 </div>
 
 <footer>
-  <p>Rainy Clock</p>
+  <div class="wrap">
+    <div class="links">
+      <a href="support.html"><span class="zh">支援</span><span class="en">Support</span></a>
+      <a href="privacy-policy.html"><span class="zh">隱私權政策</span><span class="en">Privacy Policy</span></a>
+      <a href="https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"><span class="zh">使用條款（Apple 標準 EULA）</span><span class="en">Terms of Use (Apple standard EULA)</span></a>
+      <a class="zh" href="https://apps.apple.com/tw/app/rainy-clock/id6780500386">App Store</a>
+      <a class="en" href="https://apps.apple.com/us/app/rainy-clock/id6780500386">App Store</a>
+    </div>
+    <p class="zh">© 2026 Shu-Kai Hu・路線來自 Apple 地圖，天氣來自 Apple 天氣。停班停課公告以各縣市政府公告為準。</p>
+    <p class="en">© 2026 Shu-Kai Hu · Routes from Apple Maps, forecasts from Apple Weather. Closure announcements are subject to each city or county government's official notice.</p>
+  </div>
 </footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var buttons = document.querySelectorAll('[data-set-lang]');
+  function apply(lang) {
+    root.setAttribute('data-lang', lang);
+    root.setAttribute('lang', lang);
+    document.title = lang === 'en' ? 'Rainy Clock — Rain-aware commute alarm for iPhone' : '雨天鬧鐘 Rainy Clock — 下雨提早叫你，颱風假讓你多睡';
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].setAttribute('aria-pressed', buttons[i].getAttribute('data-set-lang') === lang ? 'true' : 'false');
+    }
+  }
+  function remember(lang) { try { localStorage.setItem('rainyclock-lang', lang); } catch (e) {} }
+  var wanted = null;
+  var q = /[?&]lang=(zh-Hant|en)\b/.exec(location.search);
+  if (q) { wanted = q[1]; }
+  if (!wanted) { try { wanted = localStorage.getItem('rainyclock-lang'); } catch (e) {} }
+  if (wanted !== 'zh-Hant' && wanted !== 'en') {
+    wanted = /^zh/i.test(navigator.language || '') ? 'zh-Hant' : 'en';
+  }
+  apply(wanted);
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].addEventListener('click', function () {
+      var lang = this.getAttribute('data-set-lang');
+      apply(lang); remember(lang);
+    });
+  }
+})();
+</script>
 
 </body>
 </html>
