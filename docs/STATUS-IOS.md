@@ -344,8 +344,17 @@ Last updated: 2026-10-15.
     可指定；英文版用美國商店連結與 `header-en.jpg`。文案全部對照 1.8.1 商店描述與 What's New，沒有 1.8.2 的內容（1.8.2 未上架）。
     `docs/support.html` 加五題（付費方案颱風天仍響的條件、小工具空白、「沒有重新確認」註記、「僅關閉下一次」會恢復、恢復購買與
     取消訂閱），並把 10-03 查證指出的「升級 iOS 26 要重新排程一次」改成實際的橘色提醒＋「重試」按鈕（`ContentView.swift` 的
-    `scheduleIssue` 列）。App 內 `alarmkit_reschedule_notice` 仍寫「排程智慧鬧鐘」，沒改。本機 http.server 預覽過桌面與 375 px 兩種
+    `scheduleIssue` 列）。App 內 `alarmkit_reschedule_notice` 仍寫「排程智慧鬧鐘」，沒改（同日稍後已改，見下一項）。本機 http.server 預覽過桌面與 375 px 兩種
     語言。`8f8dd61`（`ios/main`）與 `b8e3979`（`main`，已 push）；GitHub Pages 從 `main` 發佈。
+  - **2026-10-15：1.8.2（43）再加一項——「更新前設定的鬧鐘」提醒不再指向已不存在的按鈕**（10-03 查證就指出、10-15 改網站時仍沒改
+    的那則）。`alarmkit_reschedule_notice` 兩個語系從「按一次『排程智慧鬧鐘』即可切換」改成「按『重試』即可切換到新機制」／"Tap Retry
+    to switch it to the new system"——它顯示在鬧鐘頁的橘色 banner（`ContentView.swift` 的 `scheduleIssue` 列），旁邊的按鈕是
+    `ux_retry`「重試」，按下跑 `evaluateRouteAndScheduleAlarm()` 重新排到 AlarmKit；「排程智慧鬧鐘」按鈕 1.8.0 起就不存在。
+    `docs/privacy-policy.html` 第三方服務那段（英文第 105 行、繁中第 263 行）同樣不再寫「點選『排程智慧鬧鐘』」，改成「輸入地址，
+    以及 App 排程或更新鬧鐘時（改了設定、打開 App、按『重試』或背景更新）」；網頁改動獨立一個 commit（`58bfeac`），
+    要 cherry-pick 到 `main` 才會發佈（GitHub Pages 從 `main` 出）。`RainyClockTests` 沒有斷言舊文字或這個 key；Debug 模擬器建置通過（0 error，bundle 讀回 1.8.2／43 與兩個語系的新字串）。
+    What's New 不提（使用者看不出差別）。**沒改、留著的：** `status_alarm_removed_address_changed`（地址改了、鬧鐘移除的狀態列，
+    `AlarmViewModel` 兩處用）仍寫「請按『排程智慧鬧鐘』」；`schedule_stale_notice` 也是，但已沒有程式引用。兩條該一起對照實際介面改。
   - **2026-10-13：1.8.2（43）再加一項——App 更新後鎖定畫面鬧鐘出現字串名稱**（擁有者：藍色按鈕「有看到一串英文」，用 AI
     鈴聲）。**重現：** iOS 27 模擬器、系統繁中、AI 人聲、稍後提醒開：正常情況響鈴畫面是「該起床了／再睡一下／滑動來停止」；
     但 App 排好鬧鐘後**覆蓋安裝、不打開 App**（等同 App Store 更新）再響，標題變 `alarm_alert_title_normal`、藍色按鈕變
