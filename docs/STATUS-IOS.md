@@ -353,11 +353,22 @@ Last updated: 2026-10-15.
     `docs/privacy-policy.html` 第三方服務那段（英文第 105 行、繁中第 263 行）同樣不再寫「點選『排程智慧鬧鐘』」，改成「輸入地址，
     以及 App 排程或更新鬧鐘時（改了設定、打開 App、按『重試』或背景更新）」；網頁改動獨立一個 commit：`58bfeac`（`ios/main`）
     與 `0fb1b5f`（`main`，已 push；01:06 讀回線上頁面，兩種語言的新句子在、舊句子不在）。`RainyClockTests` 沒有斷言舊文字或這個 key；Debug 模擬器建置通過（0 error，bundle 讀回 1.8.2／43 與兩個語系的新字串）。
-    What's New 不提（使用者看不出差別）。**沒改、留著的：** `status_alarm_removed_address_changed`（地址改了、鬧鐘移除的狀態列，
-    `AlarmViewModel` 兩處用）仍寫「請按『排程智慧鬧鐘』」；`schedule_stale_notice` 也是，但已沒有程式引用。兩條該一起對照實際介面改
-    （同日稍後查證那條狀態列根本沒有畫面，整條管線連字串一起拆掉，見下一項；`schedule_stale_notice` 仍留著）。
-  - **2026-10-15：1.8.2（43）再加一項——拆掉自 1.7.0 起沒有畫面的狀態文字管線**（改上一項字串時查證：`AlarmViewModel.statusMessage`
-    ／`alarmStatus` 自 `8ab2874`（1.7.0〔34〕從 ContentView 拿掉 `Text(viewModel.statusMessage)`）起沒有任何 View 讀，只有測試在讀）。
+    What's New 不提（使用者看不出差別）。**同日稍後把另外兩條也改了（見下一項）。**
+  - **2026-10-15：1.8.2（43）再加一項——剩下兩條指向「排程智慧鬧鐘」按鈕的字串也對照實際介面改掉。**
+    `status_alarm_removed_address_changed`（`AlarmViewModel` 的 `enqueueSettingsRemoval`／`removeScheduledAlarm` 寫進 `statusMessage`）
+    改成「地址已變更，原有鬧鐘已移除。兩個地址確認後，App 會自動為新路線重新排程。」／"Address changed, so the alarm was removed.
+    Once both addresses are confirmed, the app sets it up again for the new route."——這是程式現在的行為：移除後
+    `reconcileScheduledAlarmWithSettings` 等兩個地址都確認（`hasConfirmedAutomaticRoute`）就走 `scheduleAutoRefresh()` 重排，
+    不用按任何按鈕。查證時發現 **`statusMessage` 自 1.7.0（34）的樹 `8ab2874` 起沒有任何畫面顯示**（那次從 `ContentView` 拿掉了
+    `Text(viewModel.statusMessage)`），只剩 `RainyClockTests` 讀它；使用者在地址改完到重排完成的空檔看到的是鬧鐘頁橘色 banner 的
+    `ux_schedule_update_needed`「鬧鐘設定尚未更新完成」＋「重試」（地址未確認時按鈕反灰）。所以這條改了只是讓 ViewModel 的狀態文字
+    與程式一致，使用者看不到；要不要連 `statusMessage` 一起拆掉是另一件事，沒動。`schedule_stale_notice` 兩個語系直接刪掉：同樣自
+    `8ab2874` 起沒有程式引用，過期狀態已由 banner 的 `ux_schedule_update_needed` 表達。`schedule_smart_alarm` 這個 key（舊按鈕標題）
+    也是 `8ab2874` 起無人引用（git 裡按鈕在 1.7.0 的樹就已不在，不只 1.8.0），留著沒動。`grep -rn "Schedule Smart Alarm\|排程智慧鬧鐘"
+    RainyClock RainyClockTests` 只剩那個 key；`plutil -lint` 兩個 .strings OK；Debug 模擬器建置 0 error，bundle 讀回 1.8.2／43、
+    兩個語系的新字串，`schedule_stale_notice` 已不在 bundle 裡。What's New 同樣不提。
+  - **2026-10-15：1.8.2（43）再加一項——拆掉自 1.7.0 起沒有畫面的狀態文字管線**（上一項說的「要不要連 `statusMessage` 一起拆掉
+    是另一件事」就是這件：`AlarmViewModel.statusMessage`／`alarmStatus` 自 `8ab2874` 起沒有任何 View 讀，只有測試在讀）。
     使用者看到的狀態早已由鬧鐘頁橘色 banner（`ContentView.scheduleIssue` ← `TomorrowWidgetSnapshotBuilder.scheduleIssue`，文字取
     `scheduleErrorMessage`）、設定列的地址提示（`ContentView.addressAttention`：`address_not_found_inline`／
     `status_confirm_suggested_address`）與明天卡片承擔，逐條對過沒有一條需要再顯示，所以不加 UI、直接移除：`AlarmViewModel` 的
@@ -374,7 +385,8 @@ Last updated: 2026-10-15.
     `calendar_off_no_weekdays`、`status_alarm_turned_off`；`plutil -lint` 兩表 OK。**留著的：** `status_permission_denied`、
     `status_alarm_permission_denied`、`status_schedule_failed`（`scheduleErrorMessage` 用，橘色 banner 顯示）、
     `status_confirm_suggested_address`（原本以為只有狀態列用，其實 `ContentView.addressAttention` 也用）。
-    `schedule_stale_notice`（已無引用、同樣寫「排程智慧鬧鐘」）不在這次範圍，仍留著。驗證：Debug 模擬器建置通過（0 error，97 個既有
+    `status_alarm_removed_address_changed` 上一項才改好措辭，這裡隨管線一起刪（兩個 session 同日各自提交，merge `ios/main`
+    `9cbbaf0` 時字串表的衝突解成兩個 key 都不留：它和上一項刪的 `schedule_stale_notice`）。驗證：Debug 模擬器建置通過（0 error，97 個既有
     warning）；`AlarmViewModelSchedulingTests`（41）＋`TomorrowAlarmStatusTests`（31）在 iPhone 17 Pro iOS 26.5（B521C391）
     全過：72 過、0 失敗、0 略過（簽章的 `RainyClock Membership Local`、`-parallel-testing-worker-count 1`）；全套測試沒跑。
     在 session 分支 `claude/priceless-payne-c1a4d6`，待擁有者 `merge --no-ff` 進 ios/main。

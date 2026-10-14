@@ -93,7 +93,6 @@
 "commute_mode_walking" = "步行";
 "commute_mode_public_transit" = "大眾交通";
 "alarmkit_reschedule_notice" = "這個鬧鐘是更新前設定的，靜音時仍然不會響。按「重試」即可切換到新機制。";
-"schedule_stale_notice" = "設定已變更，鬧鐘更新中；若此提示持續顯示，請按「排程智慧鬧鐘」。";
 "status_permission_denied" = "尚未授權通知權限。";
 "status_alarm_permission_denied" = "尚未授權鬧鐘權限。請到「設定 › 雨天鬧鐘」開啟後再排程一次。";
 "status_schedule_failed" = "無法排程鬧鐘：%@";
