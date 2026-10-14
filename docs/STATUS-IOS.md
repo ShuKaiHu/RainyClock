@@ -364,7 +364,7 @@ Last updated: 2026-10-15.
     「再睡一下」／"Snooze" 改成「再睡 N 分鐘」／"Snooze N min"，N 是 `snoozeDurationMinutes`（1–15，與賴床倒數同一個數字）。字串
     `alarm_snooze_button` 換成格式字串 `alarm_snooze_button_minutes`（`%lld`）。`AlarmKitScheduler.snoozeButtonText(minutes:)` 用真正的
     key，分鐘數放在 defaultValue 裡當**參數**（`snoozeFallback` 把註冊當下解析好的格式拆開、以 interpolation 塞回數字）：bundle 還在時系統
-    照裝置語言查表、把同一個數字套進去，跟標題一樣跟著語言走；更新搬走 bundle 後顯示註冊當下語言的「再睡 N 分鐘」。初版把整段結果文字
+    照響鈴當下的裝置語言查表、把同一個數字套進去；更新搬走 bundle 後顯示註冊當下語言的「再睡 N 分鐘」。初版把整段結果文字
     當 key，審查（兩位＋反駁驗證）指出那樣按鈕會停在註冊時的語言，切換語言後與標題不同語言，日期型鬧鐘最長可維持 27 天，故改成現在這樣。
     改分鐘數本來就會重新註冊（指紋含 `snoozeDurationMinutes`；日期型的 Configuration 也含 `snoozeMinutes`）；1.8.1 升上來的鬧鐘靠上一項
     的 presentation revision 2 重註冊一次換上新字。測試：週期與日期兩條路徑在繁中／英文各自顯示「再睡 12 分鐘」／"Snooze 12 min"、倒數
@@ -372,6 +372,12 @@ Last updated: 2026-10-15.
     模擬器驗證（iOS 27、繁中、AI 人聲，系統替別的 process 套參數這段只有實機／模擬器看得到）：稍後提醒 7 分鐘，一般響鈴「該起床了／
     再睡 7 分鐘／滑動來停止」；排好鬧鐘後覆蓋安裝、不開 App（舊路徑確定已刪）再響，仍是「再睡 7 分鐘」，按下後即時動態「賴床中」約 13 秒時
     剩 6:47。
+    **2026-10-15 補驗英文與切換語言**（擁有者：「再睡 9 分鐘那個畫面的英文版長怎樣」）：系統英文時註冊並響鈴 →「Time to get up／
+    Snooze 9 min／slide to stop」，賴床中即時動態「Snoozing」。**切換語言的實測結果與原本註解說的不同：** 繁中註冊、改英文重開機後響 →
+    標題仍是「該起床了」，按鈕與即時動態跟著變「Snooze 9 min」「Snoozing」；反過來英文註冊、改繁中後響 →「Time to get up」配「再睡 9 分鐘」。
+    也就是 AlarmKit 鬧鐘畫面的**標題固定在註冊當下的語言**，按鈕與即時動態跟著響鈴當下的語言（1.8.1 一樣，當時按鈕是「Snooze」／「再睡一下」）。
+    `presentation` 與 `localized` 的註解已照實改寫。要整個畫面一致，得在語言變了之後重新註冊（記下註冊時的語言，不同就走既有的一次性
+    unattended 重註冊；日期型的 Configuration 也要帶語言）——尚未做，擁有者決定。
   - **2026-10-13：1.8.2（43）再加一項——取消的 debounce 留下 handle，開 App 的雨況重查從此跳過**（上面「另開任務」那項，既有問題）。
     `AlarmViewModel` 有 8 處只 `autoRefreshTask?.cancel()`、沒清成 nil，被取消的 debounce 提早結束也不會自己清；
     `refreshScheduledAlarmIfWeatherIsStale` 的 `guard autoRefreshTask == nil` 把留下的 handle 當成「設定修改還在排隊」直接 return，

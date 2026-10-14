@@ -457,7 +457,8 @@ struct AlarmKitScheduler: NotificationScheduling {
     /// that no longer exists, and the alert showed the bare key on the lock screen
     /// ("alarm_snooze_button", reproduced 2026-10-13). The text resolved at scheduling
     /// time travels along as `defaultValue`, which is what is shown when the lookup
-    /// fails; while the bundle is there the key still follows the device language.
+    /// fails; while the bundle is there the key is looked up again when the text is
+    /// shown (see `presentation` for which surfaces follow a language change).
     private static func localized(_ key: StaticString) -> LocalizedStringResource {
         let bundle = Bundle.main
         let resolved = bundle.localizedString(forKey: "\(key)", value: nil, table: nil)
@@ -467,7 +468,7 @@ struct AlarmKitScheduler: NotificationScheduling {
 
     /// "再睡 5 分鐘" / "Snooze 5 min": the minutes the user set, so the button says what
     /// pressing it does (owner, 2026-10-13). The key is the real one, so while the bundle
-    /// is there the button follows the device language like the title; the minutes ride
+    /// is there the button reads in the language the device has when it rings; the minutes ride
     /// along as the fallback's argument, which the table's `%lld` formats, and after an
     /// update moves the bundle the fallback itself reads "再睡 5 分鐘" in the language the
     /// alarm was registered in. A new snooze length changes the schedule fingerprint, so
@@ -505,9 +506,12 @@ struct AlarmKitScheduler: NotificationScheduling {
 
     private static func presentation(adjustedForRain: Bool, snoozeMinutes: Int?) -> AlarmPresentation {
         // Localized keys rather than resolved strings — the snooze button's minutes
-        // included, as an argument: AlarmKit renders the alert in the system UI, so it
-        // resolves them in whatever locale is current when the alarm fires instead of the
-        // one that was active when it was scheduled.
+        // included, as an argument. Seen on an iOS 27 simulator (2026-10-15), switching
+        // the system language between registering and ringing: the snooze button and the
+        // snooze Live Activity's title follow the language current when they are shown,
+        // but the alert title keeps the language the alarm was registered in ("Time to
+        // get up" above 「再睡 9 分鐘」). 1.8.1 behaved the same; re-registering is what
+        // brings the title along.
         let title = adjustedForRain
             ? localized("alarm_alert_title_adjusted")
             : localized("alarm_alert_title_normal")
