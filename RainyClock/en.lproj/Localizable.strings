@@ -97,7 +97,7 @@
 "commute_mode_public_transit" = "Transit";
 "status_enter_settings" = "Enter your commute and alarm settings.";
 "status_alarm_scheduled" = "Smart alarm is scheduled and repeats weekly.";
-"alarmkit_reschedule_notice" = "This alarm was set up before the update, so it still stays quiet on silent. Tap Schedule Smart Alarm once to switch it over.";
+"alarmkit_reschedule_notice" = "This alarm was set up before the update, so it still stays quiet on silent. Tap Retry to switch it to the new system.";
 "schedule_stale_notice" = "Settings changed — updating the alarm. If this notice stays, tap Schedule Smart Alarm to apply them.";
 "status_alarm_removed_address_changed" = "Address changed, so the alarm was removed. Tap Schedule Smart Alarm to set it up for the new route.";
 "status_required" = "Home, work, and lead time are required.";

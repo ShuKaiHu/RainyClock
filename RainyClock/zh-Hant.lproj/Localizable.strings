@@ -97,7 +97,7 @@
 "commute_mode_public_transit" = "大眾交通";
 "status_enter_settings" = "請輸入通勤與鬧鐘設定。";
 "status_alarm_scheduled" = "智慧鬧鐘已排程，將每週重複響鈴。";
-"alarmkit_reschedule_notice" = "這個鬧鐘是更新前設定的，靜音時仍然不會響。按一次「排程智慧鬧鐘」即可切換。";
+"alarmkit_reschedule_notice" = "這個鬧鐘是更新前設定的，靜音時仍然不會響。按「重試」即可切換到新機制。";
 "schedule_stale_notice" = "設定已變更，鬧鐘更新中；若此提示持續顯示，請按「排程智慧鬧鐘」。";
 "status_alarm_removed_address_changed" = "地址已變更，原有鬧鐘已移除。請按「排程智慧鬧鐘」為新路線重新設定。";
 "status_required" = "需要填入住家、公司與提前時間。";
