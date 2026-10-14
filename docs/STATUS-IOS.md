@@ -397,6 +397,29 @@ Last updated: 2026-10-15.
     也是 `8ab2874` 起無人引用（git 裡按鈕在 1.7.0 的樹就已不在，不只 1.8.0），留著沒動。`grep -rn "Schedule Smart Alarm\|排程智慧鬧鐘"
     RainyClock RainyClockTests` 只剩那個 key；`plutil -lint` 兩個 .strings OK；Debug 模擬器建置 0 error，bundle 讀回 1.8.2／43、
     兩個語系的新字串，`schedule_stale_notice` 已不在 bundle 裡。What's New 同樣不提。
+  - **2026-10-15：1.8.2（43）再加一項——拆掉自 1.7.0 起沒有畫面的狀態文字管線**（上一項說的「要不要連 `statusMessage` 一起拆掉
+    是另一件事」就是這件：`AlarmViewModel.statusMessage`／`alarmStatus` 自 `8ab2874` 起沒有任何 View 讀，只有測試在讀）。
+    使用者看到的狀態早已由鬧鐘頁橘色 banner（`ContentView.scheduleIssue` ← `TomorrowWidgetSnapshotBuilder.scheduleIssue`，文字取
+    `scheduleErrorMessage`）、設定列的地址提示（`ContentView.addressAttention`：`address_not_found_inline`／
+    `status_confirm_suggested_address`）與明天卡片承擔，逐條對過沒有一條需要再顯示，所以不加 UI、直接移除：`AlarmViewModel` 的
+    `AlarmStatus` enum、`alarmStatus`、`statusMessage` 與全部 20 處寫入（含 init 從 summary 還原狀態那段、`.weatherDecision` 分支、
+    `enqueueSettingsRemoval`／`removeScheduledAlarm` 的 `statusKey` 參數）；三處「先寫 `statusMessage` 再 `scheduleErrorMessage =
+    statusMessage`」改成直接寫 `scheduleErrorMessage`，`scheduleErrorMessage` 與 `scheduleIssue` 的行為不變。測試：
+    `AlarmViewModelSchedulingTests` 四個讀 `statusMessage` 的測試改斷言可觀察狀態（`hasScheduledAlarm`、`scheduledAlarmSummary`、
+    `scheduleErrorMessage`、`canSchedule`、`invalidAddressFields`、spy 的註冊數）——`testTimeFormatImmediatelyUpdatesWeatherStatusWithoutChangingAlarm`
+    改名 `testTimeFormatChangeDoesNotReRegisterTheAlarm`、`testAStaleRefreshThatFailsKeepsTheAlarmAndItsStatusMessage` 改名
+    `…KeepsTheAlarmArmed`；`TomorrowAlarmStatusTests` 的字串存在清單拿掉 `status_alarm_turned_off`。字串：兩個語系各刪 15 個拆完
+    無人引用的 key（每個都 grep 過整個 repo，含 widget 與測試）——`schedule_smart_alarm`、`scheduled_result`、`scheduled_alarm`、
+    `status_enter_settings`、`status_alarm_scheduled`、`status_alarm_removed_address_changed`、`status_required`、`status_adjusted`、
+    `status_normal`、`status_adjusted_checked`、`status_normal_checked`、`calendar_all_silent`、`calendar_schedule_saved`、
+    `calendar_off_no_weekdays`、`status_alarm_turned_off`；`plutil -lint` 兩表 OK。**留著的：** `status_permission_denied`、
+    `status_alarm_permission_denied`、`status_schedule_failed`（`scheduleErrorMessage` 用，橘色 banner 顯示）、
+    `status_confirm_suggested_address`（原本以為只有狀態列用，其實 `ContentView.addressAttention` 也用）。
+    `status_alarm_removed_address_changed` 上一項才改好措辭，這裡隨管線一起刪（兩個 session 同日各自提交，merge `ios/main`
+    `9cbbaf0` 時字串表的衝突解成兩個 key 都不留：它和上一項刪的 `schedule_stale_notice`）。驗證：Debug 模擬器建置通過（0 error，97 個既有
+    warning）；`AlarmViewModelSchedulingTests`（41）＋`TomorrowAlarmStatusTests`（31）在 iPhone 17 Pro iOS 26.5（B521C391）
+    全過：72 過、0 失敗、0 略過（簽章的 `RainyClock Membership Local`、`-parallel-testing-worker-count 1`）；全套測試沒跑。
+    在 session 分支 `claude/priceless-payne-c1a4d6`，待擁有者 `merge --no-ff` 進 ios/main。
   - **2026-10-13：1.8.2（43）再加一項——App 更新後鎖定畫面鬧鐘出現字串名稱**（擁有者：藍色按鈕「有看到一串英文」，用 AI
     鈴聲）。**重現：** iOS 27 模擬器、系統繁中、AI 人聲、稍後提醒開：正常情況響鈴畫面是「該起床了／再睡一下／滑動來停止」；
     但 App 排好鬧鐘後**覆蓋安裝、不打開 App**（等同 App Store 更新）再響，標題變 `alarm_alert_title_normal`、藍色按鈕變

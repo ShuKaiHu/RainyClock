@@ -74,9 +74,6 @@
 "ad_loading" = "Loading ad";
 "ad_view_details" = "View details";
 "checking_route" = "Checking route...";
-"schedule_smart_alarm" = "Schedule Smart Alarm";
-"scheduled_result" = "Scheduled Result";
-"scheduled_alarm" = "Scheduled alarm";
 "weather_refresh" = "Weather refresh";
 "route_max" = "Route max";
 "rain_adjustment" = "Rain adjustment";
@@ -95,18 +92,10 @@
 "commute_mode_scooter" = "Scooter";
 "commute_mode_walking" = "Walking";
 "commute_mode_public_transit" = "Transit";
-"status_enter_settings" = "Enter your commute and alarm settings.";
-"status_alarm_scheduled" = "Smart alarm is scheduled and repeats weekly.";
 "alarmkit_reschedule_notice" = "This alarm was set up before the update, so it still stays quiet on silent. Tap Retry to switch it to the new system.";
-"status_alarm_removed_address_changed" = "Address changed, so the alarm was removed. Once both addresses are confirmed, the app sets it up again for the new route.";
-"status_required" = "Home, work, and lead time are required.";
 "status_permission_denied" = "Notification permission was not granted.";
 "status_alarm_permission_denied" = "Alarm permission was not granted. Turn it on in Settings › Rainy Clock, then schedule again.";
 "status_schedule_failed" = "Could not schedule alarm: %@";
-"status_adjusted" = "Rain threshold exceeded. Alarm adjusted.";
-"status_normal" = "Rain threshold not exceeded. Alarm scheduled.";
-"status_adjusted_checked" = "Rain threshold exceeded for %@. Alarm adjusted. Data checked at %@.";
-"status_normal_checked" = "Rain threshold not exceeded for %@. Alarm scheduled. Data checked at %@.";
 "notification_title" = "Rainy Clock";
 "notification_body_adjusted" = "Rain probability is above your threshold, so the alarm was moved earlier.";
 "notification_body_normal" = "Rain probability is below your threshold, so the normal alarm time was used.";
@@ -253,8 +242,6 @@
 "calendar_reset_year" = "Clear this year’s manual changes";
 "calendar_reset_confirm" = "Restore all dates in this year to your weekly schedule and chosen calendar?";
 "calendar_tap_hint" = "Switch this day between ring and silent";
-"calendar_all_silent" = "No alarms in the scheduled period. Your calendar rules are saved.";
-"calendar_schedule_saved" = "Alarm calendar applied.";
 "evening_preview_day_off" = "Tomorrow’s alarm is off according to your calendar. You can change that date in Settings → Alarm calendar.";
 "evening_preview_closure" = "Tomorrow's alarm is skipped for a temporary work or school closure.";
 "calendar_renew_title" = "Extend your alarm calendar";
@@ -277,7 +264,6 @@
 "clock_close" = "Close";
 "settings_system_permissions_hint" = "If notifications are already allowed, no change is usually needed. Open iPhone Settings to allow previously declined notifications or enable Background App Refresh; these are separate settings.";
 "settings_region_from_map_pending" = "Waiting for map district";
-"calendar_off_no_weekdays" = "No weekly weekdays are selected, so the alarm is now off.";
 
 /* Disaster closure preview */
 "disaster_title" = "Disaster closures";
@@ -487,7 +473,6 @@
 "ux_skip_later" = "Your %@ alarm is off just this once";
 "alarm_off_failed" = "Some alarms could not be turned off. Try again.";
 "alarm_on_without_forecast" = "The alarm is on at its usual time. The rain check couldn't run yet; tap Retry, or it will try again on its own.";
-"status_alarm_turned_off" = "The alarm is off until you turn it back on.";
 "evening_preview_skip_once" = "Tomorrow's alarm is off just this once, as you chose. Alarms after it ring as usual.";
 "alarm_renew_title" = "Keep your alarm ringing";
 "alarm_renew_body" = "Your scheduled alarms end in one week. Open Rainy Clock so your weekly alarm keeps ringing.";

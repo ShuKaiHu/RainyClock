@@ -278,22 +278,23 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         XCTAssertEqual(spy.cancelCount, 0)
     }
 
-    func testTimeFormatImmediatelyUpdatesWeatherStatusWithoutChangingAlarm() async throws {
+    /// The time format only changes how dates are shown, so flipping it is not a settings
+    /// edit: no re-registration, no stale notice.
+    func testTimeFormatChangeDoesNotReRegisterTheAlarm() async throws {
         let spy = SchedulerSpy()
         let viewModel = makeViewModel(spy: spy)
         await viewModel.evaluateRouteAndScheduleAlarm()
-        let snapshot = try XCTUnwrap(viewModel.routeWeatherSnapshot)
-        let twelveHourStatus = viewModel.statusMessage
-        let originalSummary = viewModel.scheduledAlarmSummary
-        XCTAssertTrue(twelveHourStatus.contains(ClockTimeFormat.twelveHour.dateTime(snapshot.forecastAt)))
+        XCTAssertTrue(viewModel.hasScheduledAlarm)
+        let originalSummary = try XCTUnwrap(viewModel.scheduledAlarmSummary)
+        XCTAssertEqual(spy.scheduleCalls.count, 1)
 
         viewModel.settings.timeFormat = .twentyFourHour
-        XCTAssertNotEqual(viewModel.statusMessage, twelveHourStatus)
-        XCTAssertTrue(viewModel.statusMessage.contains(ClockTimeFormat.twentyFourHour.dateTime(snapshot.forecastAt)))
         try await Task.sleep(for: .milliseconds(250))
         XCTAssertEqual(spy.scheduleCalls.count, 1)
         XCTAssertEqual(viewModel.scheduledAlarmSummary, originalSummary)
+        XCTAssertTrue(viewModel.hasScheduledAlarm)
         XCTAssertFalse(viewModel.isScheduleStale)
+        XCTAssertNil(viewModel.scheduleErrorMessage)
     }
 
     func testAddressChangeRemovesTheAlarmInsteadOfRefreshing() async throws {
@@ -327,7 +328,9 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         viewModel.settings.selectedWeekdays = []
         try await waitUntil("the registration is removed") { !viewModel.hasScheduledAlarm && spy.retireCount == 1 }
         XCTAssertEqual(spy.cancelCount, 0)
-        XCTAssertEqual(viewModel.statusMessage, String(localized: "calendar_off_no_weekdays"))
+        XCTAssertNil(viewModel.scheduledAlarmSummary)
+        XCTAssertNil(viewModel.scheduleErrorMessage, "Removing the registration is not a failure")
+        XCTAssertFalse(viewModel.canSchedule, "No repeat day left to register")
 
         await viewModel.turnAlarmOff()
         XCTAssertGreaterThan(spy.cancelCount, 0, "Turning the alarm off ends a snooze")
@@ -494,14 +497,14 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         XCTAssertNil(relaunched.unrecheckedMorning(now: afterRing))
     }
 
-    /// The refresh runs unprompted, so a failure must not replace the status line of an
-    /// alarm that is still correctly armed from the previous run.
-    func testAStaleRefreshThatFailsKeepsTheAlarmAndItsStatusMessage() async throws {
+    /// The refresh runs unprompted, so a failure must leave the alarm that is still
+    /// correctly armed from the previous run as it was, and not flag its addresses.
+    func testAStaleRefreshThatFailsKeepsTheAlarmArmed() async throws {
         let spy = SchedulerSpy()
         let viewModel = makeViewModel(spy: spy)
 
         await viewModel.evaluateRouteAndScheduleAlarm()
-        let armedStatus = viewModel.statusMessage
+        XCTAssertTrue(viewModel.hasScheduledAlarm)
 
         storage.set(Date().addingTimeInterval(-5 * 60 * 60), forKey: "lastWeatherEvaluationAt")
         let relaunched = AlarmViewModel(
@@ -510,14 +513,14 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
             settingsStorage: storage,
             autoRefreshDebounce: .milliseconds(80)
         )
-        let restoredStatus = relaunched.statusMessage
+        let restoredSummary = try XCTUnwrap(relaunched.scheduledAlarmSummary)
         spy.scheduleFailure = TestError.registrationRejected
 
         await relaunched.refreshScheduledAlarmIfWeatherIsStale()
 
         XCTAssertTrue(relaunched.hasScheduledAlarm)
-        XCTAssertEqual(relaunched.statusMessage, restoredStatus)
-        XCTAssertFalse(armedStatus.isEmpty)
+        XCTAssertEqual(relaunched.scheduledAlarmSummary, restoredSummary)
+        XCTAssertTrue(relaunched.invalidAddressFields.isEmpty, "An unattended failure does not flag the addresses")
     }
 
     // MARK: - A dropped debounce (review, 2026-10-13)
@@ -593,7 +596,8 @@ final class AlarmViewModelSchedulingTests: XCTestCase {
         XCTAssertGreaterThan(spy.cancelCount, cancelled, "Cancelled at once, then swept again")
         XCTAssertFalse(model.canSchedule)
         XCTAssertFalse(model.isAlarmSwitchOn())
-        XCTAssertEqual(model.statusMessage, String(localized: "status_alarm_turned_off"))
+        XCTAssertNil(model.scheduledAlarmSummary)
+        XCTAssertNil(model.scheduleErrorMessage, "Nothing was left behind, so no banner")
 
         model.settings.alarmTime = model.settings.alarmTime.addingTimeInterval(600)
         model.settings.selectedWeekdays = [2, 3]

@@ -592,7 +592,7 @@ final class TomorrowAlarmStatusTests: XCTestCase {
                     "ux_alarm_off_message_in_progress", "ux_alarm_off_message_only",
                     "ux_alarm_switch_skip_value", "ux_alarm_off", "ux_alarm_off_reason", "ux_skip_once_reason",
                     "ux_skip_once_resume", "ux_skip_later", "alarm_off_failed", "alarm_on_without_forecast",
-                    "status_alarm_turned_off", "evening_preview_skip_once", "alarm_renew_title", "alarm_renew_body",
+                    "evening_preview_skip_once", "alarm_renew_title", "alarm_renew_body",
                     "ux_next_alarm", "ux_today_weather", "ux_today_weather_loading", "ux_today_weather_failed",
                     "ux_today_holiday_named", "ux_today_holiday", "ux_today_manual_skip", "ux_today_manual_ring",
                     "ux_today_weekend", "ux_today_unselected", "ux_rang_at", "ux_today_closure_skipped",

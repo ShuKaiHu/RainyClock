@@ -74,9 +74,6 @@
 "ad_loading" = "廣告載入中";
 "ad_view_details" = "查看詳情";
 "checking_route" = "正在檢查路線...";
-"schedule_smart_alarm" = "排程智慧鬧鐘";
-"scheduled_result" = "排程結果";
-"scheduled_alarm" = "已排程鬧鐘";
 "weather_refresh" = "天氣刷新";
 "route_max" = "路線最高值";
 "rain_adjustment" = "雨天調整";
@@ -95,18 +92,10 @@
 "commute_mode_scooter" = "騎車";
 "commute_mode_walking" = "步行";
 "commute_mode_public_transit" = "大眾交通";
-"status_enter_settings" = "請輸入通勤與鬧鐘設定。";
-"status_alarm_scheduled" = "智慧鬧鐘已排程，將每週重複響鈴。";
 "alarmkit_reschedule_notice" = "這個鬧鐘是更新前設定的，靜音時仍然不會響。按「重試」即可切換到新機制。";
-"status_alarm_removed_address_changed" = "地址已變更，原有鬧鐘已移除。兩個地址確認後，App 會自動為新路線重新排程。";
-"status_required" = "需要填入住家、公司與提前時間。";
 "status_permission_denied" = "尚未授權通知權限。";
 "status_alarm_permission_denied" = "尚未授權鬧鐘權限。請到「設定 › 雨天鬧鐘」開啟後再排程一次。";
 "status_schedule_failed" = "無法排程鬧鐘：%@";
-"status_adjusted" = "已超過降雨門檻，鬧鐘已提前。";
-"status_normal" = "未超過降雨門檻，已排程正常鬧鐘。";
-"status_adjusted_checked" = "%@ 已超過降雨門檻，鬧鐘已提前。資料查詢時間：%@。";
-"status_normal_checked" = "%@ 未超過降雨門檻，已排程正常鬧鐘。資料查詢時間：%@。";
 "notification_title" = "雨天鬧鐘";
 "notification_body_adjusted" = "降雨機率高於你的門檻，因此鬧鐘已提早。";
 "notification_body_normal" = "降雨機率低於你的門檻，因此使用正常鬧鐘時間。";
@@ -253,8 +242,6 @@
 "calendar_reset_year" = "清除這一年的手動修改";
 "calendar_reset_confirm" = "要將這一年所有日期恢復為每週設定與所選行事曆的規則嗎？";
 "calendar_tap_hint" = "切換這天響鈴或不響";
-"calendar_all_silent" = "預排期間內沒有響鈴日，行事曆規則已儲存。";
-"calendar_schedule_saved" = "鬧鐘行事曆已套用。";
 "evening_preview_day_off" = "依你的行事曆，明天鬧鐘不響。可到「設定 → 鬧鐘月曆」修改當天設定。";
 "evening_preview_closure" = "明天的鬧鐘因臨時停班／停課略過。";
 "calendar_renew_title" = "延長你的鬧鐘行事曆";
@@ -277,7 +264,6 @@
 "clock_close" = "關閉";
 "settings_system_permissions_hint" = "已允許通知通常不需更改。若曾拒絕通知，或需要開啟「背景 App 重新整理」，可到 iPhone 設定調整；這兩項是分開控制的。";
 "settings_region_from_map_pending" = "等待地圖辨識地區";
-"calendar_off_no_weekdays" = "未選擇每週響鈴日期，鬧鐘已關閉。";
 
 /* Disaster closure preview */
 "disaster_title" = "天災停班停課";
@@ -487,7 +473,6 @@
 "ux_skip_later" = "%@ 的鬧鐘只關閉這一次";
 "alarm_off_failed" = "有些鬧鐘沒有關閉成功，請再試一次。";
 "alarm_on_without_forecast" = "鬧鐘已開啟，先以原本時間響鈴。雨天檢查暫時無法完成，可按「重試」，稍後也會自動再試。";
-"status_alarm_turned_off" = "鬧鐘已關閉，直到你重新開啟。";
 "evening_preview_skip_once" = "依你的選擇，明天的鬧鐘只關閉這一次，之後的鬧鐘照常響。";
 "alarm_renew_title" = "讓鬧鐘繼續響";
 "alarm_renew_body" = "已排程的鬧鐘將在一週後到期。請開啟雨天鬧鐘，讓每週鬧鐘繼續響鈴。";
