@@ -11,7 +11,7 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-10-13.
+Last updated: 2026-10-15.
 
 > **1.7.1（37）已上架：2026-09-26 05:33 UTC（台灣 13:33）**，台灣與美國商店的 App Store lookup 都回 1.7.1。
 > 這是 1.7.0（34）退審後的重送版，包含會員方案（月訂閱、買斷）、LevelPlay 廣告、地址建議清單修復。
@@ -336,6 +336,16 @@ Last updated: 2026-10-13.
     在對話中擬好，由擁有者送出）。**19:54 繁中產品頁的標題大圖出現了**（上架約 27 小時後）→ 只是 Apple 端延遲，不用回報。
     搜尋結果那張截圖本 App 顯示「打開」（已安裝），所以沒有圖是 App Store 對已安裝 App 的固定行為，不能拿來判斷；要用沒裝過的
     裝置或帳號看。下次新素材上線，至少等一天再判斷有沒有生效。
+  - **2026-10-15：開發者網站改版，已發佈**（擁有者：「該更新一下開發者網站了，把新功能都丟上去吧」）。`docs/index.html` 從一句話的
+    說明頁改成 1.8.1 的功能頁：八張功能卡用 `appstore-1.8.1-screenshots/raw/` 的原始擷取（縮成 720 px 寬 JPEG 放在 `docs/site/`，
+    連標題圖與 icon 共 2.5 MB，lazy-load），付費功能標「訂閱或買斷」、停班停課標「限台灣」、小工具標「iOS 26 以上」；另有
+    「還有這些」六張小卡（穿透靜音、稍後提醒、前一晚預告、兩種鈴聲、沒能重新確認的註記、不需帳號）、會員方案（不寫價格）、
+    1.6.1 到 1.8.1 的更新紀錄（日期取自本檔與 submission checklist）。繁中與英文同一頁，右上角切換、預設跟瀏覽器語言、`?lang=en`
+    可指定；英文版用美國商店連結與 `header-en.jpg`。文案全部對照 1.8.1 商店描述與 What's New，沒有 1.8.2 的內容（1.8.2 未上架）。
+    `docs/support.html` 加五題（付費方案颱風天仍響的條件、小工具空白、「沒有重新確認」註記、「僅關閉下一次」會恢復、恢復購買與
+    取消訂閱），並把 10-03 查證指出的「升級 iOS 26 要重新排程一次」改成實際的橘色提醒＋「重試」按鈕（`ContentView.swift` 的
+    `scheduleIssue` 列）。App 內 `alarmkit_reschedule_notice` 仍寫「排程智慧鬧鐘」，沒改。本機 http.server 預覽過桌面與 375 px 兩種
+    語言。`8f8dd61`（`ios/main`）與 `b8e3979`（`main`，已 push）；GitHub Pages 從 `main` 發佈。
   - **2026-10-13：1.8.2（43）再加一項——App 更新後鎖定畫面鬧鐘出現字串名稱**（擁有者：藍色按鈕「有看到一串英文」，用 AI
     鈴聲）。**重現：** iOS 27 模擬器、系統繁中、AI 人聲、稍後提醒開：正常情況響鈴畫面是「該起床了／再睡一下／滑動來停止」；
     但 App 排好鬧鐘後**覆蓋安裝、不打開 App**（等同 App Store 更新）再響，標題變 `alarm_alert_title_normal`、藍色按鈕變
