@@ -351,8 +351,8 @@ Last updated: 2026-10-15.
     to switch it to the new system"——它顯示在鬧鐘頁的橘色 banner（`ContentView.swift` 的 `scheduleIssue` 列），旁邊的按鈕是
     `ux_retry`「重試」，按下跑 `evaluateRouteAndScheduleAlarm()` 重新排到 AlarmKit；「排程智慧鬧鐘」按鈕 1.8.0 起就不存在。
     `docs/privacy-policy.html` 第三方服務那段（英文第 105 行、繁中第 263 行）同樣不再寫「點選『排程智慧鬧鐘』」，改成「輸入地址，
-    以及 App 排程或更新鬧鐘時（改了設定、打開 App、按『重試』或背景更新）」；網頁改動獨立一個 commit（`58bfeac`），
-    要 cherry-pick 到 `main` 才會發佈（GitHub Pages 從 `main` 出）。`RainyClockTests` 沒有斷言舊文字或這個 key；Debug 模擬器建置通過（0 error，bundle 讀回 1.8.2／43 與兩個語系的新字串）。
+    以及 App 排程或更新鬧鐘時（改了設定、打開 App、按『重試』或背景更新）」；網頁改動獨立一個 commit：`58bfeac`（`ios/main`）
+    與 `0fb1b5f`（`main`，已 push；01:06 讀回線上頁面，兩種語言的新句子在、舊句子不在）。`RainyClockTests` 沒有斷言舊文字或這個 key；Debug 模擬器建置通過（0 error，bundle 讀回 1.8.2／43 與兩個語系的新字串）。
     What's New 不提（使用者看不出差別）。**沒改、留著的：** `status_alarm_removed_address_changed`（地址改了、鬧鐘移除的狀態列，
     `AlarmViewModel` 兩處用）仍寫「請按『排程智慧鬧鐘』」；`schedule_stale_notice` 也是，但已沒有程式引用。兩條該一起對照實際介面改。
   - **2026-10-13：1.8.2（43）再加一項——App 更新後鎖定畫面鬧鐘出現字串名稱**（擁有者：藍色按鈕「有看到一串英文」，用 AI
