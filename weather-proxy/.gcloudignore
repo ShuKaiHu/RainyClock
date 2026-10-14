@@ -1,2 +1,10 @@
 test/
 .gcloudignore
+node_modules/
+.env*
+*debug.log
+.firebase/
+*.p8
+*.key
+*credentials*.json
+*service-account*.json

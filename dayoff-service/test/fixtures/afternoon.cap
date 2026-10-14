@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<alert xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>dgpa.gov.tw_workSchlClos_20260822141104_i_6403700_001</identifier>
+  <sender>http://www.dgpa.gov.tw</sender>
+  <sent>2026-08-22T14:11:04+08:00</sent>
+  <status>Actual</status>
+  <msgType>Alert</msgType>
+  <source />
+  <scope>Public</scope>
+  <info>
+    <language>zh-TW</language>
+    <category>Infra</category>
+    <event>停班停課</event>
+    <urgency>Immediate</urgency>
+    <severity>Extreme</severity>
+    <certainty>Observed</certainty>
+    <eventCode><valueName>profile:CAP-TWP:Event:1.0</valueName><value>workSchlClos</value></eventCode>
+    <effective>2026-08-22T14:10:00+08:00</effective>
+    <expires>2026-08-22T23:59:59+08:00</expires>
+    <senderName>行政院人事行政總處</senderName>
+    <headline>停班課通知</headline>
+    <description>[停班停課通知]高雄市桃源區:今天下午已達停止上班及上課標準。行政院人事行政總處。如有任何問題請撥1999(市內直撥)。</description>
+    <instruction>適用範圍為各級政府機關及公、私立學校；交通運輸、警察、消防等業務性質特殊機關（構）尚無停止上班之適用。</instruction>
+    <web>http://www.dgpa.gov.tw</web>
+    <area><areaDesc>高雄市桃源區</areaDesc><geocode><valueName>Taiwan_Geocode_103</valueName><value>6403700</value></geocode></area>
+  </info>
+</alert>

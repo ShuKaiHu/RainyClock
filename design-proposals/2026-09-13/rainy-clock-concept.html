@@ -1,0 +1,244 @@
+<style>
+#rainy-clock-concept{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang TC","Noto Sans TC",sans-serif;color-scheme:light dark;--rc-bg:light-dark(#f4f7f8,#101a22);--rc-surface:light-dark(#ffffff,#1b2933);--rc-text:light-dark(#182f3b,#eef5f8);--rc-muted:light-dark(#5b6e79,#b0c0c9);--rc-line:light-dark(#e5ecef,#344650);--rc-accent:light-dark(#176d80,#82d0df);--rc-tint:light-dark(#e7f3f6,#213e4a);--rc-success:light-dark(#287a61,#8edbbd);--rc-warning:light-dark(#885827,#e8bc81);--rc-switch:#197f93;--rc-switch-knob:#ffffff;--rc-switch-off:light-dark(#8c9da6,#657983);--rc-shadow:light-dark(#183b4c16,#00000033);--rc-radius:24px;color:var(--rc-text);max-width:100%;padding:8px 0 16px}
+#rainy-clock-concept *{box-sizing:border-box}
+#rainy-clock-concept .rc-phone{max-width:420px;margin:auto;background:var(--rc-bg);border-radius:36px;box-shadow:0 14px 42px var(--rc-shadow);border:1px solid var(--rc-line);overflow:hidden}
+#rainy-clock-concept .rc-status{display:flex;align-items:center;justify-content:space-between;padding:15px 25px 6px;font-size:13px;font-weight:600}
+#rainy-clock-concept .rc-status-icons{display:flex;gap:6px}
+#rainy-clock-concept .rc-status-icons svg{width:14px;height:14px}
+#rainy-clock-concept .rc-main{padding:22px 22px 18px;min-height:648px}
+#rainy-clock-concept .rc-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
+#rainy-clock-concept h1{font-size:29px;line-height:1.25;letter-spacing:-.7px;margin:0;font-weight:700;color:var(--rc-text)}
+#rainy-clock-concept h2{font-size:13px;line-height:1.5;margin:22px 3px 9px;font-weight:600;color:var(--rc-muted)}
+#rainy-clock-concept p{margin:0}
+#rainy-clock-concept .rc-eyebrow{font-size:12px;color:var(--rc-muted);margin-bottom:5px;letter-spacing:.3px}
+#rainy-clock-concept button,#rainy-clock-concept input,#rainy-clock-concept select{font:inherit;color:inherit}
+#rainy-clock-concept button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+#rainy-clock-concept button:disabled{opacity:.4;cursor:default}
+#rainy-clock-concept .rc-icon-btn{background:var(--rc-surface);border:1px solid var(--rc-line);border-radius:50%;width:44px;height:44px;display:grid;place-items:center;flex-shrink:0;color:var(--rc-accent)}
+#rainy-clock-concept .rc-icon-btn svg{width:20px;height:20px}
+#rainy-clock-concept .rc-hero{background:linear-gradient(145deg,var(--rc-tint),var(--rc-surface) 88%);padding:22px;border-radius:28px;border:1px solid var(--rc-line)}
+#rainy-clock-concept .rc-topline{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px}
+#rainy-clock-concept .rc-state{display:flex;gap:6px;align-items:center;color:var(--rc-success);font-weight:600}
+#rainy-clock-concept .rc-state svg{width:15px;height:15px}
+#rainy-clock-concept .rc-switch{appearance:none;-webkit-appearance:none;margin:0;position:relative;width:48px;height:29px;border-radius:20px;background:var(--rc-switch-off);border:0;flex-shrink:0;cursor:pointer}
+#rainy-clock-concept .rc-switch:checked{background:var(--rc-switch)}
+#rainy-clock-concept .rc-switch::after{content:"";position:absolute;top:3px;left:3px;width:23px;height:23px;border-radius:50%;background:var(--rc-switch-knob);transition:transform .16s}
+#rainy-clock-concept .rc-switch:checked::after{transform:translateX(19px)}
+#rainy-clock-concept .rc-nextdate{font-size:14px;margin-top:24px;color:var(--rc-muted)}
+#rainy-clock-concept .rc-time{display:flex;gap:9px;align-items:baseline;margin:3px 0 14px;white-space:nowrap}
+#rainy-clock-concept .rc-time strong{font-size:68px;letter-spacing:-3px;line-height:1.12;font-weight:500;font-variant-numeric:tabular-nums}
+#rainy-clock-concept .rc-time span{font-size:16px;font-weight:500}
+#rainy-clock-concept .rc-time.rc-off strong{font-size:36px;letter-spacing:-1px;padding:12px 0}
+#rainy-clock-concept .rc-reason{display:flex;gap:9px;align-items:flex-start;font-size:14px;line-height:1.65}
+#rainy-clock-concept .rc-reason svg{color:var(--rc-accent);width:20px;height:20px;margin-top:2px;flex-shrink:0}
+#rainy-clock-concept .rc-sub{font-size:12px;color:var(--rc-muted);line-height:1.7}
+#rainy-clock-concept .rc-link{color:var(--rc-accent);background:none;border:0;padding:12px 0 0;display:flex;align-items:center;gap:5px;font-size:13px;min-height:36px;text-align:left}
+#rainy-clock-concept .rc-link svg{width:14px;height:14px}
+#rainy-clock-concept .rc-group{background:var(--rc-surface);border:1px solid var(--rc-line);border-radius:var(--rc-radius);overflow:hidden}
+#rainy-clock-concept .rc-row{display:flex;align-items:center;gap:12px;padding:16px;min-height:63px;width:100%;border:0;background:transparent;text-align:left}
+#rainy-clock-concept .rc-row+.rc-row{border-top:1px solid var(--rc-line)}
+#rainy-clock-concept .rc-rowcopy{flex:1;min-width:0;font-size:15px;line-height:1.45}
+#rainy-clock-concept .rc-rowcopy small{display:block;color:var(--rc-muted);font-size:12px;margin-top:3px}
+#rainy-clock-concept .rc-rowval{font-size:13px;color:var(--rc-muted);text-align:right;max-width:50%;overflow-wrap:anywhere}
+#rainy-clock-concept .rc-row>svg{width:18px;height:18px;flex-shrink:0;color:var(--rc-accent)}
+#rainy-clock-concept .rc-row>.rc-chevron{color:var(--rc-muted);width:14px}
+#rainy-clock-concept .rc-note{font-size:12px;color:var(--rc-muted);line-height:1.7;margin:12px 4px 0}
+#rainy-clock-concept .rc-note.rc-warning{color:var(--rc-warning)}
+#rainy-clock-concept .rc-save{font-size:12px;text-align:center;min-height:20px;color:var(--rc-success);padding-top:15px}
+#rainy-clock-concept .rc-nav{display:flex;background:var(--rc-surface);border-top:1px solid var(--rc-line);padding:7px 14px 3px}
+#rainy-clock-concept .rc-tab{display:flex;flex:1;gap:5px;flex-direction:column;align-items:center;justify-content:center;min-height:58px;border:0;background:none;color:var(--rc-muted);font-size:11px}
+#rainy-clock-concept .rc-tab svg{width:23px;height:23px}
+#rainy-clock-concept .rc-tab[aria-current=page]{color:var(--rc-accent);font-weight:600}
+#rainy-clock-concept .rc-homebar{height:19px;background:var(--rc-surface);display:grid;place-items:center}
+#rainy-clock-concept .rc-homebar::before{content:"";background:var(--rc-text);width:108px;height:4px;border-radius:4px;opacity:.8}
+#rainy-clock-concept .rc-ad{height:50px;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--rc-bg);color:var(--rc-muted);font-size:11px;border-top:1px solid var(--rc-line)}
+#rainy-clock-concept .rc-ad svg{width:13px;height:13px}
+#rainy-clock-concept .rc-detail-head{display:flex;align-items:center;gap:10px;margin-bottom:21px}
+#rainy-clock-concept .rc-detail-head h1{font-size:23px;flex:1}
+#rainy-clock-concept .rc-detail-head .rc-icon-btn{width:39px;height:39px}
+#rainy-clock-concept .rc-option-grid{display:flex;gap:8px;flex-wrap:wrap}
+#rainy-clock-concept .rc-option{min-height:44px;flex:1;padding:10px 12px;background:var(--rc-surface);border:1px solid var(--rc-line);border-radius:13px;font-size:14px;white-space:nowrap;text-align:center}
+#rainy-clock-concept .rc-option[aria-pressed=true]{background:var(--rc-tint);border-color:var(--rc-accent);color:var(--rc-accent);font-weight:600}
+#rainy-clock-concept .rc-inputs{display:flex;gap:12px;align-items:end;margin:25px 0}
+#rainy-clock-concept .rc-inputs label{flex:1;min-width:0;color:var(--rc-muted);font-size:13px}
+#rainy-clock-concept select{display:block;width:100%;margin-top:8px;font-size:22px;padding:12px 8px;background:var(--rc-surface);border:1px solid var(--rc-line);border-radius:12px}
+#rainy-clock-concept .rc-weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+#rainy-clock-concept .rc-weekdays button{padding:12px 0;border-radius:50%;min-width:0}
+#rainy-clock-concept .rc-monthhead{display:flex;gap:8px;justify-content:space-between;align-items:center;margin:19px 0}
+#rainy-clock-concept .rc-monthhead strong{font-size:19px;font-weight:600}
+#rainy-clock-concept .rc-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+#rainy-clock-concept .rc-dow{text-align:center;color:var(--rc-muted);font-size:12px;padding-bottom:8px}
+#rainy-clock-concept .rc-day{min-height:54px;min-width:0;border:1px solid transparent;border-radius:11px;background:var(--rc-surface);color:var(--rc-muted);padding:6px 1px;font-size:14px;font-variant-numeric:tabular-nums;position:relative}
+#rainy-clock-concept .rc-day span{display:block;font-size:11px;margin-top:3px}
+#rainy-clock-concept .rc-day[data-ring=true]{color:var(--rc-accent);background:var(--rc-tint)}
+#rainy-clock-concept .rc-day[aria-pressed=true]{border-color:var(--rc-accent);box-shadow:0 0 0 1px var(--rc-accent)}
+#rainy-clock-concept .rc-day[data-manual=true]::after{content:"";width:4px;height:4px;border-radius:50%;background:var(--rc-warning);position:absolute;top:4px;right:4px}
+#rainy-clock-concept .rc-calendar-detail{background:var(--rc-surface);border:1px solid var(--rc-line);padding:16px;border-radius:20px;margin-top:20px}
+#rainy-clock-concept .rc-calendar-detail strong{font-size:15px}
+#rainy-clock-concept .rc-calendar-detail .rc-option-grid{margin-top:13px;gap:6px}
+#rainy-clock-concept .rc-calendar-detail .rc-option{font-size:12px;padding:10px 5px}
+#rainy-clock-concept .rc-journey{padding:21px;background:var(--rc-surface);border:1px solid var(--rc-line);border-radius:24px}
+#rainy-clock-concept .rc-stop{display:flex;gap:13px;align-items:start}
+#rainy-clock-concept .rc-stop svg{width:20px;height:20px;color:var(--rc-accent);margin-top:2px}
+#rainy-clock-concept .rc-stop strong{font-size:16px;font-weight:600}
+#rainy-clock-concept .rc-between{font-size:12px;color:var(--rc-muted);margin:11px 9px;padding:12px 0 12px 22px;border-left:1px solid var(--rc-line)}
+#rainy-clock-concept .rc-weatherline{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;padding:16px;border-bottom:1px solid var(--rc-line)}
+#rainy-clock-concept .rc-weatherline:last-child{border-bottom:0}
+#rainy-clock-concept .rc-weatherline svg{color:var(--rc-accent);width:20px}
+#rainy-clock-concept .rc-weatherline span:first-of-type{flex:1}
+#rainy-clock-concept .rc-weatherline strong{font-size:15px;font-weight:500}
+#rainy-clock-concept .rc-message{border-radius:21px;padding:20px;background:var(--rc-tint);font-size:14px;line-height:1.8}
+@media(max-width:370px){#rainy-clock-concept .rc-main{padding:20px 16px 16px}#rainy-clock-concept .rc-hero{padding:19px}#rainy-clock-concept .rc-time strong{font-size:60px}#rainy-clock-concept .rc-row{padding:15px 12px;gap:9px}#rainy-clock-concept .rc-rowval{font-size:12px}}
+@media(prefers-reduced-motion:reduce){#rainy-clock-concept .rc-switch::after{transition:none}}
+</style>
+<div id="rainy-clock-concept" aria-label="Rainy Clock 設計提案">
+  <div class="rc-phone">
+    <div class="rc-status"><span>9:41</span><span class="rc-status-icons"><i data-lucide="signal" aria-hidden="true"></i><i data-lucide="wifi" aria-hidden="true"></i><i data-lucide="battery-full" aria-hidden="true"></i></span></div>
+    <main class="rc-main" id="rc-concept-main"></main>
+    <div id="rc-concept-ad"></div>
+    <nav class="rc-nav" aria-label="主要分頁" id="rc-concept-nav"></nav>
+    <div class="rc-homebar" aria-hidden="true"></div>
+  </div>
+</div>
+<script>
+(() => {
+  const root=document.getElementById("rainy-clock-concept");
+  const main=root.querySelector("#rc-concept-main");
+  const state={tab:"alarm",detail:null,theme:"system",palette:"mist",sky:"rain",ads:true,enabled:true,calendar:true,preview:true,format:"12",hour:7,minute:30,previewHour:21,previewMinute:0,lead:30,threshold:50,weekdays:[1,2,3,4,5],sound:"AI 人聲",snooze:true,snoozeMin:5,work:true,school:false,month:8,year:2026,day:14,overrides:{},saved:""};
+  const names=["日","一","二","三","四","五","六"];
+  const icon=name=>"<i data-lucide='"+name+"' aria-hidden='true'></i>";
+  const fmt=(hour,minute)=>state.format==="24"?String(hour).padStart(2,"0")+":"+String(minute).padStart(2,"0"):(hour<12?"上午 ":"下午 ")+(hour%12||12)+":"+String(minute).padStart(2,"0");
+  const key=(y,m,d)=>y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+  const choice=(field,value,label,selected)=>"<button type='button' class='rc-option' data-set='"+field+"' data-value='"+value+"' aria-pressed='"+selected+"'>"+label+"</button>";
+  const toggle=(field,label)=>"<input class='rc-switch' type='checkbox' data-toggle='"+field+"' aria-label='"+label+"' "+(state[field]?"checked":"")+">";
+  const row=(label,value,detail,which)=>"<button type='button' class='rc-row' data-detail='"+detail+"'>"+(which?icon(which):"")+"<span class='rc-rowcopy'>"+label+"</span><span class='rc-rowval'>"+value+"</span>"+icon("chevron-right").replace("aria-hidden","class='rc-chevron' aria-hidden")+"</button>";
+  const header=(title,sub)=>"<header class='rc-heading'><div><div class='rc-eyebrow'>"+sub+"</div><h1>"+title+"</h1></div><span class='rc-icon-btn' aria-hidden='true'>"+icon("cloud-rain")+"</span></header>";
+  const detailHead=title=>"<header class='rc-detail-head'><button class='rc-icon-btn' type='button' data-back aria-label='返回'>"+icon("chevron-left")+"</button><h1>"+title+"</h1><button class='rc-icon-btn' type='button' data-close aria-label='關閉'>"+icon("x")+"</button></header>";
+  function rings(y,m,d){const k=key(y,m,d);if(state.calendar&&state.overrides[k]!==undefined)return state.overrides[k]==="ring";return state.weekdays.includes(new Date(y,m,d).getDay())&&(!state.calendar||k!=="2026-09-25");}
+  function selectedWeekdays(){return state.weekdays.length===7?"每天":state.weekdays.length===0?"未選擇":state.weekdays.join(",")==="1,2,3,4,5"?"每週一至五":state.weekdays.map(d=>"週"+names[d]).join("、");}
+  function alarm(){
+    const adjusted=state.sky==="rain"&&70>=state.threshold;
+    const nextMinutes=state.hour*60+state.minute-(adjusted?state.lead:0);
+    const clock=fmt((Math.floor(nextMinutes/60)+24)%24,(nextMinutes%60+60)%60);
+    const isOff=!rings(2026,8,14);
+    const nextLabel=nextMinutes<0?"今晚 · 9 月 13 日 星期日":"明天 · 9 月 14 日 星期一";
+    const active=state.enabled&&!isOff;
+    const split=clock.split(" ");
+    const time=state.format==="24"?"<strong>"+clock+"</strong>":"<span>"+split[0]+"</span><strong>"+split[1]+"</strong>";
+    let reason=adjusted?"雨天提前 "+state.lead+" 分鐘":"依平常時間響鈴";
+    let sub="平常 "+fmt(state.hour,state.minute);
+    if(state.sky==="unknown"){reason="尚無最新預報，先照平常時間";sub="有新的預報時，再更新雨天安排";}
+    if(isOff){reason="明天依日期設定休息";sub="目前不會安排明天的鬧鐘";}
+    if(!state.enabled){reason="你的時間與偏好都已保留";sub="開啟後才會安排下一次鬧鐘";}
+    return header("鬧鐘","RAINY CLOCK")+
+      "<section class='rc-hero'><div class='rc-topline'><span class='rc-state'>"+icon(state.enabled?"circle-check":"circle-pause")+(state.enabled?"鬧鐘已啟用":"鬧鐘已關閉")+"</span>"+toggle("enabled","啟用鬧鐘")+"</div>"+
+      "<div class='rc-nextdate'>"+(state.enabled?nextLabel:"隨時為你準備好")+"</div>"+
+      "<div class='rc-time "+(!active?"rc-off":"")+"'>"+(active?time:"<strong>"+(state.enabled?"休息，不響鈴":"尚未啟用")+"</strong>")+"</div>"+
+      "<div class='rc-reason'>"+icon(!active?"bell-off":state.sky==="unknown"?"cloud":adjusted?"cloud-rain":"sun")+"<div>"+reason+"<div class='rc-sub'>"+sub+"</div></div></div>"+
+      (active?"<button class='rc-link' data-detail='decision' type='button'>查看判斷依據 "+icon("chevron-right")+"</button>":"")+"</section>"+
+      "<h2>我的鬧鐘</h2><div class='rc-group'>"+row("平常時間",fmt(state.hour,state.minute),"time","clock-3")+row("重複",selectedWeekdays(),"repeat","repeat-2")+"</div>"+
+      "<h2>喚醒方式</h2><div class='rc-group'>"+row("雨天調整","提前 "+state.lead+" 分鐘","rain","cloud-rain")+row("鈴聲與賴床",state.sound+" · "+(state.snooze?state.snoozeMin+" 分鐘":"不賴床"),"sound","audio-lines")+"</div>";
+  }
+  function settings(){
+    return header("設定","依照你的生活調整")+
+      "<h2>日期安排</h2><div class='rc-group'><label class='rc-row'><span class='rc-rowcopy'>依行事曆安排鬧鐘<small>關閉時，只按照每週設定</small></span>"+toggle("calendar","依行事曆安排鬧鐘")+"</label>"+
+      (state.calendar?row("鬧鐘月曆","台灣辦公日曆","calendar","calendar-days")+row("排程與假日資料","查看","coverage","calendar-check-2"):"")+"</div>"+
+      "<h2>日常偏好</h2><div class='rc-group'>"+row("前晚通知",state.preview?fmt(state.previewHour,state.previewMinute):"關閉","preview","moon")+row("時間格式",state.format==="24"?"24 小時制":"上午／下午","format","clock-3")+row("外觀",state.theme==="system"?"跟隨系統":state.theme==="light"?"淺色":"深色","appearance","sun-moon")+row("通知與背景狀態","查看","permissions","bell")+"</div>"+
+      "<h2>更多</h2><div class='rc-group'>"+row("上班與上課","偏好設定","suspension","briefcase-business")+row("廣告與支援","","support","circle-help")+"</div>"+
+      "<p class='rc-note'>Rainy Clock · 設計概念</p>";
+  }
+  function route(){
+    const probability=state.sky==="rain"?["40%","70%","55%"]:state.sky==="clear"?["10%","10%","5%"]:["待更新","待更新","待更新"];
+    return header("路線","你的日常通勤")+
+      "<section class='rc-journey'><div class='rc-stop'>"+icon("house")+"<div><div class='rc-eyebrow'>住家</div><strong>善化區公所</strong><div class='rc-sub'>臺南市善化區</div></div></div><div class='rc-between'>開車 · 約 12 分鐘 · 4.5 公里</div><div class='rc-stop'>"+icon("map-pin")+"<div><div class='rc-eyebrow'>目的地</div><strong>台積電晶圓十八廠</strong><div class='rc-sub'>臺南市安定區</div></div></div></section>"+
+      "<div class='rc-option-grid' style='margin-top:12px'><button class='rc-option' data-detail='route-edit' type='button'>修改路線</button><button class='rc-option' data-detail='map' type='button'>查看地圖</button></div>"+
+      "<h2>明天通勤時的降雨機率</h2><div class='rc-group'>"+["住家附近","途中","目的地附近"].map((s,i)=>"<div class='rc-weatherline'>"+icon(state.sky==="rain"?"cloud-rain":"cloud-sun")+"<span>"+s+"</span><strong>"+probability[i]+"</strong></div>").join("")+"</div>"+
+      "<p class='rc-note'>"+(state.sky==="unknown"?"目前沒有最新預報，鬧鐘先依平常時間安排。":"以路線中最高的降雨機率，判斷是否提前叫醒你。")+"</p>"+
+      "<button class='rc-link' type='button' data-detail='decision'>查看鬧鐘的雨天判斷 "+icon("chevron-right")+"</button>";
+  }
+  function timeEditor(preview){
+    const h=preview?state.previewHour:state.hour,m=preview?state.previewMinute:state.minute;
+    const hs=state.format==="24"?Array.from({length:24},(_,i)=>i):Array.from({length:12},(_,i)=>i+1);
+    return "<div class='rc-inputs'>"+(state.format==="12"?"<label>時段<select data-time='"+(preview?"preview":"normal")+"' data-part='period'><option value='0' "+(h<12?"selected":"")+">上午</option><option value='1' "+(h>=12?"selected":"")+">下午</option></select></label>":"")+
+      "<label>時<select data-time='"+(preview?"preview":"normal")+"' data-part='hour'>"+hs.map(i=>"<option value='"+i+"' "+((state.format==="24"?h:(h%12||12))===i?"selected":"")+">"+String(i).padStart(state.format==="24"?2:1,"0")+"</option>").join("")+"</select></label>"+
+      "<label>分<select data-time='"+(preview?"preview":"normal")+"' data-part='minute'>"+Array.from({length:60},(_,i)=>"<option value='"+i+"' "+(m===i?"selected":"")+">"+String(i).padStart(2,"0")+"</option>").join("")+"</select></label></div><p class='rc-note'>變更會自動儲存，返回即可。</p>";
+  }
+  function calendar(){
+    const first=new Date(state.year,state.month,1).getDay(),last=new Date(state.year,state.month+1,0).getDate(),selected=key(state.year,state.month,state.day),manual=state.overrides[selected];
+    let grid=names.map(n=>"<span class='rc-dow'>"+n+"</span>").join("")+"<span></span>".repeat(first);
+    for(let d=1;d<=last;d++){const k=key(state.year,state.month,d),ring=rings(state.year,state.month,d);grid+="<button type='button' class='rc-day' data-day='"+d+"' data-ring='"+ring+"' data-manual='"+(state.overrides[k]!==undefined)+"' aria-pressed='"+(state.day===d)+"' aria-label='"+state.monthName+" "+d+"日，"+(ring?"響鈴":"不響")+(state.overrides[k]!==undefined?"，手動設定":"")+"'>"+d+"<span>"+(ring?"響":"休")+"</span></button>";}
+    return detailHead("鬧鐘月曆")+"<div class='rc-monthhead'><button type='button' class='rc-icon-btn' data-month='-1' aria-label='上一個月' "+(state.year===2026&&state.month===0?"disabled":"")+">"+icon("chevron-left")+"</button><strong>"+state.year+" 年 "+(state.month+1)+" 月</strong><button type='button' class='rc-icon-btn' data-month='1' aria-label='下一個月' "+(state.year===2027&&state.month===11?"disabled":"")+">"+icon("chevron-right")+"</button></div><div class='rc-calendar'>"+grid+"</div>"+
+      "<div class='rc-calendar-detail'><strong>"+(state.month+1)+" 月 "+state.day+" 日 · "+(rings(state.year,state.month,state.day)?"會響鈴":"不響鈴")+"</strong><p class='rc-sub'>"+(manual?"已手動修改":selected==="2026-09-25"?"中秋節 · 依行事曆休息":"依行事曆與每週設定")+"</p>"+(selected<"2026-09-13"?"<p class='rc-note'>過去的日期只能查看。</p>":"<div class='rc-option-grid'>"+choice("override","auto","依規則",manual===undefined)+choice("override","ring","響鈴",manual==="ring")+choice("override","silent","不響",manual==="silent")+"</div>")+"</div><p class='rc-note'>響／休表示安排，角落圓點表示手動修改。手動設定優先。</p>";
+  }
+  function detail(){
+    const head=detailHead;
+    switch(state.detail){
+      case "time":return head("平常鬧鐘時間")+timeEditor(false);
+      case "repeat":return head("每週響鈴日")+"<h2>點選需要鬧鐘的星期</h2><div class='rc-weekdays'>"+names.map((n,i)=>choice("weekday",i,n,state.weekdays.includes(i))).join("")+"</div><p class='rc-note'>"+(state.calendar?"已開啟行事曆規則，假日與手動日期會優先套用。":"依這裡選取的星期重複響鈴。")+"</p>";
+      case "rain":return head("雨天調整")+"<h2>提前多久叫醒你</h2><div class='rc-option-grid'>"+[10,15,30,45].map(n=>choice("lead",n,n+" 分鐘",state.lead===n)).join("")+"</div><h2>降雨機率達多少時提前</h2><div class='rc-option-grid'>"+[30,50,70].map(n=>choice("threshold",n,n+"%",state.threshold===n)).join("")+"</div><p class='rc-note'>路線降雨機率達 "+state.threshold+"%，就比平常提前 "+state.lead+" 分鐘。</p><h2>依目前示意預報</h2><div class='rc-message'>"+(state.sky==="unknown"?"尚無最新預報，先依平常時間響鈴。":"路線最高降雨機率 "+(state.sky==="rain"?"70%":"10%")+"。"+((state.sky==="rain"&&70>=state.threshold)?"會提前 "+state.lead+" 分鐘。":"維持平常時間。"))+"</div>";
+      case "sound":return head("鈴聲與賴床")+"<h2>鈴聲</h2><div class='rc-option-grid'>"+["AI 人聲","系統鬧鈴"].map(n=>choice("sound",n,n,state.sound===n)).join("")+"</div><h2>賴床</h2><div class='rc-group'><label class='rc-row'><span class='rc-rowcopy'>允許稍後再響</span>"+toggle("snooze","允許賴床")+"</label></div>"+(state.snooze?"<h2>間隔時間</h2><div class='rc-option-grid'>"+[3,5,10].map(n=>choice("snoozeMin",n,n+" 分鐘",state.snoozeMin===n)).join("")+"</div>":"");
+      case "calendar":return calendar();
+      case "appearance":return head("外觀")+"<div class='rc-option-grid'>"+choice("theme","system","跟隨系統",state.theme==="system")+choice("theme","light","淺色",state.theme==="light")+choice("theme","dark","深色",state.theme==="dark")+"</div><p class='rc-note'>淺色採用霧白與淡藍，深色採用深藍灰。兩種外觀維持相同的操作方式。</p>";
+      case "format":return head("時間格式")+"<div class='rc-option-grid'>"+choice("format","12","上午／下午",state.format==="12")+choice("format","24","24 小時制",state.format==="24")+"</div><h2>顯示預覽</h2><div class='rc-group'><div class='rc-row'><span class='rc-rowcopy'>平常鬧鐘</span><span class='rc-rowval'>"+fmt(state.hour,state.minute)+"</span></div><div class='rc-row'><span class='rc-rowcopy'>前晚通知</span><span class='rc-rowval'>"+fmt(state.previewHour,state.previewMinute)+"</span></div></div><p class='rc-note'>只改變顯示格式，響鈴時間不變。</p>";
+      case "preview":return head("前晚通知")+"<div class='rc-group'><label class='rc-row'><span class='rc-rowcopy'>前一晚提醒我<small>告訴你明天的鬧鐘安排</small></span>"+toggle("preview","開啟前晚通知")+"</label></div>"+(state.preview?timeEditor(true):"");
+      case "decision":return head("為什麼這個時間響")+"<div class='rc-message'>"+(state.sky==="unknown"?"目前尚無最新預報，先按照平常時間 "+fmt(state.hour,state.minute)+" 響鈴。更新後才會重新判斷是否提前。":"明天通勤路線的最高降雨機率為 "+(state.sky==="rain"?"70%":"10%")+"，"+((state.sky==="rain"&&70>=state.threshold)?"達到":"未達到")+"你設定的 "+state.threshold+"% 門檻。<br>"+((state.sky==="rain"&&70>=state.threshold)?"因此比平常 "+fmt(state.hour,state.minute)+" 提前 "+state.lead+" 分鐘。":"因此維持平常 "+fmt(state.hour,state.minute)+" 響鈴。"))+"</div><h2>天氣資訊</h2><p class='rc-note'>此提案使用示意預報。正式畫面會保留預報時間、更新時間與 Apple 天氣來源。</p>";
+      case "coverage":return head("排程與假日資料")+"<div class='rc-group'><div class='rc-row'><span class='rc-rowcopy'>行事曆來源</span><span class='rc-rowval'>台灣辦公日曆</span></div><div class='rc-row'><span class='rc-rowcopy'>鬧鐘排程至</span><span class='rc-rowval'>2027 年 9 月 13 日</span></div></div><p class='rc-note rc-warning'>開啟 App 可延長排程。如果在期限前都沒有開啟或更新，期限後的日期不會響鈴。</p><p class='rc-note'>正式頁面保留資料更新、來源連結與期限前提醒。此處日期為設計示意。</p>";
+      case "permissions":return head("通知與背景狀態")+"<div class='rc-group'><div class='rc-row'><span class='rc-rowcopy'>鬧鐘權限</span><span class='rc-rowval'>已允許（示意）</span></div><div class='rc-row'><span class='rc-rowcopy'>前晚通知</span><span class='rc-rowval'>已允許（示意）</span></div><div class='rc-row'><span class='rc-rowcopy'>背景重新整理</span><span class='rc-rowval'>已開啟（示意）</span></div></div><p class='rc-note'>權限正常時，不需要再操作。曾拒絕通知的人，可從這裡前往 iPhone 設定。背景更新由系統安排，開啟也不代表一定會執行。</p>";
+      case "suspension":return head("上班與上課")+"<p class='rc-note rc-warning' style='margin-bottom:18px'>目前只保存偏好。依停班停課公告自動調整鬧鐘，將於後續版本提供。</p><div class='rc-group'><label class='rc-row'><span class='rc-rowcopy'>關注停班公告</span>"+toggle("work","關注停班公告")+"</label><label class='rc-row'><span class='rc-rowcopy'>關注停課公告</span>"+toggle("school","關注停課公告")+"</label></div><h2>來自路線地圖的地區</h2><div class='rc-group'><div class='rc-row'><span class='rc-rowcopy'>住家</span><span class='rc-rowval'>臺南市善化區</span></div><div class='rc-row'><span class='rc-rowcopy'>目的地</span><span class='rc-rowval'>臺南市安定區</span></div></div><p class='rc-note'>要變更地區，請修改路線地址。</p>";
+      case "map":return head("路線地圖")+"<div class='rc-message'>地圖保留目前的 Apple 地圖與路線操作。這份概念稿先呈現地址、通勤摘要與天氣資訊的新排列，未連接即時地圖。</div>";
+      case "route-edit":return head("修改路線")+"<div class='rc-group'><div class='rc-row'><span class='rc-rowcopy'>住家<small>點入搜尋地址</small></span><span class='rc-rowval'>善化區公所</span></div><div class='rc-row'><span class='rc-rowcopy'>目的地<small>點入搜尋地址</small></span><span class='rc-rowval'>台積電晶圓十八廠</span></div><div class='rc-row'><span class='rc-rowcopy'>交通方式</span><span class='rc-rowval'>開車</span></div></div><p class='rc-note'>此處為流程示意。正式版保留地址搜尋與地圖確認；平常不用一直看到輸入框。</p>";
+      case "support":return head("廣告與支援")+"<div class='rc-message'>廣告檢舉、廣告隱私偏好、使用說明與隱私權政策集中在這裡。橫幅本身仍保留檢舉入口。概念稿不會開啟信箱或送出資料。</div>";
+      default:return "";
+    }
+  }
+  function render(){
+    state.monthName=(state.month+1)+"月";
+    root.style.colorScheme=state.theme==="system"?"light dark":state.theme;
+    const sage=state.palette==="sage";
+    root.style.setProperty("--rc-accent",sage?"light-dark(#386f53,#a7d7b6)":"light-dark(#176d80,#82d0df)");
+    root.style.setProperty("--rc-tint",sage?"light-dark(#ecf4e9,#293c31)":"light-dark(#e7f3f6,#213e4a)");
+    root.style.setProperty("--rc-switch",sage?"#477c59":"#197f93");
+    main.innerHTML=(state.detail?detail():state.tab==="alarm"?alarm():state.tab==="settings"?settings():route())+"<div class='rc-save' role='status' aria-live='polite'>"+state.saved+"</div>";
+    root.querySelector("#rc-concept-ad").innerHTML=state.ads?"<div class='rc-ad'>"+icon("rectangle-horizontal")+"廣告版位示意 · 保留橫幅與檢舉入口</div>":"";
+    root.querySelector("#rc-concept-nav").innerHTML=[["alarm","alarm-clock","鬧鐘"],["route","map","路線"],["settings","settings-2","設定"]].map(([tab,i,label])=>"<button class='rc-tab' type='button' data-tab='"+tab+"' "+(state.tab===tab?"aria-current='page'":"")+">"+icon(i)+label+"</button>").join("");
+    if(globalThis.lucide)lucide.createIcons({attrs:{width:18,height:18}});
+  }
+  root.addEventListener("click",event=>{
+    const b=event.target.closest("button");
+    if(!b||!root.contains(b))return;
+    if(b.hasAttribute("data-tab")){state.tab=b.dataset.tab;state.detail=null;state.saved="";}
+    else if(b.hasAttribute("data-detail")){state.detail=b.dataset.detail;state.saved="";}
+    else if(b.hasAttribute("data-back")||b.hasAttribute("data-close")){state.detail=null;state.saved="";}
+    else if(b.hasAttribute("data-day")){state.day=Number(b.dataset.day);state.saved="";}
+    else if(b.hasAttribute("data-month")){const date=new Date(state.year,state.month+Number(b.dataset.month),1);state.month=date.getMonth();state.year=date.getFullYear();state.day=1;state.saved="";}
+    else if(b.hasAttribute("data-set")){
+      const field=b.dataset.set,value=b.dataset.value;
+      if(field==="weekday"){const n=Number(value);state.weekdays=state.weekdays.includes(n)?state.weekdays.filter(d=>d!==n):state.weekdays.concat(n).sort();}
+      else if(field==="override"){const k=key(state.year,state.month,state.day);if(value==="auto")delete state.overrides[k];else state.overrides[k]=value;}
+      else state[field]=["lead","threshold","snoozeMin"].includes(field)?Number(value):value;
+      state.saved="變更已儲存（概念示意）";
+    } else return;
+    render();
+  });
+  root.addEventListener("change",event=>{
+    const input=event.target;
+    if(input.dataset.toggle){state[input.dataset.toggle]=input.checked;state.saved="變更已儲存（概念示意）";}
+    else if(input.dataset.time){
+      const h=input.dataset.time==="preview"?"previewHour":"hour",m=input.dataset.time==="preview"?"previewMinute":"minute",value=Number(input.value);
+      if(input.dataset.part==="period")state[h]=state[h]%12+12*value;
+      else if(input.dataset.part==="minute")state[m]=value;
+      else state[h]=state.format==="24"?value:value%12+12*Math.floor(state[h]/12);
+      state.saved="時間已儲存（概念示意）";
+    }else return;
+    render();
+  });
+  render();
+  if(globalThis.Tweak){
+    const tweak=new Tweak({container:root,onChange:render});
+    tweak.addSelect(state,"theme",{label:"外觀",options:[{label:"跟隨系統",value:"system"},{label:"晨光 · 淺色",value:"light"},{label:"夜色 · 深色",value:"dark"}]});
+    tweak.addSelect(state,"palette",{label:"品牌色",options:[{label:"霧藍（建議）",value:"mist"},{label:"鼠尾草綠",value:"sage"}]});
+    tweak.addSelect(state,"sky",{label:"預報情境",options:[{label:"有雨，提前響鈴",value:"rain"},{label:"無雨，照常響鈴",value:"clear"},{label:"尚未取得預報",value:"unknown"}]});
+    tweak.addToggle(state,"ads",{label:"顯示廣告版位"});
+  }
+})();
+</script>

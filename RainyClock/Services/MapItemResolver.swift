@@ -7,6 +7,7 @@ struct ResolvedMapLocation: Codable, Equatable, Sendable {
     var longitude: Double
     var displayAddress: String?
     var resolution: AddressResolution
+    var districtName: String? = nil
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
@@ -20,6 +21,13 @@ struct ResolvedMapLocation: Codable, Equatable, Sendable {
 enum AddressResolution: Codable, Sendable, Equatable {
     case exact
     case suggested
+}
+
+/// Keep Apple's result identity separate from its optional localized label.
+/// A street label returned by reverse geocoding may omit the original POI name.
+struct MapSearchCandidate: Sendable {
+    var location: ResolvedMapLocation
+    var matchingAddress: String?
 }
 
 actor MapItemResolver {
@@ -62,8 +70,9 @@ actor MapItemResolver {
             }
 
             // Store the address in the language of the suggestion the user picked,
-            // even when the device language differs.
-            let locale = preferredSearchLocale(for: "\(completion.title) \(completion.subtitle)")
+            // even when the device language differs. Apple's Taiwan subtitles are
+            // Chinese even for an English title, so only the title decides.
+            let locale = preferredSearchLocale(for: completion.title)
             var displayAddress = displayAddress(for: mapItem)
             if displayAddress == nil || !scriptMatches(displayAddress!, locale: locale) {
                 let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
@@ -77,11 +86,31 @@ actor MapItemResolver {
                 latitude: coordinate.latitude,
                 longitude: coordinate.longitude,
                 displayAddress: displayAddress,
-                resolution: .exact
+                resolution: .exact,
+                districtName: districtName(for: mapItem.placemark)
             )
         } catch {
             return nil
         }
+    }
+
+    static func districtName(for placemark: CLPlacemark) -> String? {
+        TaiwanMapDistrict.match(countryCode: placemark.isoCountryCode,
+            components: [placemark.administrativeArea, placemark.subAdministrativeArea,
+                         placemark.locality, placemark.subLocality].compactMap { $0 })
+    }
+
+    /// Old saved map points have coordinates but no administrative fields. Enrich
+    /// the same point from Apple Maps, never from a manually entered region.
+    @MainActor
+    static func includingDistrict(_ original: ResolvedMapLocation) async -> ResolvedMapLocation {
+        guard original.districtName == nil else { return original }
+        var result = original
+        let point = CLLocation(latitude: original.latitude, longitude: original.longitude)
+        if let placemark = try? await CLGeocoder().reverseGeocodeLocation(point, preferredLocale: Locale(identifier: "zh_Hant_TW")).first {
+            result.districtName = districtName(for: placemark)
+        }
+        return result
     }
 
     func canResolvePrecisely(_ rawAddress: String) async -> Bool {
@@ -93,6 +122,7 @@ actor MapItemResolver {
         } catch {
         }
 
+        guard !Task.isCancelled else { return false }
         return await googlePlaceResolver.resolve(queries) != nil
     }
 
@@ -101,6 +131,7 @@ actor MapItemResolver {
             return location
         }
 
+        try Task.checkCancellation()
         if let location = await googlePlaceResolver.resolve(queries) {
             return location
         }
@@ -111,6 +142,7 @@ actor MapItemResolver {
     private func resolveWithAppleMaps(queries: [String]) async throws -> ResolvedMapLocation? {
         let strictQueryCount = Self.strictCandidateQueries(for: queries.first ?? "").count
         for (index, query) in queries.enumerated() {
+            try Task.checkCancellation()
             let resolution: AddressResolution = index < strictQueryCount ? .exact : .suggested
             if let location = try await geocode(query, resolution: resolution) {
                 return location
@@ -131,21 +163,25 @@ actor MapItemResolver {
                 in: nil,
                 preferredLocale: Self.preferredSearchLocale(for: query)
             )
-            guard let placemark = placemarks.first(where: { $0.location != nil }),
-                  let coordinate = placemark.location?.coordinate else {
-                return nil
-            }
-            let displayAddress = Self.displayAddress(for: placemark)
-            guard Self.isAcceptableResolvedAddress(query: query, displayAddress: displayAddress) else {
-                return nil
-            }
+            for placemark in placemarks {
+                try Task.checkCancellation()
+                guard let coordinate = placemark.location?.coordinate else { continue }
+                let displayAddress = Self.displayAddress(for: placemark)
+                guard Self.isAcceptableResolvedAddress(query: query, displayAddress: displayAddress) else {
+                    continue
+                }
 
-            return ResolvedMapLocation(
-                latitude: coordinate.latitude,
-                longitude: coordinate.longitude,
-                displayAddress: displayAddress,
-                resolution: resolution
-            )
+                return ResolvedMapLocation(
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude,
+                    displayAddress: displayAddress,
+                    resolution: resolution,
+                    districtName: Self.districtName(for: placemark)
+                )
+            }
+            return nil
+        } catch is CancellationError {
+            throw CancellationError()
         } catch let error as CLError where error.code == .geocodeFoundNoResult || error.code == .geocodeFoundPartialResult || error.code == .network {
             return nil
         } catch {
@@ -161,30 +197,69 @@ actor MapItemResolver {
 
         do {
             let response = try await MKLocalSearch(request: request).start()
-            guard let mapItem = response.mapItems.first(where: { $0.placemark.location != nil }),
-                  let coordinate = mapItem.placemark.location?.coordinate else {
-                return nil
+            let candidates = response.mapItems.compactMap { mapItem -> MapSearchCandidate? in
+                guard let coordinate = mapItem.placemark.location?.coordinate else { return nil }
+                return MapSearchCandidate(
+                    location: ResolvedMapLocation(
+                        latitude: coordinate.latitude,
+                        longitude: coordinate.longitude,
+                        displayAddress: Self.displayAddress(for: mapItem),
+                        resolution: resolution,
+                        districtName: Self.districtName(for: mapItem.placemark)
+                    ),
+                    matchingAddress: [mapItem.name, mapItem.placemark.title]
+                        .compactMap { $0 }.joined(separator: ", ")
+                )
             }
-            let locale = Self.preferredSearchLocale(for: query)
-            var displayAddress = Self.displayAddress(for: mapItem)
-            // MKLocalSearch results follow the device language; when that clashes with
-            // the language the user typed, re-localize via reverse geocoding.
-            if displayAddress == nil || !Self.scriptMatches(displayAddress!, locale: locale) {
-                displayAddress = await localizedDisplayAddress(at: coordinate, locale: locale) ?? displayAddress
+            guard var location = try await Self.resolveSearchCandidates(candidates, query: query, localize: { [self] coordinate, locale in
+                await localizedDisplayAddress(at: coordinate, locale: locale)
+            }) else { return nil }
+            let namesakes = response.mapItems.compactMap { item -> (name: String, coordinate: CLLocationCoordinate2D)? in
+                guard let coordinate = item.placemark.location?.coordinate else { return nil }
+                return (item.name ?? "", coordinate)
             }
-            guard Self.isAcceptableResolvedAddress(query: query, displayAddress: displayAddress) else {
-                return nil
+            // A chain or a common name ("McDonald's", "中山國小") is not one place; the
+            // user has to see which branch is used instead of it being confirmed silently.
+            if Self.hasDistantNamesake(of: location, among: namesakes, query: query) {
+                location.resolution = .suggested
             }
-
-            return ResolvedMapLocation(
-                latitude: coordinate.latitude,
-                longitude: coordinate.longitude,
-                displayAddress: displayAddress,
-                resolution: resolution
-            )
+            return location
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             return nil
         }
+    }
+
+    static func resolveSearchCandidates(
+        _ candidates: [MapSearchCandidate],
+        query: String,
+        localize: @Sendable (CLLocationCoordinate2D, Locale) async -> String?
+    ) async throws -> ResolvedMapLocation? {
+        try Task.checkCancellation()
+        let locale = preferredSearchLocale(for: query)
+        for candidate in candidates {
+            try Task.checkCancellation()
+            let originalMatches = isAcceptableResolvedAddress(query: query, displayAddress: candidate.matchingAddress)
+            var location = candidate.location
+
+            // Check every result in Apple's ranking. A localized first result
+            // must not hide a later result that matches the user's input.
+            if location.displayAddress == nil || !scriptMatches(location.displayAddress!, locale: locale) {
+                let localized = await localize(location.coordinate, locale)
+                try Task.checkCancellation()
+                if isAcceptableResolvedAddress(query: query, displayAddress: localized) {
+                    location.displayAddress = localized
+                    return location
+                }
+            }
+
+            // Localization is presentation only once the original name/address
+            // matches. Do not discard known coordinates if it fails or returns
+            // only a street name without the POI's identifying words.
+            if originalMatches { return location }
+        }
+        return nil
     }
 
     private func localizedDisplayAddress(at coordinate: CLLocationCoordinate2D, locale: Locale) async -> String? {
@@ -690,6 +765,42 @@ actor MapItemResolver {
         }
     }
 
+    /// True when two place names differ only in case, width, diacritics, 臺/台,
+    /// whitespace, apostrophes or the punctuation normalizeForMatching removes.
+    static func isSameAddressText(_ lhs: String, _ rhs: String) -> Bool {
+        let left = sameAddressKey(lhs)
+        return !left.isEmpty && left == sameAddressKey(rhs)
+    }
+
+    /// True when another result carries the typed name but lies farther away than the
+    /// entrances of one station or tower do (Taipei Main Station's TRA/MRT/HSR halls).
+    static func hasDistantNamesake(
+        of chosen: ResolvedMapLocation,
+        among results: [(name: String, coordinate: CLLocationCoordinate2D)],
+        query: String,
+        thresholdMeters: CLLocationDistance = 2_000
+    ) -> Bool {
+        let origin = CLLocation(latitude: chosen.latitude, longitude: chosen.longitude)
+        return results.contains { result in
+            isSameAddressText(result.name, query)
+                && origin.distance(from: CLLocation(latitude: result.coordinate.latitude,
+                                                    longitude: result.coordinate.longitude)) > thresholdMeters
+        }
+    }
+
+    /// A house number pins one building on a street that exists in many towns, so
+    /// the same text can still name the wrong city.
+    static func containsHouseNumber(_ text: String) -> Bool {
+        text.range(of: #"\d+\s*號|(?:\bNo\.?|#)\s*\d+|^\s*\d+\s+\p{L}"#,
+                   options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private static func sameAddressKey(_ value: String) -> String {
+        normalizeForMatching(value.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                                           locale: Locale(identifier: "en_US_POSIX")))
+            .replacingOccurrences(of: "['’]", with: "", options: .regularExpression)
+    }
+
     private static func normalizeForMatching(_ value: String) -> String {
         value
             .replacingOccurrences(of: "臺", with: "台")
@@ -707,5 +818,23 @@ actor MapItemResolver {
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
+    }
+}
+
+/// Validate Apple's structured administrative names against the official catalog.
+/// Ambiguous/missing results stay unknown instead of guessing from a POI name.
+enum TaiwanMapDistrict {
+    private struct District: Decodable { var county: String; var district: String }
+    private static let districts: [District] = {
+        guard let url = Bundle.main.url(forResource: "taiwan-districts", withExtension: "json"),
+              let data = try? Data(contentsOf: url), let values = try? JSONDecoder().decode([District].self, from: data) else { return [] }
+        return values
+    }()
+    static func match(countryCode: String?, components: [String]) -> String? {
+        guard countryCode == "TW" else { return nil }
+        let names = Set(components.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "台", with: "臺") })
+        let matches = districts.filter { names.contains($0.county) && names.contains($0.district) }
+        guard matches.count == 1, let match = matches.first else { return nil }
+        return match.county + match.district
     }
 }

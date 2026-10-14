@@ -30,7 +30,8 @@ final class RewardedAdController: NSObject, ObservableObject {
     @Published private(set) var isReady = false
     @Published private(set) var isPresenting = false
 
-    private var onReward: (() -> Void)?
+    private var loadedAuctionID: String?
+    private var rewardCallbacks: [String: () -> Void] = [:]
 
     #if canImport(IronSource)
     private var ad: LPMRewardedAd?
@@ -38,7 +39,7 @@ final class RewardedAdController: NSObject, ObservableObject {
 
     func load() {
         #if canImport(IronSource)
-        guard let adUnitID = Self.adUnitID, ConsentManager.shared.canRequestAds else {
+        guard let adUnitID = Self.adUnitID, ConsentManager.shared.canRequestMembershipRewards else {
             return
         }
         if ad == nil {
@@ -55,11 +56,15 @@ final class RewardedAdController: NSObject, ObservableObject {
     /// the user was offered.
     func show(onReward: @escaping () -> Void) {
         #if canImport(IronSource)
-        guard let ad, ad.isAdReady(), let controller = Self.topViewController() else {
+        guard ConsentManager.shared.canRequestMembershipRewards,
+              !isPresenting, let auctionID = loadedAuctionID, !auctionID.isEmpty,
+              let ad, ad.isAdReady(), let controller = Self.topViewController() else {
             Self.logger.error("Rewarded ad asked for but not ready")
             return
         }
-        self.onReward = onReward
+        rewardCallbacks[auctionID] = onReward
+        loadedAuctionID = nil
+        isReady = false
         isPresenting = true
         ad.showAd(viewController: controller, placementName: nil)
         #endif
@@ -80,6 +85,7 @@ final class RewardedAdController: NSObject, ObservableObject {
 #if canImport(IronSource)
 extension RewardedAdController: @preconcurrency LPMRewardedAdDelegate {
     func didLoadAd(with adInfo: LPMAdInfo) {
+        loadedAuctionID = adInfo.auctionId
         isReady = true
     }
 
@@ -87,24 +93,30 @@ extension RewardedAdController: @preconcurrency LPMRewardedAdDelegate {
         // No fill is ordinary, not a fault. The caller shows a different message
         // rather than an error.
         isReady = false
+        loadedAuctionID = nil
         Self.logger.info("Rewarded ad unavailable: \(error.localizedDescription, privacy: .public)")
     }
 
     func didDisplayAd(with adInfo: LPMAdInfo) {
         isReady = false
+        // What the report mail says about "the video": recorded at display,
+        // not load, because a loaded-but-never-shown video is not one the user
+        // can have a complaint about.
+        RecentAds.shared.recordRewarded(AdSighting(adInfo))
     }
 
     /// Granting happens here, not in `didCloseAd`. The two callbacks are
     /// asynchronous with no guaranteed ordering, so treating a dismissal as
     /// confirmation would sometimes pay out and sometimes not.
     func didRewardAd(with adInfo: LPMAdInfo, reward: LPMReward) {
-        onReward?()
-        onReward = nil
+        // A late reward for an earlier video cannot consume the callback of a
+        // newer video. Removing first also makes duplicate SDK callbacks inert.
+        rewardCallbacks.removeValue(forKey: adInfo.auctionId)?()
     }
 
     func didFailToDisplayAd(with adInfo: LPMAdInfo, error: any Error) {
         isPresenting = false
-        onReward = nil
+        rewardCallbacks.removeValue(forKey: adInfo.auctionId)
         Self.logger.error("Rewarded ad failed to display: \(error.localizedDescription, privacy: .public)")
         load()
     }
@@ -113,7 +125,9 @@ extension RewardedAdController: @preconcurrency LPMRewardedAdDelegate {
 
     func didCloseAd(with adInfo: LPMAdInfo) {
         isPresenting = false
-        onReward = nil
+        // Reward may arrive after close. Keep its auction-bound callback until
+        // it arrives, even when a later video is shown. Server rewards remain
+        // authoritative even if this view is dismissed before the callback.
         // Have the next one ready before it is asked for.
         load()
     }
