@@ -42,30 +42,31 @@ final class AppUpdateGateTests: XCTestCase {
         XCTAssertFalse(AppUpdateGate.isVersion("beta", newerThan: "1.8.2"))
     }
 
-    func testNewerStoreVersionShowsAndDismissalPersistsForThatVersionOnly() async {
+    func testNewerStoreVersionShowsAndTheCachedListingSurvivesARelaunchWithoutALookup() async {
         let store = store
         let first = gate { Listing(version: "1.8.1", trackViewURL: store) }
+        XCTAssertNil(first.availableUpdate)
         await first.checkAppStoreIfDue()
         XCTAssertEqual(first.availableUpdate?.version, "1.8.1")
         XCTAssertEqual(first.storeURL, store)
-        first.dismissAvailableUpdate()
-        XCTAssertNil(first.availableUpdate)
 
-        // A new process the same day: the cached listing is still dismissed, no lookup.
+        // A new process the same day: the cached listing shows at once, with no lookup.
         let calls = Counter()
         let second = gate { calls.value += 1; return Listing(version: "1.8.1", trackViewURL: store) }
-        XCTAssertNil(second.availableUpdate)
+        XCTAssertEqual(second.availableUpdate?.version, "1.8.1")
         await second.checkAppStoreIfDue()
         XCTAssertEqual(calls.value, 0)
-        XCTAssertNil(second.availableUpdate)
 
-        // The next day a newer version shows again.
+        // The next day's answer replaces it; a listing without a page falls back to the app id.
         let later = gate(now: { Date().addingTimeInterval(AppUpdateGate.lookupInterval + 1) }) {
             Listing(version: "1.8.2", trackViewURL: nil)
         }
         await later.checkAppStoreIfDue()
         XCTAssertEqual(later.availableUpdate?.version, "1.8.2")
         XCTAssertEqual(later.storeURL, AppUpdateGate.fallbackStoreURL)
+
+        // Once the running version catches up, the row goes away by itself.
+        XCTAssertNil(self.gate(version: "1.8.2") { Listing(version: "1.8.2", trackViewURL: nil) }.availableUpdate)
     }
 
     func testSameOrOlderStoreVersionAndFailuresShowNothing() async {

@@ -485,11 +485,10 @@
 /* Alarm card: the same, on a dated plan's morning that no forecast decided: it rings at its normal time. */
 "ux_today_not_checked" = "Weather wasn't checked before today's alarm, so it keeps its usual time.";
 
-/* Update prompts (1.8.2). Soft: the App Store lists a newer version; %@ is that version. */
-"update_available_title" = "Update available";
-"update_available_message" = "Rainy Clock %@ is on the App Store.";
+/* Update prompts (1.8.2). Soft: the version card in Settings › Other; the second row appears while the App Store lists a newer version, %@. */
+"ux_version" = "Version";
+"update_available_message" = "Version %@ available";
 "update_available_action" = "Update";
-"update_dismiss" = "Dismiss";
 /* Hard: the service no longer supports this build. Alarms already set are untouched, and the screen says so. */
 "update_required_title" = "Please update Rainy Clock";
 "update_required_message" = "This version is no longer supported. Update to the latest version from the App Store to keep using Rainy Clock. Alarms you have already set still ring as usual.";

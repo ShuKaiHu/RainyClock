@@ -1,56 +1,45 @@
 import SwiftUI
 
-/// The soft layer: a strip above the tabs while the App Store lists a newer version.
-/// Dismissing hides that version for good (`AppUpdateGate.dismissAvailableUpdate`).
-struct UpdateAvailableBanner: View {
-    let listing: AppUpdateGate.StoreListing
+/// The soft layer: the version card at the top of Settings › Other, above the membership
+/// row (owner, 2026-10-15: no prompts on the home screen). The first row always names the
+/// running version; while the App Store lists a newer one, a second row offers it.
+struct AppVersionCard: View {
+    let update: AppUpdateGate.StoreListing?
     let storeURL: URL
-    let dismiss: () -> Void
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "arrow.down.circle.fill")
-                .font(.title3)
-                .foregroundStyle(Color.accentColor)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("update_available_title")
-                    .font(.subheadline.weight(.semibold))
-                Text(String.localizedStringWithFormat(String(localized: "update_available_message"), listing.version))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            HStack(spacing: 11) {
+                Image(systemName: "info.circle").foregroundStyle(Color.accentColor).frame(width: 20)
+                Text("ux_version").foregroundStyle(.primary)
+                Spacer(minLength: 8)
+                Text(verbatim: "\(AppBuildInfo.version) (\(AppBuildInfo.buildString))")
+                    .foregroundStyle(.secondary).lineLimit(1)
             }
-            .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-            Button {
-                openURL(storeURL)
-            } label: {
-                Text("update_available_action")
-                    .font(.subheadline.weight(.semibold))
+            .font(.body).frame(minHeight: 28).padding(.horizontal, 16).padding(.vertical, 12)
+            if let update {
+                Divider().padding(.leading, 48)
+                HStack(spacing: 11) {
+                    Image(systemName: "arrow.down.circle.fill").foregroundStyle(Color.accentColor).frame(width: 20)
+                    Text(String.localizedStringWithFormat(String(localized: "update_available_message"), update.version))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    Button {
+                        openURL(storeURL)
+                    } label: {
+                        Text("update_available_action").font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("updateAvailableButton")
+                }
+                .font(.body).frame(minHeight: 28).padding(.horizontal, 16).padding(.vertical, 12)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("update_dismiss")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.12), lineWidth: 1))
-        .padding(.horizontal, 16)
-        .padding(.top, 6)
-        .padding(.bottom, 4)
-        .background(Color.appBackground)
-        .accessibilityIdentifier("updateAvailableBanner")
+        .background(Color.appCardBackground, in: RoundedRectangle(cornerRadius: 22))
+        .accessibilityIdentifier("appVersionCard")
     }
 }
 

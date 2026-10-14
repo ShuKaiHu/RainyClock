@@ -129,6 +129,7 @@ final class NotificationAccessState: ObservableObject {
 struct SettingsTabView: View {
     @ObservedObject var viewModel: AlarmViewModel
     @ObservedObject private var membership = MembershipManager.shared
+    @ObservedObject private var updateGate = AppUpdateGate.shared
     var showsWeatherAttribution = false
     @Binding var request: SettingsNavigationRequest?
     @State private var category: SettingsCategory = .time
@@ -393,6 +394,9 @@ struct SettingsTabView: View {
         ScrollViewReader { proxy in
           ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                // The running version, and the App Store's newer one when there is one
+                // (owner, 2026-10-15: here, not on the home screen).
+                AppVersionCard(update: updateGate.availableUpdate, storeURL: updateGate.storeURL)
                 NavigationLink(value: Detail.membership) {
                     SettingsEntryRow(title: "membership_title", icon: "person.crop.circle",
                         value: membership.entitlements.lifetimeActive

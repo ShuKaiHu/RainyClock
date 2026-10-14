@@ -349,9 +349,10 @@ Last updated: 2026-10-15.
   - **2026-10-15：1.8.2（43）再加一項——兩層「版本過舊」提醒／阻擋**（擁有者：1.8.1 上架後還有人用 1.8.0（40）或更舊，問能不能
     強迫更新。Apple 沒有強制更新機制，已經在外面的舊版現在改不了；這兩層是替「下一次」準備的開關，1.8.2 起才看得懂）。
     (1) **軟提示（不靠後端）：** App 回到前景時最多一天查一次 `itunes.apple.com/lookup?bundleId=…&country=tw`（`AppStoreLookup`，15 秒
-    逾時），`results[0].version` 與 `CFBundleShortVersionString` 做語意比較（1.9 > 1.8.2、1.8.0 == 1.8、非數字段當 0），商店較新就在兩個
-    分頁上方顯示可關閉的「有新版本可用／雨天鬧鐘 x.y.z 已在 App Store 上架」橫幅（`UpdateAvailableBanner`，`safeAreaInset(.top)`），
-    「更新」用 `trackViewUrl` 開 App Store 頁。關掉後同一版本不再出現（UserDefaults `appUpdateDismissedVersion`）；查詢結果快取
+    逾時），`results[0].version` 與 `CFBundleShortVersionString` 做語意比較（1.9 > 1.8.2、1.8.0 == 1.8、非數字段當 0）。顯示在
+    **設定 › 其他最上方、會員方案那張卡上面的「版本」卡**（`AppVersionCard`）：第一列永遠是「版本 1.8.2 (43)」，商店較新時多一列
+    「新版本 x.y.z 已上架」＋「更新」按鈕（`trackViewUrl` 開 App Store 頁）。**擁有者 10-15：「我不喜歡把提示放到首頁」**——初版是首頁
+    兩個分頁上方的可關閉橫幅，已整個拿掉，連同「關掉後不再出現」的邏輯；版本卡是被動的，裝了新版那列自己消失。查詢結果快取
     （`appUpdateStoreListing`），一天算從「查過」起、失敗也算，所以離線時不會每次前景都打；失敗一律靜默。測試時不查。
     (2) **硬門檻（後端可調）：** `MembershipClient.makeRequest` 每個會員請求多送 `X-RC-App-Build`（CFBundleVersion）與
     `X-RC-App-Version`（CFBundleShortVersionString），跟環境 header 一樣不能被呼叫端的 headers 參數覆蓋；會員服務的 `/session` 與
@@ -370,12 +371,11 @@ Last updated: 2026-10-15.
     失敗也不要默默變成擋全部或擋沒人。門檻只對 1.8.2（43）起的 App 有效，1.8.1 以前收到欄位也沒反應。
     測試：`weather-proxy` 194 項（191 通過、0 失敗、3 項照例略過，新增 3：header 透傳到 handler、`/session` 與 `/status` 回欄位、沒設是 0
     ／壞值啟動失敗／log 只記純數字）；Swift 新增 `AppUpdateGateTests` 8 項全過（iOS 27 模擬器、Membership Local scheme：版本比較、
-    一天一次含失敗、關掉持久且下一版再出現、門檻 0 解除、build 0 不擋、lookup 解析、每個請求帶 build／version header 且不可偽造）。
+    一天一次含失敗、快取跨重開且追上版本後自動消失、門檻 0 解除、build 0 不擋、lookup 解析、每個請求帶 build／version header 且不可偽造）。
     模擬器驗證（iPhone 17 Pro iOS 26.5，空白 LevelPlay key；Debug 專用啟動參數 `-update-check-store-version 9.9.9` 代替商店答案並略過
-    一天一次、`-update-check-minimum-build 999` 代替服務答案、`0` 清掉）：繁中橫幅「有新版本可用／雨天鬧鐘 9.9.9 已在 App Store 上架」
-    在「鬧鐘」標題列上方，鬧鐘與設定兩個分頁都有；按 × 消失、重開不再出現；改 9.9.10 英文再出現（"Update available"，初版 "A new
-    version is available" 擠成兩行，已改短）；門檻 999 繁中／英文全螢幕「請更新雨天鬧鐘／前往 App Store／1.8.2 (43)」；門檻 0 主畫面回來。
-    初版用 `safeAreaInset(.top)` 掛橫幅，TabView 的 UIKit 容器不轉傳這個 inset，橫幅蓋住了標題列；改成和 TabView 同一個 VStack 才會把內容往下推。
+    一天一次、`-update-check-minimum-build 999` 代替服務答案、`0` 清掉）：設定 › 其他的版本卡繁中／英文（「版本 1.8.2 (43)」＋
+    「新版本 9.9.9 已上架／更新」）；沒有新版時只有一列；門檻 999 繁中／英文全螢幕「請更新雨天鬧鐘／前往 App Store／1.8.2 (43)」；門檻 0
+    主畫面回來。（橫幅時期學到的一件事留著：TabView 的 UIKit 容器不轉傳 `safeAreaInset(.top)`，要在上面放東西得和 TabView 同一個 VStack。）
   - **2026-10-15：1.8.2（43）再加一項——「更新前設定的鬧鐘」提醒不再指向已不存在的按鈕**（10-03 查證就指出、10-15 改網站時仍沒改
     的那則）。`alarmkit_reschedule_notice` 兩個語系從「按一次『排程智慧鬧鐘』即可切換」改成「按『重試』即可切換到新機制」／"Tap Retry
     to switch it to the new system"——它顯示在鬧鐘頁的橘色 banner（`ContentView.swift` 的 `scheduleIssue` 列），旁邊的按鈕是

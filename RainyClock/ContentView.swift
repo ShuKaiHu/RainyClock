@@ -21,20 +21,30 @@ struct ContentView: View {
     var showsWeatherAttribution = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // A newer version on the App Store: one strip above both tabs, until dismissed
-            // (that version for good) or the update is installed. A sibling of the tabs, not
-            // a top `safeAreaInset`: the tabs' UIKit host does not pass that inset on, and
-            // the strip then covered the title row instead of pushing it down.
-            if let listing = updateGate.availableUpdate, !updateGate.requiresUpdate {
-                UpdateAvailableBanner(listing: listing, storeURL: updateGate.storeURL) {
-                    updateGate.dismissAvailableUpdate()
-                }
-                .transition(.move(edge: .top).combined(with: .opacity))
+        TabView(selection: $selectedTab) {
+            AlarmHomeView(viewModel: viewModel, showsWeatherAttribution: showsWeatherAttribution) { category, anchor in
+                settingsRequest = SettingsNavigationRequest(category: category, anchor: anchor)
+                selectedTab = .settings
             }
-            tabs
+                .tabItem { Label("tab_alarm", systemImage: "alarm") }
+                .tag(AppTab.alarm)
+
+            SettingsTabView(viewModel: viewModel, showsWeatherAttribution: showsWeatherAttribution,
+                            request: $settingsRequest)
+                .tabItem { Label("tab_settings", systemImage: "gearshape") }
+                .tag(AppTab.settings)
         }
-        .animation(.easeInOut(duration: 0.25), value: updateGate.availableUpdate)
+        // Each tab owns a NavigationStack. Page-style hosting can leave one of
+        // those stacks off-screen after a push/pop or a keyboard transition.
+        // Use normal tab containment while keeping our existing bottom controls.
+        .tabViewStyle(.automatic)
+        .toolbar(.hidden, for: .tabBar)
+        // The small widget's tap (`TomorrowWidgetSnapshot.alarmTabURL`).
+        .onOpenURL { url in
+            if url.scheme == TomorrowWidgetSnapshot.alarmTabURL.scheme, url.host == TomorrowWidgetSnapshot.alarmTabURL.host {
+                selectedTab = .alarm
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomControls
         }
@@ -83,33 +93,6 @@ struct ContentView: View {
             Task {
                 await viewModel.loadMembershipEntitlements()
                 await viewModel.refreshScheduledAlarmIfWeatherIsStale()
-            }
-        }
-    }
-
-    private var tabs: some View {
-        TabView(selection: $selectedTab) {
-            AlarmHomeView(viewModel: viewModel, showsWeatherAttribution: showsWeatherAttribution) { category, anchor in
-                settingsRequest = SettingsNavigationRequest(category: category, anchor: anchor)
-                selectedTab = .settings
-            }
-                .tabItem { Label("tab_alarm", systemImage: "alarm") }
-                .tag(AppTab.alarm)
-
-            SettingsTabView(viewModel: viewModel, showsWeatherAttribution: showsWeatherAttribution,
-                            request: $settingsRequest)
-                .tabItem { Label("tab_settings", systemImage: "gearshape") }
-                .tag(AppTab.settings)
-        }
-        // Each tab owns a NavigationStack. Page-style hosting can leave one of
-        // those stacks off-screen after a push/pop or a keyboard transition.
-        // Use normal tab containment while keeping our existing bottom controls.
-        .tabViewStyle(.automatic)
-        .toolbar(.hidden, for: .tabBar)
-        // The small widget's tap (`TomorrowWidgetSnapshot.alarmTabURL`).
-        .onOpenURL { url in
-            if url.scheme == TomorrowWidgetSnapshot.alarmTabURL.scheme, url.host == TomorrowWidgetSnapshot.alarmTabURL.host {
-                selectedTab = .alarm
             }
         }
     }

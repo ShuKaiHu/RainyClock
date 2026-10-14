@@ -15,9 +15,9 @@ enum AppBuildInfo {
 /// build's alarms still ring.
 ///
 /// - Soft: the App Store's current version, looked up at most once a day as the app comes
-///   to the foreground. Newer than the running one → `availableUpdate`, a dismissible
-///   banner; dismissing hides that version for good. A failed lookup is silent and changes
-///   nothing.
+///   to the foreground. Newer than the running one → `availableUpdate`, an update row on
+///   the version card in Settings › Other (owner, 2026-10-15: no prompts on the home
+///   screen). A failed lookup is silent and changes nothing.
 /// - Hard: `minimumSupportedBuild`, which the membership service answers on its session and
 ///   status responses (`MembershipClient` hands every value here). The running build below
 ///   it → `requiresUpdate`, a full-screen view over the main UI. 0 blocks nothing, and a
@@ -40,8 +40,7 @@ final class AppUpdateGate: ObservableObject {
         var trackViewURL: URL?
     }
 
-    /// The App Store's listing, when it is newer than the running version and the user has
-    /// not dismissed that version.
+    /// The App Store's listing, when it is newer than the running version.
     @Published private(set) var availableUpdate: StoreListing?
     /// The running build is below the service's minimum.
     @Published private(set) var requiresUpdate = false
@@ -56,7 +55,6 @@ final class AppUpdateGate: ObservableObject {
     private enum Keys {
         static let listing = "appUpdateStoreListing"
         static let checkedAt = "appUpdateCheckedAt"
-        static let dismissedVersion = "appUpdateDismissedVersion"
         static let minimumSupportedBuild = "appUpdateMinimumSupportedBuild"
     }
 
@@ -67,7 +65,6 @@ final class AppUpdateGate: ObservableObject {
     private let now: () -> Date
     private let bypassesInterval: Bool
     private var listing: StoreListing?
-    private var dismissedVersion: String?
     private var isLookingUp = false
 
     init(defaults: UserDefaults = .standard, currentVersion: String = AppBuildInfo.version,
@@ -81,14 +78,13 @@ final class AppUpdateGate: ObservableObject {
         self.now = now
         self.bypassesInterval = bypassesInterval
         listing = defaults.data(forKey: Keys.listing).flatMap { try? JSONDecoder().decode(StoreListing.self, from: $0) }
-        dismissedVersion = defaults.string(forKey: Keys.dismissedVersion)
         minimumSupportedBuild = max(0, defaults.integer(forKey: Keys.minimumSupportedBuild))
         publish()
     }
 
     /// The App Store lookup, at most once a day; foreground activation calls it. The day
     /// counts from the attempt, not the answer: an unreachable store is not asked again on
-    /// every activation, and the banner keeps showing the last answer meanwhile.
+    /// every activation, and the card keeps showing the last answer meanwhile.
     func checkAppStoreIfDue() async {
         guard !isLookingUp else { return }
         if !bypassesInterval, let checkedAt = defaults.object(forKey: Keys.checkedAt) as? Date,
@@ -102,14 +98,6 @@ final class AppUpdateGate: ObservableObject {
         publish()
     }
 
-    /// Hides the current store version until a newer one is listed.
-    func dismissAvailableUpdate() {
-        guard let version = availableUpdate?.version else { return }
-        dismissedVersion = version
-        defaults.set(version, forKey: Keys.dismissedVersion)
-        publish()
-    }
-
     /// Every answer counts, 0 included: that is how the owner lifts a block.
     func record(minimumSupportedBuild value: Int) {
         guard value >= 0, value != minimumSupportedBuild else { return }
@@ -120,8 +108,7 @@ final class AppUpdateGate: ObservableObject {
 
     private func publish() {
         let update: StoreListing? = {
-            guard let listing, listing.version != dismissedVersion,
-                  Self.isVersion(listing.version, newerThan: currentVersion) else { return nil }
+            guard let listing, Self.isVersion(listing.version, newerThan: currentVersion) else { return nil }
             return listing
         }()
         if update != availableUpdate { availableUpdate = update }
