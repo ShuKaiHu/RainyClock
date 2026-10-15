@@ -28,32 +28,79 @@ After approval: make sure each page is visible; judge the set as a whole (per-pa
 re-check keyword assignments whenever a new version changes the keyword field. Later: themed search-results assets (batch 2),
 a scooter page and a US commuter page (need new real captures), a 春節 version of P2 in January.
 
-## 1.8.2 (43) — What's New — DRAFT, 2026-10-12 (not pasted)
+## Featuring nomination — SUBMITTED 2026-10-15 (late evening, Asia/Taipei)
+
+Apple retired the old "promote your app" web form: `developer.apple.com/contact/app-store/promote/` redirects to
+[Getting featured](https://developer.apple.com/app-store/getting-featured/), which points at **Featuring Nominations in
+App Store Connect**: the app → 發佈 → 精選 → 推選項目. The wizard asks for a name (60), a type (new content / 強化版 App /
+app launch), a description (1000 characters) and an expected publish date (it suggests three weeks' notice); the saved draft
+then takes platforms, territories, localizations, a 500-character 實用的詳細資訊 field and a 補充資料 link.
+
+A draft exists (ID `77d2e8da-364e-43af-8834-3a0761b1bdaa`), created and then rewritten through Claude in Chrome on the owner's
+session after the umbrella reminder was rolled back: 強化版 App, publish date 2026-11-09 (the form suggests three weeks'
+notice; an earlier 1.8.2 release does not hurt), iOS (iPhone), all territories, 2 localizations,
+`shukaihu.github.io/RainyClock/` as the link. **Submitted** the same night on the owner's instruction (「寫完就 submit 吧」),
+after the concerns were stated: 1.8.2 must be live by 2026-11-09 or the editors find nothing new; the pitch leans on the
+1.8.0/1.8.1 features that are already live, with the rainy season as the hook; the description is Chinese-only while the
+territories are "all", so non-Chinese editorial teams will skip it. App Store Connect confirmed 「已成功提交 1 個新推選項目」.
+Apple answers only if it features the app (an email to Admin/App Manager/Marketing roles asking for promotional assets).
+The text as submitted:
+
+| Field | Value |
+| --- | --- |
+| Name (60) | 雨天鬧鐘 1.8.2：雨季通勤鬧鐘，颱風停班停課自動略過 |
+| Type | 強化版 App |
+| Publish date | 2026-11-09 GMT+8 |
+
+**說明（1000 字上限）**
+
+```
+雨天鬧鐘是為機車與通勤族做的「看天氣起床」鬧鐘。設定住家、公司與平常的起床時間後，它用 Apple 地圖算出通勤路線，用 Apple 天氣查路線上每一段（不只住家和公司）在出門時段的降雨機率；達到你設的門檻，鬧鐘就依你設的分鐘數提早響，讓你有時間穿雨衣或改搭大眾運輸；晴天照原定時間響。鬧鐘以 AlarmKit 排程（iOS 26 以上），穿透靜音與專注模式、全螢幕響鈴，賴床倒數顯示在鎖定畫面與動態島。
+
+1.8 系列的更新：颱風、天災停班停課時自動略過鬧鐘（限台灣，訂閱或買斷）——縣市政府宣布你住家或公司所在行政區停班停課，App 依 NCDR 正式公告判斷，不用半夜醒來看新聞，App 內有行政區地圖；主畫面與鎖定畫面的「下次鬧鐘」小工具，明天幾點響、會不會因雨提早，一眼看到；前一晚預告通知；響鈴前沒能重新確認天氣時，鬧鐘頁和小工具會誠實註明。最新的 1.8.2 補上每個鈴聲的試聽鍵、稍後提醒按鈕寫出分鐘數，以及 AI 人聲鬧鈴的幾個修正。
+
+為什麼是現在：北部東北季風雨季從十月中到隔年二月，是通勤族最常被雨困住的季節；梅雨季與颱風季是另外兩個高峰。不需要帳號，地址只送往 Apple 地圖與 Apple 天氣，不經過我們的伺服器。繁體中文與英文介面，支援動態字體與 VoiceOver，小工具與通知都有獨立的朗讀文字。獨立開發，一人維護。
+```
+
+**實用的詳細資訊（500 字上限）**
+
+```
+與眾不同之處：一般天氣 App 只回答「今天會不會下雨」，雨天鬧鐘回答的是「我該幾點起床」。它沿整條通勤路線取樣（住家、公司與路程中間點），在出門那個時段判斷，再把結果直接變成鬧鐘的時間；前一晚先預告，早上再用當天預報重新確認，沒能確認時會說。颱風停班停課直接讀 NCDR 的正式公告，依住家與公司所在行政區判斷，不需要使用者半夜查新聞。隱私：不需要帳號，地址只交給 Apple 地圖與 Apple 天氣，不經過我們的伺服器。無障礙：小工具、通知與鬧鐘頁都有獨立的 VoiceOver 文字，支援動態字體。由一位台灣獨立開發者製作與維護，功能來自自己每天騎機車通勤的需要。
+```
+
+The 1.8.2 line in the description promises the sound-preview buttons, the snooze minutes and the AI-voice fixes already
+recorded in the 1.8.2 What's New draft below; if 1.8.2 changes scope, change that sentence too.
+
+## 1.8.2 (43) — What's New — PASTED and SUBMITTED 2026-10-16 03:18 Asia/Taipei (archived from `0a761b5`)
 
 > Four owner reports: a play button on every alarm sound and the AI Voice draft reverting after a rewarded video
 > (2026-10-12); the lock-screen alarm showing raw keys such as "alarm_snooze_button" when it rang after an App Store
 > update before the app was opened, and the snooze button naming the user's snooze length — "再睡 9 分鐘" instead of
-> "再睡一下" (both 2026-10-13). Details and the verification are in STATUS-IOS.md. Review note: start
-> from appstore-review-notes-1.8.1-42.txt with line 1 changed and a CHANGES SINCE 1.8.1 (42) sentence (alarm alert text
-> now carries its resolved wording; on first launch the existing AlarmKit alarms are registered again once). None of
-> the four touches permissions, endpoints or data.
+> "再睡一下" (both 2026-10-13); plus, from 2026-10-15, the version card in Settings › Other (the App Store "new version"
+> row and the service-set minimum build). Details and the verification are in STATUS-IOS.md. Review note:
+> [appstore-review-notes-1.8.2-43.txt](appstore-review-notes-1.8.2-43.txt) — the 1.8.1 (42) file with line 1 changed and the
+> CHANGES SINCE paragraph rewritten for 1.8.2 (3,991 characters; the widget test sentence was shortened to stay under 4,000).
+> No new permission or data; the version card calls Apple's public iTunes lookup API, and membership requests carry the app
+> build/version headers.
 
-### What's New — English (DRAFT)
+### What's New — English
 
 ```
 • Alarm sounds: every sound in the list now has its own play button, so you can preview each one without choosing it.
 • AI Voice: the words you typed are kept after you watch a video for another generation.
 • Alarm screen: the snooze button now shows your snooze length, such as "Snooze 9 min".
 • Alarm screen: after an app update, a ringing alarm could show code-like text such as "alarm_snooze_button". Fixed. Open Rainy Clock once after updating so the alarms you already set pick up both changes.
+• Settings › Other: a version card shows which version you have and, when a newer one is on the App Store, an Update button.
 ```
 
-### What's New — 繁體中文（草稿）
+### What's New — 繁體中文
 
 ```
 ・鬧鈴聲：清單裡每個鈴聲旁都有播放鍵，不用先選取就能試聽。
 ・AI 人聲：看完影片取得生成次數後，剛輸入的文字不會再被清掉。
 ・鬧鐘畫面：稍後提醒按鈕會寫出你設定的分鐘數，例如「再睡 9 分鐘」。
 ・鬧鐘畫面：App 更新後，響鈴時可能出現「alarm_snooze_button」這類像程式碼的英文字。已修正；更新後請打開雨天鬧鐘一次，已設定的鬧鐘就會換上這兩項改動。
+・設定 › 其他：新增「版本」卡，顯示目前版本；App Store 有新版本時會多一列「更新」。
 ```
 
 ## 1.8.1 — Store listing update (ASO) — PASTED to 1.8.1, 2026-10-10; SUBMITTED with 1.8.1 (42) at 18:26

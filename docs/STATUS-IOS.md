@@ -346,6 +346,35 @@ Last updated: 2026-10-15.
     取消訂閱），並把 10-03 查證指出的「升級 iOS 26 要重新排程一次」改成實際的橘色提醒＋「重試」按鈕（`ContentView.swift` 的
     `scheduleIssue` 列）。App 內 `alarmkit_reschedule_notice` 仍寫「排程智慧鬧鐘」，沒改（同日稍後已改，見下一項）。本機 http.server 預覽過桌面與 375 px 兩種
     語言。`8f8dd61`（`ios/main`）與 `b8e3979`（`main`，已 push）；GitHub Pages 從 `main` 發佈。
+  - **2026-10-16 03:18（台灣）：1.8.2（43）已送審，ASC「正在等待審查」。** 送審項目只有 iOS App 1.8.2（43）一個（沒有 IAP），
+    手動發佈，沒有出口合規提問，ASC 回「已提交 1 個項目」並說審查最長 48 小時。Build 43 於 03:07 上傳、約 03:16 處理完
+    （TestFlight「準備提交」）。通過後由擁有者手動發佈；推薦提名寫的預計上架日是 11-09。打包與上傳的細節見下一點。
+  - **2026-10-16 凌晨：1.8.2（43）已打包、上傳 App Store Connect，版本頁已建好、What's New 與審查備註已貼，等 build 處理完選取後送審**
+    （擁有者：「1.8.2 準備好也上傳審核吧，趕上時間」——推薦提名寫的是 11-09 上架）。從 `0a761b5`（版本卡搬到設定 › 其他，另一個 session
+    01:50 落地）打包：全套測試（簽章 Local scheme、iOS 26.5 B521C391、略過 `MembershipStoreKitTests`）**669 通過、0 失敗、4 略過**
+    （`LocalNotificationSchedulerSystemTests`，照例）。`build/RainyClock-1.8.2-43.xcarchive`（`CreationDate` 03:03 台灣，Xcode 27.0，
+    `** ARCHIVE SUCCEEDED **`）封存檢查：App 與兩個 extension 都是 1.8.2（43）、`iphoneos27.0`；`LevelPlayAppKey` 有值；
+    `MembershipServiceURL`／`DayOffServiceURL` 正式網址、`GooglePlacesAPIKey` 空；App Attest `production`、App Group 在
+    （archive 裡 `aps-environment` 仍是 development，匯出 App Store 簽章時才換，和 1.8.0 時相同）；只有 `IronSource.framework`、
+    沒有 `.storekit`、三個隱私清單、三個 BG task id、App 執行檔有 `ISAES256EncryptWithKey`（`-ObjC` 在）與 `rainyclock://alarm`、
+    widget 沒有 `widget-demo`。`xcodebuild -exportArchive`（`ExportOptions-AppStoreUpload.plist`）**03:07:22 `Upload succeeded`、
+    `** EXPORT SUCCEEDED **`**，只有 IronSource 沒有 dSYM 的既有 warning。日誌在 session scratchpad `archive-182-43.log`、`upload-182-43.log`。
+    ASC（Claude in Chrome，擁有者的登入）：**新增版本 1.8.2**（「準備提交」），繁中與英文 What's New 各 5 點（`appstore-metadata.md` 的
+    1.8.2 定稿，比 10-12 草稿多一點版本卡），審查備註整份換成 [`appstore-review-notes-1.8.2-43.txt`](appstore-review-notes-1.8.2-43.txt)
+    （3,991 字；ASC 剩 10 字元；1.8.1 的檔案改第一行、CHANGES SINCE 段重寫、widget 測試句縮短），手動發佈，已儲存。備註欄 ASC
+    會預填上一版的文字，`form_input` 第一次沒蓋過去，清空後再貼才成功——下次留意。（build 43 之後已選取並送審，見上一點。）
+  - **2026-10-15 深夜：「帶傘提醒」做了又全部撤掉，1.8.2 不含它。** 起因是同日的 DAU 討論（LevelPlay 的 DAU 只數廣告 SDK 啟動後的
+    裝置，而正式版的 SDK 要等 ATT 有答案、且會員服務回傳 reward identity 才啟動，所以漏掉所有會員服務連線失敗、ATT 沒答完的人，
+    也和 1.7.1 之前不可比；流量面每週約 96 次曝光、約 3 次下載；產品面「設好就不必再開」。之後看 ASC 活躍裝置，LevelPlay 只看廣告）。
+    擁有者先採納「鬧鐘響時、只在上班或下班回家路線達降雨門檻的早上，發一則帶傘通知，並把響鈴標題換成『起床了，記得帶傘』」，
+    實作完成、全套 689 通過、模擬器看過設定頁後，擁有者決定不要這個功能（「我不喜歡帶傘提醒，刪掉」）。沒有 commit 過，
+    `git checkout` 還原 11 個程式／測試／字串檔與 3 份文件；理由與取捨留在 `PRODUCT_DECISIONS.md` 同日一條。
+    **連帶：** App Store 推薦提名已依擁有者指示在 ASC 建了**草稿**（發佈 → 精選 → 推選項目，ID `77d2e8da-364e-43af-8834-3a0761b1bdaa`，
+    強化版 App、預計 2026-11-09），撤掉功能後擁有者要求重寫文案：名稱改「雨天鬧鐘 1.8.2：雨季通勤鬧鐘，颱風停班停課自動略過」，
+    說明與實用資訊改寫成 1.8 系列既有功能＋1.8.2 的小修（全文在 `appstore-metadata.md` 最上方）。擁有者看過後說「寫完就 submit」，
+    **已提交**（ASC 回「已成功提交 1 個新推選項目」）。提醒過的三點：1.8.2 要在 11-09 前上架；主打內容其實 10 月初就上線了，靠的是
+    雨季這個時間點；說明只有中文、地區選全部，非中文團隊會略過。Apple 只在決定精選時才會來信要宣傳素材。舊的 promote 表單已改成
+    這個 ASC 流程。
   - **2026-10-15：1.8.2（43）再加一項——兩層「版本過舊」提醒／阻擋**（擁有者：1.8.1 上架後還有人用 1.8.0（40）或更舊，問能不能
     強迫更新。Apple 沒有強制更新機制，已經在外面的舊版現在改不了；這兩層是替「下一次」準備的開關，1.8.2 起才看得懂）。
     (1) **軟提示（不靠後端）：** App 回到前景時最多一天查一次 `itunes.apple.com/lookup?bundleId=…&country=tw`（`AppStoreLookup`，15 秒
