@@ -11,7 +11,7 @@ sessions writing over each other. Anything true of both platforms goes in `docs/
 - Store copy, release notes, review notes → `docs/appstore-metadata.md`
 - Product reasoning and rejected alternatives (both platforms) → `docs/PRODUCT_DECISIONS.md`
 
-Last updated: 2026-10-15.
+Last updated: 2026-10-16.
 
 > **1.7.1（37）已上架：2026-09-26 05:33 UTC（台灣 13:33）**，台灣與美國商店的 App Store lookup 都回 1.7.1。
 > 這是 1.7.0（34）退審後的重送版，包含會員方案（月訂閱、買斷）、LevelPlay 廣告、地址建議清單修復。
@@ -336,6 +336,19 @@ Last updated: 2026-10-15.
     在對話中擬好，由擁有者送出）。**19:54 繁中產品頁的標題大圖出現了**（上架約 27 小時後）→ 只是 Apple 端延遲，不用回報。
     搜尋結果那張截圖本 App 顯示「打開」（已安裝），所以沒有圖是 App Store 對已安裝 App 的固定行為，不能拿來判斷；要用沒裝過的
     裝置或帳號看。下次新素材上線，至少等一天再判斷有沒有生效。
+  - **2026-10-16：開發者網站第二版——寬螢幕標題圖、Apple 式捲動動畫、1.8.2 內容，已發佈**（擁有者：「螢幕太寬的時候，上面的大圖沒辦法
+    填滿整個橫邊，然後就偏左」、「上下滑的時候有縮放動畫，就像 apple 網站一樣」）。**偏左的原因：** `.hero-art` 同時設 `aspect-ratio: 1920/823`
+    與 `max-height: 520px`，CSS 會把 block 軸的上限透過比例換算成 inline 軸的上限（520 × 1920 ÷ 823 ≈ 1213px），所以 2560px 寬的視窗裡
+    標題圖只有 1213px、靠左（預覽器 2560×1000 重現：寬 1213、left 0）。改成明確高度 `clamp(260px, 42.86vw, 600px)`、`background-size: cover`，
+    不再用 aspect-ratio；2560 寬讀回寬 2560、高 600。**動畫：** 標題圖 `position: sticky` 釘在頂欄下，文案區（上緣 120px 透明漸層）滑過它時
+    圖放大到 1.18×、黑色遮罩到 0.75、往下位移 6%（還在 9% 的放大餘裕內）；載入時從 1.06× 收到 1×（1.4 秒）；每個區塊標題、功能卡、小卡、
+    方案卡、更新列加 `.reveal`，IntersectionObserver 進入視窗時淡入上移（同一格子內依序延遲 70ms／更新列 45ms）；八張截圖面板接近螢幕中線時
+    從 92% 放大到 100%。全部只動 transform／opacity，一個 rAF 處理；`prefers-reduced-motion`、缺 API 或 setup 出錯時不加 `html.motion`，
+    頁面靜態但完整可見（reveal 樣式只在 `html.motion` 下生效）。順手修：`.hero` 是 `<section>`，吃到 44px 的區塊 padding，頂欄與圖之間有
+    黑帶，改 `padding: 0`；更新列的 reveal 覆寫原本排在 `.is-in` 之後、永遠停在 14px 位移，已調順序。**內容：** 版本列 1.8.2，更新紀錄加
+    1.8.2（2026-10-16，五點取自上架的 What's New），「稍後提醒」與「兩種鈴聲」小卡加上分鐘數按鈕與每列播放鍵。**預覽器的限制：** 內建瀏覽器
+    分頁只在截圖時渲染一格（rAF／IntersectionObserver 之間不跑），所以淡入要用程式捲動＋等待才看得到；不是頁面問題。
+    `7cbe548`（`ios/main`）與 `0e47aae`（`main`，已 push）。
   - **2026-10-15：開發者網站改版，已發佈**（擁有者：「該更新一下開發者網站了，把新功能都丟上去吧」）。`docs/index.html` 從一句話的
     說明頁改成 1.8.1 的功能頁：八張功能卡用 `appstore-1.8.1-screenshots/raw/` 的原始擷取（縮成 720 px 寬 JPEG 放在 `docs/site/`，
     連標題圖與 icon 共 2.5 MB，lazy-load），付費功能標「訂閱或買斷」、停班停課標「限台灣」、小工具標「iOS 26 以上」；另有
